@@ -1,0 +1,7 @@
+,mean,median,min,max
+mean_tmin_coldest_month,15.94,15.8,1.23,24.79
+mean_tmax_warmest_month,33.28,34.2,15.44,42.84
+mean_annual_dry_months,8.55,8.74,1.42,11.68
+mean_relative_humidity,57.35,56.37,38.52,86.58
+mean_annual_temperature,23.99,24.37,7.5,33.98
+mean_annual_precipitation,595.9,566.9,162.9,1817.9

@@ -1,0 +1,12 @@
+# Only for Sphinx documentation generation on Github Pages
+# Add any additional dependencies here that are needed by project modules that use Sphinx autodoc/automodule.
+
+# Sphinx and related packages
+sphinx>=8.2.0
+furo>=2024.08.06
+myst-parser>=3.0.0
+docutils>=0.17
+jinja2>=3.1
+markupsafe>=2.1
+
+# Additional dependencies that are needed by project modules

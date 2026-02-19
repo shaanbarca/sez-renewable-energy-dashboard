@@ -1,0 +1,9 @@
+boto3
+
+# Sphinx and related packages - for local documentation generation
+sphinx>=8.2.0
+furo>=2024.08.06
+myst-parser>=3.0.0
+docutils>=0.17
+jinja2>=3.1
+markupsafe>=2.1
