@@ -209,7 +209,7 @@ def build_fct_kek_scorecard(
         default="provisional",
     )
     # Downgrade to provisional if capex inputs are provisional
-    df.loc[is_provisional == True, "data_completeness"] = "provisional"
+    df.loc[is_provisional, "data_completeness"] = "provisional"
 
     return df[[
         "kek_id", "kek_name", "province", "grid_region_id",
@@ -233,11 +233,11 @@ def main() -> None:
     df = build_fct_kek_scorecard()
     df.to_csv(out, index=False)
     print(f"fct_kek_scorecard: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
-    print(f"\nAction flag distribution:")
+    print("\nAction flag distribution:")
     print(df["action_flag"].value_counts().to_string())
-    print(f"\nData completeness:")
+    print("\nData completeness:")
     print(df["data_completeness"].value_counts().to_string())
-    print(f"\nSolar competitive gap (WACC=10%, base CAPEX):")
+    print("\nSolar competitive gap (WACC=10%, base CAPEX):")
     cols = ["kek_id", "lcoe_mid_usd_mwh", "dashboard_rate_usd_mwh",
             "solar_competitive_gap_pct", "action_flag"]
     print(df[cols].sort_values("solar_competitive_gap_pct").to_string(index=False))

@@ -94,7 +94,7 @@ def main() -> None:
     print("Building fct_ruptl_pipeline")
     print("  Source: RUPTL PLN 2025-2034")
     print("  Scenarios: RE Base + ARED")
-    print(f"  Regions: {list(_PLTS_DATA.keys())}")
+    print(f"  Regions: {list(VERIFIED_PLTS_DATA.keys())}")
 
     df = build_fct_ruptl_pipeline()
 

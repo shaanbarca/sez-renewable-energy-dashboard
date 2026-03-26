@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 TEMPLATE.py — copy this to build_<name>.py to add a new data source.
 

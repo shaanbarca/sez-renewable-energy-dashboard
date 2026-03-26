@@ -15,33 +15,30 @@ have historically produced ~10–100x errors.
 
 from __future__ import annotations
 
-import math
 from typing import Literal
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from src.assumptions import (
-    HOURS_PER_YEAR,
-    PVOUT_ANNUAL_MIN,
-    PVOUT_ANNUAL_MAX,
-    CAPEX_USD_PER_KW_MIN,
+    BASE_WACC_DECIMAL,
     CAPEX_USD_PER_KW_MAX,
+    CAPEX_USD_PER_KW_MIN,
+    FIRMING_ADDER_HIGH_USD_MWH,
+    FIRMING_ADDER_LOW_USD_MWH,
+    FIRMING_ADDER_MID_USD_MWH,
+    FIRMING_RELIABILITY_REQ_THRESHOLD,
+    GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
+    HOURS_PER_YEAR,
+    PLAN_LATE_POST2030_SHARE_THRESHOLD,
+    PVOUT_ANNUAL_MAX,
+    PVOUT_ANNUAL_MIN,
+    REGION_CF_DEFAULT,
+    RUPTL_PRE2030_END,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
-    FIRMING_ADDER_LOW_USD_MWH,
-    FIRMING_ADDER_MID_USD_MWH,
-    FIRMING_ADDER_HIGH_USD_MWH,
-    PLAN_LATE_POST2030_SHARE_THRESHOLD,
-    FIRMING_RELIABILITY_REQ_THRESHOLD,
-    GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
-    REGION_CF_DEFAULT,
-    RUPTL_PRE2030_END,
-    RUPTL_POST2030_END,
-    BASE_WACC_DECIMAL,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. Resource helpers
@@ -648,10 +645,10 @@ def build_scorecard(
 
     if grid_cost_usd_mwh is not None:
         df["solar_competitive_gap_pct"] = df["lcoe_usd_mwh"].apply(
-            lambda l: solar_competitive_gap(l, grid_cost_usd_mwh)
+            lambda lcoe: solar_competitive_gap(lcoe, grid_cost_usd_mwh)
         )
         df["solar_attractive"] = df["lcoe_usd_mwh"].apply(
-            lambda l: is_solar_attractive(l, grid_cost_usd_mwh)
+            lambda lcoe: is_solar_attractive(lcoe, grid_cost_usd_mwh)
         )
     else:
         df["solar_competitive_gap_pct"] = None

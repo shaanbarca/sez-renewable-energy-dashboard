@@ -56,7 +56,7 @@ class TestDimTechCost:
         """source_page=0 means PDF not yet read; must be flagged provisional."""
         from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
         df = build_dim_tech_cost()
-        assert df["is_provisional"].iloc[0] is True or df["is_provisional"].iloc[0] == True
+        assert df["is_provisional"].iloc[0]
 
     def test_missing_tech_id_raises(self):
         """build_dim_tech_cost raises ValueError for unknown tech_id."""
@@ -219,7 +219,7 @@ class TestFctLcoe:
             wacc_values=[10.0],
         )
         assert len(df) == 1
-        assert df["is_cf_provisional"].iloc[0] is True or df["is_cf_provisional"].iloc[0] == True
+        assert df["is_cf_provisional"].iloc[0]
         expected_cf = round(1500.0 / 8760, 4)
         assert df["cf_used"].iloc[0] == pytest.approx(expected_cf)
 
@@ -373,7 +373,10 @@ class TestFctKekDemand:
         assert np.allclose(demand["demand_mwh"], expected, rtol=1e-6)
 
     def test_energy_intensity_matches_assumptions(self, demand):
-        from src.assumptions import ENERGY_INTENSITY_MWH_PER_HA_YR, ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR
+        from src.assumptions import (
+            ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR,
+            ENERGY_INTENSITY_MWH_PER_HA_YR,
+        )
         for _, row in demand.iterrows():
             expected = ENERGY_INTENSITY_MWH_PER_HA_YR.get(
                 row["kek_type"], ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR
@@ -489,13 +492,13 @@ class TestAssumptions:
     """
 
     def test_all_kek_types_have_both_factors(self):
-        from src.assumptions import BUILDING_INTENSITY_KWH_M2_YR, BUILDING_FOOTPRINT_RATIO
+        from src.assumptions import BUILDING_FOOTPRINT_RATIO, BUILDING_INTENSITY_KWH_M2_YR
         assert set(BUILDING_INTENSITY_KWH_M2_YR.keys()) == set(BUILDING_FOOTPRINT_RATIO.keys())
 
     def test_derived_intensity_matches_formula(self):
         from src.assumptions import (
-            BUILDING_INTENSITY_KWH_M2_YR,
             BUILDING_FOOTPRINT_RATIO,
+            BUILDING_INTENSITY_KWH_M2_YR,
             ENERGY_INTENSITY_MWH_PER_HA_YR,
         )
         for kek_type in BUILDING_INTENSITY_KWH_M2_YR:
@@ -522,7 +525,10 @@ class TestAssumptions:
         )
 
     def test_default_intensity_is_average_of_four_categories(self):
-        from src.assumptions import ENERGY_INTENSITY_MWH_PER_HA_YR, ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR
+        from src.assumptions import (
+            ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR,
+            ENERGY_INTENSITY_MWH_PER_HA_YR,
+        )
         expected = round(
             sum(ENERGY_INTENSITY_MWH_PER_HA_YR.values()) / len(ENERGY_INTENSITY_MWH_PER_HA_YR),
             1,
