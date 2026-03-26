@@ -2,11 +2,24 @@ import boto3
 
 from config.settings import Config
 
-s3 = boto3.client('s3', aws_access_key_id=Config.ACCESS_KEY, aws_secret_access_key=Config.SECRET_ACCESS_KEY,
-                  region_name='eu-north-1', endpoint_url='https://s3.eu-north-1.amazonaws.com')
+_s3_client = None
+
+
+def _get_s3():
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = boto3.client(
+            's3',
+            aws_access_key_id=Config.S3_ACCESS_KEY,
+            aws_secret_access_key=Config.S3_SECRET_ACCESS_KEY,
+            region_name='eu-north-1',
+            endpoint_url='https://s3.eu-north-1.amazonaws.com',
+        )
+    return _s3_client
 
 
 def list_bucket_content(bucket=None, folder_loc=None):
+    s3 = _get_s3()
     objects = s3.list_objects_v2(Bucket=bucket, Prefix=folder_loc)
     content = []
     
@@ -30,6 +43,7 @@ def list_folders_in_bucket(bucket=None, folder_loc=None):
     """
 
     try:
+        s3 = _get_s3()
         objects = s3.list_objects_v2(Bucket=bucket, Prefix=folder_loc)
         content = []
 
@@ -57,6 +71,7 @@ def generate_presigned_s3_url(bucket_name, key, expiration=3600):
     - str: The pre-signed URL of the S3 object.
     """
     try:
+        s3 = _get_s3()
         response = s3.generate_presigned_url('get_object', Params={'Bucket': bucket_name, 'Key': key},
                                              ExpiresIn=expiration)
         return response

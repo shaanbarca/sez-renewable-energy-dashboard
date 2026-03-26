@@ -1,0 +1,158 @@
+"""
+run_pipeline.py — KEK power competitiveness data pipeline orchestrator.
+
+Usage:
+    uv run python run_pipeline.py            # run all steps
+    uv run python run_pipeline.py dim_kek    # run one step by name
+
+Adding a new data source:
+    1. Copy src/pipeline/TEMPLATE.py → src/pipeline/build_<name>.py
+    2. Implement build_<name>() → pd.DataFrame following the RAW/STAGING/TRANSFORM pattern
+    3. Import it below and add one Step(...) entry to PIPELINE
+
+DAG (dependencies enforced by topological sort at runtime):
+
+    raw/                          ← source files, never modified
+    data/                         ← manual lookups + ESDM catalogue
+
+    Stage 1 — Dimensions (no processed deps)
+    ├── dim_kek           raw: kek_info_and_markers + kek_distribution_points
+    │                     raw: kek_polygons.geojson (kek_type, area_ha)
+    │                     data: kek_grid_region_mapping.csv
+    └── dim_tech_cost     data: dim_tech_variant + fct_tech_parameter (TECH006)
+
+    Stage 2 — Facts (read from processed/dim_*)
+    ├── fct_kek_resource     processed: dim_kek + data: GlobalSolarAtlas GeoTIFF
+    ├── fct_kek_demand       processed: dim_kek + raw: kek_polygons.geojson (area_ha × intensity)
+    ├── fct_grid_cost_proxy  processed: dim_kek + hardcoded Permen ESDM 7/2024 tariffs
+    └── fct_ruptl_pipeline   hardcoded RUPTL 2025-2034 extraction
+
+    Stage 3 — Computed (read from processed/fct_* + dim_*)
+    └── fct_lcoe          processed: dim_kek + fct_kek_resource + dim_tech_cost
+
+    Stage 4 — Final scorecard (joins everything)
+    └── fct_kek_scorecard processed: all above
+
+All outputs → outputs/data/processed/
+"""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+import pandas as pd
+
+REPO_ROOT = Path(__file__).resolve().parent
+PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
+
+from src.pipeline.build_dim_kek import build_dim_kek
+from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
+from src.pipeline.build_fct_kek_resource import build_fct_kek_resource
+from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
+from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
+from src.pipeline.build_fct_ruptl_pipeline import build_fct_ruptl_pipeline
+from src.pipeline.build_fct_lcoe import build_fct_lcoe
+from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
+
+
+@dataclass
+class Step:
+    name: str
+    fn: Callable[[], pd.DataFrame]
+    output: str                          # filename under out_dir
+    depends_on: list[str] = field(default_factory=list)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pipeline definition — add new data sources here (one Step per source)
+# ─────────────────────────────────────────────────────────────────────────────
+PIPELINE: list[Step] = [
+    # Stage 1: Dimensions
+    Step("dim_kek",             build_dim_kek,             "dim_kek.csv"),
+    Step("dim_tech_cost",       build_dim_tech_cost,       "dim_tech_cost.csv"),
+    # Stage 2: Facts
+    Step("fct_kek_resource",    build_fct_kek_resource,    "fct_kek_resource.csv",    depends_on=["dim_kek"]),
+    Step("fct_kek_demand",      build_fct_kek_demand,      "fct_kek_demand.csv",      depends_on=["dim_kek"]),
+    Step("fct_grid_cost_proxy", build_fct_grid_cost_proxy, "fct_grid_cost_proxy.csv", depends_on=["dim_kek"]),
+    Step("fct_ruptl_pipeline",  build_fct_ruptl_pipeline,  "fct_ruptl_pipeline.csv"),
+    # Stage 3: Computed
+    Step("fct_lcoe",            build_fct_lcoe,            "fct_lcoe.csv",            depends_on=["dim_kek", "fct_kek_resource", "dim_tech_cost"]),
+    # Stage 4: Final scorecard
+    Step("fct_kek_scorecard",   build_fct_kek_scorecard,   "fct_kek_scorecard.csv",   depends_on=["dim_kek", "fct_lcoe", "fct_grid_cost_proxy", "fct_ruptl_pipeline", "fct_kek_demand"]),
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Topological sort — enforces depends_on ordering at runtime
+# ─────────────────────────────────────────────────────────────────────────────
+def _topo_sort(steps: list[Step]) -> list[Step]:
+    """Return steps in dependency order. Raises ValueError on unknown deps or cycles."""
+    index = {s.name: s for s in steps}
+    visited: set[str] = set()
+    in_progress: set[str] = set()
+    order: list[Step] = []
+
+    def visit(name: str) -> None:
+        if name in visited:
+            return
+        if name in in_progress:
+            raise ValueError(f"Circular dependency detected involving '{name}'")
+        if name not in index:
+            raise ValueError(f"Unknown dependency '{name}'")
+        in_progress.add(name)
+        for dep in index[name].depends_on:
+            visit(dep)
+        in_progress.discard(name)
+        visited.add(name)
+        order.append(index[name])
+
+    for step in steps:
+        visit(step.name)
+
+    return order
+
+
+def run(
+    steps: list[Step] = PIPELINE,
+    out_dir: Path = PROCESSED,
+    only: str | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Run all pipeline steps in dependency order, writing each output to out_dir."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results: dict[str, pd.DataFrame] = {}
+
+    if only:
+        available = [s.name for s in steps]
+        if only not in available:
+            print(f"No step named '{only}'. Available: {available}")
+            sys.exit(1)
+        # Single-step mode: skip topo sort (deps assumed already built on disk)
+        steps = [s for s in steps if s.name == only]
+    else:
+        steps = _topo_sort(steps)
+
+    print(f"Pipeline: {len(steps)} step(s) → {out_dir.relative_to(REPO_ROOT)}/\n")
+
+    for i, step in enumerate(steps, 1):
+        print(f"  [{i}/{len(steps)}] {step.name}", end=" ... ", flush=True)
+        try:
+            df = step.fn()
+            out_path = out_dir / step.output
+            df.to_csv(out_path, index=False)
+            results[step.name] = df
+            print(f"{len(df)} rows  →  {step.output}")
+        except Exception as exc:
+            print("FAILED")
+            print(f"          {type(exc).__name__}: {exc}")
+            sys.exit(1)
+
+    print(f"\n  Done. {len(steps)} table(s) written to {out_dir.relative_to(REPO_ROOT)}/")
+    return results
+
+
+if __name__ == "__main__":
+    only = sys.argv[1] if len(sys.argv) > 1 else None
+    run(only=only)

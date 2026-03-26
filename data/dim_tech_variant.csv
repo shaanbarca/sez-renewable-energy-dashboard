@@ -1,0 +1,8 @@
+energy_source,variant,tech_id,variant_code
+Coal,Subcritical coal power plant (steam cycle),TECH001,coal__subcritical_coal_power_plant_steam_cycle
+Coal,Supercritical coal power plant (steam cycle),TECH002,coal__supercritical_coal_power_plant_steam_cycle
+Hydro,Hydro power plant – large system,TECH003,hydro__hydro_power_plant_large_system
+Hydro,Hydro power plant – medium/small system,TECH004,hydro__hydro_power_plant_medium_small_system
+Hydro,Hydro power plant – mini/micro system,TECH005,hydro__hydro_power_plant_mini_micro_system
+Solar,"PV ground-mounted, utility-scale, grid connected",TECH006,solar__pv_ground_mounted_utility_scale_grid_connected
+Solar,"PV household scale, rooftop, grid connected",TECH007,solar__pv_household_scale_rooftop_grid_connected

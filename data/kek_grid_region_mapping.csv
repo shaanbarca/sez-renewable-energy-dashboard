@@ -1,0 +1,26 @@
+kek_id,grid_region_id,province,reliability_req,reliability_notes
+industropolis-batang,JAVA_BALI,Central Java,0.8,Manufacturing
+batam-tourism-and-international-healthcare,SUMATERA,Riau Islands,0.6,Service/Healthcare
+bumi-serpong-damai,JAVA_BALI,Banten,0.6,Service/Education
+setangga,KALIMANTAN,South Kalimantan,0.8,Manufacturing
+tanjung-sauh,SUMATERA,Riau Islands,0.8,Manufacturing
+kek-arun-lhokseumawe,SUMATERA,Aceh,0.8,Manufacturing
+kek-sanur,JAVA_BALI,Bali,0.4,Service/Tourism
+kek-kendal,JAVA_BALI,Central Java,0.8,Manufacturing
+kek-sorong,PAPUA,West Papua,0.8,Manufacturing
+kek-singhasari,JAVA_BALI,East Java,0.6,Service/Digital
+kek-morotai,MALUKU,North Maluku,0.6,Service/Tourism
+kek-gresik,JAVA_BALI,East Java,0.8,Manufacturing
+kek-likupang,SULAWESI,North Sulawesi,0.4,Service/Tourism
+kek-bitung,SULAWESI,North Sulawesi,0.8,Manufacturing
+kek-palu,SULAWESI,Central Sulawesi,0.8,Manufacturing
+kek-kura-kura,JAVA_BALI,Bali,0.4,Service/Tourism
+kek-galang-batang,SUMATERA,Riau Islands,0.85,Processing/Industrial
+kek-maloy-batuta,KALIMANTAN,East Kalimantan,0.8,Manufacturing
+kek-nongsa,SUMATERA,Riau Islands,0.6,Service/Digital
+kek-mandalika,NTB,West Nusa Tenggara,0.4,Service/Tourism
+kek-batam-aero-technic,SUMATERA,Riau Islands,0.8,Manufacturing/Aviation
+kek-tanjung-kelayang,SUMATERA,Bangka Belitung Islands,0.4,Service/Tourism
+kek-lido,JAVA_BALI,West Java,0.4,Service/Tourism
+kek-tanjung-lesung,JAVA_BALI,Banten,0.4,Service/Tourism
+kek-sei-mangkei,SUMATERA,North Sumatra,0.85,Processing

@@ -141,3 +141,6 @@ dmypy.json
 # project specific
 data_cache/
 testing/
+data/*.zip
+data/*.html
+outputs/
