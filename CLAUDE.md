@@ -65,15 +65,21 @@ Test files are in `tests/`. `tests/test_model.py` has 60 tests across all functi
 - `geas_policy_allocation(kek_df, ruptl_df)` — priority-weighted by demand × PVOUT
 - `build_scorecard(dim_kek, fct_demand, fct_pvout, fct_ruptl, ...)` — end-to-end pipeline
 
-**CAPEX unit note**: `data/fct_tech_parameter.csv` stores CAPEX in MUSD/MWe — convert with `× 1000` before passing to `lcoe_solar()`.
+**CAPEX unit note**: CAPEX is sourced from `pdf_extract_esdm_tech.py` (VERIFIED_TECH006_DATA) in MUSD/MWe — `build_dim_tech_cost.py` converts with `× 1000` to USD/kW before passing to `lcoe_solar()`.
 
 ## Architecture
 
 The codebase follows a **star-schema data model** aligned with the dashboard plan. Data flows from raw inputs → precomputed fact/dimension tables → model outputs:
 
+**PDF extractor pattern** (used by `fct_ruptl_pipeline` and `dim_tech_cost`):
+- Each PDF source has a `src/pipeline/pdf_extract_*.py` module
+- Pattern: try pdfplumber extraction → fall back to `VERIFIED_*` hardcoded dict if extraction fails (image-based pages, PDF missing, layout change)
+- The public API (`get_tech006_params()`, `extract_plts_from_pdf()`) always returns data — callers never handle None
+- `VERIFIED_*` dicts are the single source of truth for hardcoded values and are used as ground truth in verification tests
+
 **Dimension tables** (`dim_*`):
 - `dim_kek` — master KEK list with name, province, grid region, lat/lon
-- `dim_tech_cost` (`data/dim_tech_variant.csv`, `data/fct_tech_parameter.csv`) — solar CAPEX/OPEX/lifetime from ESDM technology catalogue
+- `dim_tech_cost` — solar CAPEX/OPEX/lifetime sourced from `pdf_extract_esdm_tech.py` → `VERIFIED_TECH006_DATA` (ESDM Technology Catalogue 2023, p.66)
 
 **Fact tables** (`fct_*`):
 - `fct_kek_resource` — PVOUT at centroid + best within 50–100 km (precomputed from GeoTIFF)

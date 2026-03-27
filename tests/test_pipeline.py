@@ -64,9 +64,55 @@ class TestDimTechCost:
         with pytest.raises(ValueError, match="not found"):
             build_dim_tech_cost(
                 tech_variant_csv=REPO_ROOT / "data" / "dim_tech_variant.csv",
-                tech_param_csv=REPO_ROOT / "data" / "fct_tech_parameter.csv",
                 tech_id="TECH999",
             )
+
+
+# ── pdf_extract_esdm_tech: extractor tests ───────────────────────────────────
+
+ESDM_PDF_PATH = REPO_ROOT / "docs" / "esdm_technology_cost.pdf"
+
+
+class TestPdfExtractEsdmTech:
+    def test_get_tech006_params_returns_verified_values(self):
+        """get_tech006_params() always returns data — falls back to hardcoded if PDF image-based."""
+        from src.pipeline.pdf_extract_esdm_tech import VERIFIED_TECH006_DATA, get_tech006_params
+        params = get_tech006_params(ESDM_PDF_PATH)
+        # Values must match VERIFIED_TECH006_DATA (either extracted or hardcoded fallback)
+        assert params["capex"]["central"] == pytest.approx(VERIFIED_TECH006_DATA["capex"]["central"])
+        assert params["fixed_om"]["central"] == pytest.approx(VERIFIED_TECH006_DATA["fixed_om"]["central"])
+        assert params["lifetime"]["central"] == pytest.approx(VERIFIED_TECH006_DATA["lifetime"]["central"])
+
+    def test_get_tech006_params_lower_lt_central_lt_upper(self):
+        """Uncertainty bounds must be ordered: lower < central < upper."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech006_params
+        params = get_tech006_params(ESDM_PDF_PATH)
+        for param in ("capex", "fixed_om", "lifetime"):
+            assert params[param]["lower"] < params[param]["central"] < params[param]["upper"], \
+                f"{param}: lower/central/upper not ordered correctly"
+
+    def test_extractor_graceful_on_missing_pdf(self):
+        """extract_tech006_from_pdf() returns None when PDF does not exist."""
+        from src.pipeline.pdf_extract_esdm_tech import extract_tech006_from_pdf
+        result = extract_tech006_from_pdf(Path("/nonexistent/path.pdf"))
+        assert result is None
+
+    def test_get_tech006_params_falls_back_on_missing_pdf(self):
+        """get_tech006_params() returns VERIFIED data even when PDF is missing."""
+        from src.pipeline.pdf_extract_esdm_tech import VERIFIED_TECH006_DATA, get_tech006_params
+        params = get_tech006_params(Path("/nonexistent/path.pdf"))
+        assert params["capex"]["central"] == VERIFIED_TECH006_DATA["capex"]["central"]
+
+    def test_verify_tech006_against_hardcoded_passes(self):
+        """verify_tech006_against_hardcoded() returns True with the real PDF."""
+        from src.pipeline.pdf_extract_esdm_tech import verify_tech006_against_hardcoded
+        assert verify_tech006_against_hardcoded(ESDM_PDF_PATH) is True
+
+    def test_source_page_is_nonzero(self):
+        """source_page must be non-zero — 0 means pending verification."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech006_params
+        params = get_tech006_params(ESDM_PDF_PATH)
+        assert params["capex"]["source_page"] != 0
 
 
 # ── dim_kek ──────────────────────────────────────────────────────────────────

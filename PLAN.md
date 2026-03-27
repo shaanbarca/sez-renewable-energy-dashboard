@@ -81,7 +81,7 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 - Builder pattern: each table = one `build_*()` function in `src/pipeline/`
 - RAW/STAGING/TRANSFORM sections within every builder
 - Centralized assumptions: `src/assumptions.py` (all constants + source citations, two-factor demand intensity)
-- PDF extractor: `src/pipeline/pdf_extract_ruptl.py` (pdfplumber + hardcoded fallback)
+- PDF extractors: `src/pipeline/pdf_extract_ruptl.py` and `pdf_extract_esdm_tech.py` — shared pattern: try pdfplumber → fall back to `VERIFIED_*` hardcoded dict on failure (image-based pages, missing PDF, layout change). Callers never see None.
 - Template: `src/pipeline/TEMPLATE.py` for new datasources
 - `resolve_demand()` in `basic_model.py` — single entry point for demand overrides (pipeline + Dash app)
 - Demand override hook: `demand_mwh_user` column in `fct_kek_demand` → Dash app populates for live recalculation
@@ -89,7 +89,6 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 **Deferred to Phase 2:**
 - Wind CF (Global Wind Atlas GeoTIFF) — same rasterio pipeline, additive
 - Substation proximity (`dist_to_nearest_substation_km`) — data in repo
-- TECH006 PDF verification — see Section 2.3 in DATA_DICTIONARY.md
 
 ### Phase 2 — Data pipeline improvements + Dash app
 - Land cover buildability filter (`fct_kek_resource` v1.1) — filter PVOUT by usable area (exclude forests, rice fields, protected zones)
