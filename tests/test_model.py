@@ -36,8 +36,10 @@ from src.model.basic_model import (
     capital_recovery_factor,
     geas_baseline_allocation,
     geas_policy_allocation,
+    gentie_cost_per_kw,
     is_solar_attractive,
     lcoe_solar,
+    lcoe_solar_remote_captive,
     lcoe_solar_with_firming,
     pvout_daily_to_annual,
     resolve_demand,
@@ -248,7 +250,64 @@ class TestLcoeSolarWithFirming:
 
 
 # ---------------------------------------------------------------------------
-# 6. Solar competitive gap
+# 6. Gen-tie cost and remote captive LCOE
+# ---------------------------------------------------------------------------
+
+class TestGentieCost:
+    def test_zero_distance_equals_substation_works_only(self):
+        """dist=0 → only substation works cost (no line construction)."""
+        from src.assumptions import SUBSTATION_WORKS_PER_KW
+        result = gentie_cost_per_kw(0.0)
+        assert result == pytest.approx(SUBSTATION_WORKS_PER_KW)
+
+    def test_10km_scales_linearly(self):
+        """10km × $5/kW-km + $150/kW = $200/kW."""
+        from src.assumptions import GENTIE_COST_PER_KW_KM, SUBSTATION_WORKS_PER_KW
+        result = gentie_cost_per_kw(10.0)
+        assert result == pytest.approx(10.0 * GENTIE_COST_PER_KW_KM + SUBSTATION_WORKS_PER_KW)
+
+    def test_custom_params(self):
+        """Custom cost_per_kw_km and substation_works_per_kw override defaults."""
+        result = gentie_cost_per_kw(20.0, cost_per_kw_km=3.0, substation_works_per_kw=100.0)
+        assert result == pytest.approx(20.0 * 3.0 + 100.0)
+
+    def test_negative_distance_raises(self):
+        """Negative distance is physically impossible and should raise ValueError."""
+        with pytest.raises(ValueError):
+            gentie_cost_per_kw(-1.0)
+
+
+class TestLcoeSolarRemoteCaptive:
+    def _base_args(self):
+        return dict(capex_usd_per_kw=960.0, fixed_om_usd_per_kw_yr=7.5,
+                    wacc=0.10, lifetime_yr=27, cf=0.18)
+
+    def test_zero_dist_equals_base_lcoe(self):
+        """With dist=0 and substation_works=0, remote captive == base lcoe_solar."""
+        args = self._base_args()
+        base = lcoe_solar(**args)
+        remote = lcoe_solar_remote_captive(
+            **args, dist_km=0.0, substation_works_per_kw=0.0
+        )
+        assert remote == pytest.approx(base)
+
+    def test_positive_dist_increases_lcoe(self):
+        """Any positive distance should increase LCOE above the base."""
+        args = self._base_args()
+        base = lcoe_solar(**args)
+        remote = lcoe_solar_remote_captive(**args, dist_km=20.0)
+        assert remote > base
+
+    def test_longer_distance_higher_lcoe(self):
+        """Greater distance → higher effective CAPEX → higher LCOE."""
+        args = self._base_args()
+        lcoe_10 = lcoe_solar_remote_captive(**args, dist_km=10.0)
+        lcoe_50 = lcoe_solar_remote_captive(**args, dist_km=50.0)
+        assert lcoe_50 > lcoe_10
+
+
+# ---------------------------------------------------------------------------
+# 7. Solar competitive gap
 # ---------------------------------------------------------------------------
 
 class TestSolarCompetitiveGap:

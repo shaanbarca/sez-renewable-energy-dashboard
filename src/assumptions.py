@@ -107,15 +107,33 @@ SOLAR_TECH_YEAR: int = 2023
 # Rationale: Most recent year available in the ESDM technology cost catalogue.
 
 # Default TECH006 parameters used by build_scorecard() when dim_tech_cost is unavailable.
-# ⚠️ PROVISIONAL — verify against docs/esdm_technology_cost.pdf (source_page=0 placeholder).
-TECH006_CAPEX_USD_PER_KW: float = 700.0
-# Source: ESDM Technology Catalogue TECH006, central value. Verify from PDF.
+# Verified from ESDM Technology Catalogue 2023, datasheet p.66 (PV ground-mounted, utility-scale).
+# Stored as VERIFIED_TECH006_DATA in src/pipeline/pdf_extract_esdm_tech.py.
+TECH006_CAPEX_USD_PER_KW: float = 960.0
+# Source: ESDM Technology Catalogue 2023, p.66. 0.96 MUSD/MWe × 1000 = 960 USD/kW.
 
-TECH006_FOM_USD_PER_KW_YR: float = 12.0
-# Source: ESDM Technology Catalogue TECH006, central value. Verify from PDF.
+TECH006_FOM_USD_PER_KW_YR: float = 7.5
+# Source: ESDM Technology Catalogue 2023, p.66. 7,500 USD/MWe/yr ÷ 1000 = 7.5 USD/kW/yr.
 
-TECH006_LIFETIME_YR: int = 25
-# Source: ESDM Technology Catalogue TECH006. Verify from PDF.
+TECH006_LIFETIME_YR: int = 27
+# Source: ESDM Technology Catalogue 2023, p.66. Central value = 27 years.
+
+# ─── GEN-TIE LINE COST (remote captive scenario) ──────────────────────────────
+
+GENTIE_COST_PER_KW_KM: float = 5.0
+# Gen-tie transmission line construction cost per kW of capacity per km of line length.
+# Source: METHODOLOGY.md Section 2A.2 — industry benchmark range $3–10/kW-km.
+# Rationale: Central estimate used for base-case remote captive LCOE; presented as an
+# assumption in the dashboard. Sensitivity (low=$3, high=$10) deferred to Phase 3.
+# Note: Applies to MV/HV transmission lines to nearest PLN substation; does not include
+# land/ROW acquisition costs (typically developer-negotiated, not capitalized at $/kW-km).
+
+SUBSTATION_WORKS_PER_KW: float = 150.0
+# Capital cost of substation works (step-up transformer, protection systems, metering)
+# at both the generator and PLN substation ends, per kW of generating capacity.
+# Source: METHODOLOGY.md Section 2A.2 — industry benchmark range $100–200/kW.
+# Rationale: Central estimate. PLN typically takes ownership of the gen-tie and substation
+# works post-commissioning (Permen ESDM No. 27 Tahun 2017).
 
 # ─── FIRMING / WHEELING ADDER ─────────────────────────────────────────────────
 

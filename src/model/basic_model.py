@@ -29,12 +29,14 @@ from src.assumptions import (
     FIRMING_ADDER_MID_USD_MWH,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
+    GENTIE_COST_PER_KW_KM,
     HOURS_PER_YEAR,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PVOUT_ANNUAL_MAX,
     PVOUT_ANNUAL_MIN,
     REGION_CF_DEFAULT,
     RUPTL_PRE2030_END,
+    SUBSTATION_WORKS_PER_KW,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
@@ -209,6 +211,79 @@ def lcoe_solar_with_firming(
     }
     base = lcoe_solar(capex_usd_per_kw, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
     return base + adder_map[firming_adder]
+
+
+def gentie_cost_per_kw(
+    dist_km: float,
+    cost_per_kw_km: float = GENTIE_COST_PER_KW_KM,
+    substation_works_per_kw: float = SUBSTATION_WORKS_PER_KW,
+) -> float:
+    """Capital cost of gen-tie line + substation works for remote captive solar.
+
+    gen_tie_capex [USD/kW] = dist_km × cost_per_kw_km + substation_works_per_kw
+
+    Parameters
+    ----------
+    dist_km:
+        Distance from solar plant to nearest PLN substation (km). Use
+        dist_to_nearest_substation_km from fct_substation_proximity.csv.
+    cost_per_kw_km:
+        Transmission line construction cost (USD/kW-km). Default: central estimate
+        from METHODOLOGY.md §2A.2 (range $3–10/kW-km).
+    substation_works_per_kw:
+        Substation works at both ends — step-up/step-down transformer, protection,
+        metering (USD/kW). Default: central estimate from METHODOLOGY.md §2A.2
+        (range $100–200/kW).
+
+    Returns
+    -------
+    float
+        One-time gen-tie capital cost per kW of plant capacity (USD/kW).
+        Pass 0 for within-boundary captive (no gen-tie needed).
+    """
+    if dist_km < 0:
+        raise ValueError(f"dist_km must be >= 0, got {dist_km}")
+    return dist_km * cost_per_kw_km + substation_works_per_kw
+
+
+def lcoe_solar_remote_captive(
+    capex_usd_per_kw: float,
+    fixed_om_usd_per_kw_yr: float,
+    wacc: float,
+    lifetime_yr: int,
+    cf: float,
+    dist_km: float,
+    cost_per_kw_km: float = GENTIE_COST_PER_KW_KM,
+    substation_works_per_kw: float = SUBSTATION_WORKS_PER_KW,
+) -> float:
+    """LCOE for remote captive solar including gen-tie capital cost.
+
+    Treats gen-tie line + substation works as additional overnight CAPEX,
+    annualized via the same CRF as the solar plant. This is consistent with
+    how CAPEX is handled in lcoe_solar() — all capital costs are annualized
+    together, which is correct when the gen-tie is sized and financed with
+    the plant.
+
+    effective_capex = capex + gentie_cost_per_kw(dist_km, ...)
+    LCOE = lcoe_solar(effective_capex, ...)
+
+    Parameters
+    ----------
+    capex_usd_per_kw:
+        Solar plant overnight CAPEX only (USD/kW) — not including gen-tie.
+    dist_km:
+        Distance to nearest PLN substation (km) from fct_substation_proximity.csv.
+    cost_per_kw_km, substation_works_per_kw:
+        Gen-tie cost parameters — see gentie_cost_per_kw().
+
+    Returns
+    -------
+    float
+        All-in LCOE including gen-tie cost (USD/MWh).
+    """
+    gen_tie = gentie_cost_per_kw(dist_km, cost_per_kw_km, substation_works_per_kw)
+    effective_capex = capex_usd_per_kw + gen_tie
+    return lcoe_solar(effective_capex, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
 
 
 # ---------------------------------------------------------------------------

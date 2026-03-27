@@ -207,16 +207,37 @@ class TestFctLcoe:
         assert set(df["wacc_pct"].unique()) == {8.0, 10.0, 12.0}
 
     def test_row_count(self):
-        """25 KEKs × 3 WACC values = 75 rows."""
+        """25 KEKs × 3 WACC values × 2 scenarios = 150 rows."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
         df = build_fct_lcoe()
-        assert len(df) == 75
+        assert len(df) == 150
+
+    def test_two_scenarios(self):
+        """Each KEK/WACC combination must have both within_boundary and remote_captive."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+        df = build_fct_lcoe()
+        assert set(df["scenario"].unique()) == {"within_boundary", "remote_captive"}
+
+    def test_remote_captive_lcoe_gt_within_boundary(self):
+        """Remote captive LCOE must be >= within_boundary LCOE (gen-tie adds CAPEX)."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+        df = build_fct_lcoe()
+        wb = df[df["scenario"] == "within_boundary"].set_index(["kek_id", "wacc_pct"])["lcoe_usd_mwh"]
+        rc = df[df["scenario"] == "remote_captive"].set_index(["kek_id", "wacc_pct"])["lcoe_usd_mwh"]
+        assert (rc >= wb).all(), "Remote captive LCOE should always be >= within_boundary"
+
+    def test_within_boundary_gentie_zero(self):
+        """within_boundary scenario must have gentie_cost_per_kw = 0."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+        df = build_fct_lcoe()
+        wb = df[df["scenario"] == "within_boundary"]
+        assert (wb["gentie_cost_per_kw"] == 0).all()
 
     def test_higher_wacc_higher_lcoe(self):
-        """LCOE should increase monotonically with WACC for the same KEK."""
+        """LCOE should increase monotonically with WACC for the same KEK × scenario."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
         df = build_fct_lcoe()
-        pivot = df.pivot(index="kek_id", columns="wacc_pct", values="lcoe_usd_mwh").dropna()
+        pivot = df.pivot(index=["kek_id", "scenario"], columns="wacc_pct", values="lcoe_usd_mwh").dropna()
         assert (pivot[8.0] < pivot[10.0]).all()
         assert (pivot[10.0] < pivot[12.0]).all()
 
@@ -232,42 +253,53 @@ class TestFctLcoe:
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
         df = build_fct_lcoe()
         assert "is_capex_provisional" in df.columns
-        # All rows share the same value (one tech row)
         assert df["is_capex_provisional"].nunique() == 1
 
     def test_cf_fallback_uses_centroid(self, tmp_path):
-        """When pvout_best_50km is NaN, CF should fall back to pvout_centroid."""
+        """When pvout_best_50km is NaN, CF should fall back to pvout_centroid for both scenarios."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
-        # Build minimal fixtures
         dim_kek = pd.DataFrame({"kek_id": ["kek-test"]})
         resource = pd.DataFrame({
             "kek_id": ["kek-test"],
             "pvout_centroid": [1500.0],
-            "pvout_best_50km": [np.nan],  # missing best_50km
+            "pvout_best_50km": [np.nan],
         })
         tech = pd.DataFrame([{
             "tech_id": "TECH006", "tech_description": "Solar",
-            "year": 2023, "capex_usd_per_kw": 700.0,
-            "capex_lower_usd_per_kw": 560.0, "capex_upper_usd_per_kw": 840.0,
-            "fixed_om_usd_per_kw_yr": 12.0, "lifetime_yr": 25,
-            "source_pdf": "test.pdf", "source_page": 0, "is_provisional": True,
+            "year": 2023, "capex_usd_per_kw": 960.0,
+            "capex_lower_usd_per_kw": 830.0, "capex_upper_usd_per_kw": 1500.0,
+            "fixed_om_usd_per_kw_yr": 7.5, "lifetime_yr": 27,
+            "source_pdf": "test.pdf", "source_page": 66, "is_provisional": False,
         }])
+        proximity = pd.DataFrame({
+            "kek_id": ["kek-test"],
+            "dist_to_nearest_substation_km": [10.0],
+            "siting_scenario": ["remote_captive"],
+        })
 
         dim_kek.to_csv(tmp_path / "dim_kek.csv", index=False)
         resource.to_csv(tmp_path / "fct_kek_resource.csv", index=False)
         tech.to_csv(tmp_path / "dim_tech_cost.csv", index=False)
+        proximity.to_csv(tmp_path / "fct_substation_proximity.csv", index=False)
 
         df = build_fct_lcoe(
             dim_kek_csv=tmp_path / "dim_kek.csv",
             fct_kek_resource_csv=tmp_path / "fct_kek_resource.csv",
             dim_tech_cost_csv=tmp_path / "dim_tech_cost.csv",
+            fct_substation_proximity_csv=tmp_path / "fct_substation_proximity.csv",
             wacc_values=[10.0],
         )
-        assert len(df) == 1
-        assert df["is_cf_provisional"].iloc[0]
+        assert len(df) == 2  # 2 scenarios × 1 WACC
+        # remote_captive row is provisional (best_50km was missing, fell back to centroid)
+        rc_row = df[df["scenario"] == "remote_captive"].iloc[0]
+        assert rc_row["is_cf_provisional"]
+        # within_boundary row uses centroid intentionally — not provisional
+        wb_row = df[df["scenario"] == "within_boundary"].iloc[0]
+        assert not wb_row["is_cf_provisional"]
+        # Both rows fall back to centroid CF value
         expected_cf = round(1500.0 / 8760, 4)
-        assert df["cf_used"].iloc[0] == pytest.approx(expected_cf)
+        assert np.allclose(df["cf_used"], expected_cf, atol=1e-4)
 
     def test_nan_cf_produces_nan_lcoe(self, tmp_path):
         """KEK with no PVOUT data should produce NaN LCOE, not raise."""
@@ -281,23 +313,82 @@ class TestFctLcoe:
         })
         tech = pd.DataFrame([{
             "tech_id": "TECH006", "tech_description": "Solar",
-            "year": 2023, "capex_usd_per_kw": 700.0,
-            "capex_lower_usd_per_kw": 560.0, "capex_upper_usd_per_kw": 840.0,
-            "fixed_om_usd_per_kw_yr": 12.0, "lifetime_yr": 25,
-            "source_pdf": "test.pdf", "source_page": 0, "is_provisional": True,
+            "year": 2023, "capex_usd_per_kw": 960.0,
+            "capex_lower_usd_per_kw": 830.0, "capex_upper_usd_per_kw": 1500.0,
+            "fixed_om_usd_per_kw_yr": 7.5, "lifetime_yr": 27,
+            "source_pdf": "test.pdf", "source_page": 66, "is_provisional": False,
         }])
+        proximity = pd.DataFrame({
+            "kek_id": ["kek-nodata"],
+            "dist_to_nearest_substation_km": [5.0],
+            "siting_scenario": ["remote_captive"],
+        })
 
         dim_kek.to_csv(tmp_path / "dim_kek.csv", index=False)
         resource.to_csv(tmp_path / "fct_kek_resource.csv", index=False)
         tech.to_csv(tmp_path / "dim_tech_cost.csv", index=False)
+        proximity.to_csv(tmp_path / "fct_substation_proximity.csv", index=False)
 
         df = build_fct_lcoe(
             dim_kek_csv=tmp_path / "dim_kek.csv",
             fct_kek_resource_csv=tmp_path / "fct_kek_resource.csv",
             dim_tech_cost_csv=tmp_path / "dim_tech_cost.csv",
+            fct_substation_proximity_csv=tmp_path / "fct_substation_proximity.csv",
             wacc_values=[10.0],
         )
         assert df["lcoe_usd_mwh"].isna().all()
+
+
+# ── fct_substation_proximity ──────────────────────────────────────────────────
+
+class TestFctSubstationProximity:
+    def test_row_count(self):
+        """One row per KEK (25 rows)."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+        df = build_fct_substation_proximity()
+        assert len(df) == 25
+
+    def test_distance_plausibility(self):
+        """All distances must be > 0 and < 500 km (no KEK is >500 km from a substation)."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+        df = build_fct_substation_proximity()
+        assert (df["dist_to_nearest_substation_km"] > 0).all()
+        assert (df["dist_to_nearest_substation_km"] < 500).all()
+
+    def test_siting_scenario_values(self):
+        """siting_scenario must be either 'within_boundary' or 'remote_captive'."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+        df = build_fct_substation_proximity()
+        valid = {"within_boundary", "remote_captive"}
+        assert set(df["siting_scenario"].unique()).issubset(valid)
+
+    def test_at_least_one_internal_substation(self):
+        """At least one large industrial KEK should have a substation inside its polygon."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+        df = build_fct_substation_proximity()
+        assert df["has_internal_substation"].any(), (
+            "Expected at least one KEK with an internal substation"
+        )
+
+    def test_required_columns_present(self):
+        """Output must have all required columns."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+        df = build_fct_substation_proximity()
+        required = {
+            "kek_id", "kek_name", "nearest_substation_name",
+            "nearest_substation_voltage_kv", "nearest_substation_capacity_mva",
+            "dist_to_nearest_substation_km", "has_internal_substation", "siting_scenario",
+        }
+        assert required.issubset(set(df.columns))
+
+    def test_scenario_consistent_with_internal_flag(self):
+        """siting_scenario must match has_internal_substation."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+        df = build_fct_substation_proximity()
+        internal = df[df["has_internal_substation"]]
+        external = df[~df["has_internal_substation"]]
+        assert (internal["siting_scenario"] == "within_boundary").all()
+        assert (external["siting_scenario"] == "remote_captive").all()
 
 
 # ── fct_grid_cost_proxy ───────────────────────────────────────────────────────
