@@ -104,6 +104,30 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 **Scraped raw data** lives in `outputs/data/raw/`:
 - `kek_info_and_markers.csv`, `kek_polygons.geojson`, `kek_business_sectors.csv`, `oss_kek_all_pages.csv`
 
+## Before every commit — required checklist
+
+**When the user says "commit" or asks you to commit, ALWAYS prompt them with this checklist first:**
+
+```
+Before I commit, quick checklist:
+
+1. /review run? — catch breaking changes before they're in git history
+   (run it now if not done: two bugs slipped through without it last time)
+
+2. Output CSVs spot-checked? — if a pipeline step ran this session,
+   paste the printed output so we can sanity-check real numbers vs. theory
+   (e.g. distances, row counts, LCOE values look plausible?)
+
+3. Docs updated? — DATA_DICTIONARY.md, METHODOLOGY.md, CLAUDE.md, run_pipeline.py
+   (see Documentation update rule below)
+
+Ready to commit? Or do any of these need attention first?
+```
+
+**Before big phase transitions** (e.g. moving from data pipeline → Dash app):
+- Run `/autoplan` for full CEO + Eng + Design review simultaneously
+- Catches strategic gaps before they're built in
+
 ## Documentation update rule
 
 **Every new pipeline stage or schema change must update the following before committing:**
