@@ -17,12 +17,13 @@ All processed output tables. Click a table name to jump to its full column spec.
 | Table | Type | Rows | What it contains | Built from | Used for | Status |
 |-------|------|------|------------------|------------|----------|--------|
 | [dim_kek](#21-outputsdataprocesseddim_kekcsv) | dim | 25 | Master KEK list: name, province, grid region, lat/lon, area, reliability requirement | `kek_info_and_markers.csv` · `kek_distribution_points.csv` · `kek_polygons.geojson` · `kek_grid_region_mapping.csv` | The master reference for every KEK. Every fact table joins to this on `kek_id`. Also drives the map layer in the dashboard. | ✅ |
-| [dim_tech_cost](#22-outputsdataprocesseddim_tech_costcsv) | dim | 1 | TECH006 solar PV CAPEX / FOM / lifetime, unit-converted for LCOE formula | `dim_tech_variant.csv` · `fct_tech_parameter.csv` | Holds the cost assumptions (CAPEX, fixed O&M, asset lifetime) that are plugged into the LCOE formula. Changing these numbers here flows through to all 75 LCOE rows automatically. | ⚠️ CAPEX provisional until PDF-verified |
+| [dim_tech_cost](#22-outputsdataprocesseddim_tech_costcsv) | dim | 1 | TECH006 solar PV CAPEX / FOM / lifetime, unit-converted for LCOE formula | `dim_tech_variant.csv` · `fct_tech_parameter.csv` | Holds the cost assumptions (CAPEX, fixed O&M, asset lifetime) that are plugged into the LCOE formula. Changing these numbers here flows through to all 150 LCOE rows automatically. | ✅ Verified from ESDM Tech Catalogue 2023 p.66 |
 | [fct_kek_resource](#31-outputsdataprocessedfct_kek_resourcecsv) | fact | 25 | PVOUT at centroid + best-within-50km; capacity factors | `dim_kek` · Global Solar Atlas GeoTIFF | Answers "how much sun does each KEK get?" — the capacity factor (CF) derived from PVOUT is the key driver of solar LCOE. Higher CF = lower LCOE. | ⚠️ No buildability filter yet (v1.1) |
 | [fct_kek_demand](#32-outputsdataprocessedfct_kek_demandcsv) | fact | 25 | Estimated 2030 electricity demand per KEK (area × intensity) | `dim_kek` · `src/assumptions.py` (intensity constants) | Answers "how much electricity will this KEK need by 2030?" — used to compute what share of that demand could be met by GEAS-allocated solar, and to size infrastructure needs. | ⚠️ Provisional — area×intensity proxy, no tenant surveys |
 | [fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv) | fact | 7 | I-4/TT and I-3/TM industrial tariffs per PLN grid system (USD/MWh) | `dim_kek` (grid_region_id list) · Permen ESDM 7/2024 (hardcoded tariffs) | The benchmark each KEK's solar LCOE is compared against. If solar LCOE < grid tariff, captive solar is already cost-competitive without any policy support. | ✅ Official — Permen ESDM 7/2024 |
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this KEK's region?" — used to compute the GEAS green energy share each KEK can claim, and to flag KEKs where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
-| [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 75 | Precomputed LCOE (Levelized Cost of Energy) bands — 25 KEKs × 3 WACC values (8/10/12%), lower/central/upper CAPEX | `dim_kek` · `fct_kek_resource` (PVOUT→CF) · `dim_tech_cost` (CAPEX, FOM, lifetime) | Powers the WACC slider in the dashboard. Shows how sensitive each KEK's solar cost is to financing rate and capital cost assumptions — the core output investors use for location decisions. | ⚠️ CAPEX provisional propagated from `dim_tech_cost` |
+| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 25 | Nearest PLN substation per KEK — distance, voltage, has_internal_substation, siting_scenario | `dim_kek` · `data/substation.geojson` · `raw/kek_polygons.geojson` | Drives gen-tie cost adder in `fct_lcoe` remote_captive scenario. Determines whether a KEK's solar plant needs a transmission line to reach the grid. | ✅ |
+| [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 150 | Precomputed LCOE bands — 25 KEKs × 3 WACC values (8/10/12%) × 2 siting scenarios (within_boundary/remote_captive) | `dim_kek` · `fct_kek_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison in the dashboard. `within_boundary` is the base-case comparator; `remote_captive` adds gen-tie CAPEX. | ✅ |
 | [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended (go solar now / wait for grid / add firming / flag late pipeline)? What share of demand can green energy cover by 2030? | ⚠️ Provisional until CAPEX verified |
 
 ---
@@ -139,11 +140,11 @@ All processed output tables. Click a table name to jump to its full column spec.
 
 | Parameter | Raw value | Unit | Converted | Notes |
 |-----------|-----------|------|-----------|-------|
-| `capex` | 0.70 | MUSD/MWe | 700 USD/kW | × 1,000 |
-| `fixed_om` | 12.0 | USD/MWe/yr | 12 USD/kW/yr | ÷ 1,000 |
-| `lifetime` | 25 | years | 25 yr | — |
+| `capex` | 0.96 | MUSD/MWe | 960 USD/kW | × 1,000 |
+| `fixed_om` | 7,500 | USD/MWe/yr | 7.5 USD/kW/yr | ÷ 1,000 |
+| `lifetime` | 27 | years | 27 yr | — |
 
-**⚠️ PROVISIONAL** — `source_page=0` placeholder. Verify against `docs/esdm_technology_cost.pdf`.
+**✅ VERIFIED** — Source: ESDM Technology Catalogue 2023, p.66 (PV ground-mounted, utility-scale). Stored as `VERIFIED_TECH006_DATA` in `src/pipeline/pdf_extract_esdm_tech.py`.
 
 ---
 
@@ -205,7 +206,7 @@ I-4/TT is used as the primary dashboard comparator (`dashboard_rate_usd_mwh`).
 | `statopr` | str | ✅ | Status — filter to "Operasi" |
 | `geometry` | Point | ✅ | Location |
 
-**Usage:** `dist_to_nearest_substation_km` per KEK — deferred to v1.1.
+**Usage:** Source for `fct_substation_proximity.csv` — `dist_to_nearest_substation_km`, `has_internal_substation`, `siting_scenario` per KEK. Filter to `statopr == "Operasi"` before use. ✅
 
 ---
 
@@ -409,33 +410,64 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 
 ---
 
+## 3.4b `outputs/data/processed/fct_substation_proximity.csv`
+
+**What it is:** Nearest operational PLN substation per KEK — distance, connection details, and siting scenario classification.
+**Builder:** `src/pipeline/build_fct_substation_proximity.py`
+**Lineage:** `dim_kek.csv` + `data/substation.geojson` + `outputs/data/raw/kek_polygons.geojson`
+**Rows:** 25 ✅
+
+**Build logic:**
+1. Filter substations to `statopr == "Operasi"` (operational only)
+2. Haversine distance from each KEK centroid to every substation → take nearest
+3. Point-in-polygon (shapely) for each KEK polygon → `has_internal_substation`
+4. `siting_scenario = "within_boundary"` if `has_internal_substation` else `"remote_captive"`
+
+| Column | Type | Source | Notes |
+|--------|------|--------|-------|
+| `kek_id` | str | dim_kek | Join key |
+| `kek_name` | str | dim_kek | Display name |
+| `nearest_substation_name` | str | substation.geojson `namobj` | Name of nearest operational substation |
+| `nearest_substation_voltage_kv` | str | substation.geojson `teggi` | e.g. "150 kV" |
+| `nearest_substation_capacity_mva` | float | substation.geojson `kapgi` | Substation capacity (MVA) |
+| `dist_to_nearest_substation_km` | float | computed | ✅ Haversine distance from KEK centroid to nearest operational substation, 2 decimals |
+| `has_internal_substation` | bool | computed | True if any operational substation is inside the KEK polygon |
+| `siting_scenario` | str | derived | `"within_boundary"` or `"remote_captive"` |
+
+---
+
 ## 3.5 `outputs/data/processed/fct_lcoe.csv`
 
-**What it is:** Precomputed LCOE bands per KEK at 3 WACC values (8%, 10%, 12%) and 3 CAPEX scenarios (lower/central/upper).
+**What it is:** Precomputed LCOE bands per KEK at 3 WACC values (8%, 10%, 12%) and 2 siting scenarios (within_boundary / remote_captive).
 **Builder:** `src/pipeline/build_fct_lcoe.py`
-**Lineage:** `dim_kek.csv` + `fct_kek_resource.csv` (PVOUT) + `dim_tech_cost.csv` (CAPEX, FOM, lifetime)
-**Rows:** 75 (25 KEKs × 3 WACC values) ✅
+**Lineage:** `dim_kek.csv` + `fct_kek_resource.csv` (PVOUT) + `dim_tech_cost.csv` (CAPEX, FOM, lifetime) + `fct_substation_proximity.csv` (gen-tie distance)
+**Rows:** 150 (25 KEKs × 3 WACC values × 2 scenarios) ✅
+
+**Siting scenarios:**
+- `within_boundary` — plant on KEK land; uses `pvout_centroid`; `gentie_cost_per_kw = 0`
+- `remote_captive` — plant off-site; uses `pvout_best_50km`; gen-tie CAPEX adder based on `dist_to_nearest_substation_km`
 
 **LCOE formula** (`src/model/basic_model.py → lcoe_solar()`):
 ```
-CRF  = wacc × (1 + wacc)^n / ((1 + wacc)^n − 1)
-LCOE = (CAPEX × CRF + FOM) / (CF × 8.76)
+gen_tie_capex    = dist_km × GENTIE_COST_PER_KW_KM + SUBSTATION_WORKS_PER_KW  (remote_captive only)
+effective_capex  = capex + gen_tie_capex
+CRF              = wacc × (1 + wacc)^n / ((1 + wacc)^n − 1)
+LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 ```
-Where:
-- `CAPEX` in USD/kW, `FOM` in USD/kW/yr, `CF` = capacity factor (0–1)
-- `8.76 = 8760 h/yr ÷ 1000` — converts kW-based costs to MWh denominator
-- `CF = pvout_best_50km / 8760` (falls back to `pvout_centroid / 8760` if best is NaN)
 
 | Column | Type | Source | Calculation |
 |--------|------|--------|-------------|
 | `kek_id` | str | dim_kek | Join key |
 | `wacc_pct` | float | assumptions.py | 8.0 / 10.0 / 12.0 |
-| `lcoe_usd_mwh` | float | computed | `lcoe_solar(capex_central, fom, wacc/100, lifetime, cf)` |
-| `lcoe_low_usd_mwh` | float | computed | `lcoe_solar(capex_lower, fom, wacc/100, lifetime, cf)` |
-| `lcoe_high_usd_mwh` | float | computed | `lcoe_solar(capex_upper, fom, wacc/100, lifetime, cf)` |
-| `cf_used` | float | fct_kek_resource | `pvout_best_50km / 8760`; fallback `pvout_centroid / 8760` |
-| `pvout_used_kwh_kwp` | float | fct_kek_resource | PVOUT value from which `cf_used` was derived |
-| `is_cf_provisional` | bool | derived | `True` if centroid fallback was used |
+| `scenario` | str | derived | `"within_boundary"` or `"remote_captive"` |
+| `pvout_used` | str | derived | `"pvout_centroid"` or `"pvout_best_50km"` |
+| `cf_used` | float | fct_kek_resource | PVOUT / 8760; fallback to centroid if best_50km NaN |
+| `gentie_cost_per_kw` | float | computed | 0 for within_boundary; `dist_km × 5 + 150` for remote_captive |
+| `effective_capex_usd_per_kw` | float | computed | `capex_central + gentie_cost_per_kw` |
+| `lcoe_usd_mwh` | float | computed | `lcoe_solar(effective_capex_central, fom, wacc/100, lifetime, cf)` |
+| `lcoe_low_usd_mwh` | float | computed | `lcoe_solar(effective_capex_lower, ...)` |
+| `lcoe_high_usd_mwh` | float | computed | `lcoe_solar(effective_capex_upper, ...)` |
+| `is_cf_provisional` | bool | derived | `True` if centroid fallback was used for remote_captive |
 | `is_capex_provisional` | bool | dim_tech_cost | Propagated from `dim_tech_cost.is_provisional` |
 | `tech_id` | str | dim_tech_cost | "TECH006" |
 | `lifetime_yr` | int | dim_tech_cost | Asset lifetime |
@@ -450,7 +482,7 @@ Where:
 **Rows:** 25 ✅
 
 **Build logic:**
-1. Filter `fct_lcoe` to `wacc_pct = 10.0` — base case LCOE
+1. Filter `fct_lcoe` to `wacc_pct = 10.0` AND `scenario = "within_boundary"` — base case LCOE (on-site solar, no gen-tie)
 2. Load `fct_kek_demand`, call `resolve_demand()` to apply any user overrides
 3. Compute `ruptl_region_metrics()` → `post2030_share`, `grid_upgrade_pre2030`
 4. Compute `geas_baseline_allocation()` → `green_share_geas`
@@ -530,4 +562,4 @@ Where:
 
 3. **Landcover buildability filter** — `pvout_best_50km` is currently an upper bound with no exclusion of forests, peat, protected areas. Planned for v1.1: 4-layer filter (HCS/HCV, peatland, protected areas, slope > 15°).
 
-4. **Substation proximity** — `dist_to_nearest_substation_km` deferred to v1.1. Data in `data/substation.geojson`.
+4. **Substation proximity** — ✅ Implemented in Phase 2. `fct_substation_proximity.csv` computes `dist_to_nearest_substation_km` and `siting_scenario` per KEK. Gen-tie cost adder integrated into `fct_lcoe.csv` remote_captive scenario.

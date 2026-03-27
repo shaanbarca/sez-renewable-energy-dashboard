@@ -90,8 +90,10 @@ def build_fct_kek_scorecard(
     fct_demand = resolve_demand(fct_demand_raw)
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
-    # LCOE at base WACC only
-    lcoe = lcoe_all[lcoe_all["wacc_pct"] == base_wacc].copy()
+    # LCOE at base WACC, within_boundary scenario (on-site solar, no gen-tie cost)
+    lcoe = lcoe_all[
+        (lcoe_all["wacc_pct"] == base_wacc) & (lcoe_all["scenario"] == "within_boundary")
+    ].copy()
     lcoe = lcoe.rename(columns={
         "lcoe_usd_mwh": "lcoe_mid_usd_mwh",
         "lcoe_low_usd_mwh": "lcoe_low_usd_mwh",

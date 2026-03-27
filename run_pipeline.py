@@ -28,7 +28,8 @@ DAG (dependencies enforced by topological sort at runtime):
     └── fct_ruptl_pipeline   hardcoded RUPTL 2025-2034 extraction
 
     Stage 3 — Computed (read from processed/fct_* + dim_*)
-    └── fct_lcoe          processed: dim_kek + fct_kek_resource + dim_tech_cost
+    ├── fct_substation_proximity  processed: dim_kek + data/substation.geojson + raw/kek_polygons.geojson
+    └── fct_lcoe          processed: dim_kek + fct_kek_resource + dim_tech_cost + fct_substation_proximity
 
     Stage 4 — Final scorecard (joins everything)
     └── fct_kek_scorecard processed: all above
@@ -54,6 +55,7 @@ from src.pipeline.build_fct_kek_resource import build_fct_kek_resource
 from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
 from src.pipeline.build_fct_ruptl_pipeline import build_fct_ruptl_pipeline
+from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
 from src.pipeline.build_fct_lcoe import build_fct_lcoe
 from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
 
@@ -79,7 +81,8 @@ PIPELINE: list[Step] = [
     Step("fct_grid_cost_proxy", build_fct_grid_cost_proxy, "fct_grid_cost_proxy.csv", depends_on=["dim_kek"]),
     Step("fct_ruptl_pipeline",  build_fct_ruptl_pipeline,  "fct_ruptl_pipeline.csv"),
     # Stage 3: Computed
-    Step("fct_lcoe",            build_fct_lcoe,            "fct_lcoe.csv",            depends_on=["dim_kek", "fct_kek_resource", "dim_tech_cost"]),
+    Step("fct_substation_proximity", build_fct_substation_proximity, "fct_substation_proximity.csv", depends_on=["dim_kek"]),
+    Step("fct_lcoe",            build_fct_lcoe,            "fct_lcoe.csv",            depends_on=["dim_kek", "fct_kek_resource", "dim_tech_cost", "fct_substation_proximity"]),
     # Stage 4: Final scorecard
     Step("fct_kek_scorecard",   build_fct_kek_scorecard,   "fct_kek_scorecard.csv",   depends_on=["dim_kek", "fct_lcoe", "fct_grid_cost_proxy", "fct_ruptl_pipeline", "fct_kek_demand"]),
 ]

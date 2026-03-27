@@ -374,19 +374,21 @@ This model evaluates two distinct captive solar configurations per KEK:
 | Scenario | PVOUT input | Gen-tie needed? | PLN fees | LCOE treatment |
 |---|---|---|---|---|
 | **Within-boundary captive** | `pvout_centroid` | None — plant on KEK land, connects to KEK's own 20kV distribution | None (if purely internal) | Base LCOE only |
-| **Remote captive (≤50km)** | `pvout_best_50km` | Yes, if plant is outside KEK boundary | Parallel operation charge + transmission lease | Base LCOE + gen-tie adder (deferred to Phase 2) |
+| **Remote captive (≤50km)** | `pvout_best_50km` | Yes, if plant is outside KEK boundary | Parallel operation charge + transmission lease | Base LCOE + gen-tie adder (`gentie_cost_per_kw(dist_km)`) |
 
-**Phase 2 note:** `dist_to_nearest_substation_km` (from `data/substation.geojson`) is used as the primary cost driver for the gen-tie adder in the remote captive scenario. The gen-tie LCOE adder formula is: `(dist_km × $X/kW-km + $Y/kW_substation) × CRF / (CF × 8.76)` where X and Y are sourced from industry benchmarks. This computation is deferred to Phase 2 — MVP presents `pvout_best_50km` LCOE as a lower bound (gen-tie cost excluded) with a provenance flag.
+**Gen-tie adder (Phase 2, implemented):** `dist_to_nearest_substation_km` from `fct_substation_proximity.csv` drives the gen-tie cost adder. Formula: `dist_km × GENTIE_COST_PER_KW_KM + SUBSTATION_WORKS_PER_KW` (USD/kW) — see `src/assumptions.py` for central values. Gen-tie is treated as additional overnight CAPEX, annualized via the same CRF as the solar plant.
 
-### 2A.5 Model Scope
+### 2A.5 Model Scope (Phase 2 complete)
 
-The **MVP (Phase 1)** computes:
-- Within-boundary LCOE using `pvout_centroid`
-- Remote captive LCOE using `pvout_best_50km` (gen-tie adder excluded, flagged as lower bound)
+**Current implementation computes:**
+- Within-boundary LCOE using `pvout_centroid`, `gentie = 0`
+- Remote captive LCOE using `pvout_best_50km` + `gentie_cost_per_kw(dist_to_nearest_substation_km)`
 
-**Phase 2** adds:
-- Gen-tie cost adder for remote captive scenario using `dist_to_nearest_substation_km`
-- Transmission lease fee parameterisation
+**Output:** `fct_lcoe.csv` — 150 rows (25 KEKs × 3 WACCs × 2 scenarios). Scorecard uses `within_boundary` at WACC=10% as the base-case dashboard comparator.
+
+**Deferred to Phase 3:**
+- Transmission lease fee parameterisation (currently excluded; adds ~5–15 USD/MWh at scale)
+- WACC sensitivity for gen-tie cost specifically (gen-tie often financed separately from plant)
 
 **Regulatory sources:**
 - UU No. 30 Tahun 2009 (Ketenagalistrikan)

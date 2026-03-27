@@ -84,7 +84,8 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 **Fact tables** (`fct_*`):
 - `fct_kek_resource` — PVOUT at centroid + best within 50–100 km (precomputed from GeoTIFF)
 - `fct_kek_demand` — per-KEK demand estimates
-- `fct_lcoe` — computed LCOE bands per KEK & tech (WACC-adjustable)
+- `fct_substation_proximity` — nearest PLN substation per KEK; haversine distance + point-in-polygon → `siting_scenario`
+- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (150 rows: 25 × 3 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses best-50km PVOUT + gen-tie CAPEX adder
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional)
 
@@ -102,6 +103,17 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 
 **Scraped raw data** lives in `outputs/data/raw/`:
 - `kek_info_and_markers.csv`, `kek_polygons.geojson`, `kek_business_sectors.csv`, `oss_kek_all_pages.csv`
+
+## Documentation update rule
+
+**Every new pipeline stage or schema change must update the following before committing:**
+
+1. `DATA_DICTIONARY.md` — new table in the Table Index; full column spec section; update row counts and status (✅/⚠️/❌)
+2. `METHODOLOGY.md` — update the relevant section if the analytical method or formula changes; remove any "deferred" notes once implemented
+3. `CLAUDE.md` (this file) — update the **Fact tables** list above if a new `fct_*` table is added
+4. `run_pipeline.py` — add a `Step(...)` entry and correct `depends_on` for any new pipeline step
+
+The review checklist (`/review`) will flag stale documentation as an INFORMATIONAL finding. Keeping docs in sync with code prevents the next Claude session from making incorrect assumptions about the data model.
 
 ## Data notes
 

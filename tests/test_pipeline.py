@@ -218,13 +218,13 @@ class TestFctLcoe:
         df = build_fct_lcoe()
         assert set(df["scenario"].unique()) == {"within_boundary", "remote_captive"}
 
-    def test_remote_captive_lcoe_gt_within_boundary(self):
-        """Remote captive LCOE must be >= within_boundary LCOE (gen-tie adds CAPEX)."""
+    def test_remote_captive_effective_capex_gt_within_boundary(self):
+        """Remote captive effective CAPEX must exceed within_boundary (gen-tie adds cost)."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
         df = build_fct_lcoe()
-        wb = df[df["scenario"] == "within_boundary"].set_index(["kek_id", "wacc_pct"])["lcoe_usd_mwh"]
-        rc = df[df["scenario"] == "remote_captive"].set_index(["kek_id", "wacc_pct"])["lcoe_usd_mwh"]
-        assert (rc >= wb).all(), "Remote captive LCOE should always be >= within_boundary"
+        wb = df[df["scenario"] == "within_boundary"].set_index(["kek_id", "wacc_pct"])["effective_capex_usd_per_kw"]
+        rc = df[df["scenario"] == "remote_captive"].set_index(["kek_id", "wacc_pct"])["effective_capex_usd_per_kw"]
+        assert (rc > wb).all(), "Remote captive effective CAPEX must always exceed within_boundary (gen-tie adder)"
 
     def test_within_boundary_gentie_zero(self):
         """within_boundary scenario must have gentie_cost_per_kw = 0."""
