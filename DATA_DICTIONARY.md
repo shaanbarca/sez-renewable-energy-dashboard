@@ -10,6 +10,23 @@ Contract for the data pipeline. Three parts:
 
 ---
 
+## Table Index
+
+All processed output tables. Click a table name to jump to its full column spec.
+
+| Table | Type | Rows | What it contains | Built from | Used for | Status |
+|-------|------|------|------------------|------------|----------|--------|
+| [dim_kek](#21-outputsdataprocesseddim_kekcsv) | dim | 25 | Master KEK list: name, province, grid region, lat/lon, area, reliability requirement | `kek_info_and_markers.csv` · `kek_distribution_points.csv` · `kek_polygons.geojson` · `kek_grid_region_mapping.csv` | The master reference for every KEK. Every fact table joins to this on `kek_id`. Also drives the map layer in the dashboard. | ✅ |
+| [dim_tech_cost](#22-outputsdataprocesseddim_tech_costcsv) | dim | 1 | TECH006 solar PV CAPEX / FOM / lifetime, unit-converted for LCOE formula | `dim_tech_variant.csv` · `fct_tech_parameter.csv` | Holds the cost assumptions (CAPEX, fixed O&M, asset lifetime) that are plugged into the LCOE formula. Changing these numbers here flows through to all 75 LCOE rows automatically. | ⚠️ CAPEX provisional until PDF-verified |
+| [fct_kek_resource](#31-outputsdataprocessedfct_kek_resourcecsv) | fact | 25 | PVOUT at centroid + best-within-50km; capacity factors | `dim_kek` · Global Solar Atlas GeoTIFF | Answers "how much sun does each KEK get?" — the capacity factor (CF) derived from PVOUT is the key driver of solar LCOE. Higher CF = lower LCOE. | ⚠️ No buildability filter yet (v1.1) |
+| [fct_kek_demand](#32-outputsdataprocessedfct_kek_demandcsv) | fact | 25 | Estimated 2030 electricity demand per KEK (area × intensity) | `dim_kek` · `src/assumptions.py` (intensity constants) | Answers "how much electricity will this KEK need by 2030?" — used to compute what share of that demand could be met by GEAS-allocated solar, and to size infrastructure needs. | ⚠️ Provisional — area×intensity proxy, no tenant surveys |
+| [fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv) | fact | 7 | I-4/TT and I-3/TM industrial tariffs per PLN grid system (USD/MWh) | `dim_kek` (grid_region_id list) · Permen ESDM 7/2024 (hardcoded tariffs) | The benchmark each KEK's solar LCOE is compared against. If solar LCOE < grid tariff, captive solar is already cost-competitive without any policy support. | ✅ Official — Permen ESDM 7/2024 |
+| [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this KEK's region?" — used to compute the GEAS green energy share each KEK can claim, and to flag KEKs where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
+| [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 75 | Precomputed LCOE (Levelized Cost of Energy) bands — 25 KEKs × 3 WACC values (8/10/12%), lower/central/upper CAPEX | `dim_kek` · `fct_kek_resource` (PVOUT→CF) · `dim_tech_cost` (CAPEX, FOM, lifetime) | Powers the WACC slider in the dashboard. Shows how sensitive each KEK's solar cost is to financing rate and capital cost assumptions — the core output investors use for location decisions. | ⚠️ CAPEX provisional propagated from `dim_tech_cost` |
+| [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended (go solar now / wait for grid / add firming / flag late pipeline)? What share of demand can green energy cover by 2030? | ⚠️ Provisional until CAPEX verified |
+
+---
+
 # Part 1 — Raw Inputs
 
 ---

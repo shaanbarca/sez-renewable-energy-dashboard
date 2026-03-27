@@ -101,7 +101,7 @@ def build_fct_grid_cost_proxy(
 
 def main() -> None:
     print("Building fct_grid_cost_proxy")
-    print(f"  Source: Permen ESDM No.7/2024, Lampiran IV (Tarif Industri)")
+    print("  Source: Permen ESDM No.7/2024, Lampiran IV (Tarif Industri)")
     print(f"  I-3/TM LWBP: {TARIFF_I3_LWBP_RP_KWH:,.2f} Rp/kWh")
     print(f"  I-4/TT:      {TARIFF_I4_RP_KWH:,.2f} Rp/kWh")
     print(f"  IDR/USD rate: {IDR_USD_RATE:,.0f}")
@@ -115,8 +115,8 @@ def main() -> None:
     print(f"\nWrote {out.relative_to(REPO_ROOT)} ({len(df)} grid regions)")
     print(f"\n  I-3/TM → {rp_kwh_to_usd_mwh(TARIFF_I3_LWBP_RP_KWH):.1f} USD/MWh")
     print(f"  I-4/TT → {rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH):.1f} USD/MWh  ← dashboard primary")
-    print(f"\n  Note: I-3/I-4 tariffs are UNIFORM NATIONWIDE.")
-    print(f"  BPP (cost of supply) varies by region — not yet in repo.")
+    print("\n  Note: I-3/I-4 tariffs are UNIFORM NATIONWIDE.")
+    print("  BPP (cost of supply) varies by region — not yet in repo.")
     print()
     print(df[["grid_region_id", "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
               "dashboard_rate_usd_mwh", "dashboard_rate_flag"]].to_string(index=False))

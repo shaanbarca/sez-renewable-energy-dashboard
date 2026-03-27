@@ -35,7 +35,12 @@ import rasterio
 from rasterio.windows import from_bounds
 
 from src.model.basic_model import pvout_daily_to_annual
-from src.pipeline.assumptions import HOURS_PER_YEAR, KM_PER_DEGREE_LAT, PVOUT_BUFFER_KM, PVOUT_SOURCE
+from src.pipeline.assumptions import (
+    HOURS_PER_YEAR,
+    KM_PER_DEGREE_LAT,
+    PVOUT_BUFFER_KM,
+    PVOUT_SOURCE,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GEOTIFF_ZIP = (

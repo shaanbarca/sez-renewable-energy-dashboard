@@ -30,10 +30,10 @@ PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
 class TestDimTechCost:
     def test_capex_unit_conversion(self):
-        """0.700 MUSD/MWe × 1000 = 700 USD/kW. Wrong multiplier → LCOE off by 3 orders."""
+        """0.96 MUSD/MWe × 1000 = 960 USD/kW. Wrong multiplier → LCOE off by 3 orders."""
         from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
         df = build_dim_tech_cost()
-        assert df["capex_usd_per_kw"].iloc[0] == pytest.approx(700.0)
+        assert df["capex_usd_per_kw"].iloc[0] == pytest.approx(960.0)
 
     def test_capex_lower_upper_bounds(self):
         from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
@@ -42,21 +42,21 @@ class TestDimTechCost:
         assert df["capex_upper_usd_per_kw"].iloc[0] > df["capex_usd_per_kw"].iloc[0]
 
     def test_fixed_om_unit_conversion(self):
-        """12,000 USD/MWe/yr ÷ 1000 = 12.0 USD/kW/yr."""
+        """7,500 USD/MWe/yr ÷ 1000 = 7.5 USD/kW/yr."""
         from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
         df = build_dim_tech_cost()
-        assert df["fixed_om_usd_per_kw_yr"].iloc[0] == pytest.approx(12.0)
+        assert df["fixed_om_usd_per_kw_yr"].iloc[0] == pytest.approx(7.5)
 
     def test_lifetime_is_integer_years(self):
         from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
         df = build_dim_tech_cost()
-        assert df["lifetime_yr"].iloc[0] == 25
+        assert df["lifetime_yr"].iloc[0] == 27
 
-    def test_is_provisional_true_until_pdf_verified(self):
-        """source_page=0 means PDF not yet read; must be flagged provisional."""
+    def test_is_provisional_false_after_pdf_verification(self):
+        """source_page=66 means values were verified from PDF datasheet; not provisional."""
         from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
         df = build_dim_tech_cost()
-        assert df["is_provisional"].iloc[0]
+        assert not df["is_provisional"].iloc[0]
 
     def test_missing_tech_id_raises(self):
         """build_dim_tech_cost raises ValueError for unknown tech_id."""

@@ -257,7 +257,7 @@ def verify_plts_against_hardcoded(pdf_path: Path = RUPTL_PDF) -> bool:
     Prints a per-region, per-year comparison.  Returns True if all values match
     within ±5 MW (rounding tolerance), False if any material discrepancy found.
     """
-    print(f"\nVerifying PLTS extraction against hardcoded values...")
+    print("\nVerifying PLTS extraction against hardcoded values...")
     print(f"  PDF: {pdf_path.name}")
 
     extracted = extract_plts_from_pdf(pdf_path)

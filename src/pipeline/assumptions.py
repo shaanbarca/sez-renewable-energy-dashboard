@@ -6,4 +6,3 @@ Import from src.assumptions directly, or continue importing from here
 """
 
 from src.assumptions import *  # noqa: F401, F403
-from src.assumptions import rp_kwh_to_usd_mwh  # explicit re-export for type checkers

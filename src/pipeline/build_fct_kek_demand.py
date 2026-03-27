@@ -163,7 +163,7 @@ def main() -> None:
     df.to_csv(out, index=False)
 
     print(f"fct_kek_demand: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
-    print(f"\nDemand by KEK type (MWh/yr):")
+    print("\nDemand by KEK type (MWh/yr):")
     summary = (
         df.groupby("kek_type")
         .agg(

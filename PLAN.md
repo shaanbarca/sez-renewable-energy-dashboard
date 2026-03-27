@@ -68,7 +68,7 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 | Table | Rows | Status | Notes |
 |-------|------|--------|-------|
 | `dim_kek` | 25 | ✅ | Province, grid_region_id, reliability_req, polygon dedup |
-| `dim_tech_cost` | 1 | ✅ | TECH006 solar PV; is_provisional=True until PDF-verified |
+| `dim_tech_cost` | 1 | ✅ | TECH006 solar PV; CAPEX=960 USD/kW, FOM=7.5 USD/kW/yr, lifetime=27yr — verified from p.66 |
 | `fct_kek_resource` | 25 | ✅ | PVOUT centroid + best-50km; CF computed |
 | `fct_grid_cost_proxy` | 7 | ✅ | I-4/TT OFFICIAL @$63.08/MWh (Permen ESDM 7/2024) |
 | `fct_ruptl_pipeline` | 70 | ✅ | 7 regions × 10 years, RE Base + ARED; PDF extractor included |
@@ -91,12 +91,21 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 - Substation proximity (`dist_to_nearest_substation_km`) — data in repo
 - TECH006 PDF verification — see Section 2.3 in DATA_DICTIONARY.md
 
-### Phase 2 — Dash app (3–7 days human / ~1 hour CC)
-- 3-page structure: Overview / KEK scorecard / Pipeline & policy
+### Phase 2 — Data pipeline improvements + Dash app
+- Land cover buildability filter (`fct_kek_resource` v1.1) — filter PVOUT by usable area (exclude forests, rice fields, protected zones)
+- Substation proximity (`dist_to_nearest_substation_km`) — data in `data/substation.geojson`
+- 3-page Dash app: Overview / KEK scorecard / Pipeline & policy
 - WACC slider + scenario toggles
 - Map (Plotly scatter_mapbox), quadrant chart, ranked table, scorecard
 - Flip scenario logic: `solar_competitive_gap` threshold flagging
 - CSV/GeoJSON export
+
+**Phase 2 closeout — pipeline architecture review:**
+Before moving to Phase 3, do a DRY/reusability pass on `src/pipeline/`:
+- Identify repeated patterns across `build_*.py` files (CSV loading, column renaming, unit conversion boilerplate)
+- Extract shared helpers if the same logic appears in 3+ builders
+- Review whether any builder has grown too large and should be split
+- Do NOT pre-abstract speculatively — only refactor what's demonstrably repeated
 
 ### Phase 3 — Open data release
 - Versioned GitHub Releases: `kek_scorecard_v{N}.csv`, `kek_lcoe_scenarios_v{N}.csv`, `kek_map_v{N}.geojson`, `SOURCES.md`
@@ -119,7 +128,7 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 2. KEK polygon quality: accuracy of scraped `kek_polygons.geojson`? — acceptable for MVP (centroid and area used; boundary display in v2).
 3. **[RESOLVED]** RUPTL extraction — manually transcribed with table attribution; pdfplumber extractor available for future updates.
 4. Wind GeoTIFF: download Global Wind Atlas Indonesia and add `cf_wind` to `fct_kek_resource` — same rasterio pipeline, Phase 2.
-5. TECH006 verification: verify CAPEX/FOM/lifetime from `docs/esdm_technology_cost.pdf` and update `source_page` in `data/fct_tech_parameter.csv` — clears `is_provisional=True` flag.
+5. **[RESOLVED]** TECH006 verification: CAPEX=0.96 MUSD/MWe, FOM=7,500 USD/MWe/yr, lifetime=27yr verified from datasheet p.66. `source_page=66`, `is_provisional=False`.
 5. Hosting: Render free tier vs. Fly.io cold-start tradeoff
 
 ---

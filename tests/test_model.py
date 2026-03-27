@@ -18,37 +18,33 @@ Covers:
 """
 
 import math
-import pytest
-import numpy as np
+
 import pandas as pd
+import pytest
 
 from src.model.basic_model import (
-    HOURS_PER_YEAR,
-    PVOUT_ANNUAL_MIN,
-    PVOUT_ANNUAL_MAX,
-    CAPEX_USD_PER_KW_MIN,
-    CAPEX_USD_PER_KW_MAX,
-    PLAN_LATE_POST2030_SHARE_THRESHOLD,
-    FIRMING_RELIABILITY_REQ_THRESHOLD,
-    GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
-    FIRMING_ADDER_LOW_USD_MWH,
     FIRMING_ADDER_HIGH_USD_MWH,
-    pvout_daily_to_annual,
+    FIRMING_ADDER_LOW_USD_MWH,
+    GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
+    HOURS_PER_YEAR,
+    PLAN_LATE_POST2030_SHARE_THRESHOLD,
+    PVOUT_ANNUAL_MAX,
+    PVOUT_ANNUAL_MIN,
+    action_flags,
+    build_scorecard,
     capacity_factor_from_pvout,
     capital_recovery_factor,
-    lcoe_solar,
-    lcoe_solar_with_firming,
-    solar_competitive_gap,
-    is_solar_attractive,
-    action_flags,
     geas_baseline_allocation,
     geas_policy_allocation,
-    ruptl_region_metrics,
-    build_scorecard,
-    time_bucket,
+    is_solar_attractive,
+    lcoe_solar,
+    lcoe_solar_with_firming,
+    pvout_daily_to_annual,
     resolve_demand,
+    ruptl_region_metrics,
+    solar_competitive_gap,
+    time_bucket,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -49,12 +49,12 @@
 162,TECH002,2023,lifetime,lower,25.0,years,Technology_Catalogue.pdf,4,Supercritical coal power plant (steam cycle)
 176,TECH002,2023,lifetime,upper,40.0,years,Technology_Catalogue.pdf,4,Supercritical coal power plant (steam cycle)
 101,TECH002,2023,variable_om,central,1.4,USD_per_MWh,Technology_Catalogue.pdf,4,Supercritical coal power plant (steam cycle)
-300,TECH006,2023,capex,central,0.7,MUSD_per_MWe,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-301,TECH006,2023,capex,lower,0.56,MUSD_per_MWe,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-302,TECH006,2023,capex,upper,0.84,MUSD_per_MWe,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-310,TECH006,2023,fixed_om,central,12000.0,USD_per_MWe_yr,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-311,TECH006,2023,fixed_om,lower,9600.0,USD_per_MWe_yr,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-312,TECH006,2023,fixed_om,upper,14400.0,USD_per_MWe_yr,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-320,TECH006,2023,lifetime,central,25.0,years,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-321,TECH006,2023,lifetime,lower,20.0,years,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
-322,TECH006,2023,lifetime,upper,30.0,years,esdm_technology_cost.pdf,0,"PV ground-mounted utility-scale — PROVISIONAL, pending page extraction"
+300,TECH006,2023,capex,central,0.96,MUSD_per_MWe,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+301,TECH006,2023,capex,lower,0.83,MUSD_per_MWe,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+302,TECH006,2023,capex,upper,1.50,MUSD_per_MWe,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+310,TECH006,2023,fixed_om,central,7500.0,USD_per_MWe_yr,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+311,TECH006,2023,fixed_om,lower,3800.0,USD_per_MWe_yr,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+312,TECH006,2023,fixed_om,upper,11300.0,USD_per_MWe_yr,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+320,TECH006,2023,lifetime,central,27.0,years,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+321,TECH006,2023,lifetime,lower,25.0,years,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
+322,TECH006,2023,lifetime,upper,30.0,years,esdm_technology_cost.pdf,66,PV ground-mounted utility-scale — verified from datasheet p.66
