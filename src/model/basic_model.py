@@ -35,6 +35,7 @@ from src.assumptions import (
     PVOUT_ANNUAL_MAX,
     PVOUT_ANNUAL_MIN,
     REGION_CF_DEFAULT,
+    RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
     RUPTL_PRE2030_END,
     SUBSTATION_WORKS_PER_KW,
     TECH006_CAPEX_USD_PER_KW,
@@ -401,7 +402,72 @@ def action_flags(
 
 
 # ---------------------------------------------------------------------------
-# 5. GEAS allocation
+# 5. Resilience flag + carbon breakeven
+# ---------------------------------------------------------------------------
+
+def invest_resilience(
+    solar_competitive_gap_pct: float,
+    reliability_req: float,
+    gap_threshold_pct: float = RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
+    reliability_threshold: float = FIRMING_RELIABILITY_REQ_THRESHOLD,
+) -> bool:
+    """Return True if solar merits investment on resilience grounds despite being above grid parity.
+
+    A KEK qualifies when:
+      1. LCOE > grid cost (gap > 0) — cost-parity not yet reached
+      2. LCOE is within gap_threshold_pct of grid cost — not far off
+      3. The KEK has high reliability requirements — downtime avoidance justifies the premium
+
+    Parameters
+    ----------
+    solar_competitive_gap_pct:
+        (lcoe_mid - grid_cost) / grid_cost × 100. Positive = solar more expensive.
+    reliability_req:
+        KEK reliability requirement (0–1 scale; manufacturing = 0.8+).
+    gap_threshold_pct:
+        Upper bound of the resilience zone (default 20%).
+    reliability_threshold:
+        Minimum reliability requirement to qualify (default 0.75).
+    """
+    return (
+        solar_competitive_gap_pct > 0
+        and solar_competitive_gap_pct <= gap_threshold_pct
+        and reliability_req >= reliability_threshold
+    )
+
+
+def carbon_breakeven_price(
+    lcoe_mid_usd_mwh: float,
+    grid_cost_usd_mwh: float,
+    grid_emission_factor_t_co2_mwh: float,
+) -> float | None:
+    """Return the carbon price (USD/tCO2) at which solar becomes cost-competitive with the grid.
+
+    Interpretation: if Indonesia (or a buyer) prices carbon at or above this level,
+    solar LCOE + carbon cost of grid electricity cross — solar wins on adjusted cost.
+
+    Returns 0.0 if solar is already competitive (LCOE ≤ grid cost).
+    Returns None if the emission factor is missing or zero (cannot compute).
+
+    Parameters
+    ----------
+    lcoe_mid_usd_mwh:
+        Solar LCOE mid estimate (USD/MWh).
+    grid_cost_usd_mwh:
+        Grid reference cost (USD/MWh).
+    grid_emission_factor_t_co2_mwh:
+        Grid emission intensity (tCO2/MWh). Use GRID_EMISSION_FACTOR_T_CO2_MWH[region].
+    """
+    if grid_emission_factor_t_co2_mwh <= 0:
+        return None
+    lcoe_gap = lcoe_mid_usd_mwh - grid_cost_usd_mwh
+    if lcoe_gap <= 0:
+        return 0.0
+    return round(lcoe_gap / grid_emission_factor_t_co2_mwh, 1)
+
+
+# ---------------------------------------------------------------------------
+# 6. GEAS allocation
 # ---------------------------------------------------------------------------
 
 def geas_baseline_allocation(

@@ -49,6 +49,8 @@ from pathlib import Path
 import pandas as pd
 
 from src.pipeline.assumptions import (
+    GRID_EMISSION_FACTOR_DEFAULT,
+    GRID_EMISSION_FACTOR_T_CO2_MWH,
     IDR_USD_RATE,
     TARIFF_I3_LWBP_RP_KWH,
     TARIFF_I4_RP_KWH,
@@ -89,10 +91,15 @@ def build_fct_grid_cost_proxy(
             # BPP — not yet sourced
             "bpp_usd_mwh": None,
             "bpp_source": None,
+            # Emission factor — provisional lookup by grid system
+            "grid_emission_factor_t_co2_mwh": GRID_EMISSION_FACTOR_T_CO2_MWH.get(
+                region, GRID_EMISSION_FACTOR_DEFAULT
+            ),
             "notes": (
                 "I-3/I-4 tariffs are uniform nationwide (no regional variation). "
                 "LWBP rate used; WBP peak rate = K×LWBP where K=1.4–2.0 (system-specific). "
-                "BPP (PLN cost of supply) varies by region — to be added from PLN Statistik 2024."
+                "BPP (PLN cost of supply) varies by region — to be added from PLN Statistik 2024. "
+                "Emission factor: provisional from PLN Statistik 2023 + IEA SEA Energy Outlook 2024."
             ),
         })
 

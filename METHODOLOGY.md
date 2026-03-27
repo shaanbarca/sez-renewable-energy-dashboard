@@ -523,14 +523,33 @@ Where `grid_cost` = `dashboard_rate_usd_mwh` from `fct_grid_cost_proxy`.
 
 ### 5.2 Action flags
 
-Four mutually-ordered boolean flags. A KEK receives the first flag for which its conditions are satisfied:
+Five mutually-ordered boolean flags. A KEK receives the first flag for which its conditions are satisfied:
 
 | Flag | Conditions | Interpretation |
 |------|-----------|----------------|
 | `solar_now` | `solar_attractive AND NOT grid_first AND green_share_geas ≥ 0.30` | Go solar — economics work, grid supports it, GEAS allocation available |
 | `grid_first` | `solar_attractive AND NOT grid_upgrade_pre2030` | Solar economics work but grid upgrade not planned before 2030 — wait for grid |
 | `firming_needed` | `solar_attractive AND reliability_req ≥ 0.75` | Solar economics work but zone needs high reliability — add storage/firming |
+| `invest_resilience` | `0 < solar_competitive_gap_pct ≤ 20 AND reliability_req ≥ 0.75` | Solar slightly above grid parity, but manufacturing uptime avoidance justifies the premium |
 | `plan_late` | `post2030_share ≥ 0.60` | >60% of RUPTL additions for this region are planned post-2030 — pipeline is late |
+
+**`not_competitive` fallback:** If all data is present but no flag fires, the KEK is labelled `not_competitive`. This is distinct from `data_missing` (missing inputs). At WACC=10%, with correct TECH006 CAPEX ($960/kW), most Indonesian KEKs fall here — the model correctly reports that solar is not yet at grid parity for the average KEK under these assumptions.
+
+### 5.2b Resilience layer (`invest_resilience`)
+
+The `invest_resilience` flag captures scenarios where the investment case for captive solar rests on **energy security and reliability**, not tariff savings.
+
+**Rationale:** Manufacturing KEKs (`reliability_req ≥ 0.75`) face a real cost from unplanned grid outages — typically $50–$200/MWh of lost production per unserved hour. A captive solar system at LCOE $73/MWh (vs. grid $63/MWh) costs ~$10/MWh more in energy, but avoids outage costs that can be orders of magnitude higher. The 20% gap threshold ($63 × 1.20 = $75.6 ceiling) bounds this zone conservatively.
+
+**Formula:**
+```
+invest_resilience = (solar_competitive_gap_pct > 0)         # solar not yet at grid parity
+                  AND (solar_competitive_gap_pct ≤ 20.0)    # within 20% of grid cost
+                  AND (reliability_req ≥ 0.75)              # high reliability KEK
+```
+
+**Constant:** `RESILIENCE_LCOE_GAP_THRESHOLD_PCT = 20.0` (src/assumptions.py)
+**Implementation:** `invest_resilience()` in `src/model/basic_model.py`
 
 **`solar_attractive` definition:**
 ```
@@ -570,6 +589,38 @@ geas_alloc_policy[kek] = allocatable_green_mwh_policy[region] × (priority_score
 ```
 
 This prioritizes zones with both high demand and high solar resource.
+
+### 5.3b Carbon breakeven price
+
+The carbon breakeven price answers the policy question: **"At what carbon price does solar become cost-competitive with the grid?"**
+
+**Formula:**
+```
+lcoe_gap_usd_mwh = lcoe_mid_usd_mwh - grid_cost_usd_mwh
+
+if lcoe_gap_usd_mwh ≤ 0:
+    carbon_breakeven = 0.0   # solar already competitive — no carbon price needed
+else:
+    carbon_breakeven = lcoe_gap_usd_mwh / grid_emission_factor_t_co2_mwh
+```
+
+Unit: USD/tCO2. Interpretation: if carbon is priced at or above this level (via Indonesia's carbon market, EU CBAM exposure, or corporate net-zero commitments), solar wins on adjusted total cost.
+
+**Grid emission factors by PLN system (⚠️ PROVISIONAL):**
+
+| Grid Region | Factor (tCO2/MWh) | Source |
+|------------|------------------|--------|
+| JAVA_BALI | 0.870 | ~60% coal dispatch, PLN Statistik 2023 |
+| SUMATRA | 0.670 | Gas + hydro mix |
+| KALIMANTAN | 0.720 | Coal + gas |
+| SULAWESI | 0.580 | Hydro-dominated |
+| NUSA_TENGGARA | 0.780 | Diesel-reliant island grid |
+| MALUKU_PAPUA | 0.780 | Diesel-reliant eastern grid |
+| BATAM | 0.750 | Gas-dominant island grid |
+
+Source: PLN Statistik 2023 (`docs/pln_statistik_2023_english.pdf`) + IEA Southeast Asia Energy Outlook 2024 (`docs/iea_sea_energy_outlook_2024.pdf`). Refine when PLN publishes 2024 dispatch mix.
+
+**Implementation:** `carbon_breakeven_price()` in `src/model/basic_model.py`; emission factors in `GRID_EMISSION_FACTOR_T_CO2_MWH` (src/assumptions.py).
 
 ### 5.4 Flip scenario
 

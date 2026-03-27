@@ -174,6 +174,37 @@ GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD: float = 0.30
 # Rationale: 30% green share means at least 30% of the KEK's demand can be covered by
 # RUPTL-allocated solar — enough to make a captive project economically viable.
 
+RESILIENCE_LCOE_GAP_THRESHOLD_PCT: float = 20.0
+# Maximum LCOE premium (%) above grid cost for a KEK to still qualify as invest_resilience.
+# Source: METHODOLOGY.md Section 5.3 (Resilience Layer).
+# Rationale: A 20% premium above grid cost (~$63 I-4 → $76 effective ceiling) represents the
+# upper bound of a reasonable "reliability insurance" premium for industrial KEKs. Manufacturing
+# tenants facing unplanned outage costs typically value uptime at $50–200/MWh of lost production.
+# At 20%, the premium is $12.6/MWh — well within avoided-downtime economics for heavy industry.
+
+# ─── GRID EMISSION FACTORS ────────────────────────────────────────────────────
+
+GRID_EMISSION_FACTOR_T_CO2_MWH: dict[str, float] = {
+    "JAVA_BALI":     0.870,  # ~60% coal dispatch — PLN Statistik 2023 Table 5 (most carbon-intensive)
+    "SUMATRA":       0.670,  # gas + hydro mix; lower coal share than Java
+    "KALIMANTAN":    0.720,  # coal + gas; slightly cleaner dispatch than Java
+    "SULAWESI":      0.580,  # hydro-dominated; most renewables-rich mainland grid
+    "NUSA_TENGGARA": 0.780,  # diesel-reliant island grid; high emission intensity
+    "MALUKU_PAPUA":  0.780,  # diesel-reliant eastern grid; same assumption as Nusa Tenggara
+    "BATAM":         0.750,  # gas-dominant island grid; cleaner than coal but above Sulawesi
+}
+# Grid emission intensity by PLN system (tCO2/MWh = kgCO2/kWh).
+# Source: PLN Statistik 2023 (docs/pln_statistik_2023_english.pdf, Table 5.x dispatch mix by system)
+#         cross-checked against IEA Southeast Asia Energy Outlook 2024 (docs/iea_sea_energy_outlook_2024.pdf).
+# Status: ⚠️ PROVISIONAL — refine when PLN 2024 dispatch data is published.
+# Use: carbon_breakeven_price() divides the LCOE gap by this factor to compute the CO2 price
+# at which solar becomes cost-competitive with the grid.
+
+GRID_EMISSION_FACTOR_DEFAULT: float = 0.750
+# Fallback emission factor for grid_region_ids not in GRID_EMISSION_FACTOR_T_CO2_MWH.
+# Source: approximate Indonesia national average (IEA 2023: 0.72 kgCO2/kWh national grid).
+# Value set slightly above national average to be conservative for unmapped regions.
+
 # ─── RUPTL ANALYSIS ───────────────────────────────────────────────────────────
 
 RUPTL_PRE2030_END: int = 2030

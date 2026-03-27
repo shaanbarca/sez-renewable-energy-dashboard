@@ -34,9 +34,11 @@ from src.model.basic_model import (
     build_scorecard,
     capacity_factor_from_pvout,
     capital_recovery_factor,
+    carbon_breakeven_price,
     geas_baseline_allocation,
     geas_policy_allocation,
     gentie_cost_per_kw,
+    invest_resilience,
     is_solar_attractive,
     lcoe_solar,
     lcoe_solar_remote_captive,
@@ -743,3 +745,75 @@ class TestResolveDemand:
         original_b = df.loc[df["kek_id"] == "b", "demand_mwh"].iloc[0]
         resolve_demand(df)
         assert df.loc[df["kek_id"] == "b", "demand_mwh"].iloc[0] == original_b
+
+
+# ---------------------------------------------------------------------------
+# 15. invest_resilience
+# ---------------------------------------------------------------------------
+
+class TestInvestResilience:
+    def test_fires_in_resilience_zone(self):
+        # LCOE 15% above grid, high reliability requirement → True
+        assert invest_resilience(solar_competitive_gap_pct=15.0, reliability_req=0.8) is True
+
+    def test_fires_at_exact_threshold_boundary(self):
+        # At exactly 20% gap and exactly 0.75 reliability → True (inclusive bounds)
+        assert invest_resilience(solar_competitive_gap_pct=20.0, reliability_req=0.75) is True
+
+    def test_no_fire_gap_exceeds_threshold(self):
+        # 25% gap > 20% threshold → False
+        assert invest_resilience(solar_competitive_gap_pct=25.0, reliability_req=0.8) is False
+
+    def test_no_fire_low_reliability(self):
+        # Good gap but tourism KEK (low reliability) → False
+        assert invest_resilience(solar_competitive_gap_pct=15.0, reliability_req=0.5) is False
+
+    def test_no_fire_when_already_competitive(self):
+        # Negative gap = solar already cheaper than grid → False (solar_now applies)
+        assert invest_resilience(solar_competitive_gap_pct=-5.0, reliability_req=0.85) is False
+
+    def test_no_fire_at_zero_gap(self):
+        # Exactly at parity → False (solar_now applies, not resilience flag)
+        assert invest_resilience(solar_competitive_gap_pct=0.0, reliability_req=0.85) is False
+
+    def test_custom_thresholds(self):
+        # Custom gap and reliability thresholds are respected
+        assert invest_resilience(15.0, 0.7, gap_threshold_pct=10.0, reliability_threshold=0.7) is False
+        assert invest_resilience(8.0, 0.7, gap_threshold_pct=10.0, reliability_threshold=0.7) is True
+
+
+# ---------------------------------------------------------------------------
+# 16. carbon_breakeven_price
+# ---------------------------------------------------------------------------
+
+class TestCarbonBreakevenPrice:
+    def test_already_competitive_returns_zero(self):
+        # LCOE < grid → 0.0 (no carbon price needed)
+        assert carbon_breakeven_price(60.0, 63.08, 0.87) == 0.0
+
+    def test_at_parity_returns_zero(self):
+        assert carbon_breakeven_price(63.08, 63.08, 0.87) == 0.0
+
+    def test_positive_gap_java_bali(self):
+        # Batang-like: LCOE=66.2, grid=63.08, EF=0.87 tCO2/MWh
+        # gap = 3.12 / 0.87 = 3.586... → rounds to 3.6
+        result = carbon_breakeven_price(66.2, 63.08, 0.87)
+        assert result is not None
+        assert math.isclose(result, round(3.12 / 0.87, 1), rel_tol=1e-3)
+
+    def test_zero_emission_factor_returns_none(self):
+        assert carbon_breakeven_price(70.0, 63.08, 0.0) is None
+
+    def test_negative_emission_factor_returns_none(self):
+        assert carbon_breakeven_price(70.0, 63.08, -0.5) is None
+
+    def test_large_gap_sulawesi(self):
+        # High LCOE tourism KEK, cleaner grid (Sulawesi 0.58)
+        # gap = 80.0 - 63.08 = 16.92 / 0.58 = 29.17 → 29.2
+        result = carbon_breakeven_price(80.0, 63.08, 0.58)
+        assert result is not None
+        assert math.isclose(result, round(16.92 / 0.58, 1), rel_tol=1e-3)
+
+    def test_result_is_float(self):
+        result = carbon_breakeven_price(70.0, 63.08, 0.87)
+        assert isinstance(result, float)

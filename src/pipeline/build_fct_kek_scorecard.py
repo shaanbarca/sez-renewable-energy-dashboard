@@ -34,7 +34,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.model.basic_model import action_flags, geas_baseline_allocation, resolve_demand
+from src.model.basic_model import (
+    action_flags,
+    carbon_breakeven_price,
+    geas_baseline_allocation,
+    invest_resilience,
+    resolve_demand,
+)
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -104,6 +110,7 @@ def build_fct_kek_scorecard(
     grid_cost = grid_cost[[
         "grid_region_id", "dashboard_rate_usd_mwh", "dashboard_rate_label",
         "dashboard_rate_flag", "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
+        "grid_emission_factor_t_co2_mwh",
     ]].rename(columns={"dashboard_rate_flag": "is_grid_cost_provisional"})
     # Normalize flag to boolean
     grid_cost["is_grid_cost_provisional"] = (
@@ -162,16 +169,24 @@ def build_fct_kek_scorecard(
         has_lcoe = pd.notna(row["lcoe_mid_usd_mwh"])
         has_ruptl = pd.notna(row["post2030_share"])
 
+        reliability = float(row["reliability_req"]) if pd.notna(row.get("reliability_req")) else 0.6
+
         if not has_grid_cost or not has_lcoe:
             flags = {"solar_now": None, "grid_first": None,
-                     "firming_needed": None, "plan_late": None}
+                     "firming_needed": None, "plan_late": None,
+                     "invest_resilience": None}
         else:
             flags = action_flags(
                 solar_attractive=bool(row["solar_attractive"]),
                 grid_upgrade_pre2030=bool(row["grid_upgrade_pre2030"]),
-                reliability_req=float(row["reliability_req"]) if pd.notna(row.get("reliability_req")) else 0.6,
+                reliability_req=reliability,
                 green_share_geas=float(row["green_share_geas"]),
                 post2030_share=float(row["post2030_share"]) if has_ruptl else 0.0,
+            )
+            flags["invest_resilience"] = invest_resilience(
+                solar_competitive_gap_pct=float(row["solar_competitive_gap_pct"])
+                if pd.notna(row["solar_competitive_gap_pct"]) else float("inf"),
+                reliability_req=reliability,
             )
 
         flag_rows.append(flags)
@@ -179,14 +194,31 @@ def build_fct_kek_scorecard(
     flags_df = pd.DataFrame(flag_rows)
     df = pd.concat([df.reset_index(drop=True), flags_df], axis=1)
 
-    # Derive primary action flag label (first True flag, else "data_missing")
+    # Derive primary action flag label
+    # - "data_missing": one or more required inputs were NaN (flags set to None above)
+    # - "not_competitive": all data present but solar LCOE > grid cost at base WACC
+    # - otherwise: first True flag wins
     def _flag_label(row: pd.Series) -> str:
-        for flag in ["solar_now", "grid_first", "firming_needed", "plan_late"]:
+        if any(row.get(f) is None for f in ["solar_now", "grid_first", "firming_needed", "plan_late"]):
+            return "data_missing"
+        for flag in ["solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late"]:
             if row.get(flag) is True:
                 return flag
-        return "data_missing"
+        return "not_competitive"
 
     df["action_flag"] = df.apply(_flag_label, axis=1)
+
+    # Carbon breakeven price: USD/tCO2 at which solar becomes cost-competitive
+    df["carbon_breakeven_usd_tco2"] = df.apply(
+        lambda r: carbon_breakeven_price(
+            lcoe_mid_usd_mwh=float(r["lcoe_mid_usd_mwh"]),
+            grid_cost_usd_mwh=float(r["dashboard_rate_usd_mwh"]),
+            grid_emission_factor_t_co2_mwh=float(r["grid_emission_factor_t_co2_mwh"]),
+        ) if pd.notna(r["lcoe_mid_usd_mwh"]) and pd.notna(r["dashboard_rate_usd_mwh"])
+        and pd.notna(r["grid_emission_factor_t_co2_mwh"])
+        else None,
+        axis=1,
+    )
 
     # Clean power advantage (for map coloring): higher = more competitive
     df["clean_power_advantage"] = (-df["solar_competitive_gap_pct"]).round(1)
@@ -222,9 +254,10 @@ def build_fct_kek_scorecard(
         "dashboard_rate_usd_mwh", "dashboard_rate_label", "is_grid_cost_provisional",
         "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
         "solar_competitive_gap_pct", "solar_attractive",
-        "action_flag", "solar_now", "grid_first", "firming_needed", "plan_late",
+        "action_flag", "solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late",
         "green_share_geas",
         "pre2030_solar_mw", "post2030_share", "grid_upgrade_pre2030", "ruptl_summary",
+        "grid_emission_factor_t_co2_mwh", "carbon_breakeven_usd_tco2",
         "clean_power_advantage", "data_completeness",
     ]]
 

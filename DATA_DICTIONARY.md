@@ -535,7 +535,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `grid_upgrade_pre2030` | bool | `True if pre2030_solar_mw > 0` |
 | `ruptl_summary` | str | `"{pre2030_solar_mw} MW solar planned in {region} by 2030"` |
 
-**Action flag columns** (from `action_flags()` in `basic_model.py`):
+**Action flag columns** (from `action_flags()` + `invest_resilience()` in `basic_model.py`):
 
 | Flag | Formula |
 |------|---------|
@@ -543,8 +543,16 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `solar_now` | `solar_attractive AND grid_upgrade_pre2030 AND green_share_geas ≥ 0.30` |
 | `grid_first` | `solar_attractive AND NOT grid_upgrade_pre2030` |
 | `firming_needed` | `solar_attractive AND reliability_req ≥ 0.75` |
+| `invest_resilience` | `0 < solar_competitive_gap_pct ≤ 20 AND reliability_req ≥ 0.75` — solar slightly above grid cost but manufacturing reliability justifies the premium |
 | `plan_late` | `post2030_share ≥ 0.60` |
-| `action_flag` | Summary string: first true flag, or `"data_missing"` if none triggered |
+| `action_flag` | Summary string: first true flag (priority: solar_now > grid_first > firming_needed > invest_resilience > plan_late); `"not_competitive"` if data complete but LCOE > grid; `"data_missing"` if required inputs are NaN |
+
+**Resilience + carbon columns:**
+
+| Column | Type | Formula |
+|--------|------|---------|
+| `grid_emission_factor_t_co2_mwh` | float | Grid emission intensity (tCO2/MWh) from `GRID_EMISSION_FACTOR_T_CO2_MWH[grid_region_id]` — ⚠️ PROVISIONAL (PLN Statistik 2023 + IEA SEA 2024) |
+| `carbon_breakeven_usd_tco2` | float | `max(0, lcoe_gap_usd_mwh) / grid_emission_factor` — carbon price (USD/tCO2) at which solar becomes cost-competitive. 0.0 if already competitive. |
 
 **Data quality column:**
 

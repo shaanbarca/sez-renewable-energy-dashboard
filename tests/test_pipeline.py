@@ -448,7 +448,7 @@ class TestFctKekScorecard:
     def test_action_flag_values(self):
         """action_flag must only contain valid values."""
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
-        valid_flags = {"solar_now", "grid_first", "firming_needed", "plan_late", "data_missing"}
+        valid_flags = {"solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late", "data_missing", "not_competitive"}
         assert set(sc["action_flag"].unique()).issubset(valid_flags)
 
     def test_lcoe_in_plausible_range(self):
@@ -481,6 +481,38 @@ class TestFctKekScorecard:
         import run_pipeline
         scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_kek_scorecard")
         assert "fct_kek_demand" in scorecard_step.depends_on
+
+    def test_invest_resilience_column_present(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert "invest_resilience" in sc.columns
+
+    def test_invest_resilience_is_boolean(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        vals = sc["invest_resilience"].dropna()
+        assert vals.isin([True, False, 0, 1]).all()
+
+    def test_carbon_breakeven_column_present(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert "carbon_breakeven_usd_tco2" in sc.columns
+
+    def test_carbon_breakeven_nonnegative(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        vals = sc["carbon_breakeven_usd_tco2"].dropna()
+        assert (vals >= 0).all(), "Carbon breakeven price must be ≥ 0"
+
+    def test_invest_resilience_fires_for_manufacturing_keks(self):
+        """Manufacturing KEKs with LCOE < 20% above grid should get invest_resilience=True."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        # Any KEK with gap in (0, 20] and reliability_req >= 0.75 should fire
+        # At WACC=10%, some manufacturing KEKs (Batang, Sorong) should be in the resilience zone
+        manufacturing = sc[sc["kek_type"].str.contains("Industri", na=False)]
+        low_gap = manufacturing[
+            manufacturing["solar_competitive_gap_pct"].between(0, 20, inclusive="right")
+        ]
+        if len(low_gap) > 0:
+            assert low_gap["invest_resilience"].any(), (
+                "Manufacturing KEKs within 20% of grid parity should have invest_resilience=True"
+            )
 
 
 # ── run_pipeline: topo sort ───────────────────────────────────────────────────
