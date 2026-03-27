@@ -53,10 +53,10 @@ Step 5 — Action flags (per KEK)
 |-------|--------------|--------|
 | PVOUT | 1,296–1,730 kWh/kWp/yr (extracted) | Global Solar Atlas v2 GeoTIFF |
 | CF | 0.148–0.197 | Derived from PVOUT ÷ 8,760 |
-| CAPEX (central) | 700 USD/kW (placeholder) | ESDM Tech Catalogue TECH006 — verify |
-| FOM | 12 USD/kW/yr (placeholder) | ESDM Tech Catalogue TECH006 — verify |
+| CAPEX (central) | 960 USD/kW | ESDM Tech Catalogue 2023, TECH006, p.66 (0.96 MUSD/MWe) |
+| FOM | 7.5 USD/kW/yr | ESDM Tech Catalogue 2023, TECH006, p.66 (7,500 USD/MWe/yr) |
 | WACC | 6–15% (slider); default 10% | User-adjustable |
-| Lifetime | 25 years | ESDM Tech Catalogue |
+| Lifetime | 27 years | ESDM Tech Catalogue 2023, TECH006, p.66 |
 | Grid cost (primary) | 63.1 USD/MWh (I-4/TT) | Permen ESDM No.7/2024, uniform national |
 | Grid cost (secondary) | 65.6 USD/MWh (I-3/TM) | Permen ESDM No.7/2024, uniform national |
 | GEAS allocation | Pro-rata by demand share | RUPTL 2025–2034 pre-2030 solar additions |
@@ -65,7 +65,7 @@ Step 5 — Action flags (per KEK)
 
 - **PVOUT is an upper bound.** Buildability filters (forest, slope, peat, area) are not yet applied. All resource values carry `resource_quality = "provisional (no buildability filter)"`.
 - **I-4/TT tariff ≠ BPP.** The tariff is what KEK tenants pay. PLN BPP (cost of supply) may be 15–35% higher. We use the tariff (correct), not BPP (incorrect comparator).
-- **CAPEX/FOM are placeholders.** TECH006 values in `fct_tech_parameter.csv` must be verified against the ESDM Technology Catalogue PDF before production use.
+- **CAPEX/FOM are verified.** TECH006 values are sourced from the ESDM Technology Catalogue 2023, datasheet p.66, and stored as `VERIFIED_TECH006_DATA` in `src/pipeline/pdf_extract_esdm_tech.py`.
 - **IDR/USD rate:** 15,800 IDR/USD (2024 reference). Tariff in IDR is subject to quarterly tariff adjustment (Pasal 6, Permen ESDM No.7/2024).
 
 ---
@@ -319,6 +319,82 @@ Based on the West Kalimantan GIS study (Wijaya et al.) and Indonesia-wide land c
 | Peatland function zones | KLHK/BRG | geoportal.menlhk.go.id | Shapefile | Public |
 | Flood hazard | BNPB | inarisk.bnpb.go.id | Raster | Public |
 | Roads | OpenStreetMap | download.geofabrik.de/asia/indonesia | PBF/Shapefile | Open (ODbL) |
+
+---
+
+## 2A. Captive Solar: Legal Framework, Siting Scenarios, and PLN Connection Costs
+
+### 2A.1 Legal Definition of Captive Power ("Kepentingan Sendiri")
+
+Under Indonesian electricity law, "captive power" (pembangkit untuk kepentingan sendiri) is defined on an **entity/integration basis, not a distance basis**. No regulation specifies a maximum distance between the generating plant and the load it serves.
+
+**Statutory basis:**
+- **UU No. 30 Tahun 2009 tentang Ketenagalistrikan** (Electricity Law), Pasal 1: defines "kepentingan sendiri" as electricity supply for the entity's own operational needs. No spatial constraint.
+- **PP No. 14 Tahun 2012 tentang Kegiatan Usaha Penyediaan Tenaga Listrik**: establishes the IUPTLS licensing regime for captive generation. Capacity threshold: generators >500 kW require an IUPTLS from MEMR (or governor for <10 MW in a single province). No distance threshold.
+
+**Three-part qualification test** applied in practice:
+1. Same legal entity owns both the generating plant and the consuming load
+2. 100% of generation is dedicated to own use (no sales to third parties)
+3. Plant and load are managed as a single integrated operational unit
+
+No MEMR ruling or court decision has established a km threshold. The 50km radius used in this model's `pvout_best_50km` calculation is a siting economics constraint, not a legal limit.
+
+### 2A.2 PLN Substation Connection — Legality and Fees
+
+A private captive solar generator **may and in practice must** connect to the nearest PLN substation when the plant is located outside the KEK boundary or when KEK's internal distribution infrastructure is insufficient. The legal authority for this is **Permen ESDM No. 27 Tahun 2017** (grid connection standards for private generators).
+
+**Cost structure for PLN substation connection:**
+
+| Cost component | Formula / Range | Legal basis |
+|---|---|---|
+| **Gen-tie line construction** | Developer's cost; typically $3–10/kW-km × distance to nearest substation | Developer obligation; PLN typically takes ownership post-commissioning |
+| **Substation works** (step-up/step-down, protection) | ~$100–200/kW | Part of interconnection study scope |
+| **Parallel operation capacity charge** | Net capacity (MW) × 40 hrs × applicable PLN tariff; PLN may discount for intermittent sources (solar) | Permen ESDM No. 1 Tahun 2017 |
+| **Transmission lease fee** | Negotiated with PLN, subject to MEMR approval; proportional to line distance and capacity | Permen ESDM No. 27 Tahun 2017 |
+| **Standby/backup charge** | Capacity-based; charged during periods when solar is not producing | Part of parallel operation terms |
+
+**Approval process for investors:**
+1. Obtain IUPTLS from MEMR/governor (for capacity >500 kW)
+2. Commission a grid interconnection study (required by PLN before any connection)
+3. Negotiate gen-tie route, right-of-way, and PLN substation acceptance
+4. Agree transmission lease fee (requires MEMR approval)
+5. Obtain SLO (Sertifikat Laik Operasi — operational worthiness certificate)
+6. Commercial operation
+
+### 2A.3 Power Wheeling — Legally Permitted, Practically Blocked
+
+**Permen ESDM No. 1 Tahun 2015** (kerja sama pengaliran tenaga listrik) authorises private generators to wheel power through PLN's transmission network to a load located at a different point. This would theoretically allow a solar farm at location A to supply a KEK tenant at location B via PLN infrastructure.
+
+**Current status:** Wheeling has never been implemented in practice. PLN has rejected all wheeling requests, citing technical and operational grounds. This model does **not** assume wheeling is available as a pathway.
+
+### 2A.4 Two Siting Scenarios
+
+This model evaluates two distinct captive solar configurations per KEK:
+
+| Scenario | PVOUT input | Gen-tie needed? | PLN fees | LCOE treatment |
+|---|---|---|---|---|
+| **Within-boundary captive** | `pvout_centroid` | None — plant on KEK land, connects to KEK's own 20kV distribution | None (if purely internal) | Base LCOE only |
+| **Remote captive (≤50km)** | `pvout_best_50km` | Yes, if plant is outside KEK boundary | Parallel operation charge + transmission lease | Base LCOE + gen-tie adder (deferred to Phase 2) |
+
+**Phase 2 note:** `dist_to_nearest_substation_km` (from `data/substation.geojson`) is used as the primary cost driver for the gen-tie adder in the remote captive scenario. The gen-tie LCOE adder formula is: `(dist_km × $X/kW-km + $Y/kW_substation) × CRF / (CF × 8.76)` where X and Y are sourced from industry benchmarks. This computation is deferred to Phase 2 — MVP presents `pvout_best_50km` LCOE as a lower bound (gen-tie cost excluded) with a provenance flag.
+
+### 2A.5 Model Scope
+
+The **MVP (Phase 1)** computes:
+- Within-boundary LCOE using `pvout_centroid`
+- Remote captive LCOE using `pvout_best_50km` (gen-tie adder excluded, flagged as lower bound)
+
+**Phase 2** adds:
+- Gen-tie cost adder for remote captive scenario using `dist_to_nearest_substation_km`
+- Transmission lease fee parameterisation
+
+**Regulatory sources:**
+- UU No. 30 Tahun 2009 (Ketenagalistrikan)
+- PP No. 14 Tahun 2012 (Kegiatan Usaha Penyediaan Tenaga Listrik)
+- Permen ESDM No. 1 Tahun 2015 (Kerja Sama Pengaliran Tenaga Listrik)
+- Permen ESDM No. 1 Tahun 2017 (Persyaratan Teknik Penyambungan ke Sistem Tenaga Listrik)
+- Permen ESDM No. 27 Tahun 2017 (Tingkat Mutu Pelayanan dan Biaya yang Terkait dengan Penyaluran Tenaga Listrik)
+- Permen ESDM No. 11 Tahun 2021 (Pelaksanaan Kegiatan Usaha Penyediaan Tenaga Listrik)
 
 ---
 
