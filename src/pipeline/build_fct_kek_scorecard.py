@@ -5,11 +5,13 @@ Joins all upstream tables into a single flat table for the Dash app to query.
 This is the final output of the pipeline — everything else feeds into this.
 
 Sources:
-    processed: dim_kek.csv               identity, province, grid_region_id
-    processed: fct_kek_resource.csv      PVOUT, CF
-    processed: fct_lcoe.csv              LCOE bands at WACC=10% (base case)
-    processed: fct_grid_cost_proxy.csv   dashboard_rate, is_provisional
-    processed: fct_ruptl_pipeline.csv    pre/post-2030 solar pipeline per region
+    processed: dim_kek.csv                    identity, province, grid_region_id
+    processed: fct_kek_resource.csv           PVOUT, CF
+    processed: fct_lcoe.csv                   LCOE bands at WACC=10% (base case)
+    processed: fct_grid_cost_proxy.csv        dashboard_rate, is_provisional
+    processed: fct_ruptl_pipeline.csv         pre/post-2030 solar pipeline per region
+    processed: fct_kek_demand.csv             2030 demand estimate per KEK
+    processed: fct_substation_proximity.csv   substation distance + siting scenario
 
 Output columns: see DATA_DICTIONARY.md Section 2.8
 Key computed fields:
@@ -52,6 +54,7 @@ FLCOE_CSV = PROCESSED / "fct_lcoe.csv"
 FGCP_CSV = PROCESSED / "fct_grid_cost_proxy.csv"
 FRUPTL_CSV = PROCESSED / "fct_ruptl_pipeline.csv"
 FCT_DEMAND_CSV = PROCESSED / "fct_kek_demand.csv"
+FSUB_CSV = PROCESSED / "fct_substation_proximity.csv"
 
 
 def _ruptl_region_summary(ruptl: pd.DataFrame) -> pd.DataFrame:
@@ -82,6 +85,7 @@ def build_fct_kek_scorecard(
     fct_grid_cost_proxy_csv: Path = FGCP_CSV,
     fct_ruptl_pipeline_csv: Path = FRUPTL_CSV,
     fct_kek_demand_csv: Path = FCT_DEMAND_CSV,
+    fct_substation_proximity_csv: Path = FSUB_CSV,
     base_wacc: float = BASE_WACC,
 ) -> pd.DataFrame:
     """Join all upstream tables into one dashboard-ready scorecard."""
@@ -94,6 +98,7 @@ def build_fct_kek_scorecard(
     ruptl = pd.read_csv(fct_ruptl_pipeline_csv)
     fct_demand_raw = pd.read_csv(fct_kek_demand_csv)
     fct_demand = resolve_demand(fct_demand_raw)
+    fct_sub = pd.read_csv(fct_substation_proximity_csv)
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
     # LCOE at base WACC, within_boundary scenario (on-site solar, no gen-tie cost)
@@ -125,18 +130,56 @@ def build_fct_kek_scorecard(
     # RUPTL: pre/post-2030 summary per region
     ruptl_summary = _ruptl_region_summary(ruptl)
 
+    # Substation proximity: distance + siting scenario per KEK
+    sub = fct_sub[["kek_id", "dist_to_nearest_substation_km", "siting_scenario"]].copy()
+
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
+    # Merge buildability columns when present in fct_kek_resource
+    _build_cols = ["pvout_buildable_best_50km", "buildable_area_ha",
+                   "max_captive_capacity_mwp", "buildability_constraint"]
+    _resource_base = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
+    _resource_cols = _resource_base + [c for c in _build_cols if c in resource.columns]
+
     df = (
         dim_kek
-        .merge(resource[["kek_id", "pvout_centroid", "cf_centroid",
-                          "pvout_best_50km", "cf_best_50km"]], on="kek_id", how="left")
+        .merge(resource[_resource_cols], on="kek_id", how="left")
         .merge(lcoe[["kek_id", "lcoe_low_usd_mwh", "lcoe_mid_usd_mwh", "lcoe_high_usd_mwh",
                      "cf_used", "is_cf_provisional", "is_capex_provisional"]], on="kek_id", how="left")
         .merge(grid_cost, on="grid_region_id", how="left")
         .merge(ruptl_summary[["grid_region_id", "pre2030_solar_mw", "post2030_share"]],
                on="grid_region_id", how="left")
         .merge(lcoe_wacc8, on="kek_id", how="left")
+        .merge(sub, on="kek_id", how="left")
     )
+
+    # Ensure buildability columns exist (NaN if data/buildability/ not yet populated)
+    for col in _build_cols:
+        if col not in df.columns:
+            df[col] = np.nan if col != "buildability_constraint" else "data_unavailable"
+
+    # Resource quality label — reflects how much of the buildability filter was applied
+    # "filtered": all 4 data files applied (Kawasan Hutan + peat + land cover + DEM)
+    # "partial_filter": some data files applied (e.g. DEM-only for slope/elevation)
+    # "provisional": no buildability data present
+    from src.pipeline.build_fct_kek_resource import (
+        BUILDABILITY_DIR,
+        _REQUIRED_BUILD_FILES,
+        _available_build_files,
+    )
+    _n_avail = len(_available_build_files(BUILDABILITY_DIR))
+    _n_total = len(_REQUIRED_BUILD_FILES)
+    _has_any = _n_avail > 0
+    _has_all = _n_avail == _n_total
+
+    def _resource_quality(row: pd.Series) -> str:
+        buildable = row.get("pvout_buildable_best_50km")
+        if pd.isna(buildable) or buildable <= 0:
+            return "provisional (no buildability filter)"
+        if _has_all:
+            return "filtered"
+        return f"partial_filter ({_n_avail}/{_n_total} layers)"
+
+    df["resource_quality"] = df.apply(_resource_quality, axis=1)
 
     # Solar competitive gap: negative = solar already cheaper than grid
     df["solar_competitive_gap_pct"] = np.where(
@@ -175,6 +218,10 @@ def build_fct_kek_scorecard(
     geas_df = geas_baseline_allocation(demand_yr, ruptl)
     # geas_df has kek_id + green_share_geas columns
     df = df.merge(geas_df[["kek_id", "green_share_geas"]], on="kek_id", how="left")
+
+    # 2030 demand — join for persona/dashboard use (PPA sizing, green share context)
+    demand_2030 = demand_yr[["kek_id", "demand_mwh"]].rename(columns={"demand_mwh": "demand_mwh_2030"})
+    df = df.merge(demand_2030, on="kek_id", how="left")
     df["green_share_geas"] = df["green_share_geas"].fillna(0.0)
 
     # Action flags — compute row by row using model function
@@ -266,6 +313,9 @@ def build_fct_kek_scorecard(
         "kek_id", "kek_name", "province", "grid_region_id",
         "kek_type", "status", "latitude", "longitude",
         "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km",
+        "pvout_buildable_best_50km", "buildable_area_ha",
+        "max_captive_capacity_mwp", "buildability_constraint", "resource_quality",
+        "dist_to_nearest_substation_km", "siting_scenario", "demand_mwh_2030",
         "lcoe_low_usd_mwh", "lcoe_mid_usd_mwh", "lcoe_high_usd_mwh",
         "cf_used", "is_cf_provisional", "is_capex_provisional",
         "dashboard_rate_usd_mwh", "dashboard_rate_label", "is_grid_cost_provisional",

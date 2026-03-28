@@ -188,7 +188,7 @@ Even outside *Kawasan Hutan*, certain land categories within APL (*Areal Penggun
 |---|---|---|---|
 | Kawasan Hutan boundary | KLHK / BIG Geoportal | geoportal.menlhk.go.id | Shapefile |
 | Peatland ecosystem function zones | BRG/KLHK | Perpres 57/2016 mapping | Shapefile |
-| Land cover (mangrove, water, sawah, urban) | KLHK Peta Penutupan Lahan (most recent: 2019–2022) | geoportal.menlhk.go.id | Raster (30m) |
+| Land cover (mangrove, water, cropland, urban) | ESA WorldCover v200 2021 (10m) | esa-worldcover.s3.eu-central-1.amazonaws.com | Raster (10m, automated download) |
 | Moratorium map | KLHK | Provided under Inpres / Perpres, updated periodically | Shapefile |
 
 ---
@@ -298,25 +298,39 @@ Based on the West Kalimantan GIS study (Wijaya et al.) and Indonesia-wide land c
 
 ---
 
-#### MVP Treatment and v1.1 Roadmap
+#### v1.1 Implementation Status
 
-**MVP (current model):** Layers 1–4 are **not applied**. `pvout_best_50km` is used directly as an upper bound. Every KEK's resource value is labeled `resource_quality = "provisional (no buildability filter)"` in the scorecard.
+**v1.1 (implemented):** Layers 1a/1b/1c-d/2a/2c/4 are implemented in code and ready to run.
+`fct_kek_resource` now outputs `pvout_buildable_best_50km`, `buildable_area_ha`,
+`max_captive_capacity_mwp`, and `buildability_constraint`. When `data/buildability/` files
+are present, `fct_lcoe` and `fct_kek_scorecard` automatically use `pvout_buildable_best_50km`
+in the `remote_captive` scenario; `resource_quality` is set to `"filtered"`.
 
-**v1.1 implementation steps:**
+**Current state (data acquisition):**
+- ✅ `dem_indonesia.tif` — Copernicus DEM GLO-30, automated via `scripts/download_buildability_data.py`
+- ✅ `esa_worldcover.vrt` — ESA WorldCover v200 2021, automated via `scripts/download_buildability_data.py`
+- ❌ `kawasan_hutan.shp` — KLHK Kawasan Hutan, manual download from geoportal.menlhk.go.id
+- ❌ `peatland_zones.shp` — KLHK peatland zones, manual download from geoportal.menlhk.go.id
 
-1. Download: Copernicus DEM 30m (slope), KLHK Peta Penutupan Lahan (land cover), KLHK Kawasan Hutan boundary (forest estate), BNPB flood hazard (optional)
-2. Build `scripts/build_fct_kek_resource.py` with a `compute_buildable_pvout(kek_centroid, radius_km)` function that applies Layers 1–4 in sequence
-3. Output: `fct_kek_resource` gains columns `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` (dominant binding constraint: "kawasan_hutan" | "slope" | "agriculture" | "peat" | "area_too_small" | "unconstrained")
-4. Update `build_scorecard()` to use `pvout_buildable_best_50km` instead of `pvout_best_50km` when available
+With DEM + ESA WorldCover present, `resource_quality = "partial_filter (2/4 layers)"` (slope/elevation + land cover active). Full `"filtered"` status requires all 4 files.
+
+**Deferred to v1.2:**
+- Layer 2d (flood hazard) — BNPB portal inaccessible; low overlap with slope exclusions
+- Layer 3a (road proximity) — soft constraint only; requires OSM PBF parsing
+
+**Resolution note:** The PVOUT raster is at ~1km pixel (~86 ha/pixel). At this resolution,
+Layer 4 (min contiguous area ≥ 10 ha) is a near-no-op — every valid pixel already exceeds
+the 10 ha threshold. Layer 4 is retained for completeness and area counting. The exclusion
+layers (1, 2) provide the primary buildability signal at 1km resolution.
 
 **Data sources for v1.1:**
 
 | Layer | Dataset | Source | Format | License |
 |---|---|---|---|---|
-| Slope / elevation | Copernicus DEM GLO-30 | spacedata.copernicus.eu | GeoTIFF 30m | Free, open |
-| Forest estate boundary | KLHK Kawasan Hutan | geoportal.menlhk.go.id | Shapefile | Public |
-| Land cover (mangrove, water, sawah, urban) | KLHK Peta Penutupan Lahan 2022 | geoportal.menlhk.go.id | Raster 30m | Public |
-| Peatland function zones | KLHK/BRG | geoportal.menlhk.go.id | Shapefile | Public |
+| Slope / elevation (Layer 2a/2c) | Copernicus DEM GLO-30 | AWS S3 public mirror | GeoTIFF 30m → `dem_indonesia.tif` | Free, automated |
+| Forest estate boundary (Layer 1a) | KLHK Kawasan Hutan | geoportal.menlhk.go.id | Shapefile → `kawasan_hutan.shp` | Public, manual download |
+| Land cover: forest, cropland, water, urban (Layer 1c/d) | ESA WorldCover v200 2021 | AWS S3 public mirror | Raster 10m → `esa_worldcover.vrt` | Free, automated |
+| Peatland function zones (Layer 1b) | KLHK/BRG | geoportal.menlhk.go.id | Shapefile → `peatland_zones.shp` | Public, manual download |
 | Flood hazard | BNPB | inarisk.bnpb.go.id | Raster | Public |
 | Roads | OpenStreetMap | download.geofabrik.de/asia/indonesia | PBF/Shapefile | Open (ODbL) |
 

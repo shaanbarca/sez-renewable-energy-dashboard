@@ -4,6 +4,9 @@ build_fct_kek_resource — PVOUT at centroid and best-within-50km for each KEK.
 Sources:
     processed: dim_kek.csv                                   KEK centroids (lat/lon)
     data: Indonesia_GISdata_LTAym_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF.zip
+    data/buildability/: optional — Copernicus DEM, KLHK Kawasan Hutan, peatland,
+                        and Peta Penutupan Lahan (30m land cover raster).
+                        If absent, buildability columns are NaN (graceful degradation).
 
 Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
     kek_id                   slug from dim_kek — join key
@@ -17,8 +20,15 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
     pvout_best_50km          annual PVOUT best within 50km (kWh/kWp/year)
     cf_best_50km             capacity factor best within 50km = pvout_best_50km / 8760
     pvout_source             "GlobalSolarAtlas-v2"
+    pvout_buildable_best_50km  annual PVOUT best within 50km after buildability filter
+                               NaN if buildability data not present in data/buildability/
+    buildable_area_ha          total buildable area within 50km after all filters (ha)
+    max_captive_capacity_mwp   buildable_area_ha / 1.5 (1.5 ha/MWp tropical fixed-tilt)
+    buildability_constraint    dominant binding constraint:
+                               "kawasan_hutan"|"slope"|"peat"|"agriculture"|
+                               "area_too_small"|"unconstrained"|"data_unavailable"
 
-Methodology reference: METHODOLOGY.md Section 2.4
+Methodology reference: METHODOLOGY.md Sections 2.4 and 2.5
 50km buffer formula: lat_buf = 50/111.32, lon_buf = 50/(111.32×cos(lat_rad))
 """
 
@@ -41,6 +51,14 @@ from src.pipeline.assumptions import (
     PVOUT_BUFFER_KM,
     PVOUT_SOURCE,
 )
+from src.pipeline.buildability_filters import (
+    HA_PER_MWP,
+    apply_exclusion_mask,
+    apply_min_area_filter,
+    apply_slope_elevation_mask,
+    compute_buildability_constraint,
+    compute_slope_degrees,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GEOTIFF_ZIP = (
@@ -53,6 +71,17 @@ PVOUT_TIF_PATH = (
 )
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+
+# Directory where buildability data files are expected to live.
+# Populated by scripts/download_buildability_data.py (see that script for instructions).
+BUILDABILITY_DIR = REPO_ROOT / "data" / "buildability"
+
+_REQUIRED_BUILD_FILES = [
+    "dem_indonesia.tif",
+    "kawasan_hutan.shp",
+    "peatland.vrt",
+    "esa_worldcover.vrt",
+]
 
 
 # ─── Raster extraction helpers ────────────────────────────────────────────────
@@ -96,20 +125,289 @@ def _sample_best_50km(src: rasterio.DatasetReader, lon: float, lat: float) -> fl
     return float(valid.max()) if len(valid) > 0 else np.nan
 
 
+# ─── Buildability helpers ─────────────────────────────────────────────────────
+
+
+def _available_build_files(data_dir: Path = BUILDABILITY_DIR) -> set[str]:
+    """Return the set of required buildability filenames that currently exist in data_dir.
+
+    Layers with missing files are skipped in _compute_buildable_pvout (pass-through).
+    An empty set means no buildability filtering is possible at all.
+    """
+    return {f for f in _REQUIRED_BUILD_FILES if (data_dir / f).exists()}
+
+
+def _pixel_area_ha(win_transform: rasterio.transform.Affine, lat: float) -> float:
+    """Compute approximate area of one PVOUT pixel in hectares at the given latitude."""
+    x_res_deg = abs(win_transform.a)
+    y_res_deg = abs(win_transform.e)
+    pixel_w_m = x_res_deg * KM_PER_DEGREE_LAT * 1000 * math.cos(math.radians(lat))
+    pixel_h_m = y_res_deg * KM_PER_DEGREE_LAT * 1000
+    return (pixel_w_m * pixel_h_m) / 10_000
+
+
+def _rasterize_shp(
+    shp_path: Path,
+    bbox: tuple[float, float, float, float],
+    out_shape: tuple[int, int],
+    win_transform: rasterio.transform.Affine,
+) -> np.ndarray:
+    """Rasterize a vector shapefile to a binary mask matching the PVOUT window.
+
+    Returns:
+        uint8 array; 1 = polygon present (excluded), 0 = clear.
+        Returns zeros array if shapefile is empty or read fails.
+    """
+    import geopandas as gpd
+    import rasterio.features
+
+    try:
+        gdf = gpd.read_file(shp_path, bbox=bbox)
+    except Exception as e:
+        print(f"  WARNING: Could not read {shp_path.name}: {e}")
+        return np.zeros(out_shape, dtype=np.uint8)
+
+    if gdf.empty:
+        return np.zeros(out_shape, dtype=np.uint8)
+
+    # Reproject to EPSG:4326 if needed (PVOUT raster is in WGS84)
+    if gdf.crs is not None and gdf.crs.to_epsg() != 4326:
+        gdf = gdf.to_crs(epsg=4326)
+
+    valid_geoms = [geom for geom in gdf.geometry if geom is not None and geom.is_valid]
+    if not valid_geoms:
+        return np.zeros(out_shape, dtype=np.uint8)
+
+    return rasterio.features.rasterize(
+        [(geom, 1) for geom in valid_geoms],
+        out_shape=out_shape,
+        transform=win_transform,
+        fill=0,
+        dtype=np.uint8,
+    )
+
+
+def _read_raster_window_to_pvout_grid(
+    raster_path: Path,
+    bbox: tuple[float, float, float, float],
+    out_shape: tuple[int, int],
+    win_transform: rasterio.transform.Affine,
+    pvout_crs: str = "EPSG:4326",
+    categorical: bool = False,
+) -> np.ndarray | None:
+    """Read a raster and resample it to match the PVOUT window grid.
+
+    Args:
+        categorical: If True, use mode resampling (preserves integer class codes).
+                     If False (default), use average resampling (for continuous data
+                     like DEM elevation).
+
+    Returns:
+        Float32 array matching out_shape, or None if the file could not be read.
+    """
+    from rasterio.enums import Resampling
+    from rasterio.warp import reproject
+
+    resampling = Resampling.mode if categorical else Resampling.average
+
+    try:
+        with rasterio.open(raster_path) as src:
+            output = np.zeros(out_shape, dtype=np.float32)
+            reproject(
+                source=rasterio.band(src, 1),
+                destination=output,
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=win_transform,
+                dst_crs=pvout_crs,
+                resampling=resampling,
+                dst_nodata=np.nan,
+            )
+            # Replace sentinel nodata with NaN
+            nodata = src.nodata
+            if nodata is not None:
+                output[output == nodata] = np.nan
+            return output
+    except Exception as e:
+        print(f"  WARNING: Could not read/resample {raster_path.name}: {e}")
+        return None
+
+
+def _build_land_cover_mask(
+    lc_arr: np.ndarray | None,
+    exclude_codes: frozenset[int],
+) -> np.ndarray:
+    """Return a binary mask (1 = excluded) for land-cover pixels in exclude_codes."""
+    if lc_arr is None:
+        return np.zeros(1, dtype=np.uint8)  # shape unknown; caller handles None
+    lc_int = np.round(np.nan_to_num(lc_arr, nan=0)).astype(int)
+    mask = np.zeros_like(lc_int, dtype=np.uint8)
+    for code in exclude_codes:
+        mask[lc_int == code] = 1
+    return mask
+
+
+def _compute_buildable_pvout(
+    pvout_patch: np.ndarray,
+    window: rasterio.windows.Window,
+    src_transform: rasterio.transform.Affine,
+    lon: float,
+    lat: float,
+    data_dir: Path = BUILDABILITY_DIR,
+) -> tuple[float, float, float, str]:
+    """Apply the 4-layer land suitability filter to a PVOUT patch.
+
+    Applies whatever data files are present in data_dir — layers with missing
+    files are skipped (pass-through). Returns "data_unavailable" only when
+    NO buildability files at all are present.
+
+    Args:
+        pvout_patch:   2D daily PVOUT values (kWh/kWp/day) from the raw raster window.
+        window:        rasterio Window corresponding to the patch.
+        src_transform: Affine transform of the source PVOUT raster.
+        lon, lat:      KEK centroid coordinates (for pixel-area computation).
+        data_dir:      Directory containing buildability data files.
+
+    Returns:
+        (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str)
+        Returns (NaN, NaN, NaN, "data_unavailable") only when no files are present at all.
+
+    Note on resolution:
+        PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
+        filter (Layer 4, 10 ha) is a no-op — every valid pixel exceeds the threshold.
+        Layer 4 is retained to count buildable pixels and compute total area.
+    """
+    from src.pipeline.buildability_filters import LAND_COVER_EXCLUDE_CODES
+
+    available = _available_build_files(data_dir)
+    if not available:
+        return np.nan, np.nan, np.nan, "data_unavailable"
+
+    win_transform = rasterio.windows.transform(window, src_transform)
+    height, width = pvout_patch.shape
+
+    # Bounding box of this window (left, bottom, right, top)
+    left = win_transform.c
+    top = win_transform.f
+    right = left + abs(win_transform.a) * width
+    bottom = top - abs(win_transform.e) * height
+    bbox = (left, bottom, right, top)
+
+    pix_ha = _pixel_area_ha(win_transform, lat)
+
+    # Build a "valid pixel" mask — start with where we have real PVOUT data
+    valid = np.isfinite(pvout_patch) & (pvout_patch > 0)
+    n_raw = int(valid.sum())
+
+    if n_raw == 0:
+        return np.nan, 0.0, 0.0, "unconstrained"
+
+    pvout_working = np.where(valid, pvout_patch, 0.0).astype(float)
+
+    # ── Layer 1a: Kawasan Hutan (skip if file absent) ─────────────────────────
+    if "kawasan_hutan.shp" in available:
+        kh_mask = _rasterize_shp(data_dir / "kawasan_hutan.shp", bbox, (height, width), win_transform)
+        pvout_after_1a = apply_exclusion_mask(pvout_working, kh_mask)
+    else:
+        pvout_after_1a = pvout_working
+    n_after_1a = int((pvout_after_1a > 0).sum())
+
+    # ── Layer 1b: Peatland (skip if file absent) ──────────────────────────────
+    if "peatland.vrt" in available:
+        peat_arr = _read_raster_window_to_pvout_grid(
+            data_dir / "peatland.vrt", bbox, (height, width), win_transform,
+            categorical=True,
+        )
+        if peat_arr is not None:
+            peat_mask = (np.nan_to_num(peat_arr, nan=0) > 0).astype(np.uint8)
+            pvout_after_1b = apply_exclusion_mask(pvout_after_1a, peat_mask)
+        else:
+            pvout_after_1b = pvout_after_1a
+    else:
+        pvout_after_1b = pvout_after_1a
+    n_after_1b = int((pvout_after_1b > 0).sum())
+
+    # ── Layer 1c/d: Land cover (skip if file absent) ──────────────────────────
+    if "esa_worldcover.vrt" in available:
+        lc_arr = _read_raster_window_to_pvout_grid(
+            data_dir / "esa_worldcover.vrt", bbox, (height, width), win_transform,
+            categorical=True,
+        )
+        if lc_arr is not None:
+            lc_mask = _build_land_cover_mask(lc_arr, LAND_COVER_EXCLUDE_CODES)
+            pvout_after_1cd = apply_exclusion_mask(pvout_after_1b, lc_mask)
+        else:
+            pvout_after_1cd = pvout_after_1b
+    else:
+        pvout_after_1cd = pvout_after_1b
+    n_after_1cd = int((pvout_after_1cd > 0).sum())
+
+    # ── Layer 2: Slope + elevation (skip if DEM absent) ───────────────────────
+    if "dem_indonesia.tif" in available:
+        dem_arr = _read_raster_window_to_pvout_grid(
+            data_dir / "dem_indonesia.tif", bbox, (height, width), win_transform
+        )
+        if dem_arr is not None:
+            pix_m = abs(win_transform.a) * KM_PER_DEGREE_LAT * 1000
+            slope_arr = compute_slope_degrees(np.nan_to_num(dem_arr, nan=0.0), pix_m)
+            pvout_after_2 = apply_slope_elevation_mask(pvout_after_1cd, slope_arr, dem_arr)
+        else:
+            pvout_after_2 = pvout_after_1cd
+    else:
+        pvout_after_2 = pvout_after_1cd
+    n_after_2 = int((pvout_after_2 > 0).sum())
+
+    # ── Layer 4: Minimum contiguous area ─────────────────────────────────────
+    buildable_mask = pvout_after_2 > 0
+    filtered_mask = apply_min_area_filter(buildable_mask, pix_ha)
+    n_after_4 = int(filtered_mask.sum())
+
+    # Outputs
+    buildable_area_ha = round(n_after_4 * pix_ha, 1)
+    max_mwp = round(buildable_area_ha / HA_PER_MWP, 1)
+
+    pvout_in_buildable = pvout_patch[filtered_mask & np.isfinite(pvout_patch)]
+    pvout_buildable_daily = float(pvout_in_buildable.max()) if len(pvout_in_buildable) > 0 else np.nan
+
+    constraint = compute_buildability_constraint(
+        n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_2, n_after_4
+    )
+
+    return pvout_buildable_daily, buildable_area_ha, max_mwp, constraint
+
+
 # ─── Builder ──────────────────────────────────────────────────────────────────
 
 def build_fct_kek_resource(
     geotiff_zip: Path = GEOTIFF_ZIP,
     kek_csv: Path = DIM_KEK_CSV,
+    buildability_dir: Path = BUILDABILITY_DIR,
 ) -> pd.DataFrame:
-    """Extract PVOUT and CF at centroid and best-within-50km for all KEKs."""
+    """Extract PVOUT and CF at centroid and best-within-50km for all KEKs.
+
+    When buildability data is available in buildability_dir, also computes
+    pvout_buildable_best_50km and related columns (see module docstring).
+    """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
     kek_df = pd.read_csv(kek_csv)
     tif_bytes = _load_pvout_tif_bytes()  # uses module-level GEOTIFF_ZIP; geotiff_zip param reserved for override
 
+    available = _available_build_files(buildability_dir)
+    n_avail = len(available)
+    n_total = len(_REQUIRED_BUILD_FILES)
+    if n_avail == n_total:
+        print(f"  Buildability data: all {n_total} files present — full filter applied")
+    elif n_avail > 0:
+        missing = [f for f in _REQUIRED_BUILD_FILES if f not in available]
+        print(f"  Buildability data: {n_avail}/{n_total} files present — partial filter "
+              f"(missing: {', '.join(missing)})")
+    else:
+        print(f"  Buildability data not found in {buildability_dir.relative_to(REPO_ROOT)} — "
+              "pvout_buildable_best_50km will be NaN. "
+              "Run scripts/download_buildability_data.py to acquire data.")
+
     # ─── STAGING + TRANSFORM ──────────────────────────────────────────────────
-    # (extraction and conversion happen together per-KEK in the raster loop)
     records = []
     with rasterio.open(io.BytesIO(tif_bytes)) as src:
         arr = src.read(1)
@@ -120,8 +418,22 @@ def build_fct_kek_resource(
             pvout_daily_c = _sample_centroid(src, arr, lon, lat)
             pvout_daily_b = _sample_best_50km(src, lon, lat)
 
+            # Build the 50km window for the buildability filter (same geometry as best_50km)
+            lat_buf = PVOUT_BUFFER_KM / KM_PER_DEGREE_LAT
+            lon_buf = PVOUT_BUFFER_KM / (KM_PER_DEGREE_LAT * math.cos(math.radians(lat)))
+            window_50km = from_bounds(
+                left=lon - lon_buf,
+                bottom=lat - lat_buf,
+                right=lon + lon_buf,
+                top=lat + lat_buf,
+                transform=src.transform,
+            )
+            try:
+                pvout_patch = src.read(1, window=window_50km)
+            except Exception:
+                pvout_patch = np.array([[]], dtype=float)
+
             # Daily → annual. pvout_daily_to_annual validates plausibility range.
-            # Try/except surfaces per-KEK issues without aborting the full run.
             try:
                 pvout_c = pvout_daily_to_annual(pvout_daily_c) if np.isfinite(pvout_daily_c) else np.nan
             except ValueError as e:
@@ -133,6 +445,22 @@ def build_fct_kek_resource(
             except ValueError as e:
                 print(f"  WARNING best_50km {row['kek_id']}: {e}")
                 pvout_b = np.nan
+
+            # Buildability filter (graceful degradation when data absent)
+            pvout_buildable_daily, buildable_area_ha, max_mwp, constraint = (
+                _compute_buildable_pvout(
+                    pvout_patch, window_50km, src.transform, lon, lat, buildability_dir
+                )
+            )
+            try:
+                pvout_buildable = (
+                    pvout_daily_to_annual(pvout_buildable_daily)
+                    if np.isfinite(pvout_buildable_daily)
+                    else np.nan
+                )
+            except ValueError as e:
+                print(f"  WARNING buildable {row['kek_id']}: {e}")
+                pvout_buildable = np.nan
 
             records.append({
                 "kek_id": row["kek_id"],
@@ -146,6 +474,11 @@ def build_fct_kek_resource(
                 "pvout_best_50km": round(pvout_b, 1) if np.isfinite(pvout_b) else np.nan,
                 "cf_best_50km": round(pvout_b / HOURS_PER_YEAR, 4) if np.isfinite(pvout_b) else np.nan,
                 "pvout_source": PVOUT_SOURCE,
+                # Buildability columns — NaN when data/buildability/ files absent
+                "pvout_buildable_best_50km": round(pvout_buildable, 1) if np.isfinite(pvout_buildable) else np.nan,
+                "buildable_area_ha": buildable_area_ha if np.isfinite(buildable_area_ha) else np.nan,
+                "max_captive_capacity_mwp": max_mwp if np.isfinite(max_mwp) else np.nan,
+                "buildability_constraint": constraint,
             })
 
     return pd.DataFrame(records)
@@ -159,16 +492,21 @@ def main() -> None:
 
     n_miss_c = df["pvout_centroid"].isna().sum()
     n_miss_b = df["pvout_best_50km"].isna().sum()
+    n_miss_build = df["pvout_buildable_best_50km"].isna().sum()
     print(f"\nExtracted {len(df)} KEKs")
-    print(f"  pvout_centroid:  {len(df) - n_miss_c}/{len(df)} valid")
-    print(f"  pvout_best_50km: {len(df) - n_miss_b}/{len(df)} valid")
+    print(f"  pvout_centroid:          {len(df) - n_miss_c}/{len(df)} valid")
+    print(f"  pvout_best_50km:         {len(df) - n_miss_b}/{len(df)} valid")
+    print(f"  pvout_buildable_best_50km: {len(df) - n_miss_build}/{len(df)} valid"
+          + (" (buildability data present)" if n_miss_build == 0 else " (data/buildability/ files missing)"))
     print(f"  cf range (best): {df['cf_best_50km'].min():.3f} – {df['cf_best_50km'].max():.3f}")
 
     out = PROCESSED / "fct_kek_resource.csv"
     PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     print(f"\nWrote {out.relative_to(REPO_ROOT)}")
-    print(df[["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]].to_string(index=False))
+    display_cols = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km",
+                    "pvout_buildable_best_50km", "buildable_area_ha", "buildability_constraint"]
+    print(df[display_cols].to_string(index=False))
 
 
 if __name__ == "__main__":

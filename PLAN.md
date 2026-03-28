@@ -112,7 +112,53 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 
 **Phase 2 closeout state:** 25 KEKs, 43-column scorecard, all `data_completeness: complete`, 171 tests passing.
 
-### Phase 3 — Open data release
+### Phase 3 — Dash app + open data release
+
+**Design doc:** [DESIGN.md](DESIGN.md) — 6 views, component architecture, colour system, open decisions.
+**Persona journeys:** [PERSONAS.md](PERSONAS.md) — what each audience needs from the dashboard.
+
+#### Step 3.0 — Scorecard pre-flight ✅ COMPLETE
+
+Two columns that personas need are in separate tables but not yet in `fct_kek_scorecard`. Add them in `build_fct_kek_scorecard.py` so the Dash app reads one flat table:
+
+| Column | Source table | Needed by |
+|--------|-------------|-----------|
+| `dist_to_nearest_substation_km` | `fct_substation_proximity` | DFI Investor — gen-tie cost screen |
+| `siting_scenario` | `fct_substation_proximity` | DFI Investor + Energy Investor — `within_boundary` vs `remote_captive` |
+| `demand_mwh_2030` | `fct_kek_demand` | Energy Investor — PPA size screen |
+
+Also fix two column name mismatches between the scorecard and PERSONAS.md references:
+- `solar_competitive_gap_pct` → document as WACC=10% baseline (already correct, just needs clear label in dashboard)
+- `green_share_geas` → document as 2030 figure (already correct, just needs label)
+
+After this step: `fct_kek_scorecard` is the single source of truth for all four personas. Re-run `uv run python run_pipeline.py fct_kek_scorecard` + confirm 195 tests still pass.
+
+#### Step 3.1 — Resolve design decisions (before writing Dash code)
+
+Resolve the 5 open questions in [DESIGN.md §6](DESIGN.md#6-open-design-questions):
+1. WACC selector: snap to 8/10/12% (recommended) vs. continuous interpolation
+2. Map tile: Carto/Plotly built-in (recommended for MVP) vs. Mapbox
+3. Mobile: desktop-only for MVP (recommended) vs. responsive
+4. Provisional data: dagger per cell (recommended) vs. page banner
+5. Export: CSV + GeoJSON (recommended) vs. CSV only
+
+#### Step 3.2 — Build Dash app
+
+Six views per [DESIGN.md §2](DESIGN.md#2-information-architecture), in build order:
+
+| Order | View | Primary data | Key feature |
+|-------|------|-------------|------------|
+| 1 | Ranked Table | `fct_kek_scorecard` | Sort, filter, CSV export — fastest to build, validates data |
+| 2 | Quadrant Chart | `fct_lcoe` + `fct_grid_cost_proxy` | WACC selector drives positions |
+| 3 | Overview Map | `fct_kek_scorecard` | Click marker → load scorecard |
+| 4 | KEK Scorecard | All joined tables | 4 tabs: Resource / LCOE / Demand / Pipeline |
+| 5 | Flip Scenario Panel | `fct_lcoe` WACC=8% columns | Competitive-gap threshold slider |
+| 6 | RUPTL Context | `fct_ruptl_pipeline` | Year-range filter, region grouping |
+
+Build Ranked Table first — it validates the full scorecard data against all four personas before any mapping or charting work.
+
+#### Step 3.3 — Open data release
+
 - Versioned GitHub Releases: `kek_scorecard_v{N}.csv`, `kek_lcoe_scenarios_v{N}.csv`, `kek_map_v{N}.geojson`, `SOURCES.md`
 - Deploy Dash app on Render (free tier)
 

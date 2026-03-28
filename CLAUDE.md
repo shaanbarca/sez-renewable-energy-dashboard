@@ -10,9 +10,13 @@ This repo is a Python modelling and analysis project for **Indonesia's KEK (Spec
 
 | File | Purpose |
 |------|---------|
+| [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | Plain-language project overview — start here if you're new to the project |
 | [PLAN.md](PLAN.md) | Full implementation plan: architecture, phases, data pipeline, Dash app design (with design review decisions) |
+| [DESIGN.md](DESIGN.md) | Dashboard UX design spec: 6 views, component architecture, colour system, open decisions — read before writing any Dash code |
+| [PERSONAS.md](PERSONAS.md) | User journeys for all four personas: Energy Economist, DFI Investor, Policy Maker, Energy Investor |
 | [METHODOLOGY.md](METHODOLOGY.md) | Analytical methodology spec: LCOE formulas, PVOUT conversion, GEAS allocation, geospatial buildability filters — `src/model/basic_model.py` must implement this exactly |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Data pipeline contract: every raw input column and every derived column we need to produce, with status (✅/⚠️/❌/🔒) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture: data flow diagram, pipeline dependency graph, key design decisions |
 | [docs/Power_competitiveness_KEK_dashboard_plan.pdf](docs/Power_competitiveness_KEK_dashboard_plan.pdf) | Original product spec PDF |
 
 ## Setup
@@ -82,10 +86,10 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `dim_tech_cost` — solar CAPEX/OPEX/lifetime sourced from `pdf_extract_esdm_tech.py` → `VERIFIED_TECH006_DATA` (ESDM Technology Catalogue 2023, p.66)
 
 **Fact tables** (`fct_*`):
-- `fct_kek_resource` — PVOUT at centroid + best within 50–100 km (precomputed from GeoTIFF)
+- `fct_kek_resource` — PVOUT at centroid + best within 50km (from GeoTIFF); v1.1: adds `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` (NaN until `data/buildability/` populated — run `scripts/download_buildability_data.py`)
 - `fct_kek_demand` — per-KEK demand estimates
 - `fct_substation_proximity` — nearest PLN substation per KEK; haversine distance + point-in-polygon → `siting_scenario`
-- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (150 rows: 25 × 3 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses best-50km PVOUT + gen-tie CAPEX adder
+- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (150 rows: 25 × 3 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses `pvout_buildable_best_50km` when available, else `pvout_best_50km`, + gen-tie CAPEX adder
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
 

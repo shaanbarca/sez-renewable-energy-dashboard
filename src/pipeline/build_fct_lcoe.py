@@ -50,12 +50,6 @@ FKR_CSV = PROCESSED / "fct_kek_resource.csv"
 DIM_TECH_CSV = PROCESSED / "dim_tech_cost.csv"
 FSP_CSV = PROCESSED / "fct_substation_proximity.csv"
 
-_SCENARIOS = [
-    ("within_boundary", "pvout_centroid"),
-    ("remote_captive", "pvout_best_50km"),
-]
-
-
 def build_fct_lcoe(
     dim_kek_csv: Path = DIM_KEK_CSV,
     fct_kek_resource_csv: Path = FKR_CSV,
@@ -67,9 +61,18 @@ def build_fct_lcoe(
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
     dim_kek = pd.read_csv(dim_kek_csv)[["kek_id"]]
-    resource = pd.read_csv(fct_kek_resource_csv)[
-        ["kek_id", "pvout_centroid", "pvout_best_50km"]
-    ]
+    resource_raw = pd.read_csv(fct_kek_resource_csv)
+    # Use pvout_buildable_best_50km for remote_captive scenario when available
+    remote_pvout_col = (
+        "pvout_buildable_best_50km"
+        if "pvout_buildable_best_50km" in resource_raw.columns
+        else "pvout_best_50km"
+    )
+    resource_cols = ["kek_id", "pvout_centroid", "pvout_best_50km"]
+    if remote_pvout_col not in resource_cols:
+        resource_cols.append(remote_pvout_col)
+    resource = resource_raw[resource_cols]
+
     tech = pd.read_csv(dim_tech_cost_csv).iloc[0]
     proximity = pd.read_csv(fct_substation_proximity_csv)[
         ["kek_id", "dist_to_nearest_substation_km", "siting_scenario"]
@@ -84,6 +87,13 @@ def build_fct_lcoe(
     tech_id = str(tech["tech_id"])
     is_capex_provisional = bool(tech.get("is_provisional", False))
 
+    # within_boundary always uses pvout_centroid (on-site plant, no gen-tie)
+    # remote_captive uses buildable PVOUT when available, else falls back to raw best_50km
+    scenarios = [
+        ("within_boundary", "pvout_centroid"),
+        ("remote_captive", remote_pvout_col),
+    ]
+
     df = dim_kek.merge(resource, on="kek_id", how="left")
     df = df.merge(proximity, on="kek_id", how="left")
 
@@ -92,12 +102,17 @@ def build_fct_lcoe(
     for _, kek_row in df.iterrows():
         dist_km = float(kek_row["dist_to_nearest_substation_km"]) if pd.notna(kek_row.get("dist_to_nearest_substation_km")) else 0.0
 
-        for scenario, pvout_col in _SCENARIOS:
+        for scenario, pvout_col in scenarios:
             pvout_val = kek_row.get(pvout_col)
             is_cf_provisional = pd.isna(pvout_val)
 
-            # Fallback: if best_50km missing, use centroid for remote_captive too
-            if is_cf_provisional:
+            # Fallback: if preferred PVOUT is missing, try pvout_best_50km then pvout_centroid
+            if is_cf_provisional and pvout_col == "pvout_buildable_best_50km":
+                pvout_val = kek_row.get("pvout_best_50km")
+                actual_pvout_col = "pvout_best_50km" if pd.notna(pvout_val) else "pvout_centroid"
+                if pd.isna(pvout_val):
+                    pvout_val = kek_row.get("pvout_centroid")
+            elif is_cf_provisional:
                 pvout_val = kek_row.get("pvout_centroid")
                 actual_pvout_col = "pvout_centroid"
             else:

@@ -196,6 +196,21 @@ class TestFctKekResource:
         pvout = resource["pvout_best_50km"].dropna()
         assert pvout.between(1000, 2500).all()
 
+    def test_buildability_columns_present(self):
+        """v1.1: fct_kek_resource must contain the 4 buildability columns."""
+        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        for col in ["pvout_buildable_best_50km", "buildable_area_ha",
+                    "max_captive_capacity_mwp", "buildability_constraint"]:
+            assert col in resource.columns, f"Missing column: {col}"
+
+    def test_buildability_constraint_valid_values(self):
+        """buildability_constraint must be one of the 7 defined string values."""
+        from src.pipeline.buildability_filters import VALID_CONSTRAINTS
+        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        vals = resource["buildability_constraint"].dropna().unique()
+        invalid = [v for v in vals if v not in VALID_CONSTRAINTS]
+        assert not invalid, f"Invalid constraint values: {invalid}"
+
 
 # ── fct_lcoe ─────────────────────────────────────────────────────────────────
 

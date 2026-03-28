@@ -18,7 +18,7 @@ All processed output tables. Click a table name to jump to its full column spec.
 |-------|------|------|------------------|------------|----------|--------|
 | [dim_kek](#21-outputsdataprocesseddim_kekcsv) | dim | 25 | Master KEK list: name, province, grid region, lat/lon, area, reliability requirement | `kek_info_and_markers.csv` · `kek_distribution_points.csv` · `kek_polygons.geojson` · `kek_grid_region_mapping.csv` | The master reference for every KEK. Every fact table joins to this on `kek_id`. Also drives the map layer in the dashboard. | ✅ |
 | [dim_tech_cost](#22-outputsdataprocesseddim_tech_costcsv) | dim | 1 | TECH006 solar PV CAPEX / FOM / lifetime, unit-converted for LCOE formula | `dim_tech_variant.csv` · `fct_tech_parameter.csv` | Holds the cost assumptions (CAPEX, fixed O&M, asset lifetime) that are plugged into the LCOE formula. Changing these numbers here flows through to all 150 LCOE rows automatically. | ✅ Verified from ESDM Tech Catalogue 2023 p.66 |
-| [fct_kek_resource](#31-outputsdataprocessedfct_kek_resourcecsv) | fact | 25 | PVOUT at centroid + best-within-50km; capacity factors | `dim_kek` · Global Solar Atlas GeoTIFF | Answers "how much sun does each KEK get?" — the capacity factor (CF) derived from PVOUT is the key driver of solar LCOE. Higher CF = lower LCOE. | ⚠️ No buildability filter yet (v1.1) |
+| [fct_kek_resource](#31-outputsdataprocessedfct_kek_resourcecsv) | fact | 25 | PVOUT at centroid + best-within-50km; capacity factors; buildability columns (NaN until `data/buildability/` populated) | `dim_kek` · Global Solar Atlas GeoTIFF · optional: `data/buildability/` | Answers "how much sun does each KEK get?" — and (when data available) "how much of that land is actually buildable?". | ⚠️ `pvout_buildable_best_50km` NaN until data/buildability/ populated (run `scripts/download_buildability_data.py`) |
 | [fct_kek_demand](#32-outputsdataprocessedfct_kek_demandcsv) | fact | 25 | Estimated 2030 electricity demand per KEK (area × intensity) | `dim_kek` · `src/assumptions.py` (intensity constants) | Answers "how much electricity will this KEK need by 2030?" — used to compute what share of that demand could be met by GEAS-allocated solar, and to size infrastructure needs. | ⚠️ Provisional — area×intensity proxy, no tenant surveys |
 | [fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv) | fact | 7 | I-4/TT and I-3/TM industrial tariffs per PLN grid system (USD/MWh) | `dim_kek` (grid_region_id list) · Permen ESDM 7/2024 (hardcoded tariffs) | The benchmark each KEK's solar LCOE is compared against. If solar LCOE < grid tariff, captive solar is already cost-competitive without any policy support. | ✅ Official — Permen ESDM 7/2024 |
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this KEK's region?" — used to compute the GEAS green energy share each KEK can claim, and to flag KEKs where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
@@ -309,8 +309,16 @@ Fact tables describe *what a KEK has* — resource quality, demand, cost, scorec
 | `pvout_best_50km` | float | computed | `pvout_daily_best_50km × 365` (kWh/kWp/yr) |
 | `cf_best_50km` | float | computed | `pvout_best_50km / 8760` |
 | `pvout_source` | str | constant | "GlobalSolarAtlas-v2" |
+| `pvout_buildable_best_50km` | float | computed | Max PVOUT within 50km after 4-layer buildability filter. NaN when `data/buildability/` files absent. |
+| `buildable_area_ha` | float | computed | Total buildable area in 50km radius after all filters (ha). NaN when data absent. |
+| `max_captive_capacity_mwp` | float | computed | `buildable_area_ha / 1.5` — max captive solar capacity (MWp). 1.5 ha/MWp for tropical fixed-tilt. |
+| `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"agriculture"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"` |
 
-**Note:** `pvout_best_50km` is an upper bound — no buildability filtering (landcover, peat, protected areas). Treated as indicative in v1. Filtering deferred to v1.1.
+**Note:** `pvout_best_50km` is an upper bound — raw raster max with no buildability filter.
+`pvout_buildable_best_50km` applies Layers 1–4 (METHODOLOGY.md §2.5) and is the
+preferred value for LCOE when data is available. Until `data/buildability/` is populated,
+both columns are available but `pvout_buildable_best_50km = NaN` and the pipeline
+falls back to `pvout_best_50km`. Run `scripts/download_buildability_data.py` to acquire data.
 
 ---
 
@@ -496,6 +504,12 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `latitude`, `longitude` | dim_kek |
 
 **Resource columns** (from fct_kek_resource):
+| `pvout_buildable_best_50km` | fct_kek_resource | NaN until data/buildability/ populated |
+| `buildable_area_ha` | fct_kek_resource | NaN until data/buildability/ populated |
+| `max_captive_capacity_mwp` | fct_kek_resource | NaN until data/buildability/ populated |
+| `buildability_constraint` | fct_kek_resource | "data_unavailable" until populated |
+| `resource_quality` | derived | `"filtered"` when buildable data applied; else `"provisional (no buildability filter)"` |
+
 
 | Column | Source |
 |--------|--------|

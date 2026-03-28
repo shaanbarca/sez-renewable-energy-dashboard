@@ -144,3 +144,9 @@ testing/
 data/*.zip
 data/*.html
 outputs/
+
+# Buildability raster data — large GeoTIFFs downloaded by scripts/download_buildability_data.py
+data/buildability/
+
+# Office temp files
+data/~$*

@@ -118,7 +118,7 @@ All eight output tables are produced by the pipeline. Key outputs:
 | What it tells you | Table | Status |
 |-------------------|-------|--------|
 | Which KEK is where, what sector, what grid region | `dim_kek` | ✅ Complete |
-| Solar radiation quality per KEK | `fct_kek_resource` | ✅ (upper bound — no land filter yet) |
+| Solar radiation quality per KEK | `fct_kek_resource` | ✅ Filtered — 4-layer buildability applied (ESA WorldCover, GFW Peatlands, DEM slope/elev, Kawasan Hutan) |
 | Estimated 2030 electricity demand per KEK | `fct_kek_demand` | ⚠️ Provisional estimate |
 | Solar LCOE at 3 financing rates (8/10/12% WACC) | `fct_lcoe` | ⚠️ CAPEX needs PDF verification |
 | Grid electricity cost per PLN region | `fct_grid_cost_proxy` | ✅ Official tariff |
@@ -133,7 +133,7 @@ All eight output tables are produced by the pipeline. Key outputs:
 
 Three things to be aware of when interpreting results:
 
-1. **Solar numbers are an upper bound.** The model uses satellite radiation data for each KEK's location but has not yet filtered out land that can't actually host solar panels (forests, steep slopes, protected areas, rice fields). This is planned for a future update. Java KEKs in particular are likely more constrained than the current numbers suggest.
+1. **Buildable area is a modelled estimate, not a surveyed figure.** The pipeline applies four land exclusion layers (protected forests, peatlands, croplands/urban, steep slopes) using satellite and open datasets. This produces a realistic buildable area per KEK, but field surveys will differ — local land tenure disputes, micro-terrain, and access constraints are not captured. Use `buildable_area_ha` and `max_captive_capacity_mwp` as order-of-magnitude screening figures, not engineering inputs.
 
 2. **Construction costs are provisional.** The CAPEX and O&M figures from the ESDM Technology Catalogue still need to be manually verified against the source PDF. Once verified, all LCOE outputs will be updated and marked as confirmed.
 
@@ -162,6 +162,8 @@ Three things to be aware of when interpreting results:
 | Document | What it covers |
 |----------|---------------|
 | **This file** | Plain-language overview of the project |
+| [PERSONAS.md](PERSONAS.md) | Detailed user journeys for all four audiences — Energy Economist, DFI Investor, Policy Maker, Energy Investor |
+| [DESIGN.md](DESIGN.md) | Dashboard UX design: 6 views, component architecture, colour system, open design decisions |
 | [PLAN.md](PLAN.md) | Full implementation roadmap: phases, status, dashboard design decisions |
 | [METHODOLOGY.md](METHODOLOGY.md) | All formulas, data sources, assumptions, and limitations (for energy economists and peer reviewers) |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Every data table and column: source, formula, status, and lineage |
