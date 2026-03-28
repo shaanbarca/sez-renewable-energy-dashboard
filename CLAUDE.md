@@ -87,13 +87,14 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `fct_substation_proximity` — nearest PLN substation per KEK; haversine distance + point-in-polygon → `siting_scenario`
 - `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (150 rows: 25 × 3 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses best-50km PVOUT + gen-tie CAPEX adder
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
-- `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional)
+- `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
 
 **Key computed outputs** (see `sample_end_to_end_policy_planning.ipynb`):
 - `lcoe_usd_mwh` — solar LCOE from `lcoe_solar(capex, fom, wacc, lifetime, cf)`
 - `cf` derived from PVOUT via `capacity_factor_from_pvout(pvout) = pvout / 8760`
-- Action flags: `solar_now`, `grid_first`, `firming_needed`, `plan_late` — boolean tags per KEK under baseline and policy scenarios
-- `green_share_geas` — share of 2030 demand met by GEAS-allocated solar
+- Action flags: `solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late` — boolean tags per KEK; `invest_resilience` fires when LCOE is 0–20% above grid cost AND reliability_req ≥ 0.75
+- `green_share_geas` — share of 2030 demand met by GEAS-allocated solar (GEAS and captive solar are substitutes — see METHODOLOGY.md §5.3)
+- `carbon_breakeven_usd_tco2` — carbon price (USD/tCO2) at which solar becomes cost-competitive; derived from LCOE gap ÷ grid emission factor (KESDM 2019 OM)
 
 **Solar resource data**: Global Solar Atlas GeoTIFFs in `data/` (zipped). PVOUT is extracted per KEK centroid and best-within-radius offline; the dashboard reads precomputed flat tables only.
 

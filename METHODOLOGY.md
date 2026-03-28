@@ -537,9 +537,22 @@ Five mutually-ordered boolean flags. A KEK receives the first flag for which its
 
 ### 5.2b Resilience layer (`invest_resilience`)
 
+**Why it matters:** The `not_competitive` label captures only tariff economics — it answers "is solar cheaper than grid electricity?" But for manufacturing KEKs, the electricity bill is not the only cost at stake. Unplanned outages cost orders of magnitude more than the electricity itself: an automotive assembly line losing power for one hour can lose $500,000–$2M in scrapped production and restart costs. Captive solar (with backup) eliminates this tail risk. The `invest_resilience` flag surfaces KEKs where the investment case is real *even before* solar reaches price parity.
+
 The `invest_resilience` flag captures scenarios where the investment case for captive solar rests on **energy security and reliability**, not tariff savings.
 
-**Rationale:** Manufacturing KEKs (`reliability_req ≥ 0.75`) face a real cost from unplanned grid outages — typically $50–$200/MWh of lost production per unserved hour. A captive solar system at LCOE $73/MWh (vs. grid $63/MWh) costs ~$10/MWh more in energy, but avoids outage costs that can be orders of magnitude higher. The 20% gap threshold ($63 × 1.20 = $75.6 ceiling) bounds this zone conservatively.
+**Rationale for each threshold:**
+
+| Condition | Value | Why this number |
+|-----------|-------|----------------|
+| `solar_competitive_gap_pct > 0` | — | Solar must not already be cheaper (that's `solar_now`) |
+| `solar_competitive_gap_pct ≤ 20%` | 20% | At grid $63/MWh, this is a ~$12.6/MWh premium. Manufacturing KEKs face unplanned outage costs of $50–$200/MWh of lost production — far exceeding the $12.6 premium. 20% is the upper bound where resilience economics hold. |
+| `reliability_req ≥ 0.75` | 0.75 | Manufacturing/processing sectors (steel, chemicals, automotive) that cannot tolerate outages. Tourism and services (below 0.75) can tolerate interruptions — their outage cost does not justify a premium. |
+
+**`reliability_req` values by KEK type** (set in `data/kek_grid_region_mapping.csv`):
+- Manufacturing/processing: 0.8–0.85 → `invest_resilience` eligible
+- Service/digital: 0.6 → not eligible
+- Tourism: 0.4 → not eligible
 
 **Formula:**
 ```
@@ -550,6 +563,8 @@ invest_resilience = (solar_competitive_gap_pct > 0)         # solar not yet at g
 
 **Constant:** `RESILIENCE_LCOE_GAP_THRESHOLD_PCT = 20.0` (src/assumptions.py)
 **Implementation:** `invest_resilience()` in `src/model/basic_model.py`
+
+**Current results (WACC=10%):** 4 KEKs fire this flag — Kendal (gap=13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). All are manufacturing KEKs in Java-Bali and Sulawesi. Carbon breakeven for these: $10–17/tCO2 — well within Indonesia's emerging carbon market trajectory.
 
 **`solar_attractive` definition:**
 ```
@@ -567,6 +582,18 @@ solar_attractive = (pvout_best_50km ≥ 1,550 kWh/kWp/yr) AND (lcoe_mid ≤ [thr
 - Do not silently apply defaults without flagging them
 
 ### 5.3 GEAS green share
+
+**Why it matters:** GEAS (Green Energy Auction Scheme) is Indonesia's only legal mechanism for industrial buyers to claim grid-sourced renewable electricity — there is no bilateral corporate PPA market yet. `green_share_geas` answers: *"What fraction of this KEK's 2030 electricity demand could be covered by RUPTL-planned solar through the GEAS mechanism?"* This makes GEAS and captive solar **substitutes** — the dashboard uses `green_share_geas` to determine which lever a KEK needs:
+
+| `green_share_geas` | What it means | Dashboard implication |
+|--------------------|-------------|----------------------|
+| ≥ 0.30 (30%) + solar competitive | GEAS supply is adequate AND solar wins on cost | `solar_now` flag fires — go solar |
+| ≥ 0.30 but solar not competitive | Grid will deliver enough green energy without on-site solar | GEAS alone may satisfy tenant ESG requirements — captive solar not urgent |
+| < 0.30 | RUPTL pipeline is too thin to cover industrial demand in this region | Captive solar is the only path to renewable coverage for tenants |
+
+**For DFI Analysts (ADB, IFC, AIIB):** Green finance conditions (IFC Performance Standards, ADB Green Bond criteria) often require a minimum renewable energy share. High `green_share_geas` means those conditions can be met via GEAS offtake — no captive solar project required. Low `green_share_geas` strengthens the bankability case for an on-site captive solar project, which is what DFIs are typically financing.
+
+**For Energy Policy Advisers (ESDM, BAPPENAS):** KEKs with low `green_share_geas` in regions with a weak RUPTL pipeline signal a planning gap — the grid won't deliver enough green energy for industrial demand by 2030. These are the zones that need captive solar policy support (streamlined permitting, BOOT structures, green industrial zone designation), not ones where GEAS will do the job automatically.
 
 GEAS (Green Energy Auction Scheme) allocates renewable energy from RUPTL-planned solar additions to industrial zones on a pro-rata basis.
 
@@ -606,19 +633,26 @@ else:
 
 Unit: USD/tCO2. Interpretation: if carbon is priced at or above this level (via Indonesia's carbon market, EU CBAM exposure, or corporate net-zero commitments), solar wins on adjusted total cost.
 
-**Grid emission factors by PLN system (⚠️ PROVISIONAL):**
+**Grid emission factors by PLN system (Operating Margin, ⚠️ 2019 vintage):**
 
-| Grid Region | Factor (tCO2/MWh) | Source |
-|------------|------------------|--------|
-| JAVA_BALI | 0.870 | ~60% coal dispatch, PLN Statistik 2023 |
-| SUMATRA | 0.670 | Gas + hydro mix |
-| KALIMANTAN | 0.720 | Coal + gas |
-| SULAWESI | 0.580 | Hydro-dominated |
-| NUSA_TENGGARA | 0.780 | Diesel-reliant island grid |
-| MALUKU_PAPUA | 0.780 | Diesel-reliant eastern grid |
-| BATAM | 0.750 | Gas-dominant island grid |
+The Operating Margin (OM) is the correct metric here: it represents the emission intensity of **existing grid plants that captive solar displaces**, not the build margin.
 
-Source: PLN Statistik 2023 (`docs/pln_statistik_2023_english.pdf`) + IEA Southeast Asia Energy Outlook 2024 (`docs/iea_sea_energy_outlook_2024.pdf`). Refine when PLN publishes 2024 dispatch mix.
+| Grid Region | KEK(s) | OM (tCO2/MWh) | PLN System | Plants | Source |
+|------------|--------|--------------|------------|--------|--------|
+| JAVA_BALI | Batang, Kendal, Gresik, Lido, Singhasari, Kura-Kura, Sanur, Tanjung Lesung, BSD, Bumi Serpong | 0.80 | Java-Bali interconnected | 302 | KESDM 2019 |
+| SUMATERA | Sei Mangkei, Arun, Galang Batang, Nongsa, BAT, Tanjung Kelayang, Batam-int'l, Tanjung Sauh | 0.77 | Sumatera interconnected | 463 | KESDM 2019 |
+| KALIMANTAN | Setangga (Barito 1.20), Maloy Batuta (Mahakam 1.12) | 1.16 (avg) | Barito + Mahakam | 121+97 | KESDM 2019 |
+| SULAWESI | Likupang, Bitung (Sulutgo 0.67), Palu (Palapas 0.54) | 0.63 (wtd avg) | Sulutgo + Palapas-Palu | 73+10 | KESDM 2019 |
+| NTB | Mandalika | 1.27 | Lombok grid | 54 | KESDM 2019 |
+| MALUKU | Morotai | 0.60 | Daruba-Morotai | 12 | KESDM 2019 |
+| PAPUA | Sorong | 0.56 | Sorong | 11 | KESDM 2019 |
+
+Source: KESDM Tier 2 grid emission factor database, 2019 vintage (`data/grid_emission_factors.xlsx`, gatrik.esdm.go.id). File: `src/assumptions.py → GRID_EMISSION_FACTOR_T_CO2_MWH`. Refine when KESDM publishes updated Tier 2 factors (typically every 2–3 years).
+
+**Policy implications of corrected values:**
+- Kalimantan (OM=1.16) has the highest emission intensity — solar displaces the most carbon per MWh, bringing breakeven carbon prices down to ~$16–17/tCO2 even at 30%+ LCOE premium.
+- Mandalika/NTB (OM=1.27) has the most diesel-dependent grid — carbon breakeven only $3.4/tCO2, making any credible carbon pricing sufficient to flip the economics.
+- Sorong/Papua (OM=0.56) is gas-dominant — carbon breakeven is $29/tCO2, requiring stronger policy signals.
 
 **Implementation:** `carbon_breakeven_price()` in `src/model/basic_model.py`; emission factors in `GRID_EMISSION_FACTOR_T_CO2_MWH` (src/assumptions.py).
 

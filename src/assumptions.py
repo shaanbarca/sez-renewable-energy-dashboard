@@ -185,25 +185,36 @@ RESILIENCE_LCOE_GAP_THRESHOLD_PCT: float = 20.0
 # ─── GRID EMISSION FACTORS ────────────────────────────────────────────────────
 
 GRID_EMISSION_FACTOR_T_CO2_MWH: dict[str, float] = {
-    "JAVA_BALI":     0.870,  # ~60% coal dispatch — PLN Statistik 2023 Table 5 (most carbon-intensive)
-    "SUMATRA":       0.670,  # gas + hydro mix; lower coal share than Java
-    "KALIMANTAN":    0.720,  # coal + gas; slightly cleaner dispatch than Java
-    "SULAWESI":      0.580,  # hydro-dominated; most renewables-rich mainland grid
-    "NUSA_TENGGARA": 0.780,  # diesel-reliant island grid; high emission intensity
-    "MALUKU_PAPUA":  0.780,  # diesel-reliant eastern grid; same assumption as Nusa Tenggara
-    "BATAM":         0.750,  # gas-dominant island grid; cleaner than coal but above Sulawesi
+    # Key = grid_region_id as used in kek_grid_region_mapping.csv and fct_grid_cost_proxy.
+    # Value = Operating Margin (OM) in tCO2/MWh from KESDM Tier 2 database.
+    # OM = emission rate of existing grid plants displaced by captive solar — the correct
+    # metric for carbon_breakeven_price() and avoided-emissions accounting.
+    "JAVA_BALI":  0.80,   # Java-Bali interconnected: 302 plants (Banten, DKI, Jabar, Jateng, DIY, Jatim, Bali)
+    "SUMATERA":   0.77,   # Sumatera interconnected: 463 plants (gas + hydro + coal mix)
+    "KALIMANTAN": 1.16,   # Weighted avg: Barito/S+C Kalimantan OM=1.20 (Setangga KEK) +
+                          #   Mahakam/E Kalimantan OM=1.12 (Maloy Batuta KEK); avg=(1.20+1.12)/2
+    "SULAWESI":   0.63,   # Weighted avg: Sulutgo OM=0.67 × 2 KEKs (Likupang, Bitung) +
+                          #   Palapas-Palu OM=0.54 × 1 KEK (Palu); avg=(0.67+0.67+0.54)/3
+    "NTB":        1.27,   # Lombok grid (NTB province): 54 plants — diesel-dominant island grid
+                          #   (Mandalika KEK). Highest OM of any KEK grid system.
+    "MALUKU":     0.60,   # Daruba-Morotai system: 12 plants (Morotai KEK — North Maluku)
+    "PAPUA":      0.56,   # Sorong system: 11 plants (Sorong KEK — West Papua); gas-dominant
+    "BATAM":      0.76,   # Batam-Tanjung Pinang: 47 plants — not mapped to any KEK (Riau
+                          #   Islands KEKs use SUMATERA). Retained for documentation only.
 }
-# Grid emission intensity by PLN system (tCO2/MWh = kgCO2/kWh).
-# Source: PLN Statistik 2023 (docs/pln_statistik_2023_english.pdf, Table 5.x dispatch mix by system)
-#         cross-checked against IEA Southeast Asia Energy Outlook 2024 (docs/iea_sea_energy_outlook_2024.pdf).
-# Status: ⚠️ PROVISIONAL — refine when PLN 2024 dispatch data is published.
-# Use: carbon_breakeven_price() divides the LCOE gap by this factor to compute the CO2 price
+# Grid emission intensity by PLN system (tCO2/MWh), using Operating Margin (OM) values.
+# Source: KESDM Tier 2 grid emission factor database, 2019 vintage
+#         (Ministry of Energy & Mineral Resources, gatrik.esdm.go.id).
+#         File: data/grid_emission_factors.xlsx
+# Mapping: each grid_region_id maps to the PLN operational system serving the KEKs in that region.
+# Status: ⚠️ PROVISIONAL — 2019 vintage; update when KESDM publishes newer Tier 2 factors.
+# Use: carbon_breakeven_price() divides the LCOE gap by OM to compute the CO2 price
 # at which solar becomes cost-competitive with the grid.
 
-GRID_EMISSION_FACTOR_DEFAULT: float = 0.750
+GRID_EMISSION_FACTOR_DEFAULT: float = 0.77
 # Fallback emission factor for grid_region_ids not in GRID_EMISSION_FACTOR_T_CO2_MWH.
-# Source: approximate Indonesia national average (IEA 2023: 0.72 kgCO2/kWh national grid).
-# Value set slightly above national average to be conservative for unmapped regions.
+# Source: Sumatera interconnected OM from KESDM 2019 (0.77 tCO2/MWh) — used as a
+# mid-range national default. All active KEK grid_region_ids are explicitly mapped above.
 
 # ─── RUPTL ANALYSIS ───────────────────────────────────────────────────────────
 
