@@ -61,14 +61,11 @@ def _ruptl_region_summary(ruptl: pd.DataFrame) -> pd.DataFrame:
     """Compute pre/post-2030 PLTS summary per grid_region_id (RE Base scenario)."""
     pre = (
         ruptl[ruptl["year"] <= 2030]
-        .groupby("grid_region_id")["plts_new_mw_re_base"].sum()
+        .groupby("grid_region_id")["plts_new_mw_re_base"]
+        .sum()
         .rename("pre2030_solar_mw")
     )
-    total = (
-        ruptl
-        .groupby("grid_region_id")["plts_new_mw_re_base"].sum()
-        .rename("total_solar_mw")
-    )
+    total = ruptl.groupby("grid_region_id")["plts_new_mw_re_base"].sum().rename("total_solar_mw")
     summary = pd.concat([pre, total], axis=1).reset_index()
     summary["post2030_share"] = np.where(
         summary["total_solar_mw"] > 0,
@@ -105,11 +102,13 @@ def build_fct_kek_scorecard(
     lcoe = lcoe_all[
         (lcoe_all["wacc_pct"] == base_wacc) & (lcoe_all["scenario"] == "within_boundary")
     ].copy()
-    lcoe = lcoe.rename(columns={
-        "lcoe_usd_mwh": "lcoe_mid_usd_mwh",
-        "lcoe_low_usd_mwh": "lcoe_low_usd_mwh",
-        "lcoe_high_usd_mwh": "lcoe_high_usd_mwh",
-    })
+    lcoe = lcoe.rename(
+        columns={
+            "lcoe_usd_mwh": "lcoe_mid_usd_mwh",
+            "lcoe_low_usd_mwh": "lcoe_low_usd_mwh",
+            "lcoe_high_usd_mwh": "lcoe_high_usd_mwh",
+        }
+    )
 
     # LCOE at WACC=8% (de-risked finance scenario) — same scenario, different WACC row
     lcoe_wacc8 = lcoe_all[
@@ -117,11 +116,17 @@ def build_fct_kek_scorecard(
     ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_mid_wacc8_usd_mwh"})
 
     # Grid cost: one row per grid_region_id
-    grid_cost = grid_cost[[
-        "grid_region_id", "dashboard_rate_usd_mwh", "dashboard_rate_label",
-        "dashboard_rate_flag", "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
-        "grid_emission_factor_t_co2_mwh",
-    ]].rename(columns={"dashboard_rate_flag": "is_grid_cost_provisional"})
+    grid_cost = grid_cost[
+        [
+            "grid_region_id",
+            "dashboard_rate_usd_mwh",
+            "dashboard_rate_label",
+            "dashboard_rate_flag",
+            "tariff_i3_usd_mwh",
+            "tariff_i4_usd_mwh",
+            "grid_emission_factor_t_co2_mwh",
+        ]
+    ].rename(columns={"dashboard_rate_flag": "is_grid_cost_provisional"})
     # Normalize flag to boolean
     grid_cost["is_grid_cost_provisional"] = (
         grid_cost["is_grid_cost_provisional"].str.upper() != "OFFICIAL"
@@ -135,19 +140,38 @@ def build_fct_kek_scorecard(
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     # Merge buildability columns when present in fct_kek_resource
-    _build_cols = ["pvout_buildable_best_50km", "buildable_area_ha",
-                   "max_captive_capacity_mwp", "buildability_constraint"]
+    _build_cols = [
+        "pvout_buildable_best_50km",
+        "buildable_area_ha",
+        "max_captive_capacity_mwp",
+        "buildability_constraint",
+    ]
     _resource_base = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
     _resource_cols = _resource_base + [c for c in _build_cols if c in resource.columns]
 
     df = (
-        dim_kek
-        .merge(resource[_resource_cols], on="kek_id", how="left")
-        .merge(lcoe[["kek_id", "lcoe_low_usd_mwh", "lcoe_mid_usd_mwh", "lcoe_high_usd_mwh",
-                     "cf_used", "is_cf_provisional", "is_capex_provisional"]], on="kek_id", how="left")
+        dim_kek.merge(resource[_resource_cols], on="kek_id", how="left")
+        .merge(
+            lcoe[
+                [
+                    "kek_id",
+                    "lcoe_low_usd_mwh",
+                    "lcoe_mid_usd_mwh",
+                    "lcoe_high_usd_mwh",
+                    "cf_used",
+                    "is_cf_provisional",
+                    "is_capex_provisional",
+                ]
+            ],
+            on="kek_id",
+            how="left",
+        )
         .merge(grid_cost, on="grid_region_id", how="left")
-        .merge(ruptl_summary[["grid_region_id", "pre2030_solar_mw", "post2030_share"]],
-               on="grid_region_id", how="left")
+        .merge(
+            ruptl_summary[["grid_region_id", "pre2030_solar_mw", "post2030_share"]],
+            on="grid_region_id",
+            how="left",
+        )
         .merge(lcoe_wacc8, on="kek_id", how="left")
         .merge(sub, on="kek_id", how="left")
     )
@@ -162,10 +186,11 @@ def build_fct_kek_scorecard(
     # "partial_filter": some data files applied (e.g. DEM-only for slope/elevation)
     # "provisional": no buildability data present
     from src.pipeline.build_fct_kek_resource import (
-        BUILDABILITY_DIR,
         _REQUIRED_BUILD_FILES,
+        BUILDABILITY_DIR,
         _available_build_files,
     )
+
     _n_avail = len(_available_build_files(BUILDABILITY_DIR))
     _n_total = len(_REQUIRED_BUILD_FILES)
     _has_any = _n_avail > 0
@@ -185,7 +210,8 @@ def build_fct_kek_scorecard(
     df["solar_competitive_gap_pct"] = np.where(
         df["dashboard_rate_usd_mwh"].notna() & df["lcoe_mid_usd_mwh"].notna(),
         (df["lcoe_mid_usd_mwh"] - df["dashboard_rate_usd_mwh"])
-        / df["dashboard_rate_usd_mwh"] * 100,
+        / df["dashboard_rate_usd_mwh"]
+        * 100,
         np.nan,
     ).round(1)
 
@@ -193,17 +219,16 @@ def build_fct_kek_scorecard(
     df["solar_competitive_gap_wacc8_pct"] = np.where(
         df["dashboard_rate_usd_mwh"].notna() & df["lcoe_mid_wacc8_usd_mwh"].notna(),
         (df["lcoe_mid_wacc8_usd_mwh"] - df["dashboard_rate_usd_mwh"])
-        / df["dashboard_rate_usd_mwh"] * 100,
+        / df["dashboard_rate_usd_mwh"]
+        * 100,
         np.nan,
     ).round(1)
-    df["solar_now_at_wacc8"] = (
-        df["lcoe_mid_wacc8_usd_mwh"].fillna(np.inf) <= df["dashboard_rate_usd_mwh"].fillna(0)
-    )
+    df["solar_now_at_wacc8"] = df["lcoe_mid_wacc8_usd_mwh"].fillna(np.inf) <= df[
+        "dashboard_rate_usd_mwh"
+    ].fillna(0)
 
     # Solar attractiveness: good resource AND LCOE <= grid cost
-    df["solar_attractive"] = (
-        df["pvout_best_50km"].fillna(0) >= FIRMING_PVOUT_THRESHOLD
-    ) & (
+    df["solar_attractive"] = (df["pvout_best_50km"].fillna(0) >= FIRMING_PVOUT_THRESHOLD) & (
         df["lcoe_mid_usd_mwh"].fillna(np.inf) <= df["dashboard_rate_usd_mwh"].fillna(0)
     )
 
@@ -211,16 +236,17 @@ def build_fct_kek_scorecard(
     df["grid_upgrade_pre2030"] = df["pre2030_solar_mw"].fillna(0) > 0
 
     # GEAS allocation — compute green_share_geas per KEK from real demand
-    demand_yr = (
-        fct_demand[fct_demand["year"] == 2030][["kek_id", "demand_mwh"]]
-        .merge(dim_kek[["kek_id", "grid_region_id"]], on="kek_id", how="left")
+    demand_yr = fct_demand[fct_demand["year"] == 2030][["kek_id", "demand_mwh"]].merge(
+        dim_kek[["kek_id", "grid_region_id"]], on="kek_id", how="left"
     )
     geas_df = geas_baseline_allocation(demand_yr, ruptl)
     # geas_df has kek_id + green_share_geas columns
     df = df.merge(geas_df[["kek_id", "green_share_geas"]], on="kek_id", how="left")
 
     # 2030 demand — join for persona/dashboard use (PPA sizing, green share context)
-    demand_2030 = demand_yr[["kek_id", "demand_mwh"]].rename(columns={"demand_mwh": "demand_mwh_2030"})
+    demand_2030 = demand_yr[["kek_id", "demand_mwh"]].rename(
+        columns={"demand_mwh": "demand_mwh_2030"}
+    )
     df = df.merge(demand_2030, on="kek_id", how="left")
     df["green_share_geas"] = df["green_share_geas"].fillna(0.0)
 
@@ -236,9 +262,13 @@ def build_fct_kek_scorecard(
         reliability = float(row["reliability_req"]) if pd.notna(row.get("reliability_req")) else 0.6
 
         if not has_grid_cost or not has_lcoe:
-            flags = {"solar_now": None, "grid_first": None,
-                     "firming_needed": None, "plan_late": None,
-                     "invest_resilience": None}
+            flags = {
+                "solar_now": None,
+                "grid_first": None,
+                "firming_needed": None,
+                "plan_late": None,
+                "invest_resilience": None,
+            }
         else:
             flags = action_flags(
                 solar_attractive=bool(row["solar_attractive"]),
@@ -249,7 +279,8 @@ def build_fct_kek_scorecard(
             )
             flags["invest_resilience"] = invest_resilience(
                 solar_competitive_gap_pct=float(row["solar_competitive_gap_pct"])
-                if pd.notna(row["solar_competitive_gap_pct"]) else float("inf"),
+                if pd.notna(row["solar_competitive_gap_pct"])
+                else float("inf"),
                 reliability_req=reliability,
             )
 
@@ -263,7 +294,9 @@ def build_fct_kek_scorecard(
     # - "not_competitive": all data present but solar LCOE > grid cost at base WACC
     # - otherwise: first True flag wins
     def _flag_label(row: pd.Series) -> str:
-        if any(row.get(f) is None for f in ["solar_now", "grid_first", "firming_needed", "plan_late"]):
+        if any(
+            row.get(f) is None for f in ["solar_now", "grid_first", "firming_needed", "plan_late"]
+        ):
             return "data_missing"
         for flag in ["solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late"]:
             if row.get(flag) is True:
@@ -278,7 +311,9 @@ def build_fct_kek_scorecard(
             lcoe_mid_usd_mwh=float(r["lcoe_mid_usd_mwh"]),
             grid_cost_usd_mwh=float(r["dashboard_rate_usd_mwh"]),
             grid_emission_factor_t_co2_mwh=float(r["grid_emission_factor_t_co2_mwh"]),
-        ) if pd.notna(r["lcoe_mid_usd_mwh"]) and pd.notna(r["dashboard_rate_usd_mwh"])
+        )
+        if pd.notna(r["lcoe_mid_usd_mwh"])
+        and pd.notna(r["dashboard_rate_usd_mwh"])
         and pd.notna(r["grid_emission_factor_t_co2_mwh"])
         else None,
         axis=1,
@@ -291,14 +326,14 @@ def build_fct_kek_scorecard(
     df["ruptl_summary"] = df.apply(
         lambda r: (
             f"{r['pre2030_solar_mw']:.0f} MW solar planned in {r['grid_region_id']} by 2030"
-            if pd.notna(r["pre2030_solar_mw"]) else "RUPTL data unavailable"
+            if pd.notna(r["pre2030_solar_mw"])
+            else "RUPTL data unavailable"
         ),
         axis=1,
     )
 
     # Data completeness flag
-    key_cols = ["pvout_best_50km", "lcoe_mid_usd_mwh", "dashboard_rate_usd_mwh",
-                "post2030_share"]
+    key_cols = ["pvout_best_50km", "lcoe_mid_usd_mwh", "dashboard_rate_usd_mwh", "post2030_share"]
     n_missing = df[key_cols].isna().sum(axis=1)
     is_provisional = df.get("is_capex_provisional", pd.Series([False] * len(df)))
     df["data_completeness"] = np.select(
@@ -309,25 +344,61 @@ def build_fct_kek_scorecard(
     # Downgrade to provisional if capex inputs are provisional
     df.loc[is_provisional, "data_completeness"] = "provisional"
 
-    return df[[
-        "kek_id", "kek_name", "province", "grid_region_id",
-        "kek_type", "status", "latitude", "longitude",
-        "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km",
-        "pvout_buildable_best_50km", "buildable_area_ha",
-        "max_captive_capacity_mwp", "buildability_constraint", "resource_quality",
-        "dist_to_nearest_substation_km", "siting_scenario", "demand_mwh_2030",
-        "lcoe_low_usd_mwh", "lcoe_mid_usd_mwh", "lcoe_high_usd_mwh",
-        "cf_used", "is_cf_provisional", "is_capex_provisional",
-        "dashboard_rate_usd_mwh", "dashboard_rate_label", "is_grid_cost_provisional",
-        "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
-        "solar_competitive_gap_pct", "solar_attractive",
-        "lcoe_mid_wacc8_usd_mwh", "solar_competitive_gap_wacc8_pct", "solar_now_at_wacc8",
-        "action_flag", "solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late",
-        "green_share_geas",
-        "pre2030_solar_mw", "post2030_share", "grid_upgrade_pre2030", "ruptl_summary",
-        "grid_emission_factor_t_co2_mwh", "carbon_breakeven_usd_tco2",
-        "clean_power_advantage", "data_completeness",
-    ]]
+    return df[
+        [
+            "kek_id",
+            "kek_name",
+            "province",
+            "grid_region_id",
+            "kek_type",
+            "status",
+            "latitude",
+            "longitude",
+            "pvout_centroid",
+            "cf_centroid",
+            "pvout_best_50km",
+            "cf_best_50km",
+            "pvout_buildable_best_50km",
+            "buildable_area_ha",
+            "max_captive_capacity_mwp",
+            "buildability_constraint",
+            "resource_quality",
+            "dist_to_nearest_substation_km",
+            "siting_scenario",
+            "demand_mwh_2030",
+            "lcoe_low_usd_mwh",
+            "lcoe_mid_usd_mwh",
+            "lcoe_high_usd_mwh",
+            "cf_used",
+            "is_cf_provisional",
+            "is_capex_provisional",
+            "dashboard_rate_usd_mwh",
+            "dashboard_rate_label",
+            "is_grid_cost_provisional",
+            "tariff_i3_usd_mwh",
+            "tariff_i4_usd_mwh",
+            "solar_competitive_gap_pct",
+            "solar_attractive",
+            "lcoe_mid_wacc8_usd_mwh",
+            "solar_competitive_gap_wacc8_pct",
+            "solar_now_at_wacc8",
+            "action_flag",
+            "solar_now",
+            "grid_first",
+            "firming_needed",
+            "invest_resilience",
+            "plan_late",
+            "green_share_geas",
+            "pre2030_solar_mw",
+            "post2030_share",
+            "grid_upgrade_pre2030",
+            "ruptl_summary",
+            "grid_emission_factor_t_co2_mwh",
+            "carbon_breakeven_usd_tco2",
+            "clean_power_advantage",
+            "data_completeness",
+        ]
+    ]
 
 
 def main() -> None:
@@ -341,8 +412,13 @@ def main() -> None:
     print("\nData completeness:")
     print(df["data_completeness"].value_counts().to_string())
     print("\nSolar competitive gap (WACC=10%, base CAPEX):")
-    cols = ["kek_id", "lcoe_mid_usd_mwh", "dashboard_rate_usd_mwh",
-            "solar_competitive_gap_pct", "action_flag"]
+    cols = [
+        "kek_id",
+        "lcoe_mid_usd_mwh",
+        "dashboard_rate_usd_mwh",
+        "solar_competitive_gap_pct",
+        "action_flag",
+    ]
     print(df[cols].sort_values("solar_competitive_gap_pct").to_string(index=False))
 
 

@@ -57,11 +57,13 @@ def _load_polygon_attrs(geojson_path: Path) -> pd.DataFrame:
         slug = props.get("slug")
         if not slug:
             continue
-        rows.append({
-            "kek_id": slug,
-            "kek_type": props.get("JenisKEK"),
-            "area_ha": props.get("Luas_ha"),
-        })
+        rows.append(
+            {
+                "kek_id": slug,
+                "kek_type": props.get("JenisKEK"),
+                "area_ha": props.get("Luas_ha"),
+            }
+        )
 
     df = pd.DataFrame(rows)
     df["area_ha"] = pd.to_numeric(df["area_ha"], errors="coerce")
@@ -87,17 +89,21 @@ def build_dim_kek(
     # ─── STAGING ──────────────────────────────────────────────────────────────
     markers = markers_raw[
         ["slug", "title", "latitude", "longitude", "legalBasis", "developer"]
-    ].rename(columns={
-        "slug": "kek_id",
-        "title": "kek_name",
-        "legalBasis": "legal_basis",
-    })
+    ].rename(
+        columns={
+            "slug": "kek_id",
+            "title": "kek_name",
+            "legalBasis": "legal_basis",
+        }
+    )
 
-    dist = dist_raw[["slug", "category.name", "status.name"]].rename(columns={
-        "slug": "kek_id",
-        "category.name": "category",
-        "status.name": "status",
-    })
+    dist = dist_raw[["slug", "category.name", "status.name"]].rename(
+        columns={
+            "slug": "kek_id",
+            "category.name": "category",
+            "status.name": "status",
+        }
+    )
 
     mapping = mapping_raw[
         ["kek_id", "grid_region_id", "province", "reliability_req", "reliability_notes"]
@@ -105,22 +111,32 @@ def build_dim_kek(
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     df = (
-        markers
-        .merge(dist, on="kek_id", how="left")
+        markers.merge(dist, on="kek_id", how="left")
         .merge(mapping, on="kek_id", how="left")
         .merge(poly_raw, on="kek_id", how="left")
     )
 
     df["data_vintage"] = date.today().isoformat()
 
-    df = df[[
-        "kek_id", "kek_name", "province", "grid_region_id",
-        "kek_type", "category", "status",
-        "area_ha", "legal_basis", "developer",
-        "reliability_req", "reliability_notes",
-        "latitude", "longitude",
-        "data_vintage",
-    ]]
+    df = df[
+        [
+            "kek_id",
+            "kek_name",
+            "province",
+            "grid_region_id",
+            "kek_type",
+            "category",
+            "status",
+            "area_ha",
+            "legal_basis",
+            "developer",
+            "reliability_req",
+            "reliability_notes",
+            "latitude",
+            "longitude",
+            "data_vintage",
+        ]
+    ]
 
     missing = df["grid_region_id"].isna().sum()
     if missing:
@@ -136,7 +152,9 @@ def main() -> None:
     df = build_dim_kek()
     df.to_csv(out, index=False)
     print(f"dim_kek: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
-    print(df[["kek_id", "province", "grid_region_id", "kek_type", "area_ha"]].to_string(index=False))
+    print(
+        df[["kek_id", "province", "grid_region_id", "kek_type", "area_ha"]].to_string(index=False)
+    )
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ _OPERATIONAL_STATUS = "Operasi"
 
 # ─── Geometry helpers ─────────────────────────────────────────────────────────
 
+
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle distance between two points in kilometres."""
     R = 6_371.0
@@ -56,14 +57,13 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     dlon = math.radians(lon2 - lon1)
     a = (
         math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1))
-        * math.cos(math.radians(lat2))
-        * math.sin(dlon / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
     )
     return R * 2 * math.asin(math.sqrt(a))
 
 
 # ─── Loaders ──────────────────────────────────────────────────────────────────
+
 
 def _load_substations(path: Path) -> list[dict]:
     """Load substation GeoJSON and return only operational substations."""
@@ -76,13 +76,15 @@ def _load_substations(path: Path) -> list[dict]:
         if props.get("statopr", "").strip() != _OPERATIONAL_STATUS:
             continue
         lon, lat = feat["geometry"]["coordinates"]
-        substations.append({
-            "name": props.get("namobj", ""),
-            "voltage_kv": props.get("teggi", ""),
-            "capacity_mva": props.get("kapgi"),
-            "lat": lat,
-            "lon": lon,
-        })
+        substations.append(
+            {
+                "name": props.get("namobj", ""),
+                "voltage_kv": props.get("teggi", ""),
+                "capacity_mva": props.get("kapgi"),
+                "lat": lat,
+                "lon": lon,
+            }
+        )
     return substations
 
 
@@ -100,6 +102,7 @@ def _load_kek_polygons(path: Path) -> dict[str, object]:
 
 
 # ─── Per-KEK computation ──────────────────────────────────────────────────────
+
 
 def _nearest_substation(
     kek_lat: float, kek_lon: float, substations: list[dict]
@@ -132,6 +135,7 @@ def _has_internal_substation(
 
 # ─── Main builder ─────────────────────────────────────────────────────────────
 
+
 def build_fct_substation_proximity(
     substation_geojson: Path = SUBSTATION_GEOJSON,
     dim_kek_csv: Path = DIM_KEK_CSV,
@@ -154,16 +158,18 @@ def build_fct_substation_proximity(
         nearest, dist_km = _nearest_substation(kek_lat, kek_lon, substations)
         internal = _has_internal_substation(kek_id, kek_polygons, substations)
 
-        records.append({
-            "kek_id": kek_id,
-            "kek_name": row["kek_name"],
-            "nearest_substation_name": nearest["name"] if nearest else None,
-            "nearest_substation_voltage_kv": nearest["voltage_kv"] if nearest else None,
-            "nearest_substation_capacity_mva": nearest["capacity_mva"] if nearest else None,
-            "dist_to_nearest_substation_km": round(dist_km, 2),
-            "has_internal_substation": internal,
-            "siting_scenario": "within_boundary" if internal else "remote_captive",
-        })
+        records.append(
+            {
+                "kek_id": kek_id,
+                "kek_name": row["kek_name"],
+                "nearest_substation_name": nearest["name"] if nearest else None,
+                "nearest_substation_voltage_kv": nearest["voltage_kv"] if nearest else None,
+                "nearest_substation_capacity_mva": nearest["capacity_mva"] if nearest else None,
+                "dist_to_nearest_substation_km": round(dist_km, 2),
+                "has_internal_substation": internal,
+                "siting_scenario": "within_boundary" if internal else "remote_captive",
+            }
+        )
 
     return pd.DataFrame(records)
 
@@ -180,8 +186,14 @@ def main() -> None:
     print(df["dist_to_nearest_substation_km"].describe().round(2).to_string())
     print("\nSample:")
     print(
-        df[["kek_id", "nearest_substation_name", "dist_to_nearest_substation_km", "siting_scenario"]]
-        .to_string(index=False)
+        df[
+            [
+                "kek_id",
+                "nearest_substation_name",
+                "dist_to_nearest_substation_km",
+                "siting_scenario",
+            ]
+        ].to_string(index=False)
     )
 
 

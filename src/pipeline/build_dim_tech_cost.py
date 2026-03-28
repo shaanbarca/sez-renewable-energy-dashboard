@@ -72,21 +72,25 @@ def build_dim_tech_cost(
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     source_page = params["capex"]["source_page"]
 
-    result = pd.DataFrame([{
-        "tech_id": tech_id,
-        "tech_description": tech_description,
-        "year": year,
-        # MUSD/MWe × 1000 → USD/kW
-        "capex_usd_per_kw": round(params["capex"]["central"] * 1000, 1),
-        "capex_lower_usd_per_kw": round(params["capex"]["lower"] * 1000, 1),
-        "capex_upper_usd_per_kw": round(params["capex"]["upper"] * 1000, 1),
-        # USD/MWe/yr ÷ 1000 → USD/kW/yr
-        "fixed_om_usd_per_kw_yr": round(params["fixed_om"]["central"] / 1000, 2),
-        "lifetime_yr": int(params["lifetime"]["central"]),
-        "source_pdf": "esdm_technology_cost.pdf",
-        "source_page": source_page,
-        "is_provisional": source_page == 0,
-    }])
+    result = pd.DataFrame(
+        [
+            {
+                "tech_id": tech_id,
+                "tech_description": tech_description,
+                "year": year,
+                # MUSD/MWe × 1000 → USD/kW
+                "capex_usd_per_kw": round(params["capex"]["central"] * 1000, 1),
+                "capex_lower_usd_per_kw": round(params["capex"]["lower"] * 1000, 1),
+                "capex_upper_usd_per_kw": round(params["capex"]["upper"] * 1000, 1),
+                # USD/MWe/yr ÷ 1000 → USD/kW/yr
+                "fixed_om_usd_per_kw_yr": round(params["fixed_om"]["central"] / 1000, 2),
+                "lifetime_yr": int(params["lifetime"]["central"]),
+                "source_pdf": "esdm_technology_cost.pdf",
+                "source_page": source_page,
+                "is_provisional": source_page == 0,
+            }
+        ]
+    )
 
     return result
 

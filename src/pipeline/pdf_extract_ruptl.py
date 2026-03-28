@@ -54,10 +54,10 @@ YEARS = list(range(2025, 2035))
 
 # Maps grid_region_id → (RE Base table number, ARED table number)
 REGION_TABLES: dict[str, tuple[str, str]] = {
-    "SUMATERA":  ("5.84", "5.85"),
+    "SUMATERA": ("5.84", "5.85"),
     "JAVA_BALI": ("5.88", "5.89"),
     "KALIMANTAN": ("5.95", "5.96"),
-    "SULAWESI":  ("5.102", "5.103"),
+    "SULAWESI": ("5.102", "5.103"),
 }
 
 # Row label patterns that identify the PLTS total row in each table
@@ -65,7 +65,7 @@ PLTS_ROW_PATTERNS = [
     r"(?i)total.*plts",
     r"(?i)plts.*total",
     r"(?i)^plts$",
-    r"(?i)plts\s*\+\s*bess",   # Sulawesi uses PLTS+BESS packages
+    r"(?i)plts\s*\+\s*bess",  # Sulawesi uses PLTS+BESS packages
 ]
 
 # ---------------------------------------------------------------------------
@@ -132,6 +132,7 @@ VERIFIED_PLTS_DATA: dict[str, dict] = {
 
 # ─── Page finder ──────────────────────────────────────────────────────────────
 
+
 def _find_table_page(pdf: pdfplumber.PDF, table_number: str) -> Optional[int]:
     """
     Search PDF pages for a table heading matching 'Tabel {table_number}'.
@@ -146,6 +147,7 @@ def _find_table_page(pdf: pdfplumber.PDF, table_number: str) -> Optional[int]:
 
 
 # ─── Row extractor ────────────────────────────────────────────────────────────
+
 
 def _extract_plts_row(page: pdfplumber.page.Page) -> Optional[list[float]]:
     """
@@ -182,6 +184,7 @@ def _extract_plts_row(page: pdfplumber.page.Page) -> Optional[list[float]]:
 
 # ─── Main extractor ───────────────────────────────────────────────────────────
 
+
 def extract_plts_from_pdf(
     pdf_path: Path = RUPTL_PDF,
 ) -> Optional[dict[str, dict]]:
@@ -206,7 +209,9 @@ def extract_plts_from_pdf(
                 ared_page_num = _find_table_page(pdf, ared_table)
 
                 if re_page_num is None or ared_page_num is None:
-                    print(f"  [pdf_extract] {region}: table pages not found — using hardcoded fallback")
+                    print(
+                        f"  [pdf_extract] {region}: table pages not found — using hardcoded fallback"
+                    )
                     return None
 
                 # Table may span to the next page — search current + next
@@ -229,7 +234,9 @@ def extract_plts_from_pdf(
                         break
 
                 if re_vals is None or ared_vals is None:
-                    print(f"  [pdf_extract] {region}: PLTS row not found — using hardcoded fallback")
+                    print(
+                        f"  [pdf_extract] {region}: PLTS row not found — using hardcoded fallback"
+                    )
                     return None
 
                 result[region] = {
@@ -249,6 +256,7 @@ def extract_plts_from_pdf(
 
 
 # ─── Verification ─────────────────────────────────────────────────────────────
+
 
 def verify_plts_against_hardcoded(pdf_path: Path = RUPTL_PDF) -> bool:
     """
@@ -276,8 +284,10 @@ def verify_plts_against_hardcoded(pdf_path: Path = RUPTL_PDF) -> bool:
                 e_val = ext[scenario][i]
                 h_val = hc[scenario][i]
                 if abs(e_val - h_val) > 5:
-                    print(f"  MISMATCH  {region}/{scenario}/{year}: "
-                          f"extracted={e_val}, hardcoded={h_val}")
+                    print(
+                        f"  MISMATCH  {region}/{scenario}/{year}: "
+                        f"extracted={e_val}, hardcoded={h_val}"
+                    )
                     all_ok = False
 
     if all_ok:
@@ -296,13 +306,17 @@ if __name__ == "__main__":
 
     extracted = extract_plts_from_pdf()
     if extracted is None:
-        print("\nExtraction failed. Hardcoded fallback in build_fct_ruptl_pipeline.py will be used.")
+        print(
+            "\nExtraction failed. Hardcoded fallback in build_fct_ruptl_pipeline.py will be used."
+        )
     else:
         print(f"\nExtracted {len(extracted)} regions:")
         for region, data in extracted.items():
             total_re = sum(data["re_base"])
             total_ared = sum(data["ared"])
-            print(f"  {region:12s}  RE Base: {total_re:5.0f} MW  ARED: {total_ared:5.0f} MW  ({data['source']})")
+            print(
+                f"  {region:12s}  RE Base: {total_re:5.0f} MW  ARED: {total_ared:5.0f} MW  ({data['source']})"
+            )
 
     print()
     verify_plts_against_hardcoded()

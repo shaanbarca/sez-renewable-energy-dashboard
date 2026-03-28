@@ -54,48 +54,65 @@ from src.model.basic_model import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_kek_df():
-    return pd.DataFrame({
-        "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
-        "kek_name": ["Kendal", "Bitung", "Sungai Liat", "Arun"],
-        "province": ["Central Java", "North Sulawesi", "Bangka Belitung", "Aceh"],
-        "grid_region_id": ["JAVA_BALI", "SULAWESI", "SUMATERA", "SUMATERA"],
-        "reliability_req": [0.4, 0.8, 0.6, 0.9],
-    })
+    return pd.DataFrame(
+        {
+            "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
+            "kek_name": ["Kendal", "Bitung", "Sungai Liat", "Arun"],
+            "province": ["Central Java", "North Sulawesi", "Bangka Belitung", "Aceh"],
+            "grid_region_id": ["JAVA_BALI", "SULAWESI", "SUMATERA", "SUMATERA"],
+            "reliability_req": [0.4, 0.8, 0.6, 0.9],
+        }
+    )
 
 
 @pytest.fixture
 def sample_demand_df():
-    return pd.DataFrame({
-        "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
-        "year": [2030, 2030, 2030, 2030],
-        "demand_mwh": [800_000, 250_000, 120_000, 600_000],
-    })
+    return pd.DataFrame(
+        {
+            "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
+            "year": [2030, 2030, 2030, 2030],
+            "demand_mwh": [800_000, 250_000, 120_000, 600_000],
+        }
+    )
 
 
 @pytest.fixture
 def sample_pvout_df():
     # Annual values (kWh/kWp/year)
-    return pd.DataFrame({
-        "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
-        "pvout_centroid": [1650, 1505, 1420, 1550],
-        "pvout_best_50km": [1780, 1620, 1500, 1670],
-    })
+    return pd.DataFrame(
+        {
+            "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
+            "pvout_centroid": [1650, 1505, 1420, 1550],
+            "pvout_best_50km": [1780, 1620, 1500, 1670],
+        }
+    )
 
 
 @pytest.fixture
 def sample_ruptl_df():
-    return pd.DataFrame({
-        "grid_region_id": ["JAVA_BALI", "JAVA_BALI", "SULAWESI", "SULAWESI", "SUMATERA", "SUMATERA"],
-        "year": [2028, 2032, 2029, 2033, 2027, 2032],
-        "plts_new_mw_re_base": [800, 2500, 100, 600, 300, 1800],
-    })
+    return pd.DataFrame(
+        {
+            "grid_region_id": [
+                "JAVA_BALI",
+                "JAVA_BALI",
+                "SULAWESI",
+                "SULAWESI",
+                "SUMATERA",
+                "SUMATERA",
+            ],
+            "year": [2028, 2032, 2029, 2033, 2027, 2032],
+            "plts_new_mw_re_base": [800, 2500, 100, 600, 300, 1800],
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # 1. PVOUT daily-to-annual
 # ---------------------------------------------------------------------------
+
 
 class TestPvoutDailyToAnnual:
     def test_typical_value(self):
@@ -132,6 +149,7 @@ class TestPvoutDailyToAnnual:
 # 2. Capacity factor
 # ---------------------------------------------------------------------------
 
+
 class TestCapacityFactor:
     def test_known_value(self):
         cf = capacity_factor_from_pvout(1752.0)  # 1752 / 8760 = 0.2
@@ -152,6 +170,7 @@ class TestCapacityFactor:
 # ---------------------------------------------------------------------------
 # 3. Capital Recovery Factor
 # ---------------------------------------------------------------------------
+
 
 class TestCapitalRecoveryFactor:
     def test_known_value(self):
@@ -181,6 +200,7 @@ class TestCapitalRecoveryFactor:
 # ---------------------------------------------------------------------------
 # 4. LCOE
 # ---------------------------------------------------------------------------
+
 
 class TestLcoeSolar:
     def test_typical_value(self):
@@ -225,6 +245,7 @@ class TestLcoeSolar:
 # 5. LCOE with firming adder
 # ---------------------------------------------------------------------------
 
+
 class TestLcoeSolarWithFirming:
     def test_mid_adder(self):
         cf = capacity_factor_from_pvout(1600.0)
@@ -248,23 +269,28 @@ class TestLcoeSolarWithFirming:
     def test_all_in_greater_than_base(self):
         cf = capacity_factor_from_pvout(1600.0)
         for adder in ("low", "mid", "high"):
-            assert lcoe_solar_with_firming(700, 12, 0.09, 25, cf, adder) > lcoe_solar(700, 12, 0.09, 25, cf)
+            assert lcoe_solar_with_firming(700, 12, 0.09, 25, cf, adder) > lcoe_solar(
+                700, 12, 0.09, 25, cf
+            )
 
 
 # ---------------------------------------------------------------------------
 # 6. Gen-tie cost and remote captive LCOE
 # ---------------------------------------------------------------------------
 
+
 class TestGentieCost:
     def test_zero_distance_equals_substation_works_only(self):
         """dist=0 → only substation works cost (no line construction)."""
         from src.assumptions import SUBSTATION_WORKS_PER_KW
+
         result = gentie_cost_per_kw(0.0)
         assert result == pytest.approx(SUBSTATION_WORKS_PER_KW)
 
     def test_10km_scales_linearly(self):
         """10km × $5/kW-km + $150/kW = $200/kW."""
         from src.assumptions import GENTIE_COST_PER_KW_KM, SUBSTATION_WORKS_PER_KW
+
         result = gentie_cost_per_kw(10.0)
         assert result == pytest.approx(10.0 * GENTIE_COST_PER_KW_KM + SUBSTATION_WORKS_PER_KW)
 
@@ -281,16 +307,15 @@ class TestGentieCost:
 
 class TestLcoeSolarRemoteCaptive:
     def _base_args(self):
-        return dict(capex_usd_per_kw=960.0, fixed_om_usd_per_kw_yr=7.5,
-                    wacc=0.10, lifetime_yr=27, cf=0.18)
+        return dict(
+            capex_usd_per_kw=960.0, fixed_om_usd_per_kw_yr=7.5, wacc=0.10, lifetime_yr=27, cf=0.18
+        )
 
     def test_zero_dist_equals_base_lcoe(self):
         """With dist=0 and substation_works=0, remote captive == base lcoe_solar."""
         args = self._base_args()
         base = lcoe_solar(**args)
-        remote = lcoe_solar_remote_captive(
-            **args, dist_km=0.0, substation_works_per_kw=0.0
-        )
+        remote = lcoe_solar_remote_captive(**args, dist_km=0.0, substation_works_per_kw=0.0)
         assert remote == pytest.approx(base)
 
     def test_positive_dist_increases_lcoe(self):
@@ -311,6 +336,7 @@ class TestLcoeSolarRemoteCaptive:
 # ---------------------------------------------------------------------------
 # 7. Solar competitive gap
 # ---------------------------------------------------------------------------
+
 
 class TestSolarCompetitiveGap:
     def test_competitive(self):
@@ -336,6 +362,7 @@ class TestSolarCompetitiveGap:
 # 7. is_solar_attractive
 # ---------------------------------------------------------------------------
 
+
 class TestIsSolarAttractive:
     def test_cheaper_than_grid(self):
         assert is_solar_attractive(50.0, 60.0) is True
@@ -351,14 +378,15 @@ class TestIsSolarAttractive:
 # 8. action_flags
 # ---------------------------------------------------------------------------
 
+
 class TestActionFlags:
     def test_solar_now(self):
         flags = action_flags(
             solar_attractive=True,
-            grid_upgrade_pre2030=True,   # grid ready
-            reliability_req=0.4,          # below firming threshold
-            green_share_geas=0.35,        # above 0.30
-            post2030_share=0.30,          # below plan_late threshold
+            grid_upgrade_pre2030=True,  # grid ready
+            reliability_req=0.4,  # below firming threshold
+            green_share_geas=0.35,  # above 0.30
+            post2030_share=0.30,  # below plan_late threshold
         )
         assert flags["solar_now"] is True
         assert flags["grid_first"] is False
@@ -368,7 +396,7 @@ class TestActionFlags:
     def test_grid_first(self):
         flags = action_flags(
             solar_attractive=True,
-            grid_upgrade_pre2030=False,   # grid NOT ready
+            grid_upgrade_pre2030=False,  # grid NOT ready
             reliability_req=0.4,
             green_share_geas=0.5,
             post2030_share=0.3,
@@ -380,7 +408,7 @@ class TestActionFlags:
         flags = action_flags(
             solar_attractive=True,
             grid_upgrade_pre2030=True,
-            reliability_req=0.80,         # at threshold (0.75)
+            reliability_req=0.80,  # at threshold (0.75)
             green_share_geas=0.5,
             post2030_share=0.3,
         )
@@ -390,7 +418,7 @@ class TestActionFlags:
         flags = action_flags(
             solar_attractive=True,
             grid_upgrade_pre2030=True,
-            reliability_req=0.74,         # just below threshold
+            reliability_req=0.74,  # just below threshold
             green_share_geas=0.5,
             post2030_share=0.3,
         )
@@ -402,7 +430,7 @@ class TestActionFlags:
             grid_upgrade_pre2030=True,
             reliability_req=0.4,
             green_share_geas=0.1,
-            post2030_share=0.65,          # above 0.60 threshold
+            post2030_share=0.65,  # above 0.60 threshold
         )
         assert flags["plan_late"] is True
 
@@ -429,7 +457,7 @@ class TestActionFlags:
             solar_attractive=True,
             grid_upgrade_pre2030=True,
             reliability_req=0.4,
-            green_share_geas=0.25,        # below 0.30 threshold
+            green_share_geas=0.25,  # below 0.30 threshold
             post2030_share=0.2,
         )
         assert flags["solar_now"] is False
@@ -449,13 +477,16 @@ class TestActionFlags:
 # 9. GEAS baseline allocation
 # ---------------------------------------------------------------------------
 
+
 class TestGeasBaselineAllocation:
     def test_pro_rata_within_region(self, sample_kek_df, sample_ruptl_df):
-        kek_demand = pd.DataFrame({
-            "kek_id": ["KEK_C", "KEK_D"],
-            "grid_region_id": ["SUMATERA", "SUMATERA"],
-            "demand_mwh": [120_000, 600_000],
-        })
+        kek_demand = pd.DataFrame(
+            {
+                "kek_id": ["KEK_C", "KEK_D"],
+                "grid_region_id": ["SUMATERA", "SUMATERA"],
+                "demand_mwh": [120_000, 600_000],
+            }
+        )
         result = geas_baseline_allocation(kek_demand, sample_ruptl_df)
 
         # KEK_D should receive 600/(120+600) = 83.3% of regional allocation
@@ -466,35 +497,43 @@ class TestGeasBaselineAllocation:
 
     def test_green_share_capped_at_1(self, sample_ruptl_df):
         # Tiny demand => GEAS supply >> demand => green_share = 1.0
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_X"],
-            "grid_region_id": ["JAVA_BALI"],
-            "demand_mwh": [1.0],   # 1 MWh — trivially covered
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_X"],
+                "grid_region_id": ["JAVA_BALI"],
+                "demand_mwh": [1.0],  # 1 MWh — trivially covered
+            }
+        )
         result = geas_baseline_allocation(kek_df, sample_ruptl_df)
         assert result.iloc[0]["green_share_geas"] == 1.0
 
     def test_no_ruptl_in_region_gives_zero(self):
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_X"],
-            "grid_region_id": ["UNKNOWN_REGION"],
-            "demand_mwh": [500_000],
-        })
-        ruptl_df = pd.DataFrame({
-            "grid_region_id": ["JAVA_BALI"],
-            "year": [2028],
-            "plts_new_mw_re_base": [500],
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_X"],
+                "grid_region_id": ["UNKNOWN_REGION"],
+                "demand_mwh": [500_000],
+            }
+        )
+        ruptl_df = pd.DataFrame(
+            {
+                "grid_region_id": ["JAVA_BALI"],
+                "year": [2028],
+                "plts_new_mw_re_base": [500],
+            }
+        )
         result = geas_baseline_allocation(kek_df, ruptl_df)
         assert result.iloc[0]["geas_alloc_mwh"] == 0.0
         assert result.iloc[0]["green_share_geas"] == 0.0
 
     def test_total_allocation_equals_supply(self, sample_ruptl_df):
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_C", "KEK_D"],
-            "grid_region_id": ["SUMATERA", "SUMATERA"],
-            "demand_mwh": [120_000, 600_000],
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_C", "KEK_D"],
+                "grid_region_id": ["SUMATERA", "SUMATERA"],
+                "demand_mwh": [120_000, 600_000],
+            }
+        )
         result = geas_baseline_allocation(kek_df, sample_ruptl_df)
         # Total allocated should equal SUMATERA pre-2030 supply (300 MW * 8760 * 0.20)
         expected_supply = 300 * HOURS_PER_YEAR * 0.20
@@ -503,11 +542,13 @@ class TestGeasBaselineAllocation:
 
     def test_zero_demand_returns_zero_not_nan(self, sample_ruptl_df):
         # Regression: demand=0 previously produced NaN via 0/0 division
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_X"],
-            "grid_region_id": ["JAVA_BALI"],
-            "demand_mwh": [0],
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_X"],
+                "grid_region_id": ["JAVA_BALI"],
+                "demand_mwh": [0],
+            }
+        )
         result = geas_baseline_allocation(kek_df, sample_ruptl_df)
         assert result.iloc[0]["green_share_geas"] == 0.0
         assert not math.isnan(result.iloc[0]["green_share_geas"])
@@ -517,15 +558,18 @@ class TestGeasBaselineAllocation:
 # 10. GEAS policy allocation
 # ---------------------------------------------------------------------------
 
+
 class TestGeasPolicyAllocation:
     def test_policy_ge_baseline_for_high_pvout(self, sample_ruptl_df):
         # High-pvout KEK should get >= baseline share in policy scenario
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_C", "KEK_D"],
-            "grid_region_id": ["SUMATERA", "SUMATERA"],
-            "demand_mwh": [120_000, 600_000],
-            "pvout_best_50km": [1400, 1700],  # KEK_D has higher PVOUT
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_C", "KEK_D"],
+                "grid_region_id": ["SUMATERA", "SUMATERA"],
+                "demand_mwh": [120_000, 600_000],
+                "pvout_best_50km": [1400, 1700],  # KEK_D has higher PVOUT
+            }
+        )
         result = geas_policy_allocation(kek_df, sample_ruptl_df)
         baseline = geas_baseline_allocation(
             kek_df[["kek_id", "grid_region_id", "demand_mwh"]], sample_ruptl_df
@@ -537,12 +581,14 @@ class TestGeasPolicyAllocation:
 
     def test_policy_supply_greater_than_baseline(self, sample_ruptl_df):
         # Policy shifts 20% of post-2030 into pre-2030 -> more total supply
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_A"],
-            "grid_region_id": ["JAVA_BALI"],
-            "demand_mwh": [800_000],
-            "pvout_best_50km": [1780],
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_A"],
+                "grid_region_id": ["JAVA_BALI"],
+                "demand_mwh": [800_000],
+                "pvout_best_50km": [1780],
+            }
+        )
         result = geas_policy_allocation(kek_df, sample_ruptl_df)
         baseline = geas_baseline_allocation(
             kek_df[["kek_id", "grid_region_id", "demand_mwh"]], sample_ruptl_df
@@ -550,23 +596,27 @@ class TestGeasPolicyAllocation:
         assert result.iloc[0]["geas_alloc_mwh_policy"] >= baseline.iloc[0]["geas_alloc_mwh"]
 
     def test_green_share_capped_at_1(self, sample_ruptl_df):
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_X"],
-            "grid_region_id": ["JAVA_BALI"],
-            "demand_mwh": [1.0],
-            "pvout_best_50km": [1750],
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_X"],
+                "grid_region_id": ["JAVA_BALI"],
+                "demand_mwh": [1.0],
+                "pvout_best_50km": [1750],
+            }
+        )
         result = geas_policy_allocation(kek_df, sample_ruptl_df)
         assert result.iloc[0]["green_share_geas_policy"] == 1.0
 
     def test_zero_demand_returns_zero_not_nan(self, sample_ruptl_df):
         # Regression: demand=0 previously produced NaN via 0/0 division
-        kek_df = pd.DataFrame({
-            "kek_id": ["KEK_X"],
-            "grid_region_id": ["JAVA_BALI"],
-            "demand_mwh": [0],
-            "pvout_best_50km": [1750],
-        })
+        kek_df = pd.DataFrame(
+            {
+                "kek_id": ["KEK_X"],
+                "grid_region_id": ["JAVA_BALI"],
+                "demand_mwh": [0],
+                "pvout_best_50km": [1750],
+            }
+        )
         result = geas_policy_allocation(kek_df, sample_ruptl_df)
         assert result.iloc[0]["green_share_geas_policy"] == 0.0
         assert not math.isnan(result.iloc[0]["green_share_geas_policy"])
@@ -575,6 +625,7 @@ class TestGeasPolicyAllocation:
 # ---------------------------------------------------------------------------
 # 11. RUPTL region metrics
 # ---------------------------------------------------------------------------
+
 
 class TestRuptlRegionMetrics:
     def test_post2030_share_java_bali(self, sample_ruptl_df):
@@ -596,22 +647,26 @@ class TestRuptlRegionMetrics:
         assert bool(jb["grid_upgrade_pre2030"]) is True
 
     def test_no_pre2030_additions(self):
-        ruptl_df = pd.DataFrame({
-            "grid_region_id": ["REGION_X"],
-            "year": [2035],
-            "plts_new_mw_re_base": [500],
-        })
+        ruptl_df = pd.DataFrame(
+            {
+                "grid_region_id": ["REGION_X"],
+                "year": [2035],
+                "plts_new_mw_re_base": [500],
+            }
+        )
         result = ruptl_region_metrics(ruptl_df)
         rx = result[result["grid_region_id"] == "REGION_X"].iloc[0]
         assert rx["post2030_share"] == 1.0
         assert bool(rx["grid_upgrade_pre2030"]) is False
 
     def test_all_pre2030(self):
-        ruptl_df = pd.DataFrame({
-            "grid_region_id": ["REGION_Y"],
-            "year": [2027],
-            "plts_new_mw_re_base": [300],
-        })
+        ruptl_df = pd.DataFrame(
+            {
+                "grid_region_id": ["REGION_Y"],
+                "year": [2027],
+                "plts_new_mw_re_base": [300],
+            }
+        )
         result = ruptl_region_metrics(ruptl_df)
         ry = result[result["grid_region_id"] == "REGION_Y"].iloc[0]
         assert ry["post2030_share"] == 0.0
@@ -621,6 +676,7 @@ class TestRuptlRegionMetrics:
 # ---------------------------------------------------------------------------
 # 12. build_scorecard (end-to-end)
 # ---------------------------------------------------------------------------
+
 
 class TestBuildScorecard:
     def test_runs_without_error(
@@ -693,6 +749,7 @@ class TestBuildScorecard:
 # 13. time_bucket
 # ---------------------------------------------------------------------------
 
+
 class TestTimeBucket:
     def test_pre2030(self):
         assert time_bucket(2027) == "2025-2030"
@@ -707,13 +764,16 @@ class TestTimeBucket:
 # 14. resolve_demand
 # ---------------------------------------------------------------------------
 
+
 class TestResolveDemand:
     def _make_demand(self, user_vals: list) -> pd.DataFrame:
         """Build a minimal fct_demand DataFrame with optional demand_mwh_user column."""
-        df = pd.DataFrame({
-            "kek_id": ["a", "b", "c"],
-            "demand_mwh": [1000.0, 2000.0, 3000.0],
-        })
+        df = pd.DataFrame(
+            {
+                "kek_id": ["a", "b", "c"],
+                "demand_mwh": [1000.0, 2000.0, 3000.0],
+            }
+        )
         if user_vals is not None:
             df["demand_mwh_user"] = pd.array(user_vals, dtype="Float64")
         return df
@@ -751,6 +811,7 @@ class TestResolveDemand:
 # 15. invest_resilience
 # ---------------------------------------------------------------------------
 
+
 class TestInvestResilience:
     def test_fires_in_resilience_zone(self):
         # LCOE 15% above grid, high reliability requirement → True
@@ -778,13 +839,18 @@ class TestInvestResilience:
 
     def test_custom_thresholds(self):
         # Custom gap and reliability thresholds are respected
-        assert invest_resilience(15.0, 0.7, gap_threshold_pct=10.0, reliability_threshold=0.7) is False
-        assert invest_resilience(8.0, 0.7, gap_threshold_pct=10.0, reliability_threshold=0.7) is True
+        assert (
+            invest_resilience(15.0, 0.7, gap_threshold_pct=10.0, reliability_threshold=0.7) is False
+        )
+        assert (
+            invest_resilience(8.0, 0.7, gap_threshold_pct=10.0, reliability_threshold=0.7) is True
+        )
 
 
 # ---------------------------------------------------------------------------
 # 16. carbon_breakeven_price
 # ---------------------------------------------------------------------------
+
 
 class TestCarbonBreakevenPrice:
     def test_already_competitive_returns_zero(self):

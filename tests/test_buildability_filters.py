@@ -25,11 +25,12 @@ from src.pipeline.buildability_filters import (
 
 # ── apply_exclusion_mask ──────────────────────────────────────────────────────
 
+
 class TestApplyExclusionMask:
     def test_forest_pixels_zeroed(self):
         """Pixels where mask == 1 (excluded) should become 0.0."""
         pvout = np.array([[5.0, 5.0], [5.0, 5.0]])
-        mask  = np.array([[1, 0], [0, 1]], dtype=np.uint8)
+        mask = np.array([[1, 0], [0, 1]], dtype=np.uint8)
         result = apply_exclusion_mask(pvout, mask)
         assert result[0, 0] == 0.0
         assert result[1, 1] == 0.0
@@ -37,14 +38,14 @@ class TestApplyExclusionMask:
     def test_buildable_pixels_retained(self):
         """Pixels where mask == 0 (buildable) should keep their PVOUT values."""
         pvout = np.array([[4.5, 4.8], [4.9, 5.1]])
-        mask  = np.zeros((2, 2), dtype=np.uint8)
+        mask = np.zeros((2, 2), dtype=np.uint8)
         result = apply_exclusion_mask(pvout, mask)
         np.testing.assert_array_equal(result, pvout)
 
     def test_does_not_modify_input(self):
         """apply_exclusion_mask should return a copy, not modify in place."""
         pvout = np.array([[5.0, 5.0]], dtype=float)
-        mask  = np.array([[1, 0]], dtype=np.uint8)
+        mask = np.array([[1, 0]], dtype=np.uint8)
         _ = apply_exclusion_mask(pvout, mask)
         assert pvout[0, 0] == 5.0  # original unchanged
 
@@ -60,12 +61,13 @@ class TestApplyExclusionMask:
 
 # ── apply_slope_elevation_mask ────────────────────────────────────────────────
 
+
 class TestApplySlopeElevationMask:
     def test_steep_pixels_excluded(self):
         """Pixels with slope > MAX_SLOPE_DEG should be set to 0."""
         pvout = np.full((3, 3), 5.0)
         steep_slope = np.full((3, 3), MAX_SLOPE_DEG + 1)  # all steep
-        elev  = np.full((3, 3), 100.0)                    # elevation OK
+        elev = np.full((3, 3), 100.0)  # elevation OK
         result = apply_slope_elevation_mask(pvout, steep_slope, elev)
         assert np.all(result == 0.0)
 
@@ -73,7 +75,7 @@ class TestApplySlopeElevationMask:
         """Pixels with slope = 0° should pass (PVOUT values kept)."""
         pvout = np.full((2, 2), 4.5)
         slope = np.zeros((2, 2))
-        elev  = np.full((2, 2), 50.0)
+        elev = np.full((2, 2), 50.0)
         result = apply_slope_elevation_mask(pvout, slope, elev)
         np.testing.assert_array_almost_equal(result, pvout)
 
@@ -81,7 +83,7 @@ class TestApplySlopeElevationMask:
         """Pixels with elevation > MAX_ELEV_M should be set to 0."""
         pvout = np.full((2, 2), 5.0)
         slope = np.zeros((2, 2))
-        elev  = np.full((2, 2), MAX_ELEV_M + 1)
+        elev = np.full((2, 2), MAX_ELEV_M + 1)
         result = apply_slope_elevation_mask(pvout, slope, elev)
         assert np.all(result == 0.0)
 
@@ -89,7 +91,7 @@ class TestApplySlopeElevationMask:
         """NaN in slope_arr should conservatively exclude the pixel."""
         pvout = np.array([[5.0]])
         slope = np.array([[np.nan]])
-        elev  = np.array([[100.0]])
+        elev = np.array([[100.0]])
         result = apply_slope_elevation_mask(pvout, slope, elev)
         assert result[0, 0] == 0.0
 
@@ -97,14 +99,15 @@ class TestApplySlopeElevationMask:
         """Pixels below both thresholds pass; above either threshold fail."""
         pvout = np.array([[5.0, 5.0, 5.0]])
         slope = np.array([[2.0, MAX_SLOPE_DEG + 1, 3.0]])
-        elev  = np.array([[100.0, 100.0, MAX_ELEV_M + 1]])
+        elev = np.array([[100.0, 100.0, MAX_ELEV_M + 1]])
         result = apply_slope_elevation_mask(pvout, slope, elev)
-        assert result[0, 0] == 5.0   # passes both
-        assert result[0, 1] == 0.0   # fails slope
-        assert result[0, 2] == 0.0   # fails elevation
+        assert result[0, 0] == 5.0  # passes both
+        assert result[0, 1] == 0.0  # fails slope
+        assert result[0, 2] == 0.0  # fails elevation
 
 
 # ── apply_min_area_filter ─────────────────────────────────────────────────────
+
 
 class TestApplyMinAreaFilter:
     def test_small_patch_removed(self):
@@ -135,6 +138,7 @@ class TestApplyMinAreaFilter:
 
 # ── compute_slope_degrees ─────────────────────────────────────────────────────
 
+
 class TestComputeSlopeDegrees:
     def test_flat_dem_gives_zero_slope(self):
         """A uniform DEM should yield zero slope everywhere."""
@@ -151,6 +155,7 @@ class TestComputeSlopeDegrees:
 
 
 # ── compute_buildability_constraint ──────────────────────────────────────────
+
 
 class TestComputeBuildabilityConstraint:
     def test_kawasan_hutan_dominant(self):
@@ -190,10 +195,12 @@ class TestComputeBuildabilityConstraint:
 
 # ── Property tests ────────────────────────────────────────────────────────────
 
+
 class TestProperties:
     def test_max_capacity_formula(self):
         """max_captive_capacity_mwp = buildable_area_ha / HA_PER_MWP."""
         from src.pipeline.buildability_filters import HA_PER_MWP
+
         buildable_area_ha = 150.0
         expected_mwp = buildable_area_ha / HA_PER_MWP
         assert math.isclose(expected_mwp, 100.0)  # 150 / 1.5 = 100 MWp
@@ -201,7 +208,7 @@ class TestProperties:
     def test_buildable_pvout_leq_raw(self):
         """After any exclusion, max PVOUT can only decrease or stay equal."""
         pvout = np.array([[5.0, 4.5, 3.8], [4.2, 5.1, 4.7]])
-        mask  = np.array([[0, 1, 0], [0, 0, 1]], dtype=np.uint8)
+        mask = np.array([[0, 1, 0], [0, 0, 1]], dtype=np.uint8)
         result = apply_exclusion_mask(pvout, mask)
         # Max of filtered ≤ max of original
         assert result.max() <= pvout.max()

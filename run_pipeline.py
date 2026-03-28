@@ -51,20 +51,20 @@ PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
 from src.pipeline.build_dim_kek import build_dim_kek
 from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
-from src.pipeline.build_fct_kek_resource import build_fct_kek_resource
-from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
+from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
+from src.pipeline.build_fct_kek_resource import build_fct_kek_resource
+from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
+from src.pipeline.build_fct_lcoe import build_fct_lcoe
 from src.pipeline.build_fct_ruptl_pipeline import build_fct_ruptl_pipeline
 from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
-from src.pipeline.build_fct_lcoe import build_fct_lcoe
-from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
 
 
 @dataclass
 class Step:
     name: str
     fn: Callable[[], pd.DataFrame]
-    output: str                          # filename under out_dir
+    output: str  # filename under out_dir
     depends_on: list[str] = field(default_factory=list)
 
 
@@ -73,18 +73,46 @@ class Step:
 # ─────────────────────────────────────────────────────────────────────────────
 PIPELINE: list[Step] = [
     # Stage 1: Dimensions
-    Step("dim_kek",             build_dim_kek,             "dim_kek.csv"),
-    Step("dim_tech_cost",       build_dim_tech_cost,       "dim_tech_cost.csv"),
+    Step("dim_kek", build_dim_kek, "dim_kek.csv"),
+    Step("dim_tech_cost", build_dim_tech_cost, "dim_tech_cost.csv"),
     # Stage 2: Facts
-    Step("fct_kek_resource",    build_fct_kek_resource,    "fct_kek_resource.csv",    depends_on=["dim_kek"]),
-    Step("fct_kek_demand",      build_fct_kek_demand,      "fct_kek_demand.csv",      depends_on=["dim_kek"]),
-    Step("fct_grid_cost_proxy", build_fct_grid_cost_proxy, "fct_grid_cost_proxy.csv", depends_on=["dim_kek"]),
-    Step("fct_ruptl_pipeline",  build_fct_ruptl_pipeline,  "fct_ruptl_pipeline.csv"),
+    Step(
+        "fct_kek_resource", build_fct_kek_resource, "fct_kek_resource.csv", depends_on=["dim_kek"]
+    ),
+    Step("fct_kek_demand", build_fct_kek_demand, "fct_kek_demand.csv", depends_on=["dim_kek"]),
+    Step(
+        "fct_grid_cost_proxy",
+        build_fct_grid_cost_proxy,
+        "fct_grid_cost_proxy.csv",
+        depends_on=["dim_kek"],
+    ),
+    Step("fct_ruptl_pipeline", build_fct_ruptl_pipeline, "fct_ruptl_pipeline.csv"),
     # Stage 3: Computed
-    Step("fct_substation_proximity", build_fct_substation_proximity, "fct_substation_proximity.csv", depends_on=["dim_kek"]),
-    Step("fct_lcoe",            build_fct_lcoe,            "fct_lcoe.csv",            depends_on=["dim_kek", "fct_kek_resource", "dim_tech_cost", "fct_substation_proximity"]),
+    Step(
+        "fct_substation_proximity",
+        build_fct_substation_proximity,
+        "fct_substation_proximity.csv",
+        depends_on=["dim_kek"],
+    ),
+    Step(
+        "fct_lcoe",
+        build_fct_lcoe,
+        "fct_lcoe.csv",
+        depends_on=["dim_kek", "fct_kek_resource", "dim_tech_cost", "fct_substation_proximity"],
+    ),
     # Stage 4: Final scorecard
-    Step("fct_kek_scorecard",   build_fct_kek_scorecard,   "fct_kek_scorecard.csv",   depends_on=["dim_kek", "fct_lcoe", "fct_grid_cost_proxy", "fct_ruptl_pipeline", "fct_kek_demand"]),
+    Step(
+        "fct_kek_scorecard",
+        build_fct_kek_scorecard,
+        "fct_kek_scorecard.csv",
+        depends_on=[
+            "dim_kek",
+            "fct_lcoe",
+            "fct_grid_cost_proxy",
+            "fct_ruptl_pipeline",
+            "fct_kek_demand",
+        ],
+    ),
 ]
 
 

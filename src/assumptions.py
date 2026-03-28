@@ -189,18 +189,18 @@ GRID_EMISSION_FACTOR_T_CO2_MWH: dict[str, float] = {
     # Value = Operating Margin (OM) in tCO2/MWh from KESDM Tier 2 database.
     # OM = emission rate of existing grid plants displaced by captive solar — the correct
     # metric for carbon_breakeven_price() and avoided-emissions accounting.
-    "JAVA_BALI":  0.80,   # Java-Bali interconnected: 302 plants (Banten, DKI, Jabar, Jateng, DIY, Jatim, Bali)
-    "SUMATERA":   0.77,   # Sumatera interconnected: 463 plants (gas + hydro + coal mix)
-    "KALIMANTAN": 1.16,   # Weighted avg: Barito/S+C Kalimantan OM=1.20 (Setangga KEK) +
-                          #   Mahakam/E Kalimantan OM=1.12 (Maloy Batuta KEK); avg=(1.20+1.12)/2
-    "SULAWESI":   0.63,   # Weighted avg: Sulutgo OM=0.67 × 2 KEKs (Likupang, Bitung) +
-                          #   Palapas-Palu OM=0.54 × 1 KEK (Palu); avg=(0.67+0.67+0.54)/3
-    "NTB":        1.27,   # Lombok grid (NTB province): 54 plants — diesel-dominant island grid
-                          #   (Mandalika KEK). Highest OM of any KEK grid system.
-    "MALUKU":     0.60,   # Daruba-Morotai system: 12 plants (Morotai KEK — North Maluku)
-    "PAPUA":      0.56,   # Sorong system: 11 plants (Sorong KEK — West Papua); gas-dominant
-    "BATAM":      0.76,   # Batam-Tanjung Pinang: 47 plants — not mapped to any KEK (Riau
-                          #   Islands KEKs use SUMATERA). Retained for documentation only.
+    "JAVA_BALI": 0.80,  # Java-Bali interconnected: 302 plants (Banten, DKI, Jabar, Jateng, DIY, Jatim, Bali)
+    "SUMATERA": 0.77,  # Sumatera interconnected: 463 plants (gas + hydro + coal mix)
+    "KALIMANTAN": 1.16,  # Weighted avg: Barito/S+C Kalimantan OM=1.20 (Setangga KEK) +
+    #   Mahakam/E Kalimantan OM=1.12 (Maloy Batuta KEK); avg=(1.20+1.12)/2
+    "SULAWESI": 0.63,  # Weighted avg: Sulutgo OM=0.67 × 2 KEKs (Likupang, Bitung) +
+    #   Palapas-Palu OM=0.54 × 1 KEK (Palu); avg=(0.67+0.67+0.54)/3
+    "NTB": 1.27,  # Lombok grid (NTB province): 54 plants — diesel-dominant island grid
+    #   (Mandalika KEK). Highest OM of any KEK grid system.
+    "MALUKU": 0.60,  # Daruba-Morotai system: 12 plants (Morotai KEK — North Maluku)
+    "PAPUA": 0.56,  # Sorong system: 11 plants (Sorong KEK — West Papua); gas-dominant
+    "BATAM": 0.76,  # Batam-Tanjung Pinang: 47 plants — not mapped to any KEK (Riau
+    #   Islands KEKs use SUMATERA). Retained for documentation only.
 }
 # Grid emission intensity by PLN system (tCO2/MWh), using Operating Margin (OM) values.
 # Source: KESDM Tier 2 grid emission factor database, 2019 vintage
@@ -236,10 +236,10 @@ REGION_CF_DEFAULT: float = 0.20
 # ─── DEMAND ESTIMATION ────────────────────────────────────────────────────────
 
 BUILDING_INTENSITY_KWH_M2_YR: dict[str, float] = {
-    "Industri":                120.0,
+    "Industri": 120.0,
     "Industri dan Pariwisata": 184.0,
-    "Pariwisata":              280.0,
-    "Jasa lainnya":            200.0,
+    "Pariwisata": 280.0,
+    "Jasa lainnya": 200.0,
 }
 # Electricity intensity of *built structures* within the zone (kWh/floor-area-m²/yr).
 # Calibrated against PLN Statistics 2023 (Table 12: industrial voltage class sales) and
@@ -257,10 +257,10 @@ BUILDING_INTENSITY_KWH_M2_YR: dict[str, float] = {
 # ⚠️ PROVISIONAL — replace with KEK-specific tenant load surveys when available.
 
 BUILDING_FOOTPRINT_RATIO: dict[str, float] = {
-    "Industri":                0.55,
+    "Industri": 0.55,
     "Industri dan Pariwisata": 0.40,
-    "Pariwisata":              0.18,
-    "Jasa lainnya":            0.40,
+    "Pariwisata": 0.18,
+    "Jasa lainnya": 0.40,
 }
 # Share of total declared zone area (Luas_ha from kek_polygons.geojson) that is active
 # building footprint. The remainder is roads, green space, undeveloped buffer, beach/waterfront.
@@ -295,6 +295,7 @@ DEMAND_TARGET_YEAR: int = 2030
 # Source: consistent with RUPTL_PRE2030_END and model target_year default.
 
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
+
 
 def rp_kwh_to_usd_mwh(rp_kwh: float, idr_usd: float = IDR_USD_RATE) -> float:
     """Convert Rp/kWh → USD/MWh at the reference IDR/USD rate."""

@@ -96,6 +96,7 @@ _ROW_PATTERNS: dict[str, list[str]] = {
 
 # ─── Page finder ──────────────────────────────────────────────────────────────
 
+
 def _find_tech006_page(pdf: pdfplumber.PDF) -> Optional[int]:
     """
     Search PDF pages 60–80 for the utility-scale ground-mounted PV datasheet.
@@ -110,6 +111,7 @@ def _find_tech006_page(pdf: pdfplumber.PDF) -> Optional[int]:
 
 
 # ─── Row extractor ────────────────────────────────────────────────────────────
+
 
 def _parse_numeric(cell: Optional[str]) -> Optional[float]:
     """Strip commas and whitespace from a cell and cast to float."""
@@ -168,6 +170,7 @@ def _extract_tech006_row(page: pdfplumber.page.Page) -> Optional[dict]:
 
 # ─── Main extractor ───────────────────────────────────────────────────────────
 
+
 def extract_tech006_from_pdf(
     pdf_path: Path = ESDM_PDF,
 ) -> Optional[dict]:
@@ -188,7 +191,9 @@ def extract_tech006_from_pdf(
             page_idx = _find_tech006_page(pdf)
 
             if page_idx is None:
-                print("  [pdf_extract_esdm] TECH006 datasheet page not found — using hardcoded fallback")
+                print(
+                    "  [pdf_extract_esdm] TECH006 datasheet page not found — using hardcoded fallback"
+                )
                 return None
 
             # Try current page and next two (table may span pages)
@@ -200,7 +205,9 @@ def extract_tech006_from_pdf(
                 if extracted is not None:
                     return extracted
 
-            print("  [pdf_extract_esdm] TECH006 rows not found (likely image-based datasheet) — using hardcoded fallback")
+            print(
+                "  [pdf_extract_esdm] TECH006 rows not found (likely image-based datasheet) — using hardcoded fallback"
+            )
             return None
 
     except Exception as e:
@@ -209,6 +216,7 @@ def extract_tech006_from_pdf(
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
+
 
 def get_tech006_params(pdf_path: Path = ESDM_PDF) -> dict:
     """
@@ -224,6 +232,7 @@ def get_tech006_params(pdf_path: Path = ESDM_PDF) -> dict:
 
 
 # ─── Verification ─────────────────────────────────────────────────────────────
+
 
 def verify_tech006_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
     """
@@ -247,13 +256,17 @@ def verify_tech006_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
             h_val = hc[bound]
             rel_diff = abs(e_val - h_val) / max(abs(h_val), 1e-9)
             if rel_diff > 0.01:
-                print(f"  MISMATCH  {param}/{bound}: extracted={e_val}, hardcoded={h_val} ({rel_diff:.1%} diff)")
+                print(
+                    f"  MISMATCH  {param}/{bound}: extracted={e_val}, hardcoded={h_val} ({rel_diff:.1%} diff)"
+                )
                 all_ok = False
 
     if all_ok:
         print("  RESULT: all values match — hardcoded data is consistent with PDF")
     else:
-        print("  RESULT: discrepancies found — review VERIFIED_TECH006_DATA or PDF extraction logic")
+        print(
+            "  RESULT: discrepancies found — review VERIFIED_TECH006_DATA or PDF extraction logic"
+        )
 
     return all_ok
 
@@ -267,7 +280,9 @@ if __name__ == "__main__":
     params = get_tech006_params()
     print(f"\nTECH006 parameters (source_page={params['capex']['source_page']}):")
     for param, data in params.items():
-        print(f"  {param:10s}  central={data['central']}  lower={data['lower']}  upper={data['upper']}  [{data['unit']}]")
+        print(
+            f"  {param:10s}  central={data['central']}  lower={data['lower']}  upper={data['upper']}  [{data['unit']}]"
+        )
 
     print()
     verify_tech006_against_hardcoded()

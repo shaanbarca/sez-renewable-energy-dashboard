@@ -47,6 +47,7 @@ from src.assumptions import (
 # 1. Resource helpers
 # ---------------------------------------------------------------------------
 
+
 def pvout_daily_to_annual(pvout_daily_kwh_per_kwp: float) -> float:
     """Convert PVOUT from kWh/kWp/day to kWh/kWp/year.
 
@@ -99,6 +100,7 @@ def capacity_factor_from_pvout(pvout_kwh_per_kwp_yr: float) -> float:
 # ---------------------------------------------------------------------------
 # 2. Economics — LCOE
 # ---------------------------------------------------------------------------
+
 
 def capital_recovery_factor(wacc: float, lifetime_yr: int) -> float:
     """Annuity factor (Capital Recovery Factor).
@@ -291,6 +293,7 @@ def lcoe_solar_remote_captive(
 # 3. Competitiveness metrics
 # ---------------------------------------------------------------------------
 
+
 def solar_competitive_gap(lcoe_mid: float, grid_cost_usd_mwh: float) -> float:
     """Fractional gap between solar LCOE and grid reference cost.
 
@@ -353,6 +356,7 @@ def is_solar_attractive(
 # 4. Action flags
 # ---------------------------------------------------------------------------
 
+
 def action_flags(
     solar_attractive: bool,
     grid_upgrade_pre2030: bool,
@@ -404,6 +408,7 @@ def action_flags(
 # ---------------------------------------------------------------------------
 # 5. Resilience flag + carbon breakeven
 # ---------------------------------------------------------------------------
+
 
 def invest_resilience(
     solar_competitive_gap_pct: float,
@@ -469,6 +474,7 @@ def carbon_breakeven_price(
 # ---------------------------------------------------------------------------
 # 6. GEAS allocation
 # ---------------------------------------------------------------------------
+
 
 def geas_baseline_allocation(
     kek_df: pd.DataFrame,
@@ -577,9 +583,7 @@ def geas_policy_allocation(
     """
     by_region = (
         ruptl_df.assign(
-            bucket=lambda d: d["year"].apply(
-                lambda y: "pre" if y <= RUPTL_PRE2030_END else "post"
-            )
+            bucket=lambda d: d["year"].apply(lambda y: "pre" if y <= RUPTL_PRE2030_END else "post")
         )
         .groupby(["grid_region_id", "bucket"])[capacity_col]
         .sum()
@@ -591,10 +595,12 @@ def geas_policy_allocation(
     shift = shift_fraction * post
     pre_policy = pre + shift
 
-    supply_policy = pd.DataFrame({
-        "grid_region_id": pre_policy.index,
-        "allocatable_green_mwh_policy": pre_policy.values * HOURS_PER_YEAR * region_cf,
-    })
+    supply_policy = pd.DataFrame(
+        {
+            "grid_region_id": pre_policy.index,
+            "allocatable_green_mwh_policy": pre_policy.values * HOURS_PER_YEAR * region_cf,
+        }
+    )
 
     region_demand = (
         kek_df.groupby("grid_region_id")["demand_mwh"]
@@ -638,6 +644,7 @@ def geas_policy_allocation(
 # 6. RUPTL region metrics
 # ---------------------------------------------------------------------------
 
+
 def ruptl_region_metrics(
     ruptl_df: pd.DataFrame,
     capacity_col: str = "plts_new_mw_re_base",
@@ -662,9 +669,7 @@ def ruptl_region_metrics(
         grid_region_id, pre2030_mw, post2030_mw, post2030_share, earliest_grid_upgrade_year.
     """
     df = ruptl_df.copy()
-    df["bucket"] = df["year"].apply(
-        lambda y: "pre" if y <= RUPTL_PRE2030_END else "post"
-    )
+    df["bucket"] = df["year"].apply(lambda y: "pre" if y <= RUPTL_PRE2030_END else "post")
     bucket = (
         df.groupby(["grid_region_id", "bucket"])[capacity_col]
         .sum()
@@ -694,6 +699,7 @@ def ruptl_region_metrics(
 # 7. Demand override resolver
 # ---------------------------------------------------------------------------
 
+
 def resolve_demand(fct_demand: pd.DataFrame) -> pd.DataFrame:
     """Return a copy of fct_demand with demand_mwh resolved to the user override when present.
 
@@ -713,6 +719,7 @@ def resolve_demand(fct_demand: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # 8. Scenario pipeline  (assembles above functions into end-to-end outputs)
 # ---------------------------------------------------------------------------
+
 
 def build_scorecard(
     dim_kek: pd.DataFrame,
@@ -768,12 +775,17 @@ def build_scorecard(
     ruptl_metrics = ruptl_region_metrics(fct_ruptl)
 
     df = (
-        dim_kek
-        .merge(demand_yr[["kek_id", "demand_mwh"]], on="kek_id", how="left")
+        dim_kek.merge(demand_yr[["kek_id", "demand_mwh"]], on="kek_id", how="left")
         .merge(fct_pvout[["kek_id", "pvout_centroid", "pvout_best_50km"]], on="kek_id", how="left")
         .merge(
-            ruptl_metrics[["grid_region_id", "post2030_share", "grid_upgrade_pre2030",
-                            "earliest_grid_upgrade_year"]],
+            ruptl_metrics[
+                [
+                    "grid_region_id",
+                    "post2030_share",
+                    "grid_upgrade_pre2030",
+                    "earliest_grid_upgrade_year",
+                ]
+            ],
             on="grid_region_id",
             how="left",
         )
@@ -800,7 +812,9 @@ def build_scorecard(
         ruptl_df=fct_ruptl,
         target_year=target_year,
     )
-    df = df.merge(df_geas[["kek_id", "geas_alloc_mwh", "green_share_geas"]], on="kek_id", how="left")
+    df = df.merge(
+        df_geas[["kek_id", "geas_alloc_mwh", "green_share_geas"]], on="kek_id", how="left"
+    )
 
     if df["solar_attractive"].notna().all():
         flags = df.apply(

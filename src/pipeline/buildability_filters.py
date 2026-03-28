@@ -34,33 +34,37 @@ import numpy as np
 from scipy import ndimage
 
 # Thresholds — match METHODOLOGY.md §2.5
-MAX_SLOPE_DEG: float = 8.0       # Layer 2a hard exclusion threshold (degrees)
-MAX_ELEV_M: float = 1500.0       # Layer 2c hard exclusion threshold (metres)
-MIN_AREA_HA: float = 10.0        # Layer 4 minimum contiguous buildable patch (ha)
-HA_PER_MWP: float = 1.5          # 1.5 ha/MWp (tropical fixed-tilt, GCR ~0.45–0.55)
+MAX_SLOPE_DEG: float = 8.0  # Layer 2a hard exclusion threshold (degrees)
+MAX_ELEV_M: float = 1500.0  # Layer 2c hard exclusion threshold (metres)
+MIN_AREA_HA: float = 10.0  # Layer 4 minimum contiguous buildable patch (ha)
+HA_PER_MWP: float = 1.5  # 1.5 ha/MWp (tropical fixed-tilt, GCR ~0.45–0.55)
 
-VALID_CONSTRAINTS: frozenset[str] = frozenset([
-    "kawasan_hutan",
-    "slope",
-    "peat",
-    "agriculture",
-    "area_too_small",
-    "unconstrained",
-    "data_unavailable",
-])
+VALID_CONSTRAINTS: frozenset[str] = frozenset(
+    [
+        "kawasan_hutan",
+        "slope",
+        "peat",
+        "agriculture",
+        "area_too_small",
+        "unconstrained",
+        "data_unavailable",
+    ]
+)
 
 # ESA WorldCover v200 (2021) — land cover codes to exclude from buildable area.
 # 10m global land cover; public AWS S3, no authentication required.
 # Full class table: https://esa-worldcover.org/en/data
 # Downloaded automatically by scripts/download_buildability_data.py → esa_worldcover.tif
-LAND_COVER_EXCLUDE_CODES: frozenset[int] = frozenset([
-    10,  # Tree cover (primary + secondary forest)
-    40,  # Cropland (rice paddies / sawah + other agriculture)
-    50,  # Built-up (settlements, urban — avoids land-use conflict)
-    80,  # Permanent water bodies
-    90,  # Herbaceous wetland (peat / swamp proxy)
-    95,  # Mangroves (explicit class in v200)
-])
+LAND_COVER_EXCLUDE_CODES: frozenset[int] = frozenset(
+    [
+        10,  # Tree cover (primary + secondary forest)
+        40,  # Cropland (rice paddies / sawah + other agriculture)
+        50,  # Built-up (settlements, urban — avoids land-use conflict)
+        80,  # Permanent water bodies
+        90,  # Herbaceous wetland (peat / swamp proxy)
+        95,  # Mangroves (explicit class in v200)
+    ]
+)
 
 
 # ─── Pure filter functions ─────────────────────────────────────────────────────
@@ -104,7 +108,7 @@ def apply_slope_elevation_mask(
     """
     result = pvout_arr.copy().astype(float)
     steep = ~np.isfinite(slope_arr) | (slope_arr > max_slope_deg)
-    high  = ~np.isfinite(elev_arr)  | (elev_arr  > max_elev_m)
+    high = ~np.isfinite(elev_arr) | (elev_arr > max_elev_m)
     result[steep | high] = 0.0
     return result
 
@@ -154,7 +158,7 @@ def compute_slope_degrees(dem: np.ndarray, pixel_size_m: float) -> np.ndarray:
     """
     dzdx = np.gradient(dem.astype(float), pixel_size_m, axis=1)
     dzdy = np.gradient(dem.astype(float), pixel_size_m, axis=0)
-    slope_rad = np.arctan(np.sqrt(dzdx ** 2 + dzdy ** 2))
+    slope_rad = np.arctan(np.sqrt(dzdx**2 + dzdy**2))
     return np.degrees(slope_rad)
 
 
@@ -186,11 +190,11 @@ def compute_buildability_constraint(
         return "unconstrained"
 
     removed = {
-        "kawasan_hutan": n_pixels_raw     - n_after_layer1a,
-        "peat":          n_after_layer1a  - n_after_layer1b,
-        "agriculture":   n_after_layer1b  - n_after_layer1cd,
-        "slope":         n_after_layer1cd - n_after_layer2,
-        "area_too_small": n_after_layer2  - n_after_layer4,
+        "kawasan_hutan": n_pixels_raw - n_after_layer1a,
+        "peat": n_after_layer1a - n_after_layer1b,
+        "agriculture": n_after_layer1b - n_after_layer1cd,
+        "slope": n_after_layer1cd - n_after_layer2,
+        "area_too_small": n_after_layer2 - n_after_layer4,
     }
 
     if n_after_layer4 >= n_pixels_raw:

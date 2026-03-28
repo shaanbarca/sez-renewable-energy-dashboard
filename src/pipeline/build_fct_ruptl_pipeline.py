@@ -77,16 +77,18 @@ def build_fct_ruptl_pipeline() -> pd.DataFrame:
             new_ared = ared_vals[i]
             cumul_re += new_re
             cumul_ared += new_ared
-            rows.append({
-                "grid_region_id": region,
-                "year": year,
-                "plts_new_mw_re_base": new_re,
-                "plts_new_mw_ared": new_ared,
-                "plts_cumul_re_base": cumul_re,
-                "plts_cumul_ared": cumul_ared,
-                "ruptl_source_table": data["source"],
-                "notes": data["notes"],
-            })
+            rows.append(
+                {
+                    "grid_region_id": region,
+                    "year": year,
+                    "plts_new_mw_re_base": new_re,
+                    "plts_new_mw_ared": new_ared,
+                    "plts_cumul_re_base": cumul_re,
+                    "plts_cumul_ared": cumul_ared,
+                    "ruptl_source_table": data["source"],
+                    "notes": data["notes"],
+                }
+            )
     return pd.DataFrame(rows)
 
 

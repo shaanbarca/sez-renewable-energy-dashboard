@@ -37,8 +37,8 @@ from pathlib import Path
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROCESSED  = REPO_ROOT / "outputs" / "data" / "processed"
-BUILD_DIR  = REPO_ROOT / "data" / "buildability"
+PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
+BUILD_DIR = REPO_ROOT / "data" / "buildability"
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
 
 # Copernicus DEM GLO-30 on AWS S3 (public, no auth)
@@ -62,6 +62,7 @@ TILE_BUFFER_DEG = 0.5
 
 # ─── DEM helpers ──────────────────────────────────────────────────────────────
 
+
 def _needed_tiles(kek_df: pd.DataFrame) -> list[tuple[int, int]]:
     """Return a deduplicated list of (lat_floor, lon_floor) 1°×1° DEM tiles needed."""
     tiles: set[tuple[int, int]] = set()
@@ -80,9 +81,7 @@ def _needed_tiles(kek_df: pd.DataFrame) -> list[tuple[int, int]]:
 def _tile_url(lat_floor: int, lon_floor: int) -> str:
     ns = "N" if lat_floor >= 0 else "S"
     ew = "E" if lon_floor >= 0 else "W"
-    return COP_DEM_BASE.format(
-        NS=ns, lat=abs(lat_floor), EW=ew, lon=abs(lon_floor)
-    )
+    return COP_DEM_BASE.format(NS=ns, lat=abs(lat_floor), EW=ew, lon=abs(lon_floor))
 
 
 def _tile_path(lat_floor: int, lon_floor: int) -> Path:
@@ -147,16 +146,18 @@ def _mosaic_dem_tiles(tile_dir: Path, out_path: Path) -> None:
     try:
         mosaic, transform = merge(datasets)
         profile = datasets[0].profile.copy()
-        profile.update({
-            "height": mosaic.shape[1],
-            "width": mosaic.shape[2],
-            "transform": transform,
-            "driver": "GTiff",
-            "compress": "deflate",
-            "tiled": True,
-            "blockxsize": 512,
-            "blockysize": 512,
-        })
+        profile.update(
+            {
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": transform,
+                "driver": "GTiff",
+                "compress": "deflate",
+                "tiled": True,
+                "blockxsize": 512,
+                "blockysize": 512,
+            }
+        )
         with rasterio.open(out_path, "w", **profile) as dst:
             dst.write(mosaic)
         print(f"OK ({out_path.stat().st_size // (1024 * 1024)} MB)")
@@ -166,6 +167,7 @@ def _mosaic_dem_tiles(tile_dir: Path, out_path: Path) -> None:
 
 
 # ─── ESA WorldCover helpers ────────────────────────────────────────────────────
+
 
 def _needed_esa_tiles(kek_df: pd.DataFrame) -> list[tuple[int, int]]:
     """Return deduplicated list of (lat_sw, lon_sw) 3°×3° ESA WorldCover tiles needed.
@@ -221,13 +223,19 @@ def download_esa_worldcover(kek_df: pd.DataFrame, check_only: bool = False) -> b
 
     if check_only:
         if missing:
-            print(f"[ESA] Missing tiles: {[_esa_tile_name(*t) for t in missing[:5]]}{'...' if len(missing) > 5 else ''}")
+            print(
+                f"[ESA] Missing tiles: {[_esa_tile_name(*t) for t in missing[:5]]}{'...' if len(missing) > 5 else ''}"
+            )
         return (BUILD_DIR / "esa_worldcover.vrt").exists()
 
     for i, (lat_sw, lon_sw) in enumerate(missing, 1):
         url = _esa_tile_url(lat_sw, lon_sw)
         dest = _esa_tile_path(lat_sw, lon_sw)
-        print(f"[ESA] ({i}/{len(missing)}) Downloading {_esa_tile_name(lat_sw, lon_sw)} ...", end=" ", flush=True)
+        print(
+            f"[ESA] ({i}/{len(missing)}) Downloading {_esa_tile_name(lat_sw, lon_sw)} ...",
+            end=" ",
+            flush=True,
+        )
         try:
             urllib.request.urlretrieve(url, dest)
             print(f"OK ({dest.stat().st_size // (1024 * 1024)} MB)")
@@ -250,7 +258,12 @@ def _build_esa_vrt(tile_dir: Path, out_vrt: Path) -> None:
 # ─── GFW Peatlands helpers ────────────────────────────────────────────────────
 
 GFW_PEATLANDS_INDEX = BUILD_DIR / "Global_Peatlands.geojson"
-IDN_BOUNDS = (95.0, -11.0, 141.0, 6.0)  # Indonesia bounding box (lon_min, lat_min, lon_max, lat_max)
+IDN_BOUNDS = (
+    95.0,
+    -11.0,
+    141.0,
+    6.0,
+)  # Indonesia bounding box (lon_min, lat_min, lon_max, lat_max)
 
 
 def download_gfw_peatland(check_only: bool = False) -> bool:
@@ -271,9 +284,11 @@ def download_gfw_peatland(check_only: bool = False) -> bool:
 
     try:
         import shapely.geometry as sg
+
         idn_box = sg.box(*IDN_BOUNDS)
         idn_tiles = [
-            feat for feat in tile_index["features"]
+            feat
+            for feat in tile_index["features"]
             if sg.shape(feat["geometry"]).intersects(idn_box)
         ]
     except ImportError:
@@ -286,8 +301,7 @@ def download_gfw_peatland(check_only: bool = False) -> bool:
     tile_dir.mkdir(parents=True, exist_ok=True)
 
     missing = [
-        t for t in idn_tiles
-        if not (tile_dir / f"peat_{t['properties']['tile_id']}.tif").exists()
+        t for t in idn_tiles if not (tile_dir / f"peat_{t['properties']['tile_id']}.tif").exists()
     ]
     print(f"[PEAT] {len(idn_tiles) - len(missing)} already downloaded, {len(missing)} to fetch")
 
@@ -319,11 +333,17 @@ def _build_vrt(tile_dir: Path, out_vrt: Path, label: str = "") -> None:
     if not tif_files:
         print(f"[{label}] No tiles to build VRT from.")
         return
-    print(f"[{label}] Building VRT from {len(tif_files)} tiles → {out_vrt.name} ...", end=" ", flush=True)
+    print(
+        f"[{label}] Building VRT from {len(tif_files)} tiles → {out_vrt.name} ...",
+        end=" ",
+        flush=True,
+    )
     try:
         subprocess.run(
             ["gdalbuildvrt", str(out_vrt)] + [str(f) for f in tif_files],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         print(f"OK ({out_vrt.stat().st_size} bytes)")
     except FileNotFoundError:
@@ -333,6 +353,7 @@ def _build_vrt(tile_dir: Path, out_vrt: Path, label: str = "") -> None:
 
 
 # ─── Manual instructions ──────────────────────────────────────────────────────
+
 
 def print_manual_instructions() -> None:
     """Print step-by-step instructions for downloading remaining KLHK files manually."""
@@ -375,10 +396,10 @@ and resource_quality reflects how many of the 4 layers were applied.
 def check_status() -> None:
     """Print current status of all required buildability files."""
     files = {
-        "dem_indonesia.tif":    BUILD_DIR / "dem_indonesia.tif",
-        "esa_worldcover.vrt":   BUILD_DIR / "esa_worldcover.vrt",
-        "kawasan_hutan.shp":    BUILD_DIR / "kawasan_hutan.shp",
-        "peatland.vrt":         BUILD_DIR / "peatland.vrt",
+        "dem_indonesia.tif": BUILD_DIR / "dem_indonesia.tif",
+        "esa_worldcover.vrt": BUILD_DIR / "esa_worldcover.vrt",
+        "kawasan_hutan.shp": BUILD_DIR / "kawasan_hutan.shp",
+        "peatland.vrt": BUILD_DIR / "peatland.vrt",
     }
     print("\n[STATUS] data/buildability/ file check:")
     for name, path in files.items():
@@ -398,7 +419,8 @@ def check_status() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--check-only", action="store_true",
+        "--check-only",
+        action="store_true",
         help="Only check status; do not download anything.",
     )
     args = parser.parse_args()

@@ -75,33 +75,35 @@ def build_fct_grid_cost_proxy(
 
     rows = []
     for region in sorted(grid_regions):
-        rows.append({
-            "grid_region_id": region,
-            # Raw Rp values (source: Lampiran IV)
-            "tariff_i3_rp_kwh": TARIFF_I3_LWBP_RP_KWH,
-            "tariff_i4_rp_kwh": TARIFF_I4_RP_KWH,
-            "idr_usd_rate": idr_usd_rate,
-            # USD equivalents
-            "tariff_i3_usd_mwh": tariff_i3,
-            "tariff_i4_usd_mwh": tariff_i4,
-            # Primary dashboard comparator
-            "dashboard_rate_usd_mwh": tariff_i4,
-            "dashboard_rate_label": "I-4/TT LWBP, Permen ESDM No.7/2024",
-            "dashboard_rate_flag": "OFFICIAL",
-            # BPP — not yet sourced
-            "bpp_usd_mwh": None,
-            "bpp_source": None,
-            # Emission factor — provisional lookup by grid system
-            "grid_emission_factor_t_co2_mwh": GRID_EMISSION_FACTOR_T_CO2_MWH.get(
-                region, GRID_EMISSION_FACTOR_DEFAULT
-            ),
-            "notes": (
-                "I-3/I-4 tariffs are uniform nationwide (no regional variation). "
-                "LWBP rate used; WBP peak rate = K×LWBP where K=1.4–2.0 (system-specific). "
-                "BPP (PLN cost of supply) varies by region — deferred; bpp_usd_mwh is null. "
-                "Emission factor: KESDM Tier 2 Operating Margin, 2019 vintage (data/grid_emission_factors.xlsx)."
-            ),
-        })
+        rows.append(
+            {
+                "grid_region_id": region,
+                # Raw Rp values (source: Lampiran IV)
+                "tariff_i3_rp_kwh": TARIFF_I3_LWBP_RP_KWH,
+                "tariff_i4_rp_kwh": TARIFF_I4_RP_KWH,
+                "idr_usd_rate": idr_usd_rate,
+                # USD equivalents
+                "tariff_i3_usd_mwh": tariff_i3,
+                "tariff_i4_usd_mwh": tariff_i4,
+                # Primary dashboard comparator
+                "dashboard_rate_usd_mwh": tariff_i4,
+                "dashboard_rate_label": "I-4/TT LWBP, Permen ESDM No.7/2024",
+                "dashboard_rate_flag": "OFFICIAL",
+                # BPP — not yet sourced
+                "bpp_usd_mwh": None,
+                "bpp_source": None,
+                # Emission factor — provisional lookup by grid system
+                "grid_emission_factor_t_co2_mwh": GRID_EMISSION_FACTOR_T_CO2_MWH.get(
+                    region, GRID_EMISSION_FACTOR_DEFAULT
+                ),
+                "notes": (
+                    "I-3/I-4 tariffs are uniform nationwide (no regional variation). "
+                    "LWBP rate used; WBP peak rate = K×LWBP where K=1.4–2.0 (system-specific). "
+                    "BPP (PLN cost of supply) varies by region — deferred; bpp_usd_mwh is null. "
+                    "Emission factor: KESDM Tier 2 Operating Margin, 2019 vintage (data/grid_emission_factors.xlsx)."
+                ),
+            }
+        )
 
     return pd.DataFrame(rows)
 
@@ -125,8 +127,17 @@ def main() -> None:
     print("\n  Note: I-3/I-4 tariffs are UNIFORM NATIONWIDE.")
     print("  BPP (cost of supply) varies by region — not yet in repo.")
     print()
-    print(df[["grid_region_id", "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
-              "dashboard_rate_usd_mwh", "dashboard_rate_flag"]].to_string(index=False))
+    print(
+        df[
+            [
+                "grid_region_id",
+                "tariff_i3_usd_mwh",
+                "tariff_i4_usd_mwh",
+                "dashboard_rate_usd_mwh",
+                "dashboard_rate_flag",
+            ]
+        ].to_string(index=False)
+    )
 
 
 if __name__ == "__main__":

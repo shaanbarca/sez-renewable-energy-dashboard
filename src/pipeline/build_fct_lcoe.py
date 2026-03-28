@@ -50,6 +50,7 @@ FKR_CSV = PROCESSED / "fct_kek_resource.csv"
 DIM_TECH_CSV = PROCESSED / "dim_tech_cost.csv"
 FSP_CSV = PROCESSED / "fct_substation_proximity.csv"
 
+
 def build_fct_lcoe(
     dim_kek_csv: Path = DIM_KEK_CSV,
     fct_kek_resource_csv: Path = FKR_CSV,
@@ -100,7 +101,11 @@ def build_fct_lcoe(
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
     for _, kek_row in df.iterrows():
-        dist_km = float(kek_row["dist_to_nearest_substation_km"]) if pd.notna(kek_row.get("dist_to_nearest_substation_km")) else 0.0
+        dist_km = (
+            float(kek_row["dist_to_nearest_substation_km"])
+            if pd.notna(kek_row.get("dist_to_nearest_substation_km"))
+            else 0.0
+        )
 
         for scenario, pvout_col in scenarios:
             pvout_val = kek_row.get(pvout_col)
@@ -139,22 +144,24 @@ def build_fct_lcoe(
                     lcoe_l = lcoe_solar(eff_capex_l, fom, wacc_dec, lifetime, cf)
                     lcoe_u = lcoe_solar(eff_capex_u, fom, wacc_dec, lifetime, cf)
 
-                records.append({
-                    "kek_id": kek_row["kek_id"],
-                    "wacc_pct": wacc,
-                    "scenario": scenario,
-                    "pvout_used": actual_pvout_col,
-                    "cf_used": round(float(cf), 4) if cf is not None else np.nan,
-                    "gentie_cost_per_kw": round(gtie, 1),
-                    "effective_capex_usd_per_kw": round(eff_capex_c, 1),
-                    "lcoe_usd_mwh": round(lcoe_c, 2) if not np.isnan(lcoe_c) else np.nan,
-                    "lcoe_low_usd_mwh": round(lcoe_l, 2) if not np.isnan(lcoe_l) else np.nan,
-                    "lcoe_high_usd_mwh": round(lcoe_u, 2) if not np.isnan(lcoe_u) else np.nan,
-                    "is_cf_provisional": is_cf_provisional,
-                    "is_capex_provisional": is_capex_provisional,
-                    "tech_id": tech_id,
-                    "lifetime_yr": lifetime,
-                })
+                records.append(
+                    {
+                        "kek_id": kek_row["kek_id"],
+                        "wacc_pct": wacc,
+                        "scenario": scenario,
+                        "pvout_used": actual_pvout_col,
+                        "cf_used": round(float(cf), 4) if cf is not None else np.nan,
+                        "gentie_cost_per_kw": round(gtie, 1),
+                        "effective_capex_usd_per_kw": round(eff_capex_c, 1),
+                        "lcoe_usd_mwh": round(lcoe_c, 2) if not np.isnan(lcoe_c) else np.nan,
+                        "lcoe_low_usd_mwh": round(lcoe_l, 2) if not np.isnan(lcoe_l) else np.nan,
+                        "lcoe_high_usd_mwh": round(lcoe_u, 2) if not np.isnan(lcoe_u) else np.nan,
+                        "is_cf_provisional": is_cf_provisional,
+                        "is_capex_provisional": is_capex_provisional,
+                        "tech_id": tech_id,
+                        "lifetime_yr": lifetime,
+                    }
+                )
 
     return pd.DataFrame(records)
 

@@ -66,10 +66,12 @@ def _load_polygon_areas(geojson_path: Path) -> pd.DataFrame:
         slug = props.get("slug") or props.get("id")
         if not slug:
             continue
-        rows.append({
-            "kek_id": slug,
-            "area_ha": props.get("Luas_ha"),
-        })
+        rows.append(
+            {
+                "kek_id": slug,
+                "area_ha": props.get("Luas_ha"),
+            }
+        )
 
     df = pd.DataFrame(rows)
     # Deduplicate: keep max area per kek_id (largest polygon = primary boundary)
@@ -114,9 +116,11 @@ def build_fct_kek_demand(
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
 
     # 1. Map kek_type → energy intensity
-    df["energy_intensity_mwh_per_ha_yr"] = df["kek_type"].map(
-        ENERGY_INTENSITY_MWH_PER_HA_YR
-    ).fillna(ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR)
+    df["energy_intensity_mwh_per_ha_yr"] = (
+        df["kek_type"]
+        .map(ENERGY_INTENSITY_MWH_PER_HA_YR)
+        .fillna(ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR)
+    )
 
     # 2. Impute missing area_ha with category median, then overall median as last resort
     missing_mask = df["area_ha"].isna()
@@ -124,9 +128,9 @@ def build_fct_kek_demand(
         category_medians = df.groupby("kek_type")["area_ha"].median()
         overall_median = df["area_ha"].median()
 
-        df.loc[missing_mask, "area_ha"] = df.loc[missing_mask, "kek_type"].map(
-            category_medians
-        ).fillna(overall_median)
+        df.loc[missing_mask, "area_ha"] = (
+            df.loc[missing_mask, "kek_type"].map(category_medians).fillna(overall_median)
+        )
 
     # 3. Compute demand
     df["demand_mwh"] = df["area_ha"] * df["energy_intensity_mwh_per_ha_yr"]
@@ -143,17 +147,19 @@ def build_fct_kek_demand(
     # 6. Target year
     df["year"] = target_year
 
-    return df[[
-        "kek_id",
-        "year",
-        "area_ha",
-        "kek_type",
-        "energy_intensity_mwh_per_ha_yr",
-        "demand_mwh",
-        "demand_mwh_user",
-        "demand_source",
-        "is_demand_provisional",
-    ]]
+    return df[
+        [
+            "kek_id",
+            "year",
+            "area_ha",
+            "kek_type",
+            "energy_intensity_mwh_per_ha_yr",
+            "demand_mwh",
+            "demand_mwh_user",
+            "demand_source",
+            "is_demand_provisional",
+        ]
+    ]
 
 
 def main() -> None:

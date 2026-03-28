@@ -62,13 +62,9 @@ from src.pipeline.buildability_filters import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GEOTIFF_ZIP = (
-    REPO_ROOT
-    / "data"
-    / "Indonesia_GISdata_LTAym_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF.zip"
+    REPO_ROOT / "data" / "Indonesia_GISdata_LTAym_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF.zip"
 )
-PVOUT_TIF_PATH = (
-    "Indonesia_GISdata_LTAy_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF/PVOUT.tif"
-)
+PVOUT_TIF_PATH = "Indonesia_GISdata_LTAy_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF/PVOUT.tif"
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
 
@@ -86,15 +82,14 @@ _REQUIRED_BUILD_FILES = [
 
 # ─── Raster extraction helpers ────────────────────────────────────────────────
 
+
 def _load_pvout_tif_bytes() -> bytes:
     """Extract PVOUT.tif bytes from the zip archive."""
     with zipfile.ZipFile(GEOTIFF_ZIP) as z:
         return z.read(PVOUT_TIF_PATH)
 
 
-def _sample_centroid(
-    src: rasterio.DatasetReader, arr: np.ndarray, lon: float, lat: float
-) -> float:
+def _sample_centroid(src: rasterio.DatasetReader, arr: np.ndarray, lon: float, lat: float) -> float:
     """Return the PVOUT pixel value at (lon, lat). Returns np.nan if out of bounds."""
     try:
         row, col = src.index(lon, lat)
@@ -306,7 +301,9 @@ def _compute_buildable_pvout(
 
     # ── Layer 1a: Kawasan Hutan (skip if file absent) ─────────────────────────
     if "kawasan_hutan.shp" in available:
-        kh_mask = _rasterize_shp(data_dir / "kawasan_hutan.shp", bbox, (height, width), win_transform)
+        kh_mask = _rasterize_shp(
+            data_dir / "kawasan_hutan.shp", bbox, (height, width), win_transform
+        )
         pvout_after_1a = apply_exclusion_mask(pvout_working, kh_mask)
     else:
         pvout_after_1a = pvout_working
@@ -315,7 +312,10 @@ def _compute_buildable_pvout(
     # ── Layer 1b: Peatland (skip if file absent) ──────────────────────────────
     if "peatland.vrt" in available:
         peat_arr = _read_raster_window_to_pvout_grid(
-            data_dir / "peatland.vrt", bbox, (height, width), win_transform,
+            data_dir / "peatland.vrt",
+            bbox,
+            (height, width),
+            win_transform,
             categorical=True,
         )
         if peat_arr is not None:
@@ -330,7 +330,10 @@ def _compute_buildable_pvout(
     # ── Layer 1c/d: Land cover (skip if file absent) ──────────────────────────
     if "esa_worldcover.vrt" in available:
         lc_arr = _read_raster_window_to_pvout_grid(
-            data_dir / "esa_worldcover.vrt", bbox, (height, width), win_transform,
+            data_dir / "esa_worldcover.vrt",
+            bbox,
+            (height, width),
+            win_transform,
             categorical=True,
         )
         if lc_arr is not None:
@@ -367,7 +370,9 @@ def _compute_buildable_pvout(
     max_mwp = round(buildable_area_ha / HA_PER_MWP, 1)
 
     pvout_in_buildable = pvout_patch[filtered_mask & np.isfinite(pvout_patch)]
-    pvout_buildable_daily = float(pvout_in_buildable.max()) if len(pvout_in_buildable) > 0 else np.nan
+    pvout_buildable_daily = (
+        float(pvout_in_buildable.max()) if len(pvout_in_buildable) > 0 else np.nan
+    )
 
     constraint = compute_buildability_constraint(
         n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_2, n_after_4
@@ -377,6 +382,7 @@ def _compute_buildable_pvout(
 
 
 # ─── Builder ──────────────────────────────────────────────────────────────────
+
 
 def build_fct_kek_resource(
     geotiff_zip: Path = GEOTIFF_ZIP,
@@ -391,7 +397,9 @@ def build_fct_kek_resource(
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
     kek_df = pd.read_csv(kek_csv)
-    tif_bytes = _load_pvout_tif_bytes()  # uses module-level GEOTIFF_ZIP; geotiff_zip param reserved for override
+    tif_bytes = (
+        _load_pvout_tif_bytes()
+    )  # uses module-level GEOTIFF_ZIP; geotiff_zip param reserved for override
 
     available = _available_build_files(buildability_dir)
     n_avail = len(available)
@@ -400,12 +408,16 @@ def build_fct_kek_resource(
         print(f"  Buildability data: all {n_total} files present — full filter applied")
     elif n_avail > 0:
         missing = [f for f in _REQUIRED_BUILD_FILES if f not in available]
-        print(f"  Buildability data: {n_avail}/{n_total} files present — partial filter "
-              f"(missing: {', '.join(missing)})")
+        print(
+            f"  Buildability data: {n_avail}/{n_total} files present — partial filter "
+            f"(missing: {', '.join(missing)})"
+        )
     else:
-        print(f"  Buildability data not found in {buildability_dir.relative_to(REPO_ROOT)} — "
-              "pvout_buildable_best_50km will be NaN. "
-              "Run scripts/download_buildability_data.py to acquire data.")
+        print(
+            f"  Buildability data not found in {buildability_dir.relative_to(REPO_ROOT)} — "
+            "pvout_buildable_best_50km will be NaN. "
+            "Run scripts/download_buildability_data.py to acquire data."
+        )
 
     # ─── STAGING + TRANSFORM ──────────────────────────────────────────────────
     records = []
@@ -435,13 +447,17 @@ def build_fct_kek_resource(
 
             # Daily → annual. pvout_daily_to_annual validates plausibility range.
             try:
-                pvout_c = pvout_daily_to_annual(pvout_daily_c) if np.isfinite(pvout_daily_c) else np.nan
+                pvout_c = (
+                    pvout_daily_to_annual(pvout_daily_c) if np.isfinite(pvout_daily_c) else np.nan
+                )
             except ValueError as e:
                 print(f"  WARNING centroid {row['kek_id']}: {e}")
                 pvout_c = np.nan
 
             try:
-                pvout_b = pvout_daily_to_annual(pvout_daily_b) if np.isfinite(pvout_daily_b) else np.nan
+                pvout_b = (
+                    pvout_daily_to_annual(pvout_daily_b) if np.isfinite(pvout_daily_b) else np.nan
+                )
             except ValueError as e:
                 print(f"  WARNING best_50km {row['kek_id']}: {e}")
                 pvout_b = np.nan
@@ -462,24 +478,38 @@ def build_fct_kek_resource(
                 print(f"  WARNING buildable {row['kek_id']}: {e}")
                 pvout_buildable = np.nan
 
-            records.append({
-                "kek_id": row["kek_id"],
-                "kek_name": row["kek_name"],
-                "latitude": lat,
-                "longitude": lon,
-                "pvout_daily_centroid": round(pvout_daily_c, 4) if np.isfinite(pvout_daily_c) else np.nan,
-                "pvout_centroid": round(pvout_c, 1) if np.isfinite(pvout_c) else np.nan,
-                "cf_centroid": round(pvout_c / HOURS_PER_YEAR, 4) if np.isfinite(pvout_c) else np.nan,
-                "pvout_daily_best_50km": round(pvout_daily_b, 4) if np.isfinite(pvout_daily_b) else np.nan,
-                "pvout_best_50km": round(pvout_b, 1) if np.isfinite(pvout_b) else np.nan,
-                "cf_best_50km": round(pvout_b / HOURS_PER_YEAR, 4) if np.isfinite(pvout_b) else np.nan,
-                "pvout_source": PVOUT_SOURCE,
-                # Buildability columns — NaN when data/buildability/ files absent
-                "pvout_buildable_best_50km": round(pvout_buildable, 1) if np.isfinite(pvout_buildable) else np.nan,
-                "buildable_area_ha": buildable_area_ha if np.isfinite(buildable_area_ha) else np.nan,
-                "max_captive_capacity_mwp": max_mwp if np.isfinite(max_mwp) else np.nan,
-                "buildability_constraint": constraint,
-            })
+            records.append(
+                {
+                    "kek_id": row["kek_id"],
+                    "kek_name": row["kek_name"],
+                    "latitude": lat,
+                    "longitude": lon,
+                    "pvout_daily_centroid": round(pvout_daily_c, 4)
+                    if np.isfinite(pvout_daily_c)
+                    else np.nan,
+                    "pvout_centroid": round(pvout_c, 1) if np.isfinite(pvout_c) else np.nan,
+                    "cf_centroid": round(pvout_c / HOURS_PER_YEAR, 4)
+                    if np.isfinite(pvout_c)
+                    else np.nan,
+                    "pvout_daily_best_50km": round(pvout_daily_b, 4)
+                    if np.isfinite(pvout_daily_b)
+                    else np.nan,
+                    "pvout_best_50km": round(pvout_b, 1) if np.isfinite(pvout_b) else np.nan,
+                    "cf_best_50km": round(pvout_b / HOURS_PER_YEAR, 4)
+                    if np.isfinite(pvout_b)
+                    else np.nan,
+                    "pvout_source": PVOUT_SOURCE,
+                    # Buildability columns — NaN when data/buildability/ files absent
+                    "pvout_buildable_best_50km": round(pvout_buildable, 1)
+                    if np.isfinite(pvout_buildable)
+                    else np.nan,
+                    "buildable_area_ha": buildable_area_ha
+                    if np.isfinite(buildable_area_ha)
+                    else np.nan,
+                    "max_captive_capacity_mwp": max_mwp if np.isfinite(max_mwp) else np.nan,
+                    "buildability_constraint": constraint,
+                }
+            )
 
     return pd.DataFrame(records)
 
@@ -496,16 +526,30 @@ def main() -> None:
     print(f"\nExtracted {len(df)} KEKs")
     print(f"  pvout_centroid:          {len(df) - n_miss_c}/{len(df)} valid")
     print(f"  pvout_best_50km:         {len(df) - n_miss_b}/{len(df)} valid")
-    print(f"  pvout_buildable_best_50km: {len(df) - n_miss_build}/{len(df)} valid"
-          + (" (buildability data present)" if n_miss_build == 0 else " (data/buildability/ files missing)"))
+    print(
+        f"  pvout_buildable_best_50km: {len(df) - n_miss_build}/{len(df)} valid"
+        + (
+            " (buildability data present)"
+            if n_miss_build == 0
+            else " (data/buildability/ files missing)"
+        )
+    )
     print(f"  cf range (best): {df['cf_best_50km'].min():.3f} – {df['cf_best_50km'].max():.3f}")
 
     out = PROCESSED / "fct_kek_resource.csv"
     PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     print(f"\nWrote {out.relative_to(REPO_ROOT)}")
-    display_cols = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km",
-                    "pvout_buildable_best_50km", "buildable_area_ha", "buildability_constraint"]
+    display_cols = [
+        "kek_id",
+        "pvout_centroid",
+        "cf_centroid",
+        "pvout_best_50km",
+        "cf_best_50km",
+        "pvout_buildable_best_50km",
+        "buildable_area_ha",
+        "buildability_constraint",
+    ]
     print(df[display_cols].to_string(index=False))
 
 
