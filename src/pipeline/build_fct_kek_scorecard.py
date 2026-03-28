@@ -106,6 +106,11 @@ def build_fct_kek_scorecard(
         "lcoe_high_usd_mwh": "lcoe_high_usd_mwh",
     })
 
+    # LCOE at WACC=8% (de-risked finance scenario) — same scenario, different WACC row
+    lcoe_wacc8 = lcoe_all[
+        (lcoe_all["wacc_pct"] == 8.0) & (lcoe_all["scenario"] == "within_boundary")
+    ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_mid_wacc8_usd_mwh"})
+
     # Grid cost: one row per grid_region_id
     grid_cost = grid_cost[[
         "grid_region_id", "dashboard_rate_usd_mwh", "dashboard_rate_label",
@@ -130,6 +135,7 @@ def build_fct_kek_scorecard(
         .merge(grid_cost, on="grid_region_id", how="left")
         .merge(ruptl_summary[["grid_region_id", "pre2030_solar_mw", "post2030_share"]],
                on="grid_region_id", how="left")
+        .merge(lcoe_wacc8, on="kek_id", how="left")
     )
 
     # Solar competitive gap: negative = solar already cheaper than grid
@@ -139,6 +145,17 @@ def build_fct_kek_scorecard(
         / df["dashboard_rate_usd_mwh"] * 100,
         np.nan,
     ).round(1)
+
+    # WACC=8% gap and flip flag (de-risked finance scenario)
+    df["solar_competitive_gap_wacc8_pct"] = np.where(
+        df["dashboard_rate_usd_mwh"].notna() & df["lcoe_mid_wacc8_usd_mwh"].notna(),
+        (df["lcoe_mid_wacc8_usd_mwh"] - df["dashboard_rate_usd_mwh"])
+        / df["dashboard_rate_usd_mwh"] * 100,
+        np.nan,
+    ).round(1)
+    df["solar_now_at_wacc8"] = (
+        df["lcoe_mid_wacc8_usd_mwh"].fillna(np.inf) <= df["dashboard_rate_usd_mwh"].fillna(0)
+    )
 
     # Solar attractiveness: good resource AND LCOE <= grid cost
     df["solar_attractive"] = (
@@ -254,6 +271,7 @@ def build_fct_kek_scorecard(
         "dashboard_rate_usd_mwh", "dashboard_rate_label", "is_grid_cost_provisional",
         "tariff_i3_usd_mwh", "tariff_i4_usd_mwh",
         "solar_competitive_gap_pct", "solar_attractive",
+        "lcoe_mid_wacc8_usd_mwh", "solar_competitive_gap_wacc8_pct", "solar_now_at_wacc8",
         "action_flag", "solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late",
         "green_share_geas",
         "pre2030_solar_mw", "post2030_share", "grid_upgrade_pre2030", "ruptl_summary",

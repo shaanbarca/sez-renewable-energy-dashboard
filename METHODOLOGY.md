@@ -454,6 +454,8 @@ The WACC is the primary user-adjustable parameter in the dashboard (slider: 6–
 
 **Default 10% rationale:** ADB's benchmark weighted average cost of capital for renewable energy projects in Southeast Asia is approximately 8–12%. 10% is the midpoint and a common assumption in development bank screening models. The user can adjust to match their fund's actual hurdle rate.
 
+**WACC=8% de-risked scenario:** The scorecard precomputes a static WACC=8% column (`lcoe_mid_wacc8_usd_mwh`, `solar_competitive_gap_wacc8_pct`, `solar_now_at_wacc8`) alongside the WACC=10% base case. At WACC=8%, **8 KEKs flip to solar-competitive** (vs. 0 at WACC=10%). This answers the DFI question "what financing de-risking is needed?" — if a green finance facility, concessional loan, or first-loss guarantee can bring a project's effective WACC from 10% to 8%, solar wins for those 8 KEKs without any change in the underlying resource or technology cost.
+
 **Edge cases:**
 - `wacc = 0`: clamp to 0.01 (1%) to avoid division by zero in CRF. Show warning in UI.
 - `CF = 0`: return `NaN` (no PVOUT data for this KEK). Show "unavailable" in UI.

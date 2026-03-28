@@ -526,8 +526,11 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 | Column | Type | Formula |
 |--------|------|---------|
-| `solar_competitive_gap_pct` | float | `(lcoe_mid_usd_mwh − dashboard_rate_usd_mwh) / dashboard_rate_usd_mwh × 100`. Negative = solar already cheaper than grid. |
+| `solar_competitive_gap_pct` | float | `(lcoe_mid_usd_mwh − dashboard_rate_usd_mwh) / dashboard_rate_usd_mwh × 100`. Negative = solar already cheaper than grid. Base case WACC=10%. |
 | `solar_attractive` | bool | `pvout_best_50km ≥ 1,550 kWh/kWp/yr AND lcoe_mid_usd_mwh ≤ dashboard_rate_usd_mwh` |
+| `lcoe_mid_wacc8_usd_mwh` | float | LCOE at WACC=8% (de-risked finance scenario), within_boundary. Sourced from `fct_lcoe.csv` at `wacc_pct=8`. |
+| `solar_competitive_gap_wacc8_pct` | float | Same formula as `solar_competitive_gap_pct` but using `lcoe_mid_wacc8_usd_mwh`. Negative = solar competitive under de-risked financing. |
+| `solar_now_at_wacc8` | bool | `lcoe_mid_wacc8_usd_mwh ≤ dashboard_rate_usd_mwh` — True for 8 KEKs. The "what does a green finance facility unlock?" signal for DFI analysts. |
 | `clean_power_advantage` | float | `−solar_competitive_gap_pct` — higher = more competitive |
 | `green_share_geas` | float | Pro-rata share of 2030 demand covered by pre-2030 RUPTL solar. Formula: `min(1, (pre2030_mw × 8760 × 0.20 × kek_demand_share) / kek_demand_mwh)`. See `geas_baseline_allocation()`. |
 | `pre2030_solar_mw` | float | `sum(plts_new_mw_re_base where year ≤ 2030)` for this KEK's region |

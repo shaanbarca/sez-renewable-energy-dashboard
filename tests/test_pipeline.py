@@ -514,6 +514,24 @@ class TestFctKekScorecard:
                 "Manufacturing KEKs within 20% of grid parity should have invest_resilience=True"
             )
 
+    def test_wacc8_lcoe_column_present(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert "lcoe_mid_wacc8_usd_mwh" in sc.columns
+        assert "solar_competitive_gap_wacc8_pct" in sc.columns
+        assert "solar_now_at_wacc8" in sc.columns
+
+    def test_solar_now_at_wacc8_is_boolean(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert sc["solar_now_at_wacc8"].dtype == bool or set(sc["solar_now_at_wacc8"].unique()).issubset({True, False})
+
+    def test_wacc8_gap_leq_wacc10_gap(self):
+        """LCOE at WACC=8% must be ≤ LCOE at WACC=10% for every KEK — lower WACC = lower LCOE."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        both = sc[sc["lcoe_mid_wacc8_usd_mwh"].notna() & sc["lcoe_mid_usd_mwh"].notna()]
+        assert (both["lcoe_mid_wacc8_usd_mwh"] <= both["lcoe_mid_usd_mwh"]).all(), (
+            "LCOE at WACC=8% should never exceed LCOE at WACC=10%"
+        )
+
 
 # ── run_pipeline: topo sort ───────────────────────────────────────────────────
 
