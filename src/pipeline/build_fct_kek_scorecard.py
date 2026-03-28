@@ -136,7 +136,14 @@ def build_fct_kek_scorecard(
     ruptl_summary = _ruptl_region_summary(ruptl)
 
     # Substation proximity: distance + siting scenario per KEK
-    sub = fct_sub[["kek_id", "dist_to_nearest_substation_km", "siting_scenario"]].copy()
+    sub = fct_sub[
+        [
+            "kek_id",
+            "dist_to_nearest_substation_km",
+            "nearest_substation_capacity_mva",
+            "siting_scenario",
+        ]
+    ].copy()
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     # Merge buildability columns when present in fct_kek_resource
@@ -364,6 +371,7 @@ def build_fct_kek_scorecard(
             "buildability_constraint",
             "resource_quality",
             "dist_to_nearest_substation_km",
+            "nearest_substation_capacity_mva",
             "siting_scenario",
             "demand_mwh_2030",
             "lcoe_low_usd_mwh",

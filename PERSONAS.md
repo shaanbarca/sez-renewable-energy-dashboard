@@ -8,10 +8,43 @@ Four primary user personas. Each section covers: who they are, what they need fr
 
 ## Table of Contents
 
+- [Readiness Summary](#readiness-summary)
+- [Gap Priority](#gap-priority)
 - [Persona 1: Energy Economist](#persona-1-energy-economist) — multilateral development bank analyst (ADB, IFC)
 - [Persona 2: DFI Investor](#persona-2-dfi-investor) — infrastructure fund analyst (Macquarie Green, AIIB)
 - [Persona 3: Policy Maker](#persona-3-policy-maker) — BKPM/KESDM official or energy think-tank adviser
 - [Persona 4: Energy Investor (IPP Developer)](#persona-4-energy-investor-ipp-developer) — captive solar developer (ACEN, Vena Energy)
+
+---
+
+## Readiness Summary
+
+*Last assessed: 2026-03-28. Re-assess after each major pipeline change.*
+
+| Persona | Score | Status | Top blocking gap |
+|---------|-------|--------|-----------------|
+| Energy Economist | **68%** | Core LCOE + carbon breakeven built; concessional finance story incomplete | WACC range stops at 8% — can't model 4–6% blended DFI financing; BPP null |
+| DFI Investor | **78%** | Buildability + substation distance + capacity all present | Transmission lease fee (~5–15 USD/MWh) excluded from all-in LCOE for remote captive |
+| Policy Maker | **62%** | Action flags + RUPTL pipeline solid | Model is solar-only — misleading `not_competitive` at Sulawesi KEKs with known wind/geothermal |
+| Energy Investor (IPP) | **72%** | Land + resource + substation screening complete | `demand_mwh_2030` is a proxy — can rank sites but cannot size a PPA |
+
+---
+
+## Gap Priority
+
+Ranked by impact across personas × implementation effort. See each persona's `### Data gaps` section for full detail.
+
+| Priority | Gap | Personas affected | Effort |
+|----------|-----|------------------|--------|
+| 🔴 1 | **Transmission lease fee in all-in LCOE** — ~5–15 USD/MWh excluded; 23/25 KEKs are `remote_captive` | P2, P4 | Low — add parameter to `build_fct_lcoe.py` |
+| 🔴 2 | **`project_viable` boolean** — derived from `buildable_area_ha` threshold; currently manual | P2, P4 | Trivial — 1 derived column in scorecard |
+| 🟠 3 | **WACC expansion to 6% and 14%** — concessional-to-equity full range; stops at 8% today | P1 | Low — 2 extra rows per KEK in `fct_lcoe` |
+| 🟠 4 | **BPP data sourcing** — PLN Statistik 2024 regional BPP; `bpp_usd_mwh` column exists but null | P1 | Medium — external data, not code |
+| 🟠 5 | **Grid emission factor update** — KESDM 2019 → IEA SEA 2024; affects `carbon_breakeven_usd_tco2` | P1, P3 | Low code / medium research |
+| 🟡 6 | **Wind CF layer for Sulawesi** — fixes misleading `not_competitive` at kek-palu, kek-bitung, kek-morotai | P3 | Medium — new data source + pipeline step |
+| 🟡 7 | **KEK operational status enrichment** — distinguish operating (tenants present) vs. greenfield | P4 | Medium — BKPM/KEK management data required |
+| 🟢 8 | **Road proximity (Layer 3a)** — construction access cost; OSM PBF processing | P2, P4 | High effort |
+| 🟢 9 | **Flood hazard (Layer 2d)** — BNPB portal inaccessible; low incremental value over slope layer | P2 | High effort / blocked |
 
 ---
 
@@ -20,6 +53,19 @@ Four primary user personas. Each section covers: who they are, what they need fr
 **Role:** Economic analyst, multilateral development bank (ADB, IFC, World Bank)
 **Context:** Preparing a country energy competitiveness assessment or a captive renewable energy policy brief. Needs to compare solar LCOE against grid cost across many sites simultaneously and quantify the carbon arbitrage opportunity. Works in Excel and PowerPoint; exports data for colleagues.
 **Primary question:** *At our fund's hurdle rate, which KEKs already make economic sense for captive solar — and what policy change would unlock the others?*
+
+### Readiness — 68%
+
+**What works:**
+- Full LCOE bands (low/mid/high) at WACC 8/10/12% — competitive gap and concessional-finance flip case are computable
+- `carbon_breakeven_usd_tco2` populated for all 25 KEKs — carbon finance desk can use this directly
+- `green_share_geas` and GEAS allocation methodology complete
+- Provisional flags (`is_cf_provisional`, `is_capex_provisional`) so the economist can caveat outputs
+
+**What's missing:**
+- **WACC range stops at 8%** — concessional DFI financing at 4–6% is the core policy argument; the tool can't model it without adding more WACC snaps to `fct_lcoe` (Gap priority 🔴 3)
+- **BPP is null** — grid reference is I-4 tariff ($63.08). PLN's true cost of supply is 15–35% higher at most regions; the LCOE gap vs. BPP (more favourable for solar) can't be shown (Gap priority 🟠 4)
+- **Grid emission factor is 2019 vintage** — `carbon_breakeven_usd_tco2` uses stale KESDM data (Gap priority 🟠 5)
 
 ### Key data needs
 
@@ -46,6 +92,15 @@ Ranked table CSV → paste into Excel economic comparison table. Carbon breakeve
 ### What they'd cite
 > "Source: KEK Power Competitiveness Dashboard v1.0 (github.com/…/releases/tag/v1.0). LCOE computed using ESDM Technology Catalogue 2023 CAPEX ($960/kW), grid cost from Permen ESDM 7/2024 I-4/TT tariff ($63.08/MWh), PVOUT from Global Solar Atlas v2."
 
+### Data gaps
+
+| Gap | Impact on this persona | Status |
+|-----|----------------------|--------|
+| `bpp_usd_mwh` is null | BPP (PLN cost of supply) is 15–35% higher than the I-4/TT tariff used today. An economist needs both: tariff (what tenants pay) and BPP (what grid electricity costs PLN). The LCOE gap vs. BPP would look more favourable for solar at high-BPP regions. | Blocked — PLN Statistik 2024 regional BPP not yet sourced; column exists in `fct_grid_cost_proxy` but is null. |
+| Grid emission factor is 2019 vintage | `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM 2019) is 5+ years old. `carbon_breakeven_usd_tco2` inherits this staleness — the carbon price threshold may be over- or under-stated. | Deferred to v1.2 — update to 2023 KESDM or IEA SEA 2024 data. |
+| WACC range limited to 8/10/12% | Concessional DFI financing can go to 4–6%; some equity hurdles are 14–16%. The 3-snap WACC range doesn't cover the full spectrum an economist would model. | Deferred to Phase 3 Step 3.1 (design decision: snap vs. continuous interpolation). |
+| CAPEX from ESDM catalogue, not Indonesia market data | ESDM 2023 catalogue value ($960/kW) may be ±15–20% from current Indonesian EPC market pricing. LCOE bands partially capture this but no market comparables have been sourced. | Deferred to v1.2 — source 2023–2024 Indonesia solar EPC tender data. |
+
 ---
 
 ## Persona 2: DFI Investor
@@ -53,6 +108,19 @@ Ranked table CSV → paste into Excel economic comparison table. Carbon breakeve
 **Role:** Infrastructure fund analyst or investment director, development finance institution or green infrastructure fund (Macquarie Green Infrastructure, AIIB, OPIC/DFC)
 **Context:** Screening Indonesian industrial sites for a captive solar PPA or equity investment. Needs to know: is there enough buildable land, how far is the grid connection, and what does the LCOE look like at their fund's cost of capital? Will hand off promising sites to a site development team.
 **Primary question:** *Which KEKs have sufficient buildable solar land, acceptable grid connection cost, and an LCOE that works at our 8% target return?*
+
+### Readiness — 78%
+
+**What works:**
+- Full 4-layer buildability filter: `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` all populated for all 25 KEKs
+- `dist_to_nearest_substation_km` and `nearest_substation_capacity_mva` (19/25 KEKs) — screening-level grid connection data available
+- `siting_scenario` (`within_boundary` / `remote_captive`) drives gen-tie cost in LCOE
+- `lcoe_mid_wacc8_usd_mwh` and `solar_now_at_wacc8` — fund hurdle rate scenario built
+
+**What's missing:**
+- **Transmission lease fee excluded from all-in LCOE** — ~5–15 USD/MWh omitted for `remote_captive` sites (23/25 KEKs); the cost a DFI would actually pay is understated (Gap priority 🔴 1)
+- **No `project_viable` flag** — DFI threshold (≥ 50 ha / ≥ 33 MWp) must be computed manually from `buildable_area_ha` (Gap priority 🔴 2)
+- Flood hazard (Layer 2d) and road proximity (Layer 3a) missing — minor for most sites but relevant for coastal and remote KEKs (Gap priority 🟢 8, 9)
 
 ### Key data needs
 
@@ -82,6 +150,16 @@ GeoJSON for site team GIS analysis. CSV with LCOE + buildable area columns for i
 ### What they'd cite
 > "Buildable solar resource estimated using ESA WorldCover v200 land cover exclusions, Copernicus DEM slope/elevation, and GFW peatland data. Source: KEK Power Competitiveness Dashboard v1.0."
 
+### Data gaps
+
+| Gap | Impact on this persona | Status |
+|-----|----------------------|--------|
+| Flood hazard layer (Layer 2d) missing | Coastal sites (tanjung-sauh, kek-tanjung-lesung, kek-morotai) may have buildable land on flood-prone ground not yet excluded. `buildable_area_ha` may be slightly overstated at these sites. | Deferred to v1.2 — BNPB portal inaccessible; low overlap with slope layer. |
+| Road proximity (Layer 3a) missing | Remote sites with poor road access have higher EPC construction costs not reflected in any current column. A DFI site team needs this to estimate total development cost. | Deferred to v1.2 — requires OSM PBF processing. |
+| ~~Substation capacity unknown~~ | `nearest_substation_capacity_mva` is now in the scorecard — normalized from the PLN `kapgi` field (mixed VA/MVA units corrected). 5 of 25 KEKs have null capacity (data not recorded in PLN's dataset). | ✅ Built — available in `fct_kek_scorecard` as `nearest_substation_capacity_mva`. |
+| Transmission lease fee not modelled | ~5–15 USD/MWh for large remote captive projects is excluded from all-in LCOE. `lcoe_mid_usd_mwh` understates total cost for `remote_captive` siting, which is the scenario a DFI typically finances. | Deferred to Phase 3 — parameterisation noted in METHODOLOGY.md §5.5. |
+| No minimum viable project flag | `buildable_area_ha` is present but no derived boolean (e.g., `project_viable = buildable_area_ha ≥ 50 ha`, i.e., ≥ 33 MWp). Investor must compute their own viability threshold manually. | Small addition — Phase 3 scorecard step. |
+
 ---
 
 ## Persona 3: Policy Maker
@@ -89,6 +167,20 @@ GeoJSON for site team GIS analysis. CSV with LCOE + buildable area columns for i
 **Role:** Senior official, BKPM (Investment Coordinating Board) or KESDM (Ministry of Energy), or technical adviser at an energy think-tank (IESR, Rocky Mountain Institute Indonesia)
 **Context:** Preparing input for a RUPTL review, a KEK electricity regulation update, or a green industrial park policy. Needs to understand which KEKs will be left behind by the current grid plan, which ones could benefit from WACC de-risking (concessional finance), and how much of 2030 demand could be met by GEAS-allocated solar.
 **Primary question:** *Which KEKs need policy intervention — and what specific intervention (WACC de-risking, RUPTL acceleration, GEAS allocation) would have the most impact?*
+
+### Readiness — 62%
+
+**What works:**
+- All 5 action flags (`solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late`) populated for all 25 KEKs
+- Full RUPTL pipeline context: `pre2030_solar_mw`, `post2030_share`, `grid_upgrade_pre2030`, `ruptl_summary`
+- `green_share_geas` quantifies GEAS allocation as a policy lever
+- `carbon_breakeven_usd_tco2` supports carbon market design arguments
+
+**What's missing:**
+- **Model is solar-only** — kek-palu, kek-bitung, kek-morotai are Sulawesi/Maluku KEKs where geothermal and wind are the primary clean energy opportunity; `not_competitive` at these sites is potentially misleading to a KESDM adviser (Gap priority 🟡 6)
+- **21/25 KEKs show `not_competitive`** — the flag is binary; a policy maker needs to see the *distance* to competitiveness (a 5% gap vs. 35% gap require entirely different interventions), which requires drilling into `solar_competitive_gap_pct` rather than reading the flag
+- **`reliability_req` is hardcoded by KEK type**, not sourced from PLN SAIDI/SAIFI data — the `invest_resilience` flag (4 KEKs) rests on assumed outage scores, weakening its credibility with KESDM technical reviewers (Gap priority 🟡 — deferred to v2)
+- **`demand_mwh_2030` is a proxy** — GEAS `green_share_geas` inherits area × intensity uncertainty; cannot be cited as a precise policy target
 
 ### Key data needs
 
@@ -117,6 +209,16 @@ Ranked table CSV filtered to `plan_late = True` KEKs. Screenshot of RUPTL Contex
 ### What they'd cite
 > "KEK-level solar competitiveness analysis, KEK Power Competitiveness Dashboard v1.0. Grid cost: Permen ESDM 7/2024. RUPTL pipeline: RUPTL PLN 2025–2034. GEAS allocation methodology: METHODOLOGY.md §5."
 
+### Data gaps
+
+| Gap | Impact on this persona | Status |
+|-----|----------------------|--------|
+| `reliability_req` is hardcoded by KEK type | `invest_resilience` and `firming_needed` flags depend on `reliability_req` set by KEK type (manufacturing=0.8, tourism=0.4) in `kek_grid_region_mapping.csv` — not from actual PLN SAIDI/SAIFI outage data. A policy maker needs real grid reliability data to make the resilience case credible to KESDM. | Deferred to v2 — PLN publishes SAIDI/SAIFI by grid system but not by KEK; requires manual mapping. |
+| `demand_mwh_2030` is area × intensity proxy | GEAS `green_share_geas` is allocated against proxy demand, not actual tenant consumption. Policy allocation recommendations inherit this uncertainty. | Deferred — requires tenant surveys or KESDM KEK energy consumption registry. |
+| No wind or geothermal resource layer | Model is solar-only. Sulawesi KEKs (kek-palu, kek-bitung, kek-morotai) have known geothermal and wind resources. A `not_competitive` or `grid_first` label at these sites may be misleading — a policy maker advising on Sulawesi needs the full clean energy picture. | Deferred to v1.2 — add wind CF layer; geothermal requires a separate data source. |
+| Carbon price trajectory not modelled | `carbon_breakeven_usd_tco2` is a static threshold (the price that closes today's gap). No link to Indonesia's ETS trajectory (Article 6 commitments, IDR carbon market). Policy makers need: "at Indonesia's projected carbon price path, when does solar become competitive?" | Deferred to v1.2 — requires IDR carbon price forecast data. |
+| GEAS allocation is a modelled approximation | Real GEAS depends on PLN tender design, offtake eligibility, and transmission access rights. Pro-rata allocation is an indicative estimate, not a contractual figure. | Fundamental limitation — label clearly in dashboard; cannot be resolved without PLN tender rules. |
+
 ---
 
 ## Persona 4: Energy Investor (IPP Developer)
@@ -124,6 +226,20 @@ Ranked table CSV filtered to `plan_late = True` KEKs. Screenshot of RUPTL Contex
 **Role:** Business development manager or country director, captive solar IPP developer (ACEN, SolarEdge Indonesia, Vena Energy, local developer)
 **Context:** Building a project pipeline of captive solar PPAs with industrial tenants at KEKs. Needs to prioritise outreach — which KEKs have the largest demand, best solar resource, and weakest grid (making the PPA pitch easiest)? Will use this data to rank sites for BD outreach, then hand off top 5 to technical team for desktop feasibility.
 **Primary question:** *Which KEKs offer the best PPA opportunity — large captive demand, good solar, high grid cost, and buildable land inside the zone?*
+
+### Readiness — 72%
+
+**What works:**
+- Full buildability screening: `max_captive_capacity_mwp`, `buildable_area_ha`, `pvout_buildable_best_50km` all populated
+- `nearest_substation_capacity_mva` available for 19/25 KEKs — gives grid absorption signal for initial screening
+- `siting_scenario` and gen-tie cost baked into `remote_captive` LCOE — IPP can see the real economics
+- `demand_mwh_2030` for relative site ranking (not PPA sizing)
+
+**What's missing:**
+- **`demand_mwh_2030` is a proxy** — area × intensity estimate cannot be used for PPA term sheet sizing; field surveys required before commercial conversations (Gap priority 🟡 7 for status enrichment; demand proxy is a fundamental limitation)
+- **Transmission lease fee excluded** — ~5–15 USD/MWh omitted from `remote_captive` LCOE; this is precisely the scenario an IPP builds, so all-in PPA cost is understated (Gap priority 🔴 1)
+- **No `project_viable` flag** — IPP threshold (≥ 20 MWp minimum for project economics) must be derived manually from `max_captive_capacity_mwp` (Gap priority 🔴 2)
+- **KEK operational status is coarse** — `status` from scraper doesn't distinguish operating KEKs with paying tenants from greenfield development; an IPP pitching into a greenfield KEK faces speculative demand (Gap priority 🟡 7)
 
 ### Key data needs
 
@@ -151,3 +267,14 @@ Ranked table CSV (top 10 sites) for BD pipeline tracker. KEK Scorecard screensho
 
 ### What they'd cite
 > "Solar resource and land buildability: KEK Power Competitiveness Dashboard v1.0. Buildable area uses ESA WorldCover + GFW Peatlands exclusions. Demand estimates are provisional (area × intensity proxy); field surveys required for PPA sizing."
+
+### Data gaps
+
+| Gap | Impact on this persona | Status |
+|-----|----------------------|--------|
+| `demand_mwh_2030` is area × intensity proxy | PPA sizing requires actual tenant electricity consumption or signed LOIs. The proxy figure must not be used for PPA term sheet calculations — it exists only for relative ranking between KEKs. | Deferred — requires field surveys or KEK management data. Caveat already noted in "What they'd cite". |
+| No minimum PPA size flag | `max_captive_capacity_mwp` is present but no derived boolean (e.g., `project_viable = max_captive_capacity_mwp ≥ 20`). An IPP developer must compute their own economic viability threshold manually. | Small addition — Phase 3 scorecard step. |
+| Transmission lease fee not modelled | ~5–15 USD/MWh excluded from `remote_captive` LCOE. This is precisely the scenario an IPP builds — the all-in PPA cost is understated for remote sites. | Deferred to Phase 3. |
+| KEK operational status is coarse | `status` field (from OSS scraper) does not distinguish "operating with paying tenants" (offtake certainty) from "under development" (speculative demand). An IPP needs to know if tenants are actually there. | Deferred — requires KEK management outreach or BKPM tenant occupancy registry. |
+| Substation capacity coverage is partial | `nearest_substation_capacity_mva` is available (normalized from PLN `kapgi` field) but 5 of 25 KEKs have null capacity — PLN did not record it for those substations. | Available with gaps — 20/25 KEKs have capacity data. |
+| No road proximity layer | Construction access cost for remote sites is not captured. A site with poor road access has higher EPC cost not reflected in any current column. | Deferred to v1.2 — requires OSM PBF processing (Layer 3a). |

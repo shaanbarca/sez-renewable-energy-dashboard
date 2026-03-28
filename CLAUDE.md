@@ -123,8 +123,8 @@ Before I commit, quick checklist:
    paste the printed output so we can sanity-check real numbers vs. theory
    (e.g. distances, row counts, LCOE values look plausible?)
 
-3. Docs updated? — DATA_DICTIONARY.md, METHODOLOGY.md, CLAUDE.md, run_pipeline.py
-   (see Documentation update rule below)
+3. Docs updated? — check the Documentation update rule table below; every change type
+   has a specific list of files that must be updated before committing
 
 Ready to commit? Or do any of these need attention first?
 ```
@@ -135,12 +135,20 @@ Ready to commit? Or do any of these need attention first?
 
 ## Documentation update rule
 
-**Every new pipeline stage or schema change must update the following before committing:**
+**Every code change — new feature, new column, bug fix that changes output, or deferred item now implemented — must update the relevant docs before committing.** Use the table below to decide which files need touching. When in doubt, update it.
 
-1. `DATA_DICTIONARY.md` — new table in the Table Index; full column spec section; update row counts and status (✅/⚠️/❌)
-2. `METHODOLOGY.md` — update the relevant section if the analytical method or formula changes; remove any "deferred" notes once implemented
-3. `CLAUDE.md` (this file) — update the **Fact tables** list above if a new `fct_*` table is added
-4. `run_pipeline.py` — add a `Step(...)` entry and correct `depends_on` for any new pipeline step
+| What changed | Files to update |
+|---|---|
+| New pipeline step or new `fct_*` / `dim_*` table | `DATA_DICTIONARY.md` (table index + full column spec), `CLAUDE.md` (Fact tables list), `run_pipeline.py` (Step entry + depends_on), `ARCHITECTURE.md` (pipeline graph if topology changed) |
+| New column added to existing table | `DATA_DICTIONARY.md` (column row in the relevant section), `PERSONAS.md` (if relevant to a persona's key data needs or data gaps), `fct_kek_scorecard` column list in `CLAUDE.md` if scorecard grows |
+| Analytical method or formula changed | `METHODOLOGY.md` (update the relevant section; remove "deferred" notes once implemented) |
+| Deferred item now implemented (e.g. a buildability layer, a new flag) | `METHODOLOGY.md` (remove deferred note), `DATA_DICTIONARY.md` (update status ✅), `PERSONAS.md` (update data gap entry from "Deferred" or "Blocked" to "✅ Built") |
+| Bug fix that changes output values | `METHODOLOGY.md` if the fix changes analytical behaviour; `DATA_DICTIONARY.md` if column semantics changed |
+| New assumption or threshold added | `METHODOLOGY.md` (document the value and rationale), `src/assumptions.py` (single source of truth for constants) |
+| Persona-relevant capability added or gap closed | `PERSONAS.md` — update the relevant persona's key data needs or data gaps table |
+| Phase or step completed | `PLAN.md` — mark the step ✅ COMPLETE |
+
+**The commit checklist prompt (shown before every commit) checks item 3: "Docs updated?". This rule defines what "docs updated" means.**
 
 The review checklist (`/review`) will flag stale documentation as an INFORMATIONAL finding. Keeping docs in sync with code prevents the next Claude session from making incorrect assumptions about the data model.
 

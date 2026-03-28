@@ -17,6 +17,7 @@
   - [Phase 2 — Model layer + scorecard enhancements ✅ COMPLETE](#phase-2--model-layer--scorecard-enhancements--complete)
   - [Phase 3 — Dash app + open data release](#phase-3--dash-app--open-data-release)
     - [Step 3.0 — Scorecard pre-flight ✅ COMPLETE](#step-30--scorecard-pre-flight--complete)
+    - [Step 3.x — Persona data gap resolution](#step-3x--persona-data-gap-resolution)
     - [Step 3.1 — Resolve design decisions](#step-31--resolve-design-decisions-before-writing-dash-code)
     - [Step 3.2 — Build Dash app](#step-32--build-dash-app)
     - [Step 3.3 — Open data release](#step-33--open-data-release)
@@ -153,6 +154,28 @@ Also fix two column name mismatches between the scorecard and PERSONAS.md refere
 - `green_share_geas` → document as 2030 figure (already correct, just needs label)
 
 After this step: `fct_kek_scorecard` is the single source of truth for all four personas. Re-run `uv run python run_pipeline.py fct_kek_scorecard` + confirm 195 tests still pass.
+
+#### Step 3.x — Persona data gap resolution
+
+Full gap inventory in [PERSONAS.md](PERSONAS.md) under each persona's `### Data gaps` section. Gaps are bucketed by effort:
+
+**Bucket A — Small scorecard additions (Phase 3, ~1 pipeline step):**
+- `project_viable` boolean derived from `buildable_area_ha ≥ 50 ha` (≥ 33 MWp) — needed by DFI Investor and IPP Developer to filter investable sites without manual math
+- WACC range expansion: add 6% and 14% to `fct_lcoe` (2 extra rows per KEK) — needed by Energy Economist to show concessional-to-equity full range
+
+**Bucket B — Data sourcing required (v1.2):**
+- PLN Statistik 2024 regional BPP → populate `bpp_usd_mwh` in `fct_grid_cost_proxy` (Energy Economist)
+- Grid emission factor update: KESDM 2019 → 2023 or IEA SEA 2024 data (Energy Economist)
+- Wind CF layer for Sulawesi KEKs (Policy Maker)
+- Layer 3a road proximity — OSM PBF processing (DFI Investor, IPP Developer)
+- Layer 2d flood hazard — pending BNPB portal access (DFI Investor)
+- CAPEX market comparables — 2023–2024 Indonesia EPC tender data (Energy Economist)
+
+**Bucket C — Fundamental limitations (dashboard caveats only, no code fix):**
+- `demand_mwh_2030` area × intensity proxy — label in dashboard tooltip; field surveys required for PPA sizing
+- GEAS pro-rata approximation — label as "indicative, not contractual" in dashboard
+- Substation capacity (5/25 KEKs null) — `nearest_substation_capacity_mva` is now in scorecard; label nulls as "capacity not recorded by PLN"
+- `reliability_req` hardcoded — label `invest_resilience` flag as "type-based proxy, pending PLN SAIDI/SAIFI data"
 
 #### Step 3.1 — Resolve design decisions (before writing Dash code)
 

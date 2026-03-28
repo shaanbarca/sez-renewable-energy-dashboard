@@ -46,6 +46,11 @@ KEK_POLYGONS_GEOJSON = RAW / "kek_polygons.geojson"
 
 _OPERATIONAL_STATUS = "Operasi"
 
+# kapgi unit normalization thresholds (see DATA_DICTIONARY.md §3.5)
+# PLN encodes capacity inconsistently: some rows in MVA, others in VA.
+# Rule: values 1–9,999 are already in MVA; values ≥ 10,000 are in VA (divide by 1e6).
+_KAPGI_VA_THRESHOLD = 10_000  # above this → raw value is in VA, not MVA
+
 
 # ─── Geometry helpers ─────────────────────────────────────────────────────────
 
@@ -60,6 +65,27 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
     )
     return R * 2 * math.asin(math.sqrt(a))
+
+
+# ─── Unit helpers ─────────────────────────────────────────────────────────────
+
+
+def _normalize_capacity_mva(raw: float | None) -> float | None:
+    """Return capacity in MVA, normalising raw kapgi which uses mixed units.
+
+    PLN's substation GeoJSON encodes kapgi inconsistently:
+    - Values 1–9,999  → already in MVA (e.g. 30, 60, 150, 315)
+    - Values ≥ 10,000 → in VA (e.g. 30,000,000 VA = 30 MVA)
+    - Zero or None    → unknown, return None
+
+    The 10,000 threshold is safe because no real transmission substation
+    has a capacity between 10,000 MVA and 10,000 VA (0.01 MVA).
+    """
+    if raw is None or raw == 0:
+        return None
+    if raw >= _KAPGI_VA_THRESHOLD:
+        return round(raw / 1_000_000, 1)
+    return float(raw)
 
 
 # ─── Loaders ──────────────────────────────────────────────────────────────────
@@ -80,7 +106,7 @@ def _load_substations(path: Path) -> list[dict]:
             {
                 "name": props.get("namobj", ""),
                 "voltage_kv": props.get("teggi", ""),
-                "capacity_mva": props.get("kapgi"),
+                "capacity_mva": _normalize_capacity_mva(props.get("kapgi")),
                 "lat": lat,
                 "lon": lon,
             }
