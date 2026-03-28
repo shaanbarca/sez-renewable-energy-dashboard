@@ -333,7 +333,7 @@ Based on the West Kalimantan GIS study (Wijaya et al.) and Indonesia-wide land c
 | Sulawesi (e.g., Bitung, Palu KEKs) | 60–70% | ~10–20% | Steep terrain compounds Kawasan Hutan exclusion |
 | Eastern Indonesia (Papua, Maluku) | 70–80% | ~5–15% | Very high Kawasan Hutan coverage |
 
-**Key implication for this model:** Java KEKs (Kendal, JIIPE, Cirebon, etc.) are the most constrained by **agriculture and density**, not forest. Outer island KEKs are most constrained by **Kawasan Hutan**. The MVP's simplifying assumption that "buildable land exists within 50km" is most likely to hold for Sumatra outer-island KEKs and least likely for densely populated Java KEKs or forest-heavy Sulawesi KEKs.
+**Key implication for this model:** ESA WorldCover land cover (tree cover/forest + cropland + urban + water) is the numerically dominant exclusion at all 25 KEKs, removing 52–93% of raw pixels. This is expected — Indonesia has very high forest and agricultural cover. The `buildability_constraint` column is labeled `"land_cover"` for all KEKs, but peat and kawasan_hutan layers are also active and removing a meaningful share of pixels (peat: 5–39%, kawasan_hutan: 0–27% depending on site). These are confirmed active in the per-layer diagnostic output when running `run_pipeline.py fct_kek_resource`.
 
 ---
 

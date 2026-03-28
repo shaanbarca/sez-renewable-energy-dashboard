@@ -340,7 +340,7 @@ Fact tables describe *what a KEK has* — resource quality, demand, cost, scorec
 | `pvout_buildable_best_50km` | float | computed | Max PVOUT within 50km after 4-layer buildability filter. NaN when `data/buildability/` files absent. |
 | `buildable_area_ha` | float | computed | Total buildable area in 50km radius after all filters (ha). NaN when data absent. |
 | `max_captive_capacity_mwp` | float | computed | `buildable_area_ha / 1.5` — max captive solar capacity (MWp). 1.5 ha/MWp for tropical fixed-tilt. |
-| `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"agriculture"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"` |
+| `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"land_cover"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"`. `"land_cover"` = ESA WorldCover layer (tree cover/forest, cropland, urban, water, wetland, mangrove) — dominant at all 25 KEKs because Indonesian forest cover is pervasive (60–93% of pixels removed). Peat and kawasan_hutan layers are also active and removing pixels but are numerically smaller than land cover. |
 
 **Note:** `pvout_best_50km` is an upper bound — raw raster max with no buildability filter.
 `pvout_buildable_best_50km` applies Layers 1–4 (METHODOLOGY.md §2.5) and is the

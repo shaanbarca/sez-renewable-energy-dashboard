@@ -378,6 +378,19 @@ def _compute_buildable_pvout(
         n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_2, n_after_4
     )
 
+    # Per-layer diagnostic — helps verify each layer is active at each KEK
+    def _pct(removed: int) -> str:
+        return f"{removed / n_raw * 100:.1f}%" if n_raw > 0 else "—"
+
+    print(
+        f"    layers: raw={n_raw}"
+        f"  -kh={n_raw - n_after_1a}({_pct(n_raw - n_after_1a)})"
+        f"  -peat={n_after_1a - n_after_1b}({_pct(n_after_1a - n_after_1b)})"
+        f"  -lc={n_after_1b - n_after_1cd}({_pct(n_after_1b - n_after_1cd)})"
+        f"  -slope={n_after_1cd - n_after_2}({_pct(n_after_1cd - n_after_2)})"
+        f"  buildable={n_after_4}  constraint={constraint}"
+    )
+
     return pvout_buildable_daily, buildable_area_ha, max_mwp, constraint
 
 

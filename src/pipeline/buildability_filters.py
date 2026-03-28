@@ -44,7 +44,7 @@ VALID_CONSTRAINTS: frozenset[str] = frozenset(
         "kawasan_hutan",
         "slope",
         "peat",
-        "agriculture",
+        "land_cover",  # ESA WorldCover layer 1c/d: tree cover, cropland, urban, water, wetland, mangrove
         "area_too_small",
         "unconstrained",
         "data_unavailable",
@@ -183,8 +183,13 @@ def compute_buildability_constraint(
         n_after_layer4:  Remaining after minimum-area filter.
 
     Returns:
-        One of: "kawasan_hutan" | "peat" | "agriculture" | "slope" |
+        One of: "kawasan_hutan" | "peat" | "land_cover" | "slope" |
                 "area_too_small" | "unconstrained"
+
+        Note: "land_cover" covers the full ESA WorldCover exclusion set (tree cover /
+        forest, cropland, urban, water, wetland, mangrove). It is the dominant constraint
+        at most Indonesian sites because forest cover (code 10) is pervasive — even when
+        peat or kawasan_hutan layers are also active and removing pixels.
     """
     if n_pixels_raw == 0:
         return "unconstrained"
@@ -192,7 +197,7 @@ def compute_buildability_constraint(
     removed = {
         "kawasan_hutan": n_pixels_raw - n_after_layer1a,
         "peat": n_after_layer1a - n_after_layer1b,
-        "agriculture": n_after_layer1b - n_after_layer1cd,
+        "land_cover": n_after_layer1b - n_after_layer1cd,
         "slope": n_after_layer1cd - n_after_layer2,
         "area_too_small": n_after_layer2 - n_after_layer4,
     }
