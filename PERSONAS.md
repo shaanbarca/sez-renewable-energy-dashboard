@@ -6,6 +6,15 @@ Four primary user personas. Each section covers: who they are, what they need fr
 
 ---
 
+## Table of Contents
+
+- [Persona 1: Energy Economist](#persona-1-energy-economist) — multilateral development bank analyst (ADB, IFC)
+- [Persona 2: DFI Investor](#persona-2-dfi-investor) — infrastructure fund analyst (Macquarie Green, AIIB)
+- [Persona 3: Policy Maker](#persona-3-policy-maker) — BKPM/KESDM official or energy think-tank adviser
+- [Persona 4: Energy Investor (IPP Developer)](#persona-4-energy-investor-ipp-developer) — captive solar developer (ACEN, Vena Energy)
+
+---
+
 ## Persona 1: Energy Economist
 
 **Role:** Economic analyst, multilateral development bank (ADB, IFC, World Bank)

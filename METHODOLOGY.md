@@ -13,6 +13,45 @@ All formulas are stated with explicit units. All assumptions are documented with
 
 ---
 
+## Table of Contents
+
+- [Workflow Summary](#workflow-summary)
+- [1. Scope and Core Question](#1-scope-and-core-question)
+- [2. Solar Resource: Capacity Factor from PVOUT](#2-solar-resource-capacity-factor-from-pvout)
+  - [2.1 Input data](#21-input-data)
+  - [2.2 Annual PVOUT conversion](#22-annual-pvout-conversion)
+  - [2.3 Capacity factor](#23-capacity-factor)
+  - [2.4 PVOUT extraction per KEK](#24-pvout-extraction-per-kek)
+  - [2.5 Geospatial Buildability Constraints](#25-geospatial-buildability-constraints)
+- [2A. Captive Solar: Legal Framework, Siting Scenarios, and PLN Connection Costs](#2a-captive-solar-legal-framework-siting-scenarios-and-pln-connection-costs)
+  - [2A.1 Legal Definition of Captive Power](#2a1-legal-definition-of-captive-power-kepentingan-sendiri)
+  - [2A.2 PLN Substation Connection](#2a2-pln-substation-connection--legality-and-fees)
+  - [2A.3 Power Wheeling](#2a3-power-wheeling--legally-permitted-practically-blocked)
+  - [2A.4 Two Siting Scenarios](#2a4-two-siting-scenarios)
+  - [2A.5 Model Scope](#2a5-model-scope-phase-2-complete)
+- [3. Levelized Cost of Energy (LCOE)](#3-levelized-cost-of-energy-lcoe)
+  - [3.1 Formula](#31-formula)
+  - [3.2 Technology parameters](#32-technology-parameters-tech006--utility-scale-solar-pv)
+  - [3.3 WACC](#33-wacc)
+  - [3.4 LCOE bands](#34-lcoe-bands)
+- [4. Grid Cost Reference](#4-grid-cost-reference)
+  - [4.1 What is being compared](#41-what-is-being-compared)
+  - [4.2 Coverage by PLN grid system](#42-coverage-by-pln-grid-system)
+- [5. Competitiveness Metrics and Action Flags](#5-competitiveness-metrics-and-action-flags)
+  - [5.1 Solar competitive gap](#51-solar-competitive-gap)
+  - [5.2 Action flags](#52-action-flags)
+  - [5.2b Resilience layer](#52b-resilience-layer-invest_resilience)
+  - [5.3 GEAS green share](#53-geas-green-share)
+  - [5.3b Carbon breakeven price](#53b-carbon-breakeven-price)
+  - [5.4 Flip scenario](#54-flip-scenario)
+  - [5.5 All-in captive solar cost](#55-all-in-captive-solar-cost-investment-screen)
+- [6. Known Limitations and Caveats](#6-known-limitations-and-caveats)
+- [7. Assumptions Summary](#7-assumptions-summary)
+- [8. Open Methodological Questions](#8-open-methodological-questions)
+- [9. Reproducibility](#9-reproducibility)
+
+---
+
 ## Workflow Summary
 
 The model answers one question per KEK: **is captive solar cheaper than buying grid power, and if not, how close is it?**

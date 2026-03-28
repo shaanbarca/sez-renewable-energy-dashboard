@@ -5,6 +5,26 @@
 
 ---
 
+## Table of Contents
+
+- [§1 Problem Statement](#1-problem-statement)
+- [§2 Information Architecture](#2-information-architecture)
+- [§3 Component Architecture](#3-component-architecture)
+  - [State management](#state-management)
+  - [Callback architecture](#callback-architecture)
+  - [Component choices](#component-choices)
+- [§4 Colour & Visual Language](#4-colour--visual-language)
+  - [Action flag colours](#action-flag-colours)
+  - [Data quality indicators](#data-quality-indicators)
+  - [Quadrant zones](#quadrant-zones)
+- [§5 Data Decisions for the UI](#5-data-decisions-for-the-ui)
+  - [What is precomputed vs. computed live](#what-is-precomputed-vs-computed-live)
+  - [WACC slider behaviour](#wacc-slider-behaviour)
+  - [Demand override hook](#demand-override-hook)
+- [§6 Open Design Questions](#6-open-design-questions)
+
+---
+
 ## §1 Problem Statement
 
 Indonesia's 25 Special Economic Zones (KEKs) face a fragmented energy landscape: captive solar may already be cheaper than grid power at some sites, but no single tool shows which KEKs are competitive today, which are one policy lever away, and which are genuinely grid-dependent. This dashboard answers that question for the four audiences who most need it — development bank analysts, infrastructure investors, Indonesian policymakers, and IPP developers — using precomputed LCOE bands, buildable solar resource estimates, and RUPTL pipeline data joined at KEK level for the first time.

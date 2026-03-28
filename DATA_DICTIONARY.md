@@ -10,6 +10,34 @@ Contract for the data pipeline. Three parts:
 
 ---
 
+## Table of Contents
+
+- [Table Index](#table-index) — all 9 output tables at a glance
+- [Part 1 — Raw Inputs](#part-1--raw-inputs)
+  - [1.1 kek_info_and_markers.csv](#11-outputsdatarawkek_info_and_markerscsv)
+  - [1.2 kek_distribution_points.csv](#12-outputsdatarawkek_distribution_pointscsv)
+  - [1.3 kek_polygons.geojson](#13-outputsdatarawkek_polygonsgeojson)
+  - [1.4 kek_grid_region_mapping.csv](#14-datakek_grid_region_mappingcsv)
+  - [1.5 dim_tech_variant.csv + fct_tech_parameter.csv](#15-datadim_tech_variantcsv--datafct_tech_parametercsv)
+  - [1.6 Global Solar Atlas GeoTIFF](#16-global-solar-atlas-geotiff-zipped)
+  - [1.7 Permen ESDM 7/2024 (tariff PDF)](#17-docspermen-esdm-nomor-7-tahun-2024pdf)
+  - [1.8 RUPTL 2025–2034 (PDF)](#18-docsb967d-ruptl-pln-2025-2034-pub-pdf)
+  - [1.9 substation.geojson](#19-datasubstationgeojson)
+- [Part 2 — Dimension Tables](#part-2--dimension-tables)
+  - [2.1 dim_kek](#21-outputsdataprocesseddim_kekcsv)
+  - [2.2 dim_tech_cost](#22-outputsdataprocesseddim_tech_costcsv)
+- [Part 3 — Fact Tables](#part-3--fact-tables)
+  - [3.1 fct_kek_resource](#31-outputsdataprocessedfct_kek_resourcecsv)
+  - [3.2 fct_kek_demand](#32-outputsdataprocessedfct_kek_demandcsv)
+  - [3.3 fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv)
+  - [3.4 fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv)
+  - [3.4b fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv)
+  - [3.5 fct_lcoe](#35-outputsdataprocessedfct_lcoecsv)
+  - [3.6 fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv)
+- [Open Questions](#open-questions)
+
+---
+
 ## Table Index
 
 All processed output tables. Click a table name to jump to its full column spec.

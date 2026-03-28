@@ -6,6 +6,20 @@
 
 ---
 
+## Table of Contents
+
+- [The Problem This Solves](#the-problem-this-solves)
+- [The Core Question](#the-core-question)
+- [How It Works — Five Steps](#how-it-works--five-steps)
+- [Key Concepts (Plain English)](#key-concepts-plain-english)
+- [What's Been Built](#whats-been-built)
+- [The Data (What's Available Today)](#the-data-whats-available-today)
+- [Known Limitations](#known-limitations)
+- [Who This Is For and How to Use It](#who-this-is-for-and-how-to-use-it)
+- [Document Map](#document-map)
+
+---
+
 ## The Problem This Solves
 
 Indonesia has 24 **Special Economic Zones** (called KEKs — *Kawasan Ekonomi Khusus*) spread across the archipelago. These are industrial parks and tourism zones where the government has created special rules to attract foreign investment. One of the biggest questions investors ask before committing to a KEK is: **"How much will electricity cost here, and can we get clean energy?"**

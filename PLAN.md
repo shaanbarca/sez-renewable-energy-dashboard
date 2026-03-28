@@ -6,6 +6,27 @@
 
 ---
 
+## Table of Contents
+
+- [What We're Building](#what-were-building)
+- [Architecture](#architecture)
+- [Dashboard Modules (MVP)](#dashboard-modules-mvp)
+- [User Journey](#user-journey)
+- [Delivery Phases](#delivery-phases)
+  - [Phase 1 — Data pipeline ✅ COMPLETE](#phase-1--data-pipeline--complete-2026-03-26)
+  - [Phase 2 — Model layer + scorecard enhancements ✅ COMPLETE](#phase-2--model-layer--scorecard-enhancements--complete)
+  - [Phase 3 — Dash app + open data release](#phase-3--dash-app--open-data-release)
+    - [Step 3.0 — Scorecard pre-flight ✅ COMPLETE](#step-30--scorecard-pre-flight--complete)
+    - [Step 3.1 — Resolve design decisions](#step-31--resolve-design-decisions-before-writing-dash-code)
+    - [Step 3.2 — Build Dash app](#step-32--build-dash-app)
+    - [Step 3.3 — Open data release](#step-33--open-data-release)
+- [Data Sources](#data-sources-public)
+- [Open Questions](#open-questions)
+- [Success Criteria](#success-criteria)
+- [What Exists Today](#what-exists-today)
+
+---
+
 ## What We're Building
 
 A Dash-based dashboard that answers: **"Which of Indonesia's 24 KEK (Special Economic Zones) can offer low-cost, low-carbon, reliable electricity — and what must change to get there?"**

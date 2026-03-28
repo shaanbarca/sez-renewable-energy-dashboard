@@ -1,5 +1,21 @@
 # Architecture — Indonesia KEK Power Competitiveness
 
+## Table of Contents
+
+- [System Overview](#system-overview)
+- [Technology Stack](#technology-stack)
+- [Pipeline Dependency Graph](#pipeline-dependency-graph)
+- [Key Design Decisions](#key-design-decisions)
+  - [1. Star Schema — Dim + Fact Tables](#1-star-schema--dim--fact-tables)
+  - [2. Precomputed Flat Tables — No Runtime Raster Operations](#2-precomputed-flat-tables--no-runtime-raster-operations)
+  - [3. Builder Pattern — One Function Per Pipeline Step](#3-builder-pattern--one-function-per-pipeline-step)
+  - [4. PDF Extractor Pattern — Pdfplumber + Hardcoded Fallback](#4-pdf-extractor-pattern--pdfplumber--hardcoded-fallback)
+  - [5. Pure-Function Buildability Filters — No I/O, Fully Testable](#5-pure-function-buildability-filters--no-io-fully-testable)
+- [Buildability Data Flow](#buildability-data-flow)
+- [Module Map](#module-map)
+
+---
+
 ## System Overview
 
 ```mermaid
