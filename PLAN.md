@@ -90,21 +90,27 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 - Wind CF (Global Wind Atlas GeoTIFF) — same rasterio pipeline, additive
 - Substation proximity (`dist_to_nearest_substation_km`) — data in repo
 
-### Phase 2 — Data pipeline improvements + Dash app
-- Land cover buildability filter (`fct_kek_resource` v1.1) — filter PVOUT by usable area (exclude forests, rice fields, protected zones)
-- Substation proximity (`dist_to_nearest_substation_km`) — data in `data/substation.geojson`
-- 3-page Dash app: Overview / KEK scorecard / Pipeline & policy
-- WACC slider + scenario toggles
-- Map (Plotly scatter_mapbox), quadrant chart, ranked table, scorecard
-- Flip scenario logic: `solar_competitive_gap` threshold flagging
-- CSV/GeoJSON export
+### Phase 2 — Model layer + scorecard enhancements ✅ COMPLETE
 
-**Phase 2 closeout — pipeline architecture review:**
-Before moving to Phase 3, do a DRY/reusability pass on `src/pipeline/`:
-- Identify repeated patterns across `build_*.py` files (CSV loading, column renaming, unit conversion boilerplate)
-- Extract shared helpers if the same logic appears in 3+ builders
-- Review whether any builder has grown too large and should be split
-- Do NOT pre-abstract speculatively — only refactor what's demonstrably repeated
+**Built (commits d9b2c77 → a6017b1):**
+
+| Feature | What was built | Decision |
+|---------|---------------|----------|
+| Substation proximity | `fct_substation_proximity.csv` — haversine distance to nearest PLN substation; `siting_scenario` (within_boundary / remote_captive). Gen-tie CAPEX adder integrated into `fct_lcoe`. | `d92189e` |
+| `invest_resilience` flag | Fires when 0 < solar_competitive_gap ≤ 20% AND reliability_req ≥ 0.75. At WACC=10%: 4 KEKs (Kendal, Gresik, Batang, Bitung — all manufacturing). Rationale: manufacturing outage cost (~$50–200/MWh lost production) justifies premium over grid parity. | `d9b2c77` |
+| `carbon_breakeven_usd_tco2` | `lcoe_gap / grid_emission_factor` (USD/tCO2). Uses Operating Margin (OM) — emission intensity of existing plants displaced by captive solar. Range: $3.4 (Mandalika, diesel grid) → $36.6 (Morotai). | `d9b2c77` |
+| Grid emission factors | Replaced provisional estimates with **KESDM Tier 2 OM values, 2019** (`data/grid_emission_factors.xlsx`). All 7 grid_region_ids explicitly mapped. Largest corrections: KALIMANTAN 0.72→1.16, NTB 0.78→1.27, MALUKU/PAPUA now correctly mapped (were using wrong default). | `2bb0771` |
+| WACC=8% flip columns | `lcoe_mid_wacc8_usd_mwh`, `solar_competitive_gap_wacc8_pct`, `solar_now_at_wacc8`. 8 KEKs flip at WACC=8% (vs 0 at WACC=10%). Answers DFI question: "what financing de-risking is needed?" | `e4f003d` |
+| Industrial tariff docs | I-3/I-4 implementation confirmed as complete (OFFICIAL). BPP explicitly deferred — using I-4/TT ($63.08/MWh) is correct; BPP would overstate grid cost. | `4b7b1d3` |
+| Methodology "why it matters" | Added purpose rationale for `invest_resilience` thresholds, GEAS green share (GEAS vs. captive solar as substitutes), and emission factor table. | `2bb0771` |
+| Stale doc cleanup | TECH006 "not yet extracted" → verified values; `kek_grid_region_mapping` "does not exist" → ✅ 26 rows; all Phase 1 open questions marked resolved or explicitly deferred. | `a6017b1` |
+
+**Deferred from Phase 2 original scope:**
+- ⏳ Land cover buildability filter — `pvout_best_50km` still upper bound; deferred to v1.1
+- ⏳ 3-page Dash app — moved to Phase 3 (validate data model with personas first)
+- ⏳ Wind CF — no Global Wind Atlas integration yet
+
+**Phase 2 closeout state:** 25 KEKs, 43-column scorecard, all `data_completeness: complete`, 171 tests passing.
 
 ### Phase 3 — Open data release
 - Versioned GitHub Releases: `kek_scorecard_v{N}.csv`, `kek_lcoe_scenarios_v{N}.csv`, `kek_map_v{N}.geojson`, `SOURCES.md`
