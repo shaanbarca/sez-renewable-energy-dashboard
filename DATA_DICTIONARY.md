@@ -511,7 +511,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `lcoe_high_usd_mwh` | fct_lcoe | `lcoe_solar(capex_upper, fom, 0.10, lifetime, cf)` |
 | `cf_used` | fct_lcoe | CF used in LCOE calc |
 | `is_cf_provisional` | fct_lcoe | True if centroid fallback |
-| `is_capex_provisional` | fct_lcoe | True until TECH006 PDF-verified |
+| `is_capex_provisional` | fct_lcoe | False — TECH006 verified from `docs/esdm_technology_cost.pdf` p.66 |
 
 **Grid cost columns** (from fct_grid_cost_proxy):
 
@@ -569,7 +569,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 1. **BPP data** — PLN Statistik 2024 regional BPP not yet sourced. Currently using I-4/TT tariff as proxy. When available, add to `fct_grid_cost_proxy.bpp_usd_mwh` and compare with tariff.
 
-2. **TECH006 CAPEX verification** — `source_page=0` placeholder. Verify from `docs/esdm_technology_cost.pdf`. Once verified, `is_capex_provisional` will flip to `False` across all LCOE and scorecard rows.
+2. ✅ **TECH006 CAPEX verified** — extracted from `docs/esdm_technology_cost.pdf` p.66. `source_page=66`, `is_capex_provisional=False` across all LCOE and scorecard rows. Values: CAPEX=$960/kW, FOM=$7.5/kW/yr, lifetime=27yr.
 
 3. **Landcover buildability filter** — `pvout_best_50km` is currently an upper bound with no exclusion of forests, peat, protected areas. Planned for v1.1: 4-layer filter (HCS/HCV, peatland, protected areas, slope > 15°).
 

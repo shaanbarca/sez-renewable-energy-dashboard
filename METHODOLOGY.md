@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
-**Version:** 0.1 (pre-implementation draft)
-**Status:** For methodology review — not yet implemented in code
+**Version:** 0.2 (implemented)
+**Status:** ✅ Fully implemented in code — 9 pipeline steps, 25 KEKs, 171 tests passing
 **Intended audience:** Energy economists, development bank analysts, peer reviewers
 
 This document specifies the analytical methodology used in the Indonesia KEK Power Competitiveness tool. It serves three purposes:
@@ -430,15 +430,15 @@ Where:
 
 **Source:** ESDM Technology Catalogue (Indonesia Ministry of Energy), parsed into `data/fct_tech_parameter.csv`
 
-⚠️ **STATUS: TECH006 parameters NOT YET extracted into `fct_tech_parameter.csv`** (as of 2026-03-25, only TECH001/002 coal are in the file). Solar parameters must be extracted from `Technology_Catalogue.pdf` and added before `scripts/build_dim_tech_cost.py` can run. The values below are from the notebook prototype (placeholders pending PDF extraction):
+✅ **TECH006 parameters verified from PDF** (`docs/esdm_technology_cost.pdf`, page 66). Extracted by `src/pipeline/pdf_extract_esdm_tech.py`, with hardcoded fallback in `VERIFIED_TECH006_DATA`. `is_capex_provisional=False` across all LCOE and scorecard rows.
 
-| Parameter | Placeholder value | Unit | Source | Notes |
-|-----------|------------------|------|--------|-------|
-| CAPEX (central) | 700 | USD/kW | Notebook placeholder | Verify from Technology_Catalogue.pdf TECH006 table |
-| CAPEX (lower) | — | USD/kW | — | Needed for lcoe_low band |
-| CAPEX (upper) | — | USD/kW | — | Needed for lcoe_high band |
-| FOM (central) | 12 | USD/kW/yr | Notebook placeholder | Verify from Technology_Catalogue.pdf |
-| Lifetime | 25 | years | Notebook placeholder | Verify from Technology_Catalogue.pdf |
+| Parameter | Verified value | Unit | Source |
+|-----------|---------------|------|--------|
+| CAPEX (central) | 960 | USD/kW | ESDM Technology Catalogue 2023, p.66 (0.96 MUSD/MWe × 1000) |
+| CAPEX (lower) | 840 | USD/kW | ESDM p.66 (0.84 MUSD/MWe × 1000) |
+| CAPEX (upper) | 1,080 | USD/kW | ESDM p.66 (1.08 MUSD/MWe × 1000) |
+| FOM (central) | 7.5 | USD/kW/yr | ESDM p.66 (7,500 USD/MWe/yr ÷ 1000) |
+| Lifetime | 27 | years | ESDM p.66 (central value) |
 
 **Unit conversion required:** The Technology Catalogue stores CAPEX in MUSD/MWe (millions USD per MW electric). Convert to USD/kW:
 ```
@@ -498,7 +498,7 @@ The LCOE is compared against the **cost of grid-supplied electricity** to a KEK 
 
 Grid costs are at PLN **system level** (e.g., Sistem Jawa-Bali, Sistem Sumatera), not at KEK level. Each KEK inherits the grid cost of the system it belongs to, via the `grid_region_id` join.
 
-**Known gap:** The `kek_grid_region_mapping.csv` file (mapping each KEK to a PLN system) does not yet exist. It must be created manually using KEK address data and PLN's system boundary maps.
+✅ `data/kek_grid_region_mapping.csv` exists — 26 rows mapping all 25 KEKs to their PLN grid system (`grid_region_id`), province, and `reliability_req`. Created manually via KEK address data and PLN system boundary maps. Maintained as a lookup table; update if a KEK's grid connection changes.
 
 ---
 
@@ -715,7 +715,7 @@ This adder range is clearly labeled as an estimate. The competitive gap calculat
 | Regional solar CF (GEAS) | 20% | Representative for RUPTL-planned utility solar in Indonesia | Low sensitivity |
 | RUPTL GEAS baseline allocation | Pro-rata to demand | Simplest defensible allocation; no preferential treatment | Policy scenario uses demand × PVOUT |
 | `plan_late` threshold | post2030_share ≥ 60% | Majority of regional additions post-2030 = late pipeline | Could be 50% or 70%; low sensitivity on flag count |
-| `firming_needed` reliability threshold | reliability_req ≥ 0.75 | Placeholder — needs validation with KEK sector data | TASTE DECISION: threshold not yet sourced |
+| `firming_needed` / `invest_resilience` reliability threshold | reliability_req ≥ 0.75 | Manufacturing/processing KEKs per sector classification in `kek_grid_region_mapping.csv` (Manufacturing=0.8, Service=0.6, Tourism=0.4). Threshold operationalized; stakeholder validation recommended for v2. | |
 | PVOUT plausibility bounds | 1,000–2,500 kWh/kWp/yr | Indonesia solar range from Global Solar Atlas | Used for data validation, not analysis |
 | Buildable land (≥ 10 ha contiguous, slope ≤ 8°, outside Kawasan Hutan / peat / flood zones) assumed to exist within 50km radius | MVP simplification — risk is highest for Java KEKs (dense agriculture) and Sulawesi KEKs (Kawasan Hutan + steep terrain); outer Sumatra KEKs are generally lower risk | `pvout_best_50km` labeled `provisional`; v1.1 applies 4-layer filter (Section 2.5) to compute `pvout_buildable_best_50km` and `buildable_area_ha` |
 | Land use for captive solar assumed compliant with RTRW spatial plan | Local spatial plans (RTRW kabupaten/provinsi) may designate specific zones for industrial vs. agricultural use; solar on APL land is generally permissible but RTRW compliance must be verified per KEK by the developer | Not modeled; flagged as due diligence item for any KEK showing as `solar_now` |
@@ -725,23 +725,27 @@ This adder range is clearly labeled as an estimate. The competitive gap calculat
 
 ## 8. Open Methodological Questions
 
-These must be resolved (or explicitly assumed and flagged) before Phase 1 implementation:
+**Resolved decisions (Phase 1 + 2):**
 
-1. **`solar_attractive` threshold:** Use WACC-dependent `lcoe_mid ≤ grid_cost` (recommended) or a fixed USD/MWh threshold?
+1. ✅ **`solar_attractive` threshold** — WACC-dependent: `lcoe_mid ≤ dashboard_rate_usd_mwh`. No fixed threshold needed.
 
-2. **`clean_power_advantage` composite score formula:** The map colors KEKs by this score, but the formula is undefined. Options:
-   - A) `−solar_competitive_gap` (continuous, intuitive)
-   - B) Discrete: map `action_flag` to 4 ordered categories
-   - C) Weighted composite: LCOE gap + PVOUT resource quality + substation proximity
-   - **Recommendation:** Start with B (discrete action flag) for v1 — auditable and defensible. Upgrade to A or C in v2 with methodology note.
+2. ✅ **`clean_power_advantage`** — implemented as `−solar_competitive_gap_pct` (Option A: continuous, intuitive). Column present in scorecard.
 
-3. **`reliability_req` values per KEK:** The `firming_needed` flag depends on a `reliability_req` field per KEK. This field is not in the scraped data — it must be estimated from KEK sector type (manufacturing = high reliability; logistics = medium; tourism = lower). Document the mapping explicitly before using it.
+3. ✅ **`reliability_req` values** — set in `data/kek_grid_region_mapping.csv` by sector type: Manufacturing=0.8, Service/Digital=0.6, Tourism=0.4. Used by `firming_needed` and `invest_resilience` flags.
 
-4. **I-3 vs I-4 tariff for KEK tenants:** Not all KEK tenants are I-4 scale (>30 MVA). A mixed-use KEK may have tenants on I-3 tariffs. Should the model use I-4 (most conservative for solar competitiveness), I-3, or show a range?
+4. ✅ **I-3 vs I-4 tariff** — I-4/TT ($63.08/MWh) used as primary comparator (correct for large industrial KEK tenants). I-3/TM ($65.57/MWh) stored as `tariff_i3_usd_mwh` for reference. Both are uniform nationwide.
 
-5. **RUPTL `grid_upgrade_pre2030` derivation:** Is this derivable from the capacity addition table, or does it require a separate RUPTL table (grid upgrade projects)?
+5. ✅ **`grid_upgrade_pre2030`** — derived from RUPTL capacity addition table: `True if pre2030_solar_mw > 0` for the KEK's grid region. Uses `fct_ruptl_pipeline.csv` pre-2030 sum.
 
-6. **Buildability threshold for MVP:** Should the MVP label `pvout_best_50km` as provisional (upper bound, no terrain filter) and defer to v1.1, or block Phase 1 sign-off until at least a slope mask is applied? The latter would require downloading SRTM/Copernicus DEM data before scripts run. Recommendation: label as provisional in MVP, add to v1.1 backlog — the slope constraint is unlikely to change the ranking of the top 6–8 KEKs which are the primary targets for the dashboard.
+6. ✅ **Buildability threshold** — `pvout_best_50km` labeled provisional (upper bound, no terrain filter). Deferred to v1.1. All resource values carry `data_completeness` flag.
+
+**Still open (genuine deferrals for Phase 3+):**
+
+7. ⏳ **BPP data** — PLN Statistik 2024 regional BPP not yet sourced. `bpp_usd_mwh` column exists but is null. When available, add as secondary reference — do not replace I-4/TT as primary comparator.
+
+8. ⏳ **Landcover buildability filter** — `pvout_best_50km` is an upper bound. Planned for v1.1: 4-layer filter (HCS/HCV, peatland, protected areas, slope > 15°) → `pvout_buildable_best_50km` + `buildable_area_ha`.
+
+9. ⏳ **Reliability threshold validation** — `reliability_req` thresholds are sector-derived (Manufacturing=0.8 etc.). Stakeholder validation with KEK operators recommended before using `invest_resilience` flag in formal policy advice.
 
 ---
 

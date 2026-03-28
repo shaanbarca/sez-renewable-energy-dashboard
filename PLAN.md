@@ -157,7 +157,7 @@ Before moving to Phase 3, do a DRY/reusability pass on `src/pipeline/`:
 **Data**:
 - `data/dim_tech_variant.csv` + `data/fct_tech_parameter.csv` — ESDM tech catalogue (TECH006 added)
 - `data/Indonesia_GISdata_LTAym_*_GlobalSolarAtlas-v2_GEOTIFF.zip` — solar raster data
-- `data/substation.geojson` — substation locations (not yet used in pipeline)
+- `data/substation.geojson` — substation locations (✅ used by `fct_substation_proximity`)
 - `data/industrial_data/` — industrial facility shapefile (deferred)
 - `outputs/data/raw/` — scraped KEK data (markers, polygons, business sectors)
 - `docs/` — RUPTL PDF, Permen ESDM 7/2024, ESDM technology cost PDF
