@@ -34,7 +34,7 @@ Step 3 — Grid cost reference
   Permen ESDM No.7/2024, Lampiran IV
     → I-4/TT tariff = 996.74 Rp/kWh ≈ 63.1 USD/MWh  [uniform nationwide]
     → I-3/TM tariff = 1,035.78 Rp/kWh ≈ 65.6 USD/MWh [uniform nationwide]
-    (BPP varies by PLN system — to be added from PLN Statistik 2024)
+    (BPP varies by PLN system — deferred; I-4/TT used as primary comparator)
 
 Step 4 — Competitiveness gap
   solar_competitive_gap [%] = (LCOE − grid_cost) / grid_cost × 100
@@ -482,19 +482,17 @@ The LCOE is compared against the **cost of grid-supplied electricity** to a KEK 
 
 | Metric | Definition | Source | Status |
 |--------|-----------|--------|--------|
-| PLN BPP | PLN's cost of supply (biaya pokok penyediaan) by grid system | PLN Statistik PLN 2024 | ❌ not yet in repo |
-| I-4 industrial tariff | Tariff paid by large industrial consumers (>30 MVA) | Permen ESDM No. 7 Tahun 2024 | ❌ not yet in repo |
-| I-3 industrial tariff | Tariff paid by medium industrial consumers (>200 kVA) | Permen ESDM No. 7 Tahun 2024 | ❌ not yet in repo |
+| PLN BPP | PLN's cost of supply (biaya pokok penyediaan) by grid system | PLN Statistik 2024 | ⚠️ deferred — `bpp_usd_mwh` column exists in `fct_grid_cost_proxy` but is null |
+| I-4 industrial tariff | Tariff paid by large industrial consumers (≥30,000 kVA) | Permen ESDM No. 7 Tahun 2024 | ✅ implemented — $63.08/MWh, uniform nationwide |
+| I-3 industrial tariff | Tariff paid by medium industrial consumers (200–30,000 kVA) | Permen ESDM No. 7 Tahun 2024 | ✅ implemented — $65.57/MWh, uniform nationwide |
 
 **Critical distinction:** PLN BPP is PLN's *cost of supply*, not the tariff a KEK tenant actually pays. Industrial tariffs (Golongan I-3/I-4) are set by ESDM and may be 15–35% below BPP due to cross-subsidy policy. Using BPP as the comparator overstates the grid cost, making solar appear more competitive than it is in practice.
 
-**Methodology decision (BLOCKING — not yet resolved):**
-- The quadrant chart y-axis should use the **I-4 industrial tariff** (Permen ESDM No. 7/2024) as the primary comparator, since KEK tenants are large industrial consumers.
-- Where I-4 tariff is unavailable for a region, use I-3 tariff with a note.
-- Where neither is available, fall back to BPP with a `PROVISIONAL` flag and a visible caveat: *"Grid cost shown is PLN cost of supply (BPP), not the industrial tariff paid by tenants. Actual tariff may be 15–35% lower."*
-- Both BPP and tariff are stored in `fct_grid_cost_proxy.csv`; the dashboard shows tariff as primary.
-
-**Research required:** Extract I-3/I-4 tariff schedule from Permen ESDM No. 7 Tahun 2024. Cross-reference against PLN Statistik 2024 BPP tables. Map to the 6 PLN grid systems in `dim_kek`.
+**Methodology decision (RESOLVED):**
+- `dashboard_rate_usd_mwh` = I-4/TT tariff ($63.08/MWh) — the correct primary comparator for large industrial KEK tenants. Flagged `OFFICIAL` in `fct_grid_cost_proxy`.
+- I-3/TM ($65.57/MWh) is stored as `tariff_i3_usd_mwh` — available for smaller tenant analysis.
+- Both tariffs are **uniform nationwide** (Permen ESDM No. 7/2024, Lampiran IV). No regional variation.
+- BPP is deferred — stored as null in `bpp_usd_mwh`. If added, it would be used only as a secondary reference with a `PROVISIONAL` caveat: *"Grid cost shown is PLN cost of supply (BPP), not the industrial tariff paid by tenants."*
 
 ### 4.2 Coverage by PLN grid system
 

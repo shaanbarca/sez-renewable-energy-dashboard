@@ -98,8 +98,8 @@ def build_fct_grid_cost_proxy(
             "notes": (
                 "I-3/I-4 tariffs are uniform nationwide (no regional variation). "
                 "LWBP rate used; WBP peak rate = K×LWBP where K=1.4–2.0 (system-specific). "
-                "BPP (PLN cost of supply) varies by region — to be added from PLN Statistik 2024. "
-                "Emission factor: provisional from PLN Statistik 2023 + IEA SEA Energy Outlook 2024."
+                "BPP (PLN cost of supply) varies by region — deferred; bpp_usd_mwh is null. "
+                "Emission factor: KESDM Tier 2 Operating Margin, 2019 vintage (data/grid_emission_factors.xlsx)."
             ),
         })
 
