@@ -74,11 +74,17 @@ PVOUT_SOURCE: str = "GlobalSolarAtlas-v2"
 
 # ─── LCOE MODEL ───────────────────────────────────────────────────────────────
 
-WACC_VALUES: list[float] = [8.0, 10.0, 12.0]
-# WACC sensitivity range (%) for precomputed LCOE table.
+WACC_VALUES: list[float] = [4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
+# WACC sensitivity range (%) for precomputed LCOE table. 2% steps, 4–20%.
 # Source: METHODOLOGY.md Section 3.3.
-# Rationale: 10% = emerging-market base case; 8% = optimistic (policy de-risking);
-#            12% = pessimistic (unstructured project finance).
+# Rationale:
+#   4–6%  — DFI concessional blended finance (IFC, AIIB, DFC facility rates)
+#   8%    — DFI de-risked / policy-supported project finance
+#   10%   — base case: typical Indonesian IPP project finance cost of capital
+#   12%   — pessimistic: unstructured project finance
+#   14–16% — equity premium / higher-risk scenarios
+#   18–20% — opportunistic equity; SE Asia ceiling (above 20% no renewable project closes)
+# No hard cap in code — WACC_VALUES is just a list; extend if needed.
 
 BASE_WACC: float = 10.0
 # Base-case WACC (%) used for action flags and competitive gap calculation.

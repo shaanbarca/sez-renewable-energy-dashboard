@@ -256,19 +256,19 @@ class TestFctKekResource:
 
 
 class TestFctLcoe:
-    def test_three_wacc_values(self):
-        """Should produce rows for WACC = 8, 10, 12%."""
+    def test_wacc_values_full_range(self):
+        """Should produce rows for all 9 WACC snaps: 4% through 20% in 2% steps."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
         df = build_fct_lcoe()
-        assert set(df["wacc_pct"].unique()) == {8.0, 10.0, 12.0}
+        assert set(df["wacc_pct"].unique()) == {4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0}
 
     def test_row_count(self):
-        """25 KEKs × 3 WACC values × 2 scenarios = 150 rows."""
+        """25 KEKs × 9 WACC values × 2 scenarios = 450 rows."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
         df = build_fct_lcoe()
-        assert len(df) == 150
+        assert len(df) == 450
 
     def test_two_scenarios(self):
         """Each KEK/WACC combination must have both within_boundary and remote_captive."""
