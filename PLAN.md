@@ -159,9 +159,10 @@ After this step: `fct_kek_scorecard` is the single source of truth for all four 
 
 Full gap inventory in [PERSONAS.md](PERSONAS.md) under each persona's `### Data gaps` section. Gaps are bucketed by effort:
 
-**Bucket A — Small scorecard additions (Phase 3, ~1 pipeline step):**
-- `project_viable` boolean derived from `buildable_area_ha ≥ 50 ha` (≥ 33 MWp) — needed by DFI Investor and IPP Developer to filter investable sites without manual math
-- WACC range expansion: add 6% and 14% to `fct_lcoe` (2 extra rows per KEK) — needed by Energy Economist to show concessional-to-equity full range
+**Bucket A — Small scorecard additions:**
+- ✅ **`project_viable` boolean** — `max_captive_capacity_mwp ≥ 20 MWp` in `fct_kek_scorecard`. All 25 KEKs = True at 1km resolution.
+- ✅ **WACC range expansion** — `WACC_VALUES = [4, 6, 8, 10, 12, 14, 16, 18, 20]`; `fct_lcoe` 150 → 450 rows. Full DFI concessional (4–6%) to equity ceiling (20%).
+- ✅ **Transmission lease fee** — `lcoe_allin_*` in `fct_lcoe`; `lcoe_remote_captive_allin_*` + `project_viable` + `transmission_lease_adder_usd_mwh` in scorecard.
 
 **Bucket B — Data sourcing required (v1.2):**
 - PLN Statistik 2024 regional BPP → populate `bpp_usd_mwh` in `fct_grid_cost_proxy` (Energy Economist)

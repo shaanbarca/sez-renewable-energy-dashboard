@@ -503,11 +503,13 @@ Add assertion: `assert 200 < CAPEX < 3000` to catch unit errors.
 
 ### 3.3 WACC
 
-The WACC is the primary user-adjustable parameter in the dashboard (slider: 6–15%, default: 10%).
+The WACC is the primary user-adjustable parameter in the dashboard (slider: 4–20%, default: 10%).
 
 **Default 10% rationale:** ADB's benchmark weighted average cost of capital for renewable energy projects in Southeast Asia is approximately 8–12%. 10% is the midpoint and a common assumption in development bank screening models. The user can adjust to match their fund's actual hurdle rate.
 
 **WACC=8% de-risked scenario:** The scorecard precomputes a static WACC=8% column (`lcoe_mid_wacc8_usd_mwh`, `solar_competitive_gap_wacc8_pct`, `solar_now_at_wacc8`) alongside the WACC=10% base case. At WACC=8%, **8 KEKs flip to solar-competitive** (vs. 0 at WACC=10%). This answers the DFI question "what financing de-risking is needed?" — if a green finance facility, concessional loan, or first-loss guarantee can bring a project's effective WACC from 10% to 8%, solar wins for those 8 KEKs without any change in the underlying resource or technology cost.
+
+**Precomputed snap range (✅ implemented):** `fct_lcoe` precomputes LCOE at 9 WACC values: `[4, 6, 8, 10, 12, 14, 16, 18, 20]` (2% steps). This covers the full spectrum from DFI concessional blended finance (4–6%, e.g. IFC, AIIB, DFC facility rates) through commercial project finance (8–12%) to private equity scenarios (14–20%). No hard cap in code — `WACC_VALUES` in `src/assumptions.py` is a list. The `fct_lcoe` table is 25 KEKs × 9 WACC snaps × 2 scenarios = 450 rows.
 
 **Edge cases:**
 - `wacc = 0`: clamp to 0.01 (1%) to avoid division by zero in CRF. Show warning in UI.
@@ -723,22 +725,33 @@ These are zones where solar is not yet competitive but is within `flip_threshold
 
 ### 5.5 All-in captive solar cost (investment screen)
 
-The LCOE formula captures generation cost only. A KEK tenant choosing captive solar also incurs:
+The LCOE formula captures generation cost only. A KEK tenant choosing captive solar also incurs operating costs that depend on the siting scenario.
 
-| Cost component | Typical range | Source |
-|---------------|--------------|--------|
-| Grid backup contract (standby power) | ~$3–8/MWh on an effective basis | Industry estimates |
-| Wheeling charges (if not on-site) | ~$2–5/MWh | PLN wheeling tariff |
-| PLN permitting and connection costs | ~$1–3/MWh amortized | Industry estimates |
-| **Total adder** | **~$6–16/MWh** | — |
+**Two distinct cost layers:**
 
-The scorecard displays:
+**Layer A — Transmission lease (remote_captive only, ✅ implemented):**
+For the 23/25 KEKs that are `remote_captive` (solar plant off-site, energy wheeled via PLN grid), a transmission lease fee applies:
+
+| Cost component | Range | Source |
+|---------------|-------|--------|
+| PLN wheeling tariff | ~$2–5/MWh | PLN Peraturan |
+| Grid backup / standby charge | ~$3–8/MWh effective | Industry estimates |
+| PLN connection/permitting (amortized) | ~$1–3/MWh | Industry estimates |
+| **Transmission lease total** | **$5–15/MWh (mid: $10)** | `src/assumptions.py` |
+
+Implemented columns (`fct_lcoe` and `fct_kek_scorecard`):
 ```
-lcoe_all_in_low = lcoe_mid + 6   [USD/MWh]  (optimistic adder)
-lcoe_all_in_high = lcoe_mid + 16  [USD/MWh]  (conservative adder)
+transmission_lease_adder_usd_mwh  = 10.0  (mid) for remote_captive; 0 for within_boundary
+lcoe_allin_usd_mwh                = lcoe_usd_mwh + transmission_lease_adder_usd_mwh
+lcoe_allin_low_usd_mwh            = lcoe_low_usd_mwh + 5.0   (low lease bound)
+lcoe_allin_high_usd_mwh           = lcoe_high_usd_mwh + 15.0  (high lease bound)
 ```
+Scorecard exposes: `lcoe_remote_captive_allin_usd_mwh` (+low/high) at `BASE_WACC = 10%`.
 
-This adder range is clearly labeled as an estimate. The competitive gap calculation uses `lcoe_mid` (generation cost only) as the primary metric; the all-in range is shown as a secondary context band.
+**Layer B — Firming adder (within_boundary, partially modelled):**
+On-site captive plants may still need grid backup for intermittency. This is the `lcoe_solar_with_firming()` function in `basic_model.py` (adder: +$6/+$11/+$16/MWh low/mid/high). Not currently surfaced as a dedicated scorecard column — shown only in the firming sensitivity model.
+
+**Primary metric:** The competitive gap calculation uses `lcoe_mid_usd_mwh` (`within_boundary`, generation cost only) as the primary comparator. `lcoe_remote_captive_allin_usd_mwh` is the true all-in cost for the 23 KEKs where solar must be built off-site.
 
 ---
 
@@ -750,7 +763,8 @@ This adder range is clearly labeled as an estimate. The competitive gap calculat
 | No geospatial buildability filter applied (slope, Kawasan Hutan, peat, agriculture, minimum area) | `pvout_best_50km` is an upper bound — actual buildable resource may be significantly lower, especially on Java (agriculture/density) and Sulawesi (Kawasan Hutan + steep terrain); expected available area after filters: 10–35% of 50km radius depending on island (see Section 2.5) | All resource values labeled `provisional (no buildability filter)` in scorecard; v1.1 adds 4-layer filter using Copernicus DEM 30m + KLHK Peta Penutupan Lahan + Kawasan Hutan boundary |
 | No buildable area estimate (`max_captive_capacity_mwp`) | Cannot screen out zones where total buildable land < 10 ha (minimum viable 6–7 MWp project) — a KEK may appear resource-rich but have no contiguous buildable patch | Deferred to v1.1; morphological opening filter on buildability mask → `buildable_area_ha` column in `fct_kek_resource` |
 | Grid cost proxy may be BPP, not actual industrial tariff | LCOE gap overstated if BPP > tariff | Show I-4 tariff as primary where available; flag BPP as provisional |
-| LCOE excludes firming, wheeling, permitting costs | All-in cost understated by ~$6–16/MWh | Show all-in cost adder band in scorecard |
+| LCOE excludes firming costs (within_boundary) | On-site all-in cost understated by ~$6–16/MWh for intermittency backup | `lcoe_solar_with_firming()` in `basic_model.py`; not yet a dedicated scorecard column |
+| ~~LCOE excludes transmission lease (remote_captive)~~ | ~~All-in PPA cost understated for 23/25 KEKs~~ | ✅ Implemented — `lcoe_allin_*` in `fct_lcoe`; `lcoe_remote_captive_allin_*` in scorecard. Adder = $5–15/MWh ($10 mid). |
 | KEK demand figures not available (using RUPTL region-level data) | GEAS allocation is approximate | Label `green_share_geas` as indicative, not contractual |
 | RUPTL capacity additions are planned, not committed | `grid_upgrade_pre2030` and `plan_late` flags may change | Vintage-stamp RUPTL data; re-run on new RUPTL releases |
 | No reliability data (SAIDI/SAIFI) | Cannot quantify reliability premium for captive solar | Deferred to v2 when PLN data is available |
@@ -763,7 +777,8 @@ This adder range is clearly labeled as an estimate. The competitive gap calculat
 
 | Assumption | Value | Rationale | Sensitivity |
 |-----------|-------|-----------|-------------|
-| Default WACC | 10% | ADB benchmark for SEA renewable energy | Dashboard slider: 6–15% |
+| Default WACC | 10% | ADB benchmark for SEA renewable energy | Precomputed snaps: 4–20% (2% steps); dashboard slider: 4–20% |
+| Transmission lease adder | $10/MWh mid ($5–15 range) | PLN wheeling + backup charge for remote captive plants | Low/mid/high range shown in `lcoe_allin_*` columns; 0 for within_boundary |
 | PVOUT siting radius | 50 km | Typical captive power siting radius in Indonesia | Fixed in MVP |
 | Regional solar CF (GEAS) | 20% | Representative for RUPTL-planned utility solar in Indonesia | Low sensitivity |
 | RUPTL GEAS baseline allocation | Pro-rata to demand | Simplest defensible allocation; no preferential treatment | Policy scenario uses demand × PVOUT |
@@ -791,6 +806,12 @@ This adder range is clearly labeled as an estimate. The competitive gap calculat
 5. ✅ **`grid_upgrade_pre2030`** — derived from RUPTL capacity addition table: `True if pre2030_solar_mw > 0` for the KEK's grid region. Uses `fct_ruptl_pipeline.csv` pre-2030 sum.
 
 6. ✅ **Buildability threshold** — `pvout_best_50km` labeled provisional (upper bound, no terrain filter). Deferred to v1.1. All resource values carry `data_completeness` flag.
+
+7. ✅ **WACC expansion** — `WACC_VALUES` expanded to `[4, 6, 8, 10, 12, 14, 16, 18, 20]` (2% steps). `fct_lcoe` now 450 rows (was 150). Covers full concessional-to-equity spectrum: IFC/AIIB blended (4–6%), base case (10%), private equity ceiling (20%).
+
+8. ✅ **Transmission lease fee** — `lcoe_allin_*` columns added to `fct_lcoe`; `lcoe_remote_captive_allin_*` and `transmission_lease_adder_usd_mwh` added to `fct_kek_scorecard`. Adder = $5–15/MWh ($10 mid) for `remote_captive` only; 0 for `within_boundary`.
+
+9. ✅ **Project viability threshold** — `project_viable` boolean added to `fct_kek_scorecard`. Derived from `max_captive_capacity_mwp ≥ 20 MWp` (IPP minimum; DFI screens at ≥ 33 MWp). All 25 KEKs = True at current 1km buildability resolution.
 
 **Still open (genuine deferrals for Phase 3+):**
 

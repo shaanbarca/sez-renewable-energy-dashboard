@@ -207,7 +207,7 @@ scripts/
 
 tests/
   test_model.py                 — 60 tests for basic_model.py
-  test_pipeline.py              — 135 tests for pipeline + buildability filters
+  test_pipeline.py              — 146 tests for pipeline + buildability filters
 
 run_pipeline.py                 — Orchestrator: topological sort + step runner
 ```
