@@ -23,7 +23,7 @@ Four primary user personas. Each section covers: who they are, what they need fr
 
 | Persona | Score | Status | Top blocking gap |
 |---------|-------|--------|-----------------|
-| Energy Economist | **68%** | Core LCOE + carbon breakeven built; concessional finance story incomplete | WACC range stops at 8% — can't model 4–6% blended DFI financing; BPP null |
+| Energy Economist | **75%** | Full WACC spectrum (4–20%) + carbon breakeven built; BPP still null | `bpp_usd_mwh` null — grid reference is I-4 tariff only; BPP comparison unavailable |
 | DFI Investor | **85%** | All-in LCOE + project_viable + buildability + substation all present | Flood hazard (Layer 2d) and road proximity (Layer 3a) not yet sourced |
 | Policy Maker | **62%** | Action flags + RUPTL pipeline solid | Model is solar-only — misleading `not_competitive` at Sulawesi KEKs with known wind/geothermal |
 | Energy Investor (IPP) | **80%** | All-in PPA cost + project_viable + buildability + substation screening complete | `demand_mwh_2030` is a proxy — can rank sites but cannot size a PPA |
@@ -38,7 +38,7 @@ Ranked by impact across personas × implementation effort. See each persona's `#
 |----------|-----|------------------|--------|
 | ✅ 1 DONE | **Transmission lease fee in all-in LCOE** — `lcoe_remote_captive_allin_*` now in scorecard; adder = $10/MWh mid ($5–$15 range) for all 23 remote_captive KEKs | P2, P4 | Done |
 | ✅ 2 DONE | **`project_viable` boolean** — in `fct_kek_scorecard`; threshold `max_captive_capacity_mwp ≥ 20 MWp`; all 25 KEKs = True at 1km resolution | P2, P4 | Done |
-| 🟠 3 | **WACC expansion to 6% and 14%** — concessional-to-equity full range; stops at 8% today | P1 | Low — 2 extra rows per KEK in `fct_lcoe` |
+| ✅ 3 DONE | **WACC expansion 4–20%** — `WACC_VALUES` now `[4, 6, 8, 10, 12, 14, 16, 18, 20]`; `fct_lcoe` 150 → 450 rows; covers DFI concessional (4–6%) through SE Asia equity ceiling (20%) | P1 | Done |
 | 🟠 4 | **BPP data sourcing** — PLN Statistik 2024 regional BPP; `bpp_usd_mwh` column exists but null | P1 | Medium — external data, not code |
 | 🟠 5 | **Grid emission factor update** — KESDM 2019 → IEA SEA 2024; affects `carbon_breakeven_usd_tco2` | P1, P3 | Low code / medium research |
 | 🟡 6 | **Wind CF layer for Sulawesi** — fixes misleading `not_competitive` at kek-palu, kek-bitung, kek-morotai | P3 | Medium — new data source + pipeline step |
@@ -54,16 +54,15 @@ Ranked by impact across personas × implementation effort. See each persona's `#
 **Context:** Preparing a country energy competitiveness assessment or a captive renewable energy policy brief. Needs to compare solar LCOE against grid cost across many sites simultaneously and quantify the carbon arbitrage opportunity. Works in Excel and PowerPoint; exports data for colleagues.
 **Primary question:** *At our fund's hurdle rate, which KEKs already make economic sense for captive solar — and what policy change would unlock the others?*
 
-### Readiness — 68%
+### Readiness — 75%
 
 **What works:**
-- Full LCOE bands (low/mid/high) at WACC 8/10/12% — competitive gap and concessional-finance flip case are computable
+- Full LCOE bands (low/mid/high) at WACC 4/6/8/10/12/14/16/18/20% — full concessional-to-equity spectrum; the 4–6% DFI policy argument is now directly modelable
 - `carbon_breakeven_usd_tco2` populated for all 25 KEKs — carbon finance desk can use this directly
 - `green_share_geas` and GEAS allocation methodology complete
 - Provisional flags (`is_cf_provisional`, `is_capex_provisional`) so the economist can caveat outputs
 
 **What's missing:**
-- **WACC range stops at 8%** — concessional DFI financing at 4–6% is the core policy argument; the tool can't model it without adding more WACC snaps to `fct_lcoe` (Gap priority 🔴 3)
 - **BPP is null** — grid reference is I-4 tariff ($63.08). PLN's true cost of supply is 15–35% higher at most regions; the LCOE gap vs. BPP (more favourable for solar) can't be shown (Gap priority 🟠 4)
 - **Grid emission factor is 2019 vintage** — `carbon_breakeven_usd_tco2` uses stale KESDM data (Gap priority 🟠 5)
 
@@ -98,7 +97,7 @@ Ranked table CSV → paste into Excel economic comparison table. Carbon breakeve
 |-----|----------------------|--------|
 | `bpp_usd_mwh` is null | BPP (PLN cost of supply) is 15–35% higher than the I-4/TT tariff used today. An economist needs both: tariff (what tenants pay) and BPP (what grid electricity costs PLN). The LCOE gap vs. BPP would look more favourable for solar at high-BPP regions. | Blocked — PLN Statistik 2024 regional BPP not yet sourced; column exists in `fct_grid_cost_proxy` but is null. |
 | Grid emission factor is 2019 vintage | `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM 2019) is 5+ years old. `carbon_breakeven_usd_tco2` inherits this staleness — the carbon price threshold may be over- or under-stated. | Deferred to v1.2 — update to 2023 KESDM or IEA SEA 2024 data. |
-| WACC range limited to 8/10/12% | Concessional DFI financing can go to 4–6%; some equity hurdles are 14–16%. The 3-snap WACC range doesn't cover the full spectrum an economist would model. | Deferred to Phase 3 Step 3.1 (design decision: snap vs. continuous interpolation). |
+| ~~WACC range limited to 8/10/12%~~ | Concessional DFI financing at 4–6% and equity at 14–20% were not modelable. | ✅ Built — `WACC_VALUES` expanded to `[4, 6, 8, 10, 12, 14, 16, 18, 20]`; `fct_lcoe` now 450 rows. Full concessional-to-equity spectrum available. |
 | CAPEX from ESDM catalogue, not Indonesia market data | ESDM 2023 catalogue value ($960/kW) may be ±15–20% from current Indonesian EPC market pricing. LCOE bands partially capture this but no market comparables have been sourced. | Deferred to v1.2 — source 2023–2024 Indonesia solar EPC tender data. |
 
 ---
