@@ -40,7 +40,13 @@ import numpy as np
 import pandas as pd
 
 from src.model.basic_model import gentie_cost_per_kw, lcoe_solar
-from src.pipeline.assumptions import HOURS_PER_YEAR, WACC_VALUES
+from src.pipeline.assumptions import (
+    HOURS_PER_YEAR,
+    TRANSMISSION_LEASE_HIGH_USD_MWH,
+    TRANSMISSION_LEASE_LOW_USD_MWH,
+    TRANSMISSION_LEASE_MID_USD_MWH,
+    WACC_VALUES,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -128,8 +134,14 @@ def build_fct_lcoe(
             # Gen-tie cost: 0 for within_boundary, computed for remote_captive
             if scenario == "within_boundary":
                 gtie = 0.0
+                lease_mid = 0.0
+                lease_low = 0.0
+                lease_high = 0.0
             else:
                 gtie = gentie_cost_per_kw(dist_km)
+                lease_mid = TRANSMISSION_LEASE_MID_USD_MWH
+                lease_low = TRANSMISSION_LEASE_LOW_USD_MWH
+                lease_high = TRANSMISSION_LEASE_HIGH_USD_MWH
 
             eff_capex_c = capex_c + gtie
             eff_capex_l = capex_l + gtie
@@ -144,6 +156,9 @@ def build_fct_lcoe(
                     lcoe_l = lcoe_solar(eff_capex_l, fom, wacc_dec, lifetime, cf)
                     lcoe_u = lcoe_solar(eff_capex_u, fom, wacc_dec, lifetime, cf)
 
+                def _r(v: float, adder: float = 0.0) -> float:
+                    return round(v + adder, 2) if not np.isnan(v) else np.nan
+
                 records.append(
                     {
                         "kek_id": kek_row["kek_id"],
@@ -153,9 +168,14 @@ def build_fct_lcoe(
                         "cf_used": round(float(cf), 4) if cf is not None else np.nan,
                         "gentie_cost_per_kw": round(gtie, 1),
                         "effective_capex_usd_per_kw": round(eff_capex_c, 1),
-                        "lcoe_usd_mwh": round(lcoe_c, 2) if not np.isnan(lcoe_c) else np.nan,
-                        "lcoe_low_usd_mwh": round(lcoe_l, 2) if not np.isnan(lcoe_l) else np.nan,
-                        "lcoe_high_usd_mwh": round(lcoe_u, 2) if not np.isnan(lcoe_u) else np.nan,
+                        "lcoe_usd_mwh": _r(lcoe_c),
+                        "lcoe_low_usd_mwh": _r(lcoe_l),
+                        "lcoe_high_usd_mwh": _r(lcoe_u),
+                        # All-in cost = LCOE + transmission lease (0 for within_boundary)
+                        "transmission_lease_adder_usd_mwh": lease_mid,
+                        "lcoe_allin_usd_mwh": _r(lcoe_c, lease_mid),
+                        "lcoe_allin_low_usd_mwh": _r(lcoe_l, lease_low),
+                        "lcoe_allin_high_usd_mwh": _r(lcoe_u, lease_high),
                         "is_cf_provisional": is_cf_provisional,
                         "is_capex_provisional": is_capex_provisional,
                         "tech_id": tech_id,

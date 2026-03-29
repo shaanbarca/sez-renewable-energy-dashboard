@@ -440,6 +440,55 @@ class TestFctLcoe:
         )
         assert df["lcoe_usd_mwh"].isna().all()
 
+    def test_transmission_lease_columns_present(self):
+        """All four transmission lease columns must be present in fct_lcoe."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        for col in [
+            "transmission_lease_adder_usd_mwh",
+            "lcoe_allin_usd_mwh",
+            "lcoe_allin_low_usd_mwh",
+            "lcoe_allin_high_usd_mwh",
+        ]:
+            assert col in df.columns, f"Missing column: {col}"
+
+    def test_transmission_lease_zero_for_within_boundary(self):
+        """within_boundary rows must have transmission_lease_adder_usd_mwh = 0."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        wb = df[df["scenario"] == "within_boundary"]
+        assert (wb["transmission_lease_adder_usd_mwh"] == 0.0).all()
+
+    def test_transmission_lease_positive_for_remote_captive(self):
+        """remote_captive rows must have transmission_lease_adder_usd_mwh > 0."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        rc = df[df["scenario"] == "remote_captive"]
+        assert (rc["transmission_lease_adder_usd_mwh"] > 0).all()
+
+    def test_lcoe_allin_gt_base_for_remote_captive(self):
+        """lcoe_allin_usd_mwh must exceed lcoe_usd_mwh for remote_captive (lease adder applied)."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        rc = df[df["scenario"] == "remote_captive"].dropna(
+            subset=["lcoe_usd_mwh", "lcoe_allin_usd_mwh"]
+        )
+        assert (rc["lcoe_allin_usd_mwh"] > rc["lcoe_usd_mwh"]).all()
+
+    def test_lcoe_allin_eq_base_for_within_boundary(self):
+        """lcoe_allin_usd_mwh must equal lcoe_usd_mwh for within_boundary (no lease adder)."""
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        wb = df[df["scenario"] == "within_boundary"].dropna(
+            subset=["lcoe_usd_mwh", "lcoe_allin_usd_mwh"]
+        )
+        assert (wb["lcoe_allin_usd_mwh"] == wb["lcoe_usd_mwh"]).all()
+
 
 # ── fct_substation_proximity ──────────────────────────────────────────────────
 
@@ -660,6 +709,43 @@ class TestFctKekScorecard:
         both = sc[sc["lcoe_mid_wacc8_usd_mwh"].notna() & sc["lcoe_mid_usd_mwh"].notna()]
         assert (both["lcoe_mid_wacc8_usd_mwh"] <= both["lcoe_mid_usd_mwh"]).all(), (
             "LCOE at WACC=8% should never exceed LCOE at WACC=10%"
+        )
+
+    def test_transmission_lease_adder_column_present(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert "transmission_lease_adder_usd_mwh" in sc.columns
+
+    def test_remote_captive_allin_columns_present(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        for col in [
+            "lcoe_remote_captive_allin_usd_mwh",
+            "lcoe_remote_captive_allin_low_usd_mwh",
+            "lcoe_remote_captive_allin_high_usd_mwh",
+        ]:
+            assert col in sc.columns, f"Missing column: {col}"
+
+    def test_remote_captive_allin_exceeds_within_boundary_lcoe(self):
+        """Remote captive all-in LCOE must exceed within_boundary LCOE for all KEKs with data."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        valid = sc.dropna(subset=["lcoe_mid_usd_mwh", "lcoe_remote_captive_allin_usd_mwh"])
+        assert (valid["lcoe_remote_captive_allin_usd_mwh"] > valid["lcoe_mid_usd_mwh"]).all(), (
+            "lcoe_remote_captive_allin must always exceed within_boundary lcoe_mid (gen-tie + lease)"
+        )
+
+    def test_project_viable_column_present(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert "project_viable" in sc.columns
+
+    def test_project_viable_is_boolean(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert sc["project_viable"].isin([True, False]).all()
+
+    def test_project_viable_all_true_at_1km_resolution(self):
+        """At 1 km GeoTIFF resolution (~86 ha/pixel), even the smallest KEK has far more than
+        20 MWp of theoretical solar capacity — so project_viable should be True for all 25."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert sc["project_viable"].all(), (
+            "All 25 KEKs should be project_viable=True at current 1km buildability resolution"
         )
 
 

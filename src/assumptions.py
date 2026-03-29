@@ -135,6 +135,32 @@ SUBSTATION_WORKS_PER_KW: float = 150.0
 # Rationale: Central estimate. PLN typically takes ownership of the gen-tie and substation
 # works post-commissioning (Permen ESDM No. 27 Tahun 2017).
 
+# ─── TRANSMISSION LEASE ADDER (remote captive scenario) ───────────────────────
+
+TRANSMISSION_LEASE_LOW_USD_MWH: float = 5.0
+# Operating cost of transmitting energy from a remote captive solar plant to the KEK
+# via the PLN grid — optimistic case.
+# Components: PLN wheeling tariff + grid backup reserve charge.
+# Source: METHODOLOGY.md Section 5.5 — industry estimate range $5–15/MWh.
+# Applies only to remote_captive siting scenario (within_boundary has no transmission lease).
+
+TRANSMISSION_LEASE_HIGH_USD_MWH: float = 15.0
+# Transmission lease adder — conservative case. Source: METHODOLOGY.md Section 5.5.
+
+TRANSMISSION_LEASE_MID_USD_MWH: float = (
+    TRANSMISSION_LEASE_LOW_USD_MWH + TRANSMISSION_LEASE_HIGH_USD_MWH
+) / 2
+# Mid-point transmission lease adder = $10/MWh.
+
+# ─── PROJECT VIABILITY THRESHOLD ──────────────────────────────────────────────
+
+PROJECT_VIABLE_MIN_MWP: float = 20.0
+# Minimum max_captive_capacity_mwp for a project to be considered commercially viable.
+# Below 20 MWp, fixed development costs (permitting, legal, engineering) typically make
+# projects marginal for an IPP developer. DFI investors typically screen at ≥ 33 MWp
+# (≥ 50 ha at 1.5 ha/MWp). 20 MWp is the conservative lower bound.
+# Source: METHODOLOGY.md Section 2.5 (minimum contiguous area discussion).
+
 # ─── FIRMING / WHEELING ADDER ─────────────────────────────────────────────────
 
 FIRMING_ADDER_LOW_USD_MWH: float = 6.0

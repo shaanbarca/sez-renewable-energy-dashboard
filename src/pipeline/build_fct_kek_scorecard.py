@@ -43,7 +43,7 @@ from src.model.basic_model import (
     invest_resilience,
     resolve_demand,
 )
-from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD
+from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -115,6 +115,28 @@ def build_fct_kek_scorecard(
         (lcoe_all["wacc_pct"] == 8.0) & (lcoe_all["scenario"] == "within_boundary")
     ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_mid_wacc8_usd_mwh"})
 
+    # Remote captive all-in LCOE at base WACC (includes gen-tie CAPEX + transmission lease)
+    # Surfaces the true all-in cost for the 23/25 remote_captive KEKs — kept as a separate
+    # column so the dashboard can display it alongside the within_boundary baseline.
+    lcoe_rc_allin = lcoe_all[
+        (lcoe_all["wacc_pct"] == BASE_WACC) & (lcoe_all["scenario"] == "remote_captive")
+    ][
+        [
+            "kek_id",
+            "lcoe_allin_usd_mwh",
+            "lcoe_allin_low_usd_mwh",
+            "lcoe_allin_high_usd_mwh",
+            "transmission_lease_adder_usd_mwh",
+        ]
+    ].rename(
+        columns={
+            "lcoe_allin_usd_mwh": "lcoe_remote_captive_allin_usd_mwh",
+            "lcoe_allin_low_usd_mwh": "lcoe_remote_captive_allin_low_usd_mwh",
+            "lcoe_allin_high_usd_mwh": "lcoe_remote_captive_allin_high_usd_mwh",
+            "transmission_lease_adder_usd_mwh": "transmission_lease_adder_usd_mwh",
+        }
+    )
+
     # Grid cost: one row per grid_region_id
     grid_cost = grid_cost[
         [
@@ -180,6 +202,7 @@ def build_fct_kek_scorecard(
             how="left",
         )
         .merge(lcoe_wacc8, on="kek_id", how="left")
+        .merge(lcoe_rc_allin, on="kek_id", how="left")
         .merge(sub, on="kek_id", how="left")
     )
 
@@ -256,6 +279,9 @@ def build_fct_kek_scorecard(
     )
     df = df.merge(demand_2030, on="kek_id", how="left")
     df["green_share_geas"] = df["green_share_geas"].fillna(0.0)
+
+    # Project viability flag — True if buildable capacity meets minimum IPP threshold
+    df["project_viable"] = df["max_captive_capacity_mwp"].fillna(0) >= PROJECT_VIABLE_MIN_MWP
 
     # Action flags — compute row by row using model function
     # Signature: action_flags(solar_attractive, grid_upgrade_pre2030, reliability_req,
@@ -373,10 +399,15 @@ def build_fct_kek_scorecard(
             "dist_to_nearest_substation_km",
             "nearest_substation_capacity_mva",
             "siting_scenario",
+            "project_viable",
             "demand_mwh_2030",
             "lcoe_low_usd_mwh",
             "lcoe_mid_usd_mwh",
             "lcoe_high_usd_mwh",
+            "lcoe_remote_captive_allin_usd_mwh",
+            "lcoe_remote_captive_allin_low_usd_mwh",
+            "lcoe_remote_captive_allin_high_usd_mwh",
+            "transmission_lease_adder_usd_mwh",
             "cf_used",
             "is_cf_provisional",
             "is_capex_provisional",

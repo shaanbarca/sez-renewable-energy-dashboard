@@ -19,14 +19,14 @@ Four primary user personas. Each section covers: who they are, what they need fr
 
 ## Readiness Summary
 
-*Last assessed: 2026-03-28. Re-assess after each major pipeline change.*
+*Last assessed: 2026-03-29. Re-assess after each major pipeline change.*
 
 | Persona | Score | Status | Top blocking gap |
 |---------|-------|--------|-----------------|
 | Energy Economist | **68%** | Core LCOE + carbon breakeven built; concessional finance story incomplete | WACC range stops at 8% — can't model 4–6% blended DFI financing; BPP null |
-| DFI Investor | **78%** | Buildability + substation distance + capacity all present | Transmission lease fee (~5–15 USD/MWh) excluded from all-in LCOE for remote captive |
+| DFI Investor | **85%** | All-in LCOE + project_viable + buildability + substation all present | Flood hazard (Layer 2d) and road proximity (Layer 3a) not yet sourced |
 | Policy Maker | **62%** | Action flags + RUPTL pipeline solid | Model is solar-only — misleading `not_competitive` at Sulawesi KEKs with known wind/geothermal |
-| Energy Investor (IPP) | **72%** | Land + resource + substation screening complete | `demand_mwh_2030` is a proxy — can rank sites but cannot size a PPA |
+| Energy Investor (IPP) | **80%** | All-in PPA cost + project_viable + buildability + substation screening complete | `demand_mwh_2030` is a proxy — can rank sites but cannot size a PPA |
 
 ---
 
@@ -36,8 +36,8 @@ Ranked by impact across personas × implementation effort. See each persona's `#
 
 | Priority | Gap | Personas affected | Effort |
 |----------|-----|------------------|--------|
-| 🔴 1 | **Transmission lease fee in all-in LCOE** — ~5–15 USD/MWh excluded; 23/25 KEKs are `remote_captive` | P2, P4 | Low — add parameter to `build_fct_lcoe.py` |
-| 🔴 2 | **`project_viable` boolean** — derived from `buildable_area_ha` threshold; currently manual | P2, P4 | Trivial — 1 derived column in scorecard |
+| ✅ 1 DONE | **Transmission lease fee in all-in LCOE** — `lcoe_remote_captive_allin_*` now in scorecard; adder = $10/MWh mid ($5–$15 range) for all 23 remote_captive KEKs | P2, P4 | Done |
+| ✅ 2 DONE | **`project_viable` boolean** — in `fct_kek_scorecard`; threshold `max_captive_capacity_mwp ≥ 20 MWp`; all 25 KEKs = True at 1km resolution | P2, P4 | Done |
 | 🟠 3 | **WACC expansion to 6% and 14%** — concessional-to-equity full range; stops at 8% today | P1 | Low — 2 extra rows per KEK in `fct_lcoe` |
 | 🟠 4 | **BPP data sourcing** — PLN Statistik 2024 regional BPP; `bpp_usd_mwh` column exists but null | P1 | Medium — external data, not code |
 | 🟠 5 | **Grid emission factor update** — KESDM 2019 → IEA SEA 2024; affects `carbon_breakeven_usd_tco2` | P1, P3 | Low code / medium research |
@@ -109,18 +109,18 @@ Ranked table CSV → paste into Excel economic comparison table. Carbon breakeve
 **Context:** Screening Indonesian industrial sites for a captive solar PPA or equity investment. Needs to know: is there enough buildable land, how far is the grid connection, and what does the LCOE look like at their fund's cost of capital? Will hand off promising sites to a site development team.
 **Primary question:** *Which KEKs have sufficient buildable solar land, acceptable grid connection cost, and an LCOE that works at our 8% target return?*
 
-### Readiness — 78%
+### Readiness — 85%
 
 **What works:**
 - Full 4-layer buildability filter: `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` all populated for all 25 KEKs
 - `dist_to_nearest_substation_km` and `nearest_substation_capacity_mva` (19/25 KEKs) — screening-level grid connection data available
 - `siting_scenario` (`within_boundary` / `remote_captive`) drives gen-tie cost in LCOE
 - `lcoe_mid_wacc8_usd_mwh` and `solar_now_at_wacc8` — fund hurdle rate scenario built
+- `lcoe_remote_captive_allin_usd_mwh` (+ low/high bands) in scorecard — full all-in cost including ~$10/MWh transmission lease for 23/25 remote_captive KEKs
+- `project_viable` boolean in scorecard — True when `max_captive_capacity_mwp ≥ 20 MWp` (all 25 KEKs pass at current 1km resolution)
 
 **What's missing:**
-- **Transmission lease fee excluded from all-in LCOE** — ~5–15 USD/MWh omitted for `remote_captive` sites (23/25 KEKs); the cost a DFI would actually pay is understated (Gap priority 🔴 1)
-- **No `project_viable` flag** — DFI threshold (≥ 50 ha / ≥ 33 MWp) must be computed manually from `buildable_area_ha` (Gap priority 🔴 2)
-- Flood hazard (Layer 2d) and road proximity (Layer 3a) missing — minor for most sites but relevant for coastal and remote KEKs (Gap priority 🟢 8, 9)
+- Flood hazard (Layer 2d) and road proximity (Layer 3a) not yet sourced — relevant for coastal and remote KEKs (Gap priority 🟢 8, 9)
 
 ### Key data needs
 
@@ -157,8 +157,8 @@ GeoJSON for site team GIS analysis. CSV with LCOE + buildable area columns for i
 | Flood hazard layer (Layer 2d) missing | Coastal sites (tanjung-sauh, kek-tanjung-lesung, kek-morotai) may have buildable land on flood-prone ground not yet excluded. `buildable_area_ha` may be slightly overstated at these sites. | Deferred to v1.2 — BNPB portal inaccessible; low overlap with slope layer. |
 | Road proximity (Layer 3a) missing | Remote sites with poor road access have higher EPC construction costs not reflected in any current column. A DFI site team needs this to estimate total development cost. | Deferred to v1.2 — requires OSM PBF processing. |
 | ~~Substation capacity unknown~~ | `nearest_substation_capacity_mva` is now in the scorecard — normalized from the PLN `kapgi` field (mixed VA/MVA units corrected). 5 of 25 KEKs have null capacity (data not recorded in PLN's dataset). | ✅ Built — available in `fct_kek_scorecard` as `nearest_substation_capacity_mva`. |
-| Transmission lease fee not modelled | ~5–15 USD/MWh for large remote captive projects is excluded from all-in LCOE. `lcoe_mid_usd_mwh` understates total cost for `remote_captive` siting, which is the scenario a DFI typically finances. | Deferred to Phase 3 — parameterisation noted in METHODOLOGY.md §5.5. |
-| No minimum viable project flag | `buildable_area_ha` is present but no derived boolean (e.g., `project_viable = buildable_area_ha ≥ 50 ha`, i.e., ≥ 33 MWp). Investor must compute their own viability threshold manually. | Small addition — Phase 3 scorecard step. |
+| ~~Transmission lease fee not modelled~~ | ~5–15 USD/MWh for large remote captive projects was excluded from all-in LCOE. | ✅ Built — `lcoe_remote_captive_allin_usd_mwh` (+ low/high bands) in `fct_kek_scorecard`. Adder = $10/MWh mid ($5–$15 range) for all remote_captive KEKs. |
+| ~~No minimum viable project flag~~ | `buildable_area_ha` was present but no derived boolean for investor viability threshold. | ✅ Built — `project_viable` boolean in `fct_kek_scorecard` (threshold: `max_captive_capacity_mwp ≥ 20 MWp`). All 25 KEKs = True at 1km resolution. |
 
 ---
 
@@ -227,19 +227,20 @@ Ranked table CSV filtered to `plan_late = True` KEKs. Screenshot of RUPTL Contex
 **Context:** Building a project pipeline of captive solar PPAs with industrial tenants at KEKs. Needs to prioritise outreach — which KEKs have the largest demand, best solar resource, and weakest grid (making the PPA pitch easiest)? Will use this data to rank sites for BD outreach, then hand off top 5 to technical team for desktop feasibility.
 **Primary question:** *Which KEKs offer the best PPA opportunity — large captive demand, good solar, high grid cost, and buildable land inside the zone?*
 
-### Readiness — 72%
+### Readiness — 80%
 
 **What works:**
 - Full buildability screening: `max_captive_capacity_mwp`, `buildable_area_ha`, `pvout_buildable_best_50km` all populated
 - `nearest_substation_capacity_mva` available for 19/25 KEKs — gives grid absorption signal for initial screening
 - `siting_scenario` and gen-tie cost baked into `remote_captive` LCOE — IPP can see the real economics
 - `demand_mwh_2030` for relative site ranking (not PPA sizing)
+- `lcoe_remote_captive_allin_usd_mwh` in scorecard — lease adder ($10/MWh mid) applied; all-in PPA cost for remote sites accurately stated
+- `project_viable` boolean in scorecard — IPP threshold (≥ 20 MWp) automated; all 25 KEKs pass at current buildability resolution
 
 **What's missing:**
 - **`demand_mwh_2030` is a proxy** — area × intensity estimate cannot be used for PPA term sheet sizing; field surveys required before commercial conversations (Gap priority 🟡 7 for status enrichment; demand proxy is a fundamental limitation)
-- **Transmission lease fee excluded** — ~5–15 USD/MWh omitted from `remote_captive` LCOE; this is precisely the scenario an IPP builds, so all-in PPA cost is understated (Gap priority 🔴 1)
-- **No `project_viable` flag** — IPP threshold (≥ 20 MWp minimum for project economics) must be derived manually from `max_captive_capacity_mwp` (Gap priority 🔴 2)
 - **KEK operational status is coarse** — `status` from scraper doesn't distinguish operating KEKs with paying tenants from greenfield development; an IPP pitching into a greenfield KEK faces speculative demand (Gap priority 🟡 7)
+- Substation capacity partial — 6/25 KEKs have null `nearest_substation_capacity_mva` (data not recorded in PLN dataset)
 
 ### Key data needs
 
@@ -273,8 +274,8 @@ Ranked table CSV (top 10 sites) for BD pipeline tracker. KEK Scorecard screensho
 | Gap | Impact on this persona | Status |
 |-----|----------------------|--------|
 | `demand_mwh_2030` is area × intensity proxy | PPA sizing requires actual tenant electricity consumption or signed LOIs. The proxy figure must not be used for PPA term sheet calculations — it exists only for relative ranking between KEKs. | Deferred — requires field surveys or KEK management data. Caveat already noted in "What they'd cite". |
-| No minimum PPA size flag | `max_captive_capacity_mwp` is present but no derived boolean (e.g., `project_viable = max_captive_capacity_mwp ≥ 20`). An IPP developer must compute their own economic viability threshold manually. | Small addition — Phase 3 scorecard step. |
-| Transmission lease fee not modelled | ~5–15 USD/MWh excluded from `remote_captive` LCOE. This is precisely the scenario an IPP builds — the all-in PPA cost is understated for remote sites. | Deferred to Phase 3. |
+| ~~No minimum PPA size flag~~ | `max_captive_capacity_mwp` was present but no derived boolean for IPP viability threshold. | ✅ Built — `project_viable` boolean in `fct_kek_scorecard`. IPP threshold: `max_captive_capacity_mwp ≥ 20 MWp`. All 25 KEKs = True at 1km resolution. |
+| ~~Transmission lease fee not modelled~~ | ~5–15 USD/MWh excluded from `remote_captive` LCOE; all-in PPA cost was understated for remote sites. | ✅ Built — `lcoe_remote_captive_allin_usd_mwh` in `fct_kek_scorecard`. All-in cost for remote sites now includes ~$10/MWh lease adder ($5–$15 range). |
 | KEK operational status is coarse | `status` field (from OSS scraper) does not distinguish "operating with paying tenants" (offtake certainty) from "under development" (speculative demand). An IPP needs to know if tenants are actually there. | Deferred — requires KEK management outreach or BKPM tenant occupancy registry. |
 | Substation capacity coverage is partial | `nearest_substation_capacity_mva` is available (normalized from PLN `kapgi` field) but 5 of 25 KEKs have null capacity — PLN did not record it for those substations. | Available with gaps — 20/25 KEKs have capacity data. |
 | No road proximity layer | Construction access cost for remote sites is not captured. A site with poor road access has higher EPC cost not reflected in any current column. | Deferred to v1.2 — requires OSM PBF processing (Layer 3a). |
