@@ -73,7 +73,7 @@ Step 3 — Grid cost reference
   Permen ESDM No.7/2024, Lampiran IV
     → I-4/TT tariff = 996.74 Rp/kWh ≈ 63.1 USD/MWh  [uniform nationwide]
     → I-3/TM tariff = 1,035.78 Rp/kWh ≈ 65.6 USD/MWh [uniform nationwide]
-    (BPP varies by PLN system — deferred; I-4/TT used as primary comparator)
+    (BPP Pembangkitan varies by PLN system — sourced from Kepmen ESDM 169/2021; I-4/TT used as primary tariff comparator)
 
 Step 4 — Competitiveness gap
   solar_competitive_gap [%] = (LCOE − grid_cost) / grid_cost × 100
@@ -102,8 +102,8 @@ Step 5 — Action flags (per KEK)
 
 ### Critical caveats
 
-- **PVOUT is filtered where data is available.** Four buildability layers (Kawasan Hutan, peatland, ESA WorldCover land cover, DEM slope/elevation) are applied when data files are present in `data/buildability/`. With DEM + ESA WorldCover (automated download), `resource_quality = "partial_filter (2/4 layers)"`; with all 4 files, `resource_quality = "filtered"`. Without any buildability data, PVOUT is an upper bound and `resource_quality = "provisional (no buildability filter)"`.
-- **I-4/TT tariff ≠ BPP.** The tariff is what KEK tenants pay. PLN BPP (cost of supply) may be 15–35% higher. We use the tariff (correct), not BPP (incorrect comparator).
+- **PVOUT is filtered through all 4 buildability layers.** Kawasan Hutan (KLHK 66K-polygon forest estate, Sep 2017), peatland (KLHK vector boundaries), ESA WorldCover land cover, and DEM slope/elevation are all applied. With all files present, `resource_quality = "filtered"`. The pipeline falls back gracefully if any file is missing.
+- **I-4/TT tariff ≠ BPP.** The tariff is what KEK tenants pay. PLN BPP Pembangkitan (generation cost of supply, Kepmen ESDM 169/2021) varies by region: Java-Bali ~$57/MWh vs Papua ~$133/MWh. Both are now in the model — tariff as primary comparator, BPP as secondary reference for actual cost-of-supply analysis.
 - **CAPEX/FOM are verified.** TECH006 values are sourced from the ESDM Technology Catalogue 2023, datasheet p.66, and stored as `VERIFIED_TECH006_DATA` in `src/pipeline/pdf_extract_esdm_tech.py`.
 - **IDR/USD rate:** 15,800 IDR/USD (2024 reference). Tariff in IDR is subject to quarterly tariff adjustment (Pasal 6, Permen ESDM No.7/2024).
 
@@ -350,8 +350,8 @@ in the `remote_captive` scenario; `resource_quality` is set to `"filtered"`.
 **Current state (data acquisition):**
 - ✅ `dem_indonesia.tif` — Copernicus DEM GLO-30, automated via `scripts/download_buildability_data.py`
 - ✅ `esa_worldcover.vrt` — ESA WorldCover v200 2021, automated via `scripts/download_buildability_data.py`
-- ❌ `kawasan_hutan.shp` — KLHK Kawasan Hutan, manual download from geoportal.menlhk.go.id
-- ❌ `peatland_zones.shp` — KLHK peatland zones, manual download from geoportal.menlhk.go.id
+- ✅ `kawasan_hutan.shp` — KLHK Kawasan Hutan (66,768 polygons, full forest estate map, Sep 2017 vintage)
+- ✅ `peatland_klhk.shp` — KLHK peatland boundaries (1,524 MultiPolygon features, converted from GeoJSON via ogr2ogr)
 
 With DEM + ESA WorldCover present, `resource_quality = "partial_filter (2/4 layers)"` (slope/elevation + land cover active). Full `"filtered"` status requires all 4 files.
 
@@ -369,9 +369,9 @@ layers (1, 2) provide the primary buildability signal at 1km resolution.
 | Layer | Dataset | Source | Format | License |
 |---|---|---|---|---|
 | Slope / elevation (Layer 2a/2c) | Copernicus DEM GLO-30 | AWS S3 public mirror | GeoTIFF 30m → `dem_indonesia.tif` | Free, automated |
-| Forest estate boundary (Layer 1a) | KLHK Kawasan Hutan | geoportal.menlhk.go.id | Shapefile → `kawasan_hutan.shp` | Public, manual download |
-| Land cover: forest, cropland, water, urban (Layer 1c/d) | ESA WorldCover v200 2021 | AWS S3 public mirror | Raster 10m → `esa_worldcover.vrt` | Free, automated |
-| Peatland function zones (Layer 1b) | KLHK/BRG | geoportal.menlhk.go.id | Shapefile → `peatland_zones.shp` | Public, manual download |
+| Forest estate boundary (Layer 1a) | KLHK Kawasan Hutan (Sep 2017, 66K polygons) | geoportal.menlhk.go.id | Shapefile → `kawasan_hutan.shp` | ✅ Loaded |
+| Land cover: forest, cropland, water, urban (Layer 1c/d) | ESA WorldCover v200 2021 | AWS S3 public mirror | Raster 10m → `esa_worldcover.vrt` | ✅ Automated |
+| Peatland boundaries (Layer 1b) | KLHK peatland (1,524 features) | geoportal.menlhk.go.id | GeoJSON → `peatland_klhk.shp` (ogr2ogr) | ✅ Loaded |
 | Flood hazard | BNPB | inarisk.bnpb.go.id | Raster | Public |
 | Roads | OpenStreetMap | download.geofabrik.de/asia/indonesia | PBF/Shapefile | Open (ODbL) |
 
@@ -539,17 +539,17 @@ The LCOE is compared against the **cost of grid-supplied electricity** to a KEK 
 
 | Metric | Definition | Source | Status |
 |--------|-----------|--------|--------|
-| PLN BPP | PLN's cost of supply (biaya pokok penyediaan) by grid system | PLN Statistik 2024 | ⚠️ deferred — `bpp_usd_mwh` column exists in `fct_grid_cost_proxy` but is null |
+| PLN BPP Pembangkitan | PLN's generation cost of supply by grid system | Kepmen ESDM 169/2021 (FY2020) | ✅ `bpp_usd_mwh` populated for all 7 grid regions via `pdf_extract_bpp.py` |
 | I-4 industrial tariff | Tariff paid by large industrial consumers (≥30,000 kVA) | Permen ESDM No. 7 Tahun 2024 | ✅ implemented — $63.08/MWh, uniform nationwide |
 | I-3 industrial tariff | Tariff paid by medium industrial consumers (200–30,000 kVA) | Permen ESDM No. 7 Tahun 2024 | ✅ implemented — $65.57/MWh, uniform nationwide |
 
-**Critical distinction:** PLN BPP is PLN's *cost of supply*, not the tariff a KEK tenant actually pays. Industrial tariffs (Golongan I-3/I-4) are set by ESDM and may be 15–35% below BPP due to cross-subsidy policy. Using BPP as the comparator overstates the grid cost, making solar appear more competitive than it is in practice.
+**Critical distinction:** PLN BPP Pembangkitan is PLN's *generation cost of supply*, not the tariff a KEK tenant actually pays. Industrial tariffs (Golongan I-3/I-4) are set by ESDM and may be 15–35% below BPP due to cross-subsidy policy. The model carries both: I-4/TT tariff as primary comparator (what tenants pay) and BPP as secondary reference (what electricity actually costs PLN to generate). BPP is sourced from Kepmen ESDM 169/2021 (FY2020, valid until superseded). Note: this is generation BPP only, not full cost-of-supply BPP which includes T&D + overhead (~1,599 Rp/kWh per BPK audit).
 
 **Methodology decision (RESOLVED):**
 - `dashboard_rate_usd_mwh` = I-4/TT tariff ($63.08/MWh) — the correct primary comparator for large industrial KEK tenants. Flagged `OFFICIAL` in `fct_grid_cost_proxy`.
 - I-3/TM ($65.57/MWh) is stored as `tariff_i3_usd_mwh` — available for smaller tenant analysis.
 - Both tariffs are **uniform nationwide** (Permen ESDM No. 7/2024, Lampiran IV). No regional variation.
-- BPP is deferred — stored as null in `bpp_usd_mwh`. If added, it would be used only as a secondary reference with a `PROVISIONAL` caveat: *"Grid cost shown is PLN cost of supply (BPP), not the industrial tariff paid by tenants."*
+- BPP Pembangkitan is now populated from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` ranges from ~$57/MWh (Java-Bali) to ~$133/MWh (Papua). Used as secondary reference — I-4/TT remains primary comparator. BPP is generation cost only, not full cost-of-supply.
 
 ### 4.2 Coverage by PLN grid system
 
@@ -765,7 +765,7 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | Panel degradation not modeled | CRF annuity method assumes constant annual production. Solar panels degrade ~0.5%/yr; by year 27, output is ~87% of year 1. LCOE is understated by ~6–7% | Standard for screening-level models (IEA, IRENA use same simplification). For project-level analysis, apply degradation-adjusted CF = CF × (1 − 0.5% × n/2) |
 | Solar lifecycle emissions excluded from carbon breakeven | `carbon_breakeven_usd_tco2` assumes zero solar emissions. Actual lifecycle: ~40 gCO2/MWh (IPCC AR6 median). Breakeven prices are ~5–8% too optimistic | Add footnote to carbon breakeven output; corrected formula: `gap / (grid_EF − 0.040)` |
 | IDR/USD exchange rate hardcoded (15,800) | Rupiah volatility (14,500–16,500 range, 2023–2025) affects grid cost benchmark. A 5% FX move changes grid cost by ~$3/MWh, potentially flipping marginal KEKs | No FX sensitivity in MVP; note magnitude in dashboard tooltip |
-| Grid cost proxy may be BPP, not actual industrial tariff | LCOE gap overstated if BPP > tariff | Show I-4 tariff as primary where available; flag BPP as provisional |
+| ~~Grid cost proxy may be BPP, not actual industrial tariff~~ | ~~LCOE gap overstated if BPP > tariff~~ | ✅ Resolved — I-4/TT tariff is primary comparator; BPP Pembangkitan (Kepmen ESDM 169/2021) now populated as secondary reference |
 | LCOE excludes firming costs (within_boundary) | On-site all-in cost understated by ~$6–16/MWh for intermittency backup | `lcoe_solar_with_firming()` in `basic_model.py`; not yet a dedicated scorecard column |
 | ~~LCOE excludes transmission lease (remote_captive)~~ | ~~All-in PPA cost understated for 23/25 KEKs~~ | ✅ Implemented — `lcoe_allin_*` in `fct_lcoe`; `lcoe_remote_captive_allin_*` in scorecard. Adder = $5–15/MWh ($10 mid). |
 | KEK demand figures not available (using RUPTL region-level data) | GEAS allocation is approximate | Label `green_share_geas` as indicative, not contractual |
@@ -821,9 +821,9 @@ On-site captive plants may still need grid backup for intermittency. This is the
 
 **Still open (genuine deferrals for Phase 3+):**
 
-7. ⏳ **BPP data** — PLN Statistik 2024 regional BPP not yet sourced. `bpp_usd_mwh` column exists but is null. When available, add as secondary reference — do not replace I-4/TT as primary comparator.
+7. ✅ **BPP data** — Regional BPP Pembangkitan sourced from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` populated for all 7 grid regions. Java-Bali ~$57/MWh, Papua ~$133/MWh. I-4/TT remains primary comparator; BPP is secondary reference.
 
-8. ✅ **Buildability filter** — 4-layer filter implemented (Kawasan Hutan, peatland, ESA WorldCover land cover, DEM slope > 8° / elevation > 1,500m). `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp` all populated. Currently 2/4 layers automated (DEM + ESA WorldCover); Kawasan Hutan and peatland shapefiles require manual download from KLHK geoportal. See §2.5 for full implementation status.
+8. ✅ **Buildability filter** — All 4 layers now active: Kawasan Hutan (KLHK 66K-polygon shapefile), peatland (KLHK vector boundaries), ESA WorldCover land cover, DEM slope > 8° / elevation > 1,500m. `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp` all populated. 7/25 KEKs show zero buildable area due to heavy kawasan hutan overlap.
 
 9. ⏳ **Reliability threshold validation** — `reliability_req` thresholds are sector-derived (Manufacturing=0.8 etc.). Stakeholder validation with KEK operators recommended before using `invest_resilience` flag in formal policy advice.
 

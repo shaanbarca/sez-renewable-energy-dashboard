@@ -814,6 +814,83 @@ class TestFctGridCostProxy:
         proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
         assert (proxy["dashboard_rate_flag"] == "OFFICIAL").all()
 
+    def test_bpp_populated_for_all_regions(self):
+        """BPP should be non-null for every grid region."""
+        proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
+        assert proxy["bpp_usd_mwh"].notna().all(), "Some regions have null BPP"
+        assert proxy["bpp_rp_kwh"].notna().all(), "Some regions have null BPP (Rp)"
+
+    def test_bpp_source_populated(self):
+        """BPP source should reference Kepmen ESDM 169/2021."""
+        proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
+        assert proxy["bpp_source"].notna().all()
+        assert proxy["bpp_source"].str.contains("169/2021").all()
+
+    def test_bpp_plausible_range(self):
+        """BPP should be between $30–$200/MWh for Indonesian grid systems."""
+        proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
+        assert proxy["bpp_usd_mwh"].between(30, 200).all(), (
+            f"BPP out of range: {proxy[['grid_region_id', 'bpp_usd_mwh']].to_string()}"
+        )
+
+    def test_bpp_java_bali_cheapest(self):
+        """Java-Bali (coal-dominated) should have the lowest BPP."""
+        proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
+        jb = proxy[proxy["grid_region_id"] == "JAVA_BALI"]["bpp_usd_mwh"].iloc[0]
+        others = proxy[proxy["grid_region_id"] != "JAVA_BALI"]["bpp_usd_mwh"]
+        assert jb < others.min(), "Java-Bali should have lowest BPP (coal-heavy grid)"
+
+    def test_bpp_eastern_indonesia_higher(self):
+        """Eastern Indonesia (MALUKU, PAPUA, NTB) BPP should be > $100/MWh (diesel-heavy)."""
+        proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
+        eastern = proxy[proxy["grid_region_id"].isin(["MALUKU", "PAPUA", "NTB"])]
+        assert (eastern["bpp_usd_mwh"] > 100).all(), (
+            f"Eastern Indonesia BPP should be > $100: {eastern[['grid_region_id', 'bpp_usd_mwh']].to_string()}"
+        )
+
+    def test_bpp_conversion_consistency(self):
+        """bpp_usd_mwh should equal rp_kwh_to_usd_mwh(bpp_rp_kwh)."""
+        from src.assumptions import rp_kwh_to_usd_mwh
+
+        proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
+        for _, row in proxy.iterrows():
+            expected = rp_kwh_to_usd_mwh(row["bpp_rp_kwh"])
+            assert row["bpp_usd_mwh"] == pytest.approx(expected, rel=1e-3)
+
+
+# ── BPP extraction module ────────────────────────────────────────────────────
+
+
+class TestBppExtraction:
+    def test_get_regional_bpp_covers_all_grid_regions(self):
+        """get_regional_bpp() must return a value for every grid_region_id in dim_kek."""
+        from src.pipeline.pdf_extract_bpp import get_regional_bpp
+
+        dim_kek = pd.read_csv(PROCESSED / "dim_kek.csv")
+        expected = set(dim_kek["grid_region_id"].dropna().unique())
+        bpp = get_regional_bpp()
+        assert expected.issubset(set(bpp.keys())), f"Missing regions: {expected - set(bpp.keys())}"
+
+    def test_national_bpp_matches_document(self):
+        """National BPP should be 1,027.70 Rp/kWh per Kepmen 169/2021."""
+        from src.pipeline.pdf_extract_bpp import get_national_bpp
+
+        assert get_national_bpp() == pytest.approx(1027.70, rel=1e-4)
+
+    def test_java_bali_bpp_matches_document(self):
+        """Java-Bali systems are all ~908 Rp/kWh in the Kepmen."""
+        from src.pipeline.pdf_extract_bpp import get_regional_bpp
+
+        bpp = get_regional_bpp()
+        assert bpp["JAVA_BALI"] == pytest.approx(908.54, rel=1e-2)
+
+    def test_all_bpp_values_positive(self):
+        from src.pipeline.pdf_extract_bpp import get_regional_bpp
+
+        bpp = get_regional_bpp()
+        for region, val in bpp.items():
+            assert val > 0, f"{region} has non-positive BPP: {val}"
+
 
 # ── fct_kek_scorecard ─────────────────────────────────────────────────────────
 
@@ -1011,12 +1088,19 @@ class TestFctKekScorecard:
         scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_kek_scorecard")
         assert "fct_lcoe_wind" in scorecard_step.depends_on
 
-    def test_project_viable_all_true_at_1km_resolution(self):
-        """At 1 km GeoTIFF resolution (~86 ha/pixel), even the smallest KEK has far more than
-        20 MWp of theoretical solar capacity — so project_viable should be True for all 25."""
+    def test_project_viable_reflects_buildability(self):
+        """With detailed kawasan hutan (66K polygons), some KEKs have zero buildable area.
+        KEKs with buildable_area_ha=0 should NOT be project_viable.
+        KEKs with buildable_area_ha>0 should be project_viable."""
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
-        assert sc["project_viable"].all(), (
-            "All 25 KEKs should be project_viable=True at current 1km buildability resolution"
+        has_area = sc["buildable_area_ha"] > 0
+        # KEKs with buildable area should be viable
+        assert sc.loc[has_area, "project_viable"].all(), (
+            "KEKs with buildable area > 0 should be project_viable=True"
+        )
+        # KEKs without buildable area should not be viable
+        assert not sc.loc[~has_area, "project_viable"].any(), (
+            "KEKs with zero buildable area should be project_viable=False"
         )
 
 

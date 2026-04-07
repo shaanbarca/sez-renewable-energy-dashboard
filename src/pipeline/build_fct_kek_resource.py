@@ -75,6 +75,7 @@ BUILDABILITY_DIR = REPO_ROOT / "data" / "buildability"
 _REQUIRED_BUILD_FILES = [
     "dem_indonesia.tif",
     "kawasan_hutan.shp",
+    "peatland_klhk.shp",
     "peatland.vrt",
     "esa_worldcover.vrt",
 ]
@@ -309,8 +310,13 @@ def _compute_buildable_pvout(
         pvout_after_1a = pvout_working
     n_after_1a = int((pvout_after_1a > 0).sum())
 
-    # ── Layer 1b: Peatland (skip if file absent) ──────────────────────────────
-    if "peatland.vrt" in available:
+    # ── Layer 1b: Peatland (vector shapefile preferred, raster fallback) ─────
+    if "peatland_klhk.shp" in available:
+        peat_mask = _rasterize_shp(
+            data_dir / "peatland_klhk.shp", bbox, (height, width), win_transform
+        )
+        pvout_after_1b = apply_exclusion_mask(pvout_after_1a, peat_mask)
+    elif "peatland.vrt" in available:
         peat_arr = _read_raster_window_to_pvout_grid(
             data_dir / "peatland.vrt",
             bbox,

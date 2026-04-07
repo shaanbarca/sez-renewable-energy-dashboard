@@ -12,8 +12,8 @@ Last updated: 2026-04-07.
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
 | H1 | **Wind CF pipeline integration** | PLAN.md decision #19 (user accepted) | P3 (Policy Maker) | Global Wind Atlas GeoTIFF → same rasterio pipeline as solar. New columns: `cf_wind`, `pvout_wind_equivalent` in `fct_kek_resource`. Fixes misleading `not_competitive` at Sulawesi KEKs (kek-palu, kek-bitung, kek-morotai). See [DESIGN.md §7](DESIGN.md#7-wind-cf-integration). |
-| H2 | **BPP data sourcing** | PERSONAS.md gap priority 4 | P1 (Energy Economist) | PLN Statistik 2024 regional BPP → populate `bpp_usd_mwh` in `fct_grid_cost_proxy`. Column exists but is null. Gives economists both tariff (I-4/TT) and cost-of-supply (BPP) comparison. |
-| H3 | **Land cover buildability refinement** | PLAN.md Phase 2 deferred | P2 (DFI Investor), P4 (IPP) | `pvout_best_50km` → `pvout_buildable_best_50km` uses upper-bound when `data/buildability/` layers incomplete. Refine with full 4-layer cascade when data populated. Currently 2/4 layers automated (DEM + ESA WorldCover); Kawasan Hutan and peatland shapefiles require manual download from KLHK geoportal. |
+| ~~H2~~ | ~~**BPP data sourcing**~~ | ~~PERSONAS.md gap priority 4~~ | ~~P1~~ | ✅ Complete — see Completed table below |
+| ~~H3~~ | ~~**Land cover buildability refinement**~~ | ~~PLAN.md Phase 2 deferred~~ | ~~P2, P4~~ | ✅ Complete — see Completed table below |
 | H4 | **Configurable assumptions — Phase B (infrastructure costs)** | DESIGN.md §3, decision #34 | P2, P4 | Add collapsible "Advanced Assumptions" panel: FOM ($3–15), gen-tie ($2–12/kW-km), substation ($80–250/kW), transmission lease ($3–20/MWh), firming adder ($5–20/MWh), IDR/USD rate. Extends Phase A live computation in `src/dash/logic.py`. |
 | H5 | **Configurable assumptions — Phase C (flag thresholds)** | DESIGN.md §3, decision #34 | P3 | Add collapsible "Flag Thresholds" panel: PVOUT threshold, plan-late %, GEAS %, resilience gap %, min viable MWp, reliability threshold. All wire to `compute_scorecard_live()`. |
 
@@ -53,6 +53,8 @@ Last updated: 2026-04-07.
 
 | # | Item | Date | Notes |
 |---|------|------|-------|
+| ✅ H2 | **BPP data sourcing** | 2026-04-07 | Regional BPP Pembangkitan from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` populated for all 7 grid regions via `pdf_extract_bpp.py`. Java-Bali ~$57/MWh, Papua ~$133/MWh. 10 BPP tests added. |
+| ✅ H3 | **Land cover buildability refinement** | 2026-04-07 | Upgraded kawasan hutan to full KLHK 66K-polygon shapefile (555MB). Integrated KLHK peatland vector boundaries (1,524 features). All 4 buildability layers now active. 7/25 KEKs show zero buildable area. |
 | ✅ | **Configurable assumptions — Phase A (core LCOE controls)** | 2026-04-07 | `src/dash/logic.py` created: `UserAssumptions`, `UserThresholds`, `compute_lcoe_live()`, `compute_scorecard_live()`. 22 tests passing. CAPEX slider + Lifetime slider ready for Dash wiring. |
 | ✅ | **Methodology expert review** | 2026-04-07 | 10 fixes applied to METHODOLOGY.md: stale WACC range, buildability caveats, slope threshold, degradation note, GSA temperature de-rating, carbon lifecycle emissions, FX sensitivity. |
 | ✅ | **Personas expert review** | 2026-04-07 | P3 solar-only caveat added, P4 custom CAPEX note added. `solar_now_at_wacc8` column verified in scorecard CSV. |

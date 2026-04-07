@@ -37,8 +37,9 @@ Output columns:
     dashboard_rate_usd_mwh    — primary comparator for the dashboard (I-4/TT)
     dashboard_rate_label       — human-readable source label
     dashboard_rate_flag        — "OFFICIAL" | "PROVISIONAL"
-    bpp_usd_mwh               — PLN BPP cost of supply (NaN — not yet sourced)
-    bpp_source                — source for BPP (NaN until PLN Statistik 2024 is added)
+    bpp_rp_kwh                — PLN BPP Pembangkitan (generation cost) in Rp/kWh
+    bpp_usd_mwh               — PLN BPP Pembangkitan in USD/MWh (at model IDR/USD rate)
+    bpp_source                — source for BPP (Kepmen ESDM 169/2021, FY2020)
     notes                     — any caveats
 """
 
@@ -56,6 +57,7 @@ from src.pipeline.assumptions import (
     TARIFF_I4_RP_KWH,
     rp_kwh_to_usd_mwh,
 )
+from src.pipeline.pdf_extract_bpp import get_regional_bpp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -66,15 +68,22 @@ def build_fct_grid_cost_proxy(
     dim_kek_csv: Path = DIM_KEK_CSV,
     idr_usd_rate: float = IDR_USD_RATE,
 ) -> pd.DataFrame:
-    """Build one row per grid_region_id with national tariff values."""
+    """Build one row per grid_region_id with national tariff values + regional BPP."""
     dim_kek = pd.read_csv(dim_kek_csv)
     grid_regions = dim_kek["grid_region_id"].dropna().unique()
 
     tariff_i3 = rp_kwh_to_usd_mwh(TARIFF_I3_LWBP_RP_KWH, idr_usd_rate)
     tariff_i4 = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, idr_usd_rate)
 
+    # Regional BPP from Kepmen ESDM 169/2021
+    regional_bpp = get_regional_bpp()
+
     rows = []
     for region in sorted(grid_regions):
+        bpp_rp = regional_bpp.get(region)
+        bpp_usd = rp_kwh_to_usd_mwh(bpp_rp, idr_usd_rate) if bpp_rp else None
+        bpp_source = "Kepmen ESDM 169/2021, BPP Pembangkitan FY2020" if bpp_rp else None
+
         rows.append(
             {
                 "grid_region_id": region,
@@ -89,9 +98,10 @@ def build_fct_grid_cost_proxy(
                 "dashboard_rate_usd_mwh": tariff_i4,
                 "dashboard_rate_label": "I-4/TT LWBP, Permen ESDM No.7/2024",
                 "dashboard_rate_flag": "OFFICIAL",
-                # BPP — not yet sourced
-                "bpp_usd_mwh": None,
-                "bpp_source": None,
+                # BPP — regional generation cost of supply
+                "bpp_rp_kwh": bpp_rp,
+                "bpp_usd_mwh": bpp_usd,
+                "bpp_source": bpp_source,
                 # Emission factor — provisional lookup by grid system
                 "grid_emission_factor_t_co2_mwh": GRID_EMISSION_FACTOR_T_CO2_MWH.get(
                     region, GRID_EMISSION_FACTOR_DEFAULT
@@ -99,7 +109,8 @@ def build_fct_grid_cost_proxy(
                 "notes": (
                     "I-3/I-4 tariffs are uniform nationwide (no regional variation). "
                     "LWBP rate used; WBP peak rate = K×LWBP where K=1.4–2.0 (system-specific). "
-                    "BPP (PLN cost of supply) varies by region — deferred; bpp_usd_mwh is null. "
+                    "BPP is generation cost only (BPP Pembangkitan), not full cost-of-supply. "
+                    "BPP source: Kepmen ESDM 169/2021 (FY2020, valid until superseded). "
                     "Emission factor: KESDM Tier 2 Operating Margin, 2019 vintage (data/grid_emission_factors.xlsx)."
                 ),
             }
@@ -125,14 +136,14 @@ def main() -> None:
     print(f"\n  I-3/TM → {rp_kwh_to_usd_mwh(TARIFF_I3_LWBP_RP_KWH):.1f} USD/MWh")
     print(f"  I-4/TT → {rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH):.1f} USD/MWh  ← dashboard primary")
     print("\n  Note: I-3/I-4 tariffs are UNIFORM NATIONWIDE.")
-    print("  BPP (cost of supply) varies by region — not yet in repo.")
+    print("  BPP (generation cost) varies by region — Kepmen ESDM 169/2021, FY2020.")
     print()
     print(
         df[
             [
                 "grid_region_id",
-                "tariff_i3_usd_mwh",
                 "tariff_i4_usd_mwh",
+                "bpp_usd_mwh",
                 "dashboard_rate_usd_mwh",
                 "dashboard_rate_flag",
             ]

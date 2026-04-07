@@ -396,7 +396,7 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 **Lineage:** `dim_kek.csv` (grid_region_id list) + hardcoded tariffs from Permen ESDM 7/2024
 **Rows:** 7 (one per PLN grid system) ✅
 
-**Build logic:** I-4/TT tariff is uniform nationwide (same value for all regions). BPP (cost of supply) is retained as null for future addition from PLN Statistik 2024.
+**Build logic:** I-4/TT tariff is uniform nationwide (same value for all regions). BPP Pembangkitan (generation cost of supply) is sourced per region from Kepmen ESDM 169/2021 via `src/pipeline/pdf_extract_bpp.py`.
 
 | Column | Type | Source | Calculation |
 |--------|------|--------|-------------|
@@ -409,11 +409,13 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 | `dashboard_rate_usd_mwh` | float | derived | `= tariff_i4_usd_mwh` — primary dashboard comparator |
 | `dashboard_rate_label` | str | constant | "I-4/TT LWBP, Permen ESDM No.7/2024" |
 | `dashboard_rate_flag` | str | constant | "OFFICIAL" (not provisional) |
-| `bpp_usd_mwh` | float | null | PLN cost of supply — not yet sourced (PLN Statistik 2024) |
-| `bpp_source` | str | null | Populated when BPP is added |
-| `notes` | str | constant | Caveats (peak multiplier for I-3, BPP deferred) |
+| `bpp_rp_kwh` | float | Kepmen ESDM 169/2021 | BPP Pembangkitan per region in Rp/kWh (simple avg of subsystems) |
+| `bpp_usd_mwh` | float | computed | `bpp_rp_kwh × 1,000 / idr_usd_rate` — regional generation cost in USD/MWh |
+| `bpp_source` | str | constant | "Kepmen ESDM 169/2021, BPP Pembangkitan FY2020" |
+| `grid_emission_factor_t_co2_mwh` | float | KESDM 2019 Tier 2 OM | Grid emission factor by region (tCO2/MWh) |
+| `notes` | str | constant | Caveats (peak multiplier for I-3, BPP vintage, emission factor source) |
 
-**BPP vs tariff distinction:** `dashboard_rate_usd_mwh` is the industrial tariff paid by KEK tenants, not the PLN cost of supply (BPP). BPP is typically higher than the tariff (government subsidises the difference). Using the tariff is correct for the KEK competitiveness question — it's what tenants actually pay.
+**BPP vs tariff distinction:** `dashboard_rate_usd_mwh` is the industrial tariff paid by KEK tenants. `bpp_usd_mwh` is PLN's generation cost of supply (BPP Pembangkitan, Kepmen ESDM 169/2021, FY2020). BPP varies dramatically by region: Java-Bali ~$57/MWh (coal-heavy) vs Papua ~$133/MWh (diesel-heavy). This is **generation BPP only**, not full cost-of-supply BPP (which includes T&D + overhead, ~1,599 Rp/kWh per BPK audit). Generation BPP is the appropriate comparator for solar LCOE since solar also excludes T&D costs.
 
 ---
 
@@ -618,7 +620,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 ## Open Questions
 
-1. **BPP data** — PLN Statistik 2024 regional BPP not yet sourced. Currently using I-4/TT tariff as proxy. When available, add to `fct_grid_cost_proxy.bpp_usd_mwh` and compare with tariff.
+1. **BPP data** — ✅ Regional BPP Pembangkitan sourced from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` populated for all 7 grid regions via `src/pipeline/pdf_extract_bpp.py`. Vintage: FY2020, valid until superseded.
 
 2. ✅ **TECH006 CAPEX verified** — extracted from `docs/esdm_technology_cost.pdf` p.66. `source_page=66`, `is_capex_provisional=False` across all LCOE and scorecard rows. Values: CAPEX=$960/kW, FOM=$7.5/kW/yr, lifetime=27yr.
 
