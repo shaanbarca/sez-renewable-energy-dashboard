@@ -13,6 +13,7 @@ ACTION_FLAG_COLORS: dict[str, str] = {
     "solar_now": "#2E7D32",
     "invest_resilience": "#F57C00",
     "grid_first": "#1565C0",
+    "plan_late": "#7B1FA2",
     "not_competitive": "#C62828",
 }
 
@@ -20,6 +21,7 @@ ACTION_FLAG_LABELS: dict[str, str] = {
     "solar_now": "Solar Now",
     "invest_resilience": "Invest Resilience",
     "grid_first": "Grid First",
+    "plan_late": "Plan Late",
     "not_competitive": "Not Competitive",
 }
 
@@ -36,6 +38,10 @@ ACTION_FLAG_DESCRIPTIONS: dict[str, str] = {
         "Solar LCOE is competitive, but PLN's RUPTL grid expansion plan shows no "
         "substation or transmission upgrade scheduled for this region before 2030. "
         "Grid infrastructure must come first before solar can connect."
+    ),
+    "plan_late": (
+        "Over 60% of RUPTL-planned solar capacity additions in this grid region "
+        "are scheduled after 2030. Infrastructure delivery risk is high."
     ),
     "not_competitive": (
         "Solar LCOE exceeds grid cost beyond the resilience gap threshold. "
