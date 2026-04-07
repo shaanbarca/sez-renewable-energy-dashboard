@@ -48,6 +48,7 @@ from src.model.basic_model import (
     ruptl_region_metrics,
     solar_competitive_gap,
     time_bucket,
+    wind_speed_to_cf,
 )
 
 # ---------------------------------------------------------------------------
@@ -883,3 +884,62 @@ class TestCarbonBreakevenPrice:
     def test_result_is_float(self):
         result = carbon_breakeven_price(70.0, 63.08, 0.87)
         assert isinstance(result, float)
+
+
+# ---------------------------------------------------------------------------
+# Wind speed → CF conversion
+# ---------------------------------------------------------------------------
+
+
+class TestWindSpeedToCf:
+    def test_below_cutin_returns_zero(self):
+        """Wind speed ≤3 m/s should return CF=0."""
+        assert wind_speed_to_cf(2.5) == 0.0
+        assert wind_speed_to_cf(3.0) == 0.0
+
+    def test_zero_speed(self):
+        assert wind_speed_to_cf(0.0) == 0.0
+
+    def test_negative_raises(self):
+        with pytest.raises(ValueError):
+            wind_speed_to_cf(-1.0)
+
+    def test_esdm_catalogue_calibration(self):
+        """CF at 7.5 m/s should be ~0.27 (ESDM catalogue central value)."""
+        cf = wind_speed_to_cf(7.5)
+        assert math.isclose(cf, 0.27, abs_tol=0.01)
+
+    def test_6ms_moderate(self):
+        """CF at 6 m/s should be ~0.22."""
+        cf = wind_speed_to_cf(6.0)
+        assert math.isclose(cf, 0.22, abs_tol=0.01)
+
+    def test_monotonically_increasing(self):
+        """CF should increase with wind speed."""
+        speeds = [3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0]
+        cfs = [wind_speed_to_cf(s) for s in speeds]
+        for i in range(len(cfs) - 1):
+            assert cfs[i] <= cfs[i + 1], (
+                f"CF not monotonic: {speeds[i]}→{cfs[i]}, {speeds[i + 1]}→{cfs[i + 1]}"
+            )
+
+    def test_plateau_above_12(self):
+        """CF should plateau above 12 m/s."""
+        cf_12 = wind_speed_to_cf(12.0)
+        cf_15 = wind_speed_to_cf(15.0)
+        assert cf_12 == cf_15
+
+    def test_class_iii_range(self):
+        """Typical Class III site (7.5 m/s) should give CF 0.25–0.30."""
+        cf = wind_speed_to_cf(7.5)
+        assert 0.25 <= cf <= 0.30
+
+    def test_class_i_range(self):
+        """Class I site (10 m/s) should give CF 0.35–0.42."""
+        cf = wind_speed_to_cf(10.0)
+        assert 0.35 <= cf <= 0.42
+
+    def test_jeneponto_realistic(self):
+        """Jeneponto (South Sulawesi) at ~6.5 m/s should give CF ~0.22–0.25."""
+        cf = wind_speed_to_cf(6.5)
+        assert 0.20 <= cf <= 0.27

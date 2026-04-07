@@ -94,7 +94,7 @@ All 8 tables built, 127 tests passing. Pipeline: `uv run python run_pipeline.py`
 | `fct_kek_resource` | 25 | ✅ | PVOUT centroid + best-50km; CF computed |
 | `fct_grid_cost_proxy` | 7 | ✅ | I-4/TT OFFICIAL @$63.08/MWh (Permen ESDM 7/2024) |
 | `fct_ruptl_pipeline` | 70 | ✅ | 7 regions × 10 years, RE Base + ARED; PDF extractor included |
-| `fct_lcoe` | 75 | ✅ | 25 KEKs × 3 WACC (8/10/12%); is_capex_provisional propagated |
+| `fct_lcoe` | 450 | ✅ | 25 KEKs × 9 WACC (4–20%) × 2 siting scenarios; is_capex_provisional propagated |
 | `fct_kek_demand` | 25 | ✅ | 2030 demand by area × intensity; `demand_mwh_user` override column (nullable Float64) |
 | `fct_kek_scorecard` | 25 | ✅ | All joins + action flags + green_share_geas (real, not hardcoded 0) + competitive gap |
 
@@ -181,7 +181,7 @@ Full gap inventory in [PERSONAS.md](PERSONAS.md) under each persona's `### Data 
 #### Step 3.1 — Resolve design decisions (before writing Dash code)
 
 Resolve the 5 open questions in [DESIGN.md §6](DESIGN.md#6-open-design-questions):
-1. WACC selector: snap to 8/10/12% (recommended) vs. continuous interpolation
+1. WACC selector: ✅ RESOLVED — 9-value slider (4–20%), snap points at [4,6,8,10,12,14,16,18,20]
 2. Map tile: Carto/Plotly built-in (recommended for MVP) vs. Mapbox
 3. Mobile: desktop-only for MVP (recommended) vs. responsive
 4. Provisional data: dagger per cell (recommended) vs. page banner
@@ -346,9 +346,27 @@ This plan closes ~60% of the gap to the 12-month ideal. Remaining 40%: wind CF a
 
 ## Decision Audit Trail
 
-| # | Phase | Decision | Principle | Rationale | Rejected |
-|---|-------|----------|-----------|-----------|----------|
-| 1 | CEO | Mode = SELECTIVE EXPANSION | P1 | Greenfield feature, hold scope + surface expansions | EXPANSION (too early), HOLD (misses obvious wins) |
+<!-- AUTONOMOUS DECISION LOG -->
+
+| # | Phase | Decision | Classification | Principle | Rationale | Rejected |
+|---|-------|----------|---------------|-----------|-----------|----------|
+| 1 | CEO | Mode = SELECTIVE EXPANSION | Mechanical | P1 | Greenfield feature, hold scope + surface expansions | EXPANSION (too early), HOLD (misses obvious wins) |
+| 18 | CEO-2 | Add grid benchmark override input | USER (premise gate) | — | User chose to add custom grid cost input; I-4/TT remains default but users can override | Accept I-4/TT as-is |
+| 19 | CEO-2 | Add wind CF to pipeline + dashboard | USER (premise gate) | — | User confirms architecture supports wind identically; solar was first because most prevalent | Solar-only with disclaimer |
+| 20 | CEO-2 | Keep build order: Dash app → data release | USER (premise gate) | — | User prefers visual validation before public data release | Ship data first |
+| 21 | CEO-2 | Add WACC slider (9 snap points) replacing 3-value radio | Mechanical | P1 | WACC expanded to 4-20% (9 values); radio buttons too wide | Keep 3-value radio |
+| 22 | CEO-2 | Add startup data validation | Mechanical | P1 | Error Registry flagged 8 gaps in Dash layer error handling | No validation |
+| 23 | CEO-2 | Add demand override UI widget in Scorecard | Mechanical | P1 | Model already supports resolve_demand(); just needs dcc.Input | Defer to v2 |
+| 24 | Design | Default state: WACC=10% on load | Mechanical | P1 | Users need to see a meaningful initial view, not blank | Undefined |
+| 25 | Design | Move Flip Scenario after Scorecard in view flow | Taste | P5 | Subagent: breaks emotional arc (hope→confirmation→doubt); move after confirmation | Keep current order |
+| 26 | Design | Add States subsection to DESIGN.md | Mechanical | P1 | Loading, empty, error, partial states all unspecified | No states |
+| 27 | Design | Switch WACC to dcc.Slider with 9 snap points | Mechanical | P1 | Cross-phase theme: 3-value radio stale vs 9-value data | Keep 3-value radio |
+| 28 | Design | Define scorecard tab field lists | Mechanical | P1 | "4 tabs" with no field spec will cause implementation guesswork | Undefined tabs |
+| 29 | Eng | Extract callback logic to src/dash/logic.py | Mechanical | P4 | DRY: testable pure functions, no Dash dependency | Logic in callbacks |
+| 30 | Eng | Add startup CSV validation | Mechanical | P1 | 8 error paths unhandled; show error page not crash | No validation |
+| 31 | Eng | Add prevent_initial_call=True to callbacks | Mechanical | P5 | Prevents callback storm on app startup | Default behavior |
+| 32 | Eng | Validate demand override + grid benchmark inputs | Mechanical | P1 | Clamp to valid ranges; reject NaN/Inf/negative | No validation |
+| 33 | Eng | Test plan: 15 new tests for Dash layer | Mechanical | P1 | 0 Dash tests exist; test plan written to disk | No Dash tests |
 | 2 | CEO | Include all 25 KEKs with NaN handling | P1 | Complete > filtered; missing data is still information | Filter to data-complete KEKs only |
 | 3 | CEO | WACC = live callback computation | P5 | 25 rows × 1 formula = microseconds; precomputed grid reduces user freedom | 5-value precomputed grid |
 | 4 | CEO | Fix requirements.txt | P6 | Obvious gap; no working deps recorded | Defer |
@@ -370,9 +388,11 @@ This plan closes ~60% of the gap to the 12-month ideal. Remaining 40%: wind CF a
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
-| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | ✅ | BPP vs tariff issue flagged; resolved with Permen ESDM 7/2024 |
-| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ✅ | 5 decisions; all implemented (see Decision Audit Trail below) |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | Phase 2 |
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 2 | ✅ | Grid benchmark override added; wind CF accepted; 3 premises confirmed |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | Codex CLI unavailable |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 2 | ✅ | 6 findings (3 HIGH); test plan written; logic extraction pattern defined |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | ✅ | 7 dimensions scored (avg 6/10); WACC stale, missing states, tab fields undefined |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | Skipped (no developer-facing scope) |
+| Dual Voices | `/autoplan-voices` | Independent review | 1 | ⚠️ | subagent-only (Codex unavailable); 3 cross-phase themes identified |
 
-**VERDICT:** Phase 1 pipeline complete. Phase 2 (Dash app) is the next major milestone.
+**VERDICT:** Plan approved with 16 auto-decisions (all mechanical) + 1 taste decision surfaced at gate. Ready for implementation pending user approval.

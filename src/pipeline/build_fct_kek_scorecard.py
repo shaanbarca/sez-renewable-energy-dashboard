@@ -51,6 +51,7 @@ PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
 FKR_CSV = PROCESSED / "fct_kek_resource.csv"
 FLCOE_CSV = PROCESSED / "fct_lcoe.csv"
+FLCOE_WIND_CSV = PROCESSED / "fct_lcoe_wind.csv"
 FGCP_CSV = PROCESSED / "fct_grid_cost_proxy.csv"
 FRUPTL_CSV = PROCESSED / "fct_ruptl_pipeline.csv"
 FCT_DEMAND_CSV = PROCESSED / "fct_kek_demand.csv"
@@ -79,6 +80,7 @@ def build_fct_kek_scorecard(
     dim_kek_csv: Path = DIM_KEK_CSV,
     fct_kek_resource_csv: Path = FKR_CSV,
     fct_lcoe_csv: Path = FLCOE_CSV,
+    fct_lcoe_wind_csv: Path = FLCOE_WIND_CSV,
     fct_grid_cost_proxy_csv: Path = FGCP_CSV,
     fct_ruptl_pipeline_csv: Path = FRUPTL_CSV,
     fct_kek_demand_csv: Path = FCT_DEMAND_CSV,
@@ -91,6 +93,7 @@ def build_fct_kek_scorecard(
     dim_kek = pd.read_csv(dim_kek_csv)
     resource = pd.read_csv(fct_kek_resource_csv)
     lcoe_all = pd.read_csv(fct_lcoe_csv)
+    lcoe_wind_all = pd.read_csv(fct_lcoe_wind_csv)
     grid_cost = pd.read_csv(fct_grid_cost_proxy_csv)
     ruptl = pd.read_csv(fct_ruptl_pipeline_csv)
     fct_demand_raw = pd.read_csv(fct_kek_demand_csv)
@@ -135,6 +138,24 @@ def build_fct_kek_scorecard(
             "lcoe_allin_high_usd_mwh": "lcoe_remote_captive_allin_high_usd_mwh",
             "transmission_lease_adder_usd_mwh": "transmission_lease_adder_usd_mwh",
         }
+    )
+
+    # Wind LCOE at base WACC, within_boundary
+    lcoe_wind_wb = lcoe_wind_all[
+        (lcoe_wind_all["wacc_pct"] == base_wacc) & (lcoe_wind_all["scenario"] == "within_boundary")
+    ][["kek_id", "lcoe_usd_mwh", "cf_wind_used", "wind_speed_ms"]].rename(
+        columns={
+            "lcoe_usd_mwh": "lcoe_wind_mid_usd_mwh",
+            "cf_wind_used": "cf_wind",
+            "wind_speed_ms": "wind_speed_ms",
+        }
+    )
+
+    # Wind remote captive all-in at base WACC
+    lcoe_wind_rc = lcoe_wind_all[
+        (lcoe_wind_all["wacc_pct"] == base_wacc) & (lcoe_wind_all["scenario"] == "remote_captive")
+    ][["kek_id", "lcoe_allin_usd_mwh"]].rename(
+        columns={"lcoe_allin_usd_mwh": "lcoe_wind_allin_mid_usd_mwh"}
     )
 
     # Grid cost: one row per grid_region_id
@@ -204,6 +225,8 @@ def build_fct_kek_scorecard(
         .merge(lcoe_wacc8, on="kek_id", how="left")
         .merge(lcoe_rc_allin, on="kek_id", how="left")
         .merge(sub, on="kek_id", how="left")
+        .merge(lcoe_wind_wb, on="kek_id", how="left")
+        .merge(lcoe_wind_rc, on="kek_id", how="left")
     )
 
     # Ensure buildability columns exist (NaN if data/buildability/ not yet populated)
@@ -261,6 +284,45 @@ def build_fct_kek_scorecard(
     df["solar_attractive"] = (df["pvout_best_50km"].fillna(0) >= FIRMING_PVOUT_THRESHOLD) & (
         df["lcoe_mid_usd_mwh"].fillna(np.inf) <= df["dashboard_rate_usd_mwh"].fillna(0)
     )
+
+    # Best RE technology: pick whichever has lower LCOE (solar vs wind)
+    solar_lcoe = df["lcoe_mid_usd_mwh"].fillna(np.inf)
+    wind_lcoe = df["lcoe_wind_mid_usd_mwh"].fillna(np.inf)
+
+    df["best_re_lcoe_mid_usd_mwh"] = np.where(
+        solar_lcoe <= wind_lcoe,
+        df["lcoe_mid_usd_mwh"],
+        df["lcoe_wind_mid_usd_mwh"],
+    )
+    # Replace inf with NaN (both were NaN)
+    df.loc[
+        df["lcoe_mid_usd_mwh"].isna() & df["lcoe_wind_mid_usd_mwh"].isna(),
+        "best_re_lcoe_mid_usd_mwh",
+    ] = np.nan
+
+    def _best_re(row: pd.Series) -> str:
+        s = row["lcoe_mid_usd_mwh"]
+        w = row["lcoe_wind_mid_usd_mwh"]
+        if pd.isna(s) and pd.isna(w):
+            return "none"
+        if pd.isna(w):
+            return "solar"
+        if pd.isna(s):
+            return "wind"
+        if abs(s - w) < 1.0:  # within $1/MWh = effectively tied
+            return "both"
+        return "solar" if s < w else "wind"
+
+    df["best_re_technology"] = df.apply(_best_re, axis=1)
+
+    # RE competitive gap: uses best RE LCOE vs grid cost
+    df["re_competitive_gap_pct"] = np.where(
+        df["dashboard_rate_usd_mwh"].notna() & df["best_re_lcoe_mid_usd_mwh"].notna(),
+        (df["best_re_lcoe_mid_usd_mwh"] - df["dashboard_rate_usd_mwh"])
+        / df["dashboard_rate_usd_mwh"]
+        * 100,
+        np.nan,
+    ).round(1)
 
     # Derive grid_upgrade_pre2030: True if any solar MW is planned before 2030 in this region
     df["grid_upgrade_pre2030"] = df["pre2030_solar_mw"].fillna(0) > 0
@@ -324,7 +386,7 @@ def build_fct_kek_scorecard(
 
     # Derive primary action flag label
     # - "data_missing": one or more required inputs were NaN (flags set to None above)
-    # - "not_competitive": all data present but solar LCOE > grid cost at base WACC
+    # - "not_competitive": all data present but BOTH solar AND wind LCOE > grid cost
     # - otherwise: first True flag wins
     def _flag_label(row: pd.Series) -> str:
         if any(
@@ -334,6 +396,11 @@ def build_fct_kek_scorecard(
         for flag in ["solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late"]:
             if row.get(flag) is True:
                 return flag
+        # Check if wind makes this KEK competitive even if solar isn't
+        wind_lcoe = row.get("lcoe_wind_mid_usd_mwh")
+        grid_rate = row.get("dashboard_rate_usd_mwh")
+        if pd.notna(wind_lcoe) and pd.notna(grid_rate) and wind_lcoe <= grid_rate:
+            return "wind_competitive"
         return "not_competitive"
 
     df["action_flag"] = df.apply(_flag_label, axis=1)
@@ -411,6 +478,13 @@ def build_fct_kek_scorecard(
             "cf_used",
             "is_cf_provisional",
             "is_capex_provisional",
+            "lcoe_wind_mid_usd_mwh",
+            "lcoe_wind_allin_mid_usd_mwh",
+            "cf_wind",
+            "wind_speed_ms",
+            "best_re_technology",
+            "best_re_lcoe_mid_usd_mwh",
+            "re_competitive_gap_pct",
             "dashboard_rate_usd_mwh",
             "dashboard_rate_label",
             "is_grid_cost_provisional",
@@ -450,15 +524,17 @@ def main() -> None:
     print(df["action_flag"].value_counts().to_string())
     print("\nData completeness:")
     print(df["data_completeness"].value_counts().to_string())
-    print("\nSolar competitive gap (WACC=10%, base CAPEX):")
+    print("\nCompetitive gap (WACC=10%, base CAPEX):")
     cols = [
         "kek_id",
         "lcoe_mid_usd_mwh",
+        "lcoe_wind_mid_usd_mwh",
+        "best_re_technology",
         "dashboard_rate_usd_mwh",
-        "solar_competitive_gap_pct",
+        "re_competitive_gap_pct",
         "action_flag",
     ]
-    print(df[cols].sort_values("solar_competitive_gap_pct").to_string(index=False))
+    print(df[cols].sort_values("re_competitive_gap_pct").to_string(index=False))
 
 
 if __name__ == "__main__":

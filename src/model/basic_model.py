@@ -41,6 +41,8 @@ from src.assumptions import (
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
+    WIND_CF_MAX,
+    WIND_CF_MIN,
 )
 
 # ---------------------------------------------------------------------------
@@ -95,6 +97,72 @@ def capacity_factor_from_pvout(pvout_kwh_per_kwp_yr: float) -> float:
         Capacity factor (0–1). Typical Indonesia solar: 0.17–0.21.
     """
     return float(pvout_kwh_per_kwp_yr) / HOURS_PER_YEAR
+
+
+def wind_speed_to_cf(speed_ms: float) -> float:
+    """Convert mean annual wind speed at 100m hub height to onshore wind capacity factor.
+
+    Empirical piecewise linear approximation calibrated to:
+    - ESDM Technology Catalogue 2024, p.90 (IEC Class III onshore turbine):
+      best Indonesian sites (>6 m/s) achieve CF ~27% incl. outages.
+    - ESDM catalogue notes: majority of Indonesia has very low wind (CF <20%).
+    - Reference turbine: Vestas V126/3.45 MW (Class III low-wind).
+
+    Breakpoints (m/s → CF):
+        ≤3.0  →  0.00   (below cut-in, no generation)
+        4.0   →  0.08   (marginal, near cut-in)
+        5.0   →  0.15   (low wind)
+        6.0   →  0.22   (moderate, calibrated to ESDM lower range)
+        7.5   →  0.27   (ESDM catalogue central CF for best Indonesian sites)
+        8.5   →  0.32   (IEC Class II/III boundary)
+        10.0  →  0.38   (IEC Class I, excellent)
+        ≥12.0 →  0.42   (plateau — turbine at rated power most of the time)
+
+    Parameters
+    ----------
+    speed_ms : float
+        Mean annual wind speed at 100m hub height (m/s).
+
+    Returns
+    -------
+    float
+        Estimated capacity factor (0–1). Clamped to [WIND_CF_MIN, WIND_CF_MAX].
+
+    Raises
+    ------
+    ValueError
+        If speed_ms is negative.
+    """
+    if speed_ms < 0:
+        raise ValueError(f"Wind speed must be >= 0, got {speed_ms}")
+
+    # Piecewise linear breakpoints: (speed_ms, cf)
+    breakpoints = [
+        (3.0, 0.00),
+        (4.0, 0.08),
+        (5.0, 0.15),
+        (6.0, 0.22),
+        (7.5, 0.27),
+        (8.5, 0.32),
+        (10.0, 0.38),
+        (12.0, 0.42),
+    ]
+
+    if speed_ms <= breakpoints[0][0]:
+        return 0.0
+    if speed_ms >= breakpoints[-1][0]:
+        return min(breakpoints[-1][1], WIND_CF_MAX)
+
+    # Linear interpolation between breakpoints
+    for i in range(len(breakpoints) - 1):
+        s0, cf0 = breakpoints[i]
+        s1, cf1 = breakpoints[i + 1]
+        if s0 <= speed_ms <= s1:
+            t = (speed_ms - s0) / (s1 - s0)
+            cf = cf0 + t * (cf1 - cf0)
+            return max(WIND_CF_MIN, min(cf, WIND_CF_MAX))
+
+    return 0.0
 
 
 # ---------------------------------------------------------------------------

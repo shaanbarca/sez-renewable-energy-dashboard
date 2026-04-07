@@ -94,7 +94,7 @@ Step 5 — Action flags (per KEK)
 | CF | 0.148–0.197 | Derived from PVOUT ÷ 8,760 |
 | CAPEX (central) | 960 USD/kW | ESDM Tech Catalogue 2023, TECH006, p.66 (0.96 MUSD/MWe) |
 | FOM | 7.5 USD/kW/yr | ESDM Tech Catalogue 2023, TECH006, p.66 (7,500 USD/MWe/yr) |
-| WACC | 6–15% (slider); default 10% | User-adjustable |
+| WACC | 4–20% (slider, 9 snap points); default 10% | User-adjustable |
 | Lifetime | 27 years | ESDM Tech Catalogue 2023, TECH006, p.66 |
 | Grid cost (primary) | 63.1 USD/MWh (I-4/TT) | Permen ESDM No.7/2024, uniform national |
 | Grid cost (secondary) | 65.6 USD/MWh (I-3/TM) | Permen ESDM No.7/2024, uniform national |
@@ -102,7 +102,7 @@ Step 5 — Action flags (per KEK)
 
 ### Critical caveats
 
-- **PVOUT is an upper bound.** Buildability filters (forest, slope, peat, area) are not yet applied. All resource values carry `resource_quality = "provisional (no buildability filter)"`.
+- **PVOUT is filtered where data is available.** Four buildability layers (Kawasan Hutan, peatland, ESA WorldCover land cover, DEM slope/elevation) are applied when data files are present in `data/buildability/`. With DEM + ESA WorldCover (automated download), `resource_quality = "partial_filter (2/4 layers)"`; with all 4 files, `resource_quality = "filtered"`. Without any buildability data, PVOUT is an upper bound and `resource_quality = "provisional (no buildability filter)"`.
 - **I-4/TT tariff ≠ BPP.** The tariff is what KEK tenants pay. PLN BPP (cost of supply) may be 15–35% higher. We use the tariff (correct), not BPP (incorrect comparator).
 - **CAPEX/FOM are verified.** TECH006 values are sourced from the ESDM Technology Catalogue 2023, datasheet p.66, and stored as `VERIFIED_TECH006_DATA` in `src/pipeline/pdf_extract_esdm_tech.py`.
 - **IDR/USD rate:** 15,800 IDR/USD (2024 reference). Tariff in IDR is subject to quarterly tariff adjustment (Pasal 6, Permen ESDM No.7/2024).
@@ -150,7 +150,9 @@ Where 8,760 = hours per year. CF is dimensionless (decimal, not percent).
 
 **Interpretation:** A KEK with PVOUT_annual = 1,650 kWh/kWp/yr has CF = 0.188 (18.8% capacity factor). This represents the fraction of time a 1 kWp panel produces its nameplate output, averaged over the year.
 
-**Implementation note:** The formula assumes PVOUT is the production of a fixed-tilt, grid-connected PV system at standard conditions, which is how Global Solar Atlas defines it. No additional de-rating (soiling, temperature, inverter losses) is applied in the base model — these are embedded in Global Solar Atlas PVOUT estimates.
+**Implementation note:** The formula assumes PVOUT is the production of a fixed-tilt, grid-connected PV system at standard conditions, which is how Global Solar Atlas defines it. No additional de-rating (soiling, temperature, inverter losses) is applied in the base model — these are embedded in Global Solar Atlas PVOUT estimates. Specifically, GSA uses the Faiman thermal model to account for temperature-dependent efficiency losses (~0.35–0.5%/°C above 25°C STC). At Indonesia's average ambient temperatures (27–33°C), this represents a ~3–5% production reduction vs. STC, which is already reflected in the PVOUT values.
+
+**Degradation note:** Solar panel output degrades ~0.5%/year over the asset lifetime. Over 27 years, cumulative output is ~93–94% of the constant-CF assumption used in the CRF annuity method. This means the LCOE values in this model are understated by ~6–7%. This is standard practice for screening-level LCOE models (IEA WEO, IRENA Power Generation Costs use the same simplification). For project-level financial models, apply a degradation-adjusted CF.
 
 ### 2.4 PVOUT extraction per KEK
 
@@ -437,7 +439,7 @@ This model evaluates two distinct captive solar configurations per KEK:
 - Within-boundary LCOE using `pvout_centroid`, `gentie = 0`
 - Remote captive LCOE using `pvout_best_50km` + `gentie_cost_per_kw(dist_to_nearest_substation_km)`
 
-**Output:** `fct_lcoe.csv` — 150 rows (25 KEKs × 3 WACCs × 2 scenarios). Scorecard uses `within_boundary` at WACC=10% as the base-case dashboard comparator.
+**Output:** `fct_lcoe.csv` — 450 rows (25 KEKs × 9 WACCs × 2 scenarios). See §3.3 for the full WACC range. Scorecard uses `within_boundary` at WACC=10% as the base-case dashboard comparator.
 
 **Deferred to Phase 3:**
 - Transmission lease fee parameterisation (currently excluded; adds ~5–15 USD/MWh at scale)
@@ -621,15 +623,12 @@ invest_resilience = (solar_competitive_gap_pct > 0)         # solar not yet at g
 
 **Current results (WACC=10%):** 4 KEKs fire this flag — Kendal (gap=13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). All are manufacturing KEKs in Java-Bali and Sulawesi. Carbon breakeven for these: $10–17/tCO2 — well within Indonesia's emerging carbon market trajectory.
 
-**`solar_attractive` definition:**
+**`solar_attractive` definition (✅ resolved — Option B implemented):**
 ```
-solar_attractive = (pvout_best_50km ≥ 1,550 kWh/kWp/yr) AND (lcoe_mid ≤ [threshold USD/MWh])
+solar_attractive = (pvout_best_50km ≥ 1,550 kWh/kWp/yr) AND (lcoe_mid ≤ grid_cost_usd_mwh)
 ```
 
-⚠️ **Open question:** Should the LCOE threshold be a fixed value or WACC-dependent? Options:
-- A) Fixed threshold (e.g., 60 USD/MWh at base-case WACC 10%) — simpler, but threshold choice is arbitrary
-- B) WACC-dependent: `solar_attractive = (solar_competitive_gap ≤ 0)` — more rigorous, directly linked to grid cost comparison
-- **Recommendation:** Option B — `solar_attractive` should simply mean "solar LCOE ≤ grid cost at current WACC." This makes the flag directly interpretable and removes the need for a hardcoded threshold.
+WACC-dependent: `solar_attractive` means "solar LCOE ≤ grid cost at current WACC AND resource is sufficient." This makes the flag directly interpretable — no hardcoded LCOE threshold needed. Implementation: `is_solar_attractive()` in `src/model/basic_model.py`.
 
 **NaN handling:** If any input to an action flag computation is NaN:
 - Use conservative defaults: `grid_upgrade_pre2030 = False`, `post2030_share = 1.0` (assumes worst case)
@@ -687,6 +686,8 @@ else:
 ```
 
 Unit: USD/tCO2. Interpretation: if carbon is priced at or above this level (via Indonesia's carbon market, EU CBAM exposure, or corporate net-zero commitments), solar wins on adjusted total cost.
+
+**Simplification note:** This formula assumes zero lifecycle emissions from solar. Actual solar lifecycle emissions are ~40 gCO2/MWh (IPCC AR6 median, covering manufacturing, transport, installation, and decommissioning). The corrected formula would be `lcoe_gap / (grid_EF − 0.040)`, which raises breakeven prices by ~5–8% depending on the grid region. This simplification is standard for grid displacement calculations but should be noted when citing breakeven values in formal analysis.
 
 **Grid emission factors by PLN system (Operating Margin, ⚠️ 2019 vintage):**
 
@@ -760,8 +761,10 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | Limitation | Impact | Mitigation |
 |-----------|--------|------------|
 | PVOUT from Global Solar Atlas, not site-specific measurement | ±5–10% LCOE uncertainty | Use `pvout_best_50km` not centroid; show LCOE band (low/mid/high) |
-| No geospatial buildability filter applied (slope, Kawasan Hutan, peat, agriculture, minimum area) | `pvout_best_50km` is an upper bound — actual buildable resource may be significantly lower, especially on Java (agriculture/density) and Sulawesi (Kawasan Hutan + steep terrain); expected available area after filters: 10–35% of 50km radius depending on island (see Section 2.5) | All resource values labeled `provisional (no buildability filter)` in scorecard; v1.1 adds 4-layer filter using Copernicus DEM 30m + KLHK Peta Penutupan Lahan + Kawasan Hutan boundary |
-| No buildable area estimate (`max_captive_capacity_mwp`) | Cannot screen out zones where total buildable land < 10 ha (minimum viable 6–7 MWp project) — a KEK may appear resource-rich but have no contiguous buildable patch | Deferred to v1.1; morphological opening filter on buildability mask → `buildable_area_ha` column in `fct_kek_resource` |
+| Buildability filter is partial (2/4 layers with automated data) | With DEM + ESA WorldCover present, slope/elevation and land cover exclusions are applied; `resource_quality = "partial_filter (2/4 layers)"`. Kawasan Hutan and peatland layers require manual download from KLHK geoportal. Without all 4 layers, `pvout_buildable_best_50km` may overstate buildable resource, especially on Java (agriculture/density) and Sulawesi (Kawasan Hutan + steep terrain); expected available area after all filters: 10–35% of 50km radius depending on island (see Section 2.5) | `resource_quality` flag in scorecard shows filter status; `buildable_area_ha` and `max_captive_capacity_mwp` are computed from whatever layers are present |
+| Panel degradation not modeled | CRF annuity method assumes constant annual production. Solar panels degrade ~0.5%/yr; by year 27, output is ~87% of year 1. LCOE is understated by ~6–7% | Standard for screening-level models (IEA, IRENA use same simplification). For project-level analysis, apply degradation-adjusted CF = CF × (1 − 0.5% × n/2) |
+| Solar lifecycle emissions excluded from carbon breakeven | `carbon_breakeven_usd_tco2` assumes zero solar emissions. Actual lifecycle: ~40 gCO2/MWh (IPCC AR6 median). Breakeven prices are ~5–8% too optimistic | Add footnote to carbon breakeven output; corrected formula: `gap / (grid_EF − 0.040)` |
+| IDR/USD exchange rate hardcoded (15,800) | Rupiah volatility (14,500–16,500 range, 2023–2025) affects grid cost benchmark. A 5% FX move changes grid cost by ~$3/MWh, potentially flipping marginal KEKs | No FX sensitivity in MVP; note magnitude in dashboard tooltip |
 | Grid cost proxy may be BPP, not actual industrial tariff | LCOE gap overstated if BPP > tariff | Show I-4 tariff as primary where available; flag BPP as provisional |
 | LCOE excludes firming costs (within_boundary) | On-site all-in cost understated by ~$6–16/MWh for intermittency backup | `lcoe_solar_with_firming()` in `basic_model.py`; not yet a dedicated scorecard column |
 | ~~LCOE excludes transmission lease (remote_captive)~~ | ~~All-in PPA cost understated for 23/25 KEKs~~ | ✅ Implemented — `lcoe_allin_*` in `fct_lcoe`; `lcoe_remote_captive_allin_*` in scorecard. Adder = $5–15/MWh ($10 mid). |
@@ -788,6 +791,9 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | Buildable land (≥ 10 ha contiguous, slope ≤ 8°, outside Kawasan Hutan / peat / flood zones) assumed to exist within 50km radius | MVP simplification — risk is highest for Java KEKs (dense agriculture) and Sulawesi KEKs (Kawasan Hutan + steep terrain); outer Sumatra KEKs are generally lower risk | `pvout_best_50km` labeled `provisional`; v1.1 applies 4-layer filter (Section 2.5) to compute `pvout_buildable_best_50km` and `buildable_area_ha` |
 | Land use for captive solar assumed compliant with RTRW spatial plan | Local spatial plans (RTRW kabupaten/provinsi) may designate specific zones for industrial vs. agricultural use; solar on APL land is generally permissible but RTRW compliance must be verified per KEK by the developer | Not modeled; flagged as due diligence item for any KEK showing as `solar_now` |
 | Firming/wheeling adder | $6–16/MWh | Industry estimates; not empirically validated for Indonesia | Shown as range, labeled as approximate |
+| Panel degradation | Not modeled (constant CF assumed) | CRF annuity method assumes flat annual production. Actual ~0.5%/yr degradation understates LCOE by ~6–7% over 27 years. Standard for IEA/IRENA screening models | For project-level analysis, adjust CF downward |
+| Solar lifecycle emissions | Excluded from carbon breakeven | ~40 gCO2/MWh (IPCC AR6 median) not subtracted from grid displacement. Breakeven prices ~5–8% optimistic | Note in dashboard tooltip; use corrected formula for formal analysis |
+| IDR/USD exchange rate | 15,800 (2024 reference, hardcoded) | Rupiah volatility (14,500–16,500 range, 2023–2025) not modeled. ~$3/MWh grid cost change per 5% FX move | Fixed in MVP; note sensitivity in dashboard |
 
 ---
 
@@ -817,7 +823,7 @@ On-site captive plants may still need grid backup for intermittency. This is the
 
 7. ⏳ **BPP data** — PLN Statistik 2024 regional BPP not yet sourced. `bpp_usd_mwh` column exists but is null. When available, add as secondary reference — do not replace I-4/TT as primary comparator.
 
-8. ⏳ **Landcover buildability filter** — `pvout_best_50km` is an upper bound. Planned for v1.1: 4-layer filter (HCS/HCV, peatland, protected areas, slope > 15°) → `pvout_buildable_best_50km` + `buildable_area_ha`.
+8. ✅ **Buildability filter** — 4-layer filter implemented (Kawasan Hutan, peatland, ESA WorldCover land cover, DEM slope > 8° / elevation > 1,500m). `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp` all populated. Currently 2/4 layers automated (DEM + ESA WorldCover); Kawasan Hutan and peatland shapefiles require manual download from KLHK geoportal. See §2.5 for full implementation status.
 
 9. ⏳ **Reliability threshold validation** — `reliability_req` thresholds are sector-derived (Manufacturing=0.8 etc.). Stakeholder validation with KEK operators recommended before using `invest_resilience` flag in formal policy advice.
 

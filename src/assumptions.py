@@ -99,8 +99,9 @@ CAPEX_USD_PER_KW_MIN: float = 200.0
 # Lower CAPEX plausibility bound (USD/kW). Below this = unit error (MUSD/MWe not converted).
 # Source: METHODOLOGY.md Section 3.2.
 
-CAPEX_USD_PER_KW_MAX: float = 3_000.0
+CAPEX_USD_PER_KW_MAX: float = 4_000.0
 # Upper CAPEX plausibility bound (USD/kW). Above this = likely unit error.
+# Raised from 3000 to 4000 to accommodate wind CAPEX ($2,350 upper) + gen-tie adder.
 # Source: METHODOLOGY.md Section 3.2.
 
 SOLAR_TECH_ID: str = "TECH006"
@@ -123,6 +124,47 @@ TECH006_FOM_USD_PER_KW_YR: float = 7.5
 
 TECH006_LIFETIME_YR: int = 27
 # Source: ESDM Technology Catalogue 2023, p.66. Central value = 27 years.
+
+# ─── WIND TECH ─────────────────────────────────────────────────────────────────
+
+WIND_TECH_ID: str = "TECH_WIND_ONSHORE"
+# Technology identifier for onshore wind in dim_tech_variant.csv.
+# Source: ESDM Technology Catalogue 2024, Chapter 4, datasheet p.90 (Wind power - Onshore).
+
+WIND_TECH_YEAR: int = 2023
+# Reference year for wind CAPEX / O&M data (price year 2022 USD, reference year 2023).
+# Source: ESDM Technology Catalogue 2024, p.90.
+
+TECH_WIND_CAPEX_USD_PER_KW: float = 1650.0
+# Source: ESDM Technology Catalogue 2024, p.90. 1.65 MUSD/MWe × 1000 = 1650 USD/kW.
+# IEC Class III turbine (low wind, appropriate for Indonesia).
+
+TECH_WIND_FOM_USD_PER_KW_YR: float = 40.0
+# Source: ESDM Technology Catalogue 2024, p.90. 40,000 USD/MWe/yr ÷ 1000 = 40 USD/kW/yr.
+# Includes insurance, land lease, and regular replacement of inverters/gearbox components.
+
+TECH_WIND_LIFETIME_YR: int = 27
+# Source: ESDM Technology Catalogue 2024, p.90. Central value = 27 years (range 25–35).
+
+# ─── WIND RESOURCE ─────────────────────────────────────────────────────────────
+
+WIND_BUFFER_KM: float = 50.0
+# Search radius (km) for best wind speed within radius, same as solar for consistency.
+# Source: mirrors PVOUT_BUFFER_KM rationale.
+
+WIND_CF_MIN: float = 0.05
+# Lower plausibility bound for wind capacity factor.
+# Source: ESDM catalogue notes: majority of Indonesia has CF below 20%,
+# some sites near 0% wind viability. 5% allows for marginal sites.
+
+WIND_CF_MAX: float = 0.55
+# Upper plausibility bound for wind capacity factor.
+# Source: ESDM catalogue shows best sites globally reach ~45-50% CF.
+# 55% ceiling with margin.
+
+WIND_SOURCE: str = "GlobalWindAtlas-v3"
+# Name tag for wind speed raster provenance.
+# Source: https://globalwindatlas.info — DTU / World Bank, mean wind speed at 100m.
 
 # ─── GEN-TIE LINE COST (remote captive scenario) ──────────────────────────────
 

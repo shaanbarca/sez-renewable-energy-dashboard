@@ -135,6 +135,164 @@ class TestPdfExtractEsdmTech:
         assert params["capex"]["source_page"] != 0
 
 
+# ── pdf_extract_esdm_tech: wind onshore extractor tests ──────────────────────
+
+
+class TestPdfExtractWindOnshore:
+    def test_get_wind_onshore_params_returns_verified_values(self):
+        """get_tech_wind_onshore_params() always returns data."""
+        from src.pipeline.pdf_extract_esdm_tech import (
+            VERIFIED_TECH_WIND_ONSHORE_DATA,
+            get_tech_wind_onshore_params,
+        )
+
+        params = get_tech_wind_onshore_params(ESDM_PDF_PATH)
+        assert params["capex"]["central"] == pytest.approx(
+            VERIFIED_TECH_WIND_ONSHORE_DATA["capex"]["central"]
+        )
+        assert params["fixed_om"]["central"] == pytest.approx(
+            VERIFIED_TECH_WIND_ONSHORE_DATA["fixed_om"]["central"]
+        )
+        assert params["lifetime"]["central"] == pytest.approx(
+            VERIFIED_TECH_WIND_ONSHORE_DATA["lifetime"]["central"]
+        )
+
+    def test_wind_onshore_lower_lt_central_lt_upper(self):
+        """Uncertainty bounds must be ordered: lower < central < upper."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech_wind_onshore_params
+
+        params = get_tech_wind_onshore_params(ESDM_PDF_PATH)
+        for param in ("capex", "fixed_om", "lifetime"):
+            assert params[param]["lower"] < params[param]["central"] < params[param]["upper"], (
+                f"{param}: lower/central/upper not ordered correctly"
+            )
+
+    def test_wind_capex_higher_than_solar(self):
+        """Wind onshore CAPEX should be higher than solar PV."""
+        from src.pipeline.pdf_extract_esdm_tech import (
+            get_tech006_params,
+            get_tech_wind_onshore_params,
+        )
+
+        solar = get_tech006_params(ESDM_PDF_PATH)
+        wind = get_tech_wind_onshore_params(ESDM_PDF_PATH)
+        assert wind["capex"]["central"] > solar["capex"]["central"]
+
+    def test_wind_fom_higher_than_solar(self):
+        """Wind onshore FOM should be higher than solar PV."""
+        from src.pipeline.pdf_extract_esdm_tech import (
+            get_tech006_params,
+            get_tech_wind_onshore_params,
+        )
+
+        solar = get_tech006_params(ESDM_PDF_PATH)
+        wind = get_tech_wind_onshore_params(ESDM_PDF_PATH)
+        assert wind["fixed_om"]["central"] > solar["fixed_om"]["central"]
+
+    def test_wind_extractor_graceful_on_missing_pdf(self):
+        """extract_wind_onshore_from_pdf() returns None when PDF does not exist."""
+        from src.pipeline.pdf_extract_esdm_tech import extract_wind_onshore_from_pdf
+
+        result = extract_wind_onshore_from_pdf(Path("/nonexistent/path.pdf"))
+        assert result is None
+
+    def test_wind_falls_back_on_missing_pdf(self):
+        """get_tech_wind_onshore_params() returns VERIFIED data even when PDF is missing."""
+        from src.pipeline.pdf_extract_esdm_tech import (
+            VERIFIED_TECH_WIND_ONSHORE_DATA,
+            get_tech_wind_onshore_params,
+        )
+
+        params = get_tech_wind_onshore_params(Path("/nonexistent/path.pdf"))
+        assert params["capex"]["central"] == VERIFIED_TECH_WIND_ONSHORE_DATA["capex"]["central"]
+
+    def test_verify_wind_onshore_passes(self):
+        """verify_wind_onshore_against_hardcoded() returns True with the real PDF."""
+        from src.pipeline.pdf_extract_esdm_tech import verify_wind_onshore_against_hardcoded
+
+        assert verify_wind_onshore_against_hardcoded(ESDM_PDF_PATH) is True
+
+    def test_wind_source_page_is_nonzero(self):
+        """source_page must be non-zero — 0 means pending verification."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech_wind_onshore_params
+
+        params = get_tech_wind_onshore_params(ESDM_PDF_PATH)
+        assert params["capex"]["source_page"] != 0
+
+
+# ── unified dispatcher tests ──────────────────────────────────────────────────
+
+
+class TestGetTechParams:
+    def test_dispatch_solar(self):
+        """get_tech_params('TECH006') returns solar params."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech_params
+
+        params = get_tech_params("TECH006", ESDM_PDF_PATH)
+        assert params["capex"]["central"] == pytest.approx(0.96)
+
+    def test_dispatch_wind(self):
+        """get_tech_params('TECH_WIND_ONSHORE') returns wind params."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech_params
+
+        params = get_tech_params("TECH_WIND_ONSHORE", ESDM_PDF_PATH)
+        assert params["capex"]["central"] == pytest.approx(1.65)
+
+    def test_dispatch_unknown_raises(self):
+        """get_tech_params() raises KeyError for unknown tech_id."""
+        from src.pipeline.pdf_extract_esdm_tech import get_tech_params
+
+        with pytest.raises(KeyError):
+            get_tech_params("TECH_UNKNOWN", ESDM_PDF_PATH)
+
+
+# ── dim_tech_cost_wind ────────────────────────────────────────────────────────
+
+
+class TestDimTechCostWind:
+    def test_row_count(self):
+        """Should produce exactly 1 row."""
+        from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+
+        df = build_dim_tech_cost_wind()
+        assert len(df) == 1
+
+    def test_capex_unit_conversion(self):
+        """CAPEX should be 1.65 MUSD/MWe × 1000 = 1650 USD/kW."""
+        from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+
+        df = build_dim_tech_cost_wind()
+        assert df.iloc[0]["capex_usd_per_kw"] == pytest.approx(1650.0)
+
+    def test_fom_unit_conversion(self):
+        """FOM should be 40,000 USD/MWe/yr ÷ 1000 = 40 USD/kW/yr."""
+        from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+
+        df = build_dim_tech_cost_wind()
+        assert df.iloc[0]["fixed_om_usd_per_kw_yr"] == pytest.approx(40.0)
+
+    def test_lifetime(self):
+        """Lifetime should be 27 years."""
+        from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+
+        df = build_dim_tech_cost_wind()
+        assert df.iloc[0]["lifetime_yr"] == 27
+
+    def test_tech_id(self):
+        """tech_id should be TECH_WIND_ONSHORE."""
+        from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+
+        df = build_dim_tech_cost_wind()
+        assert df.iloc[0]["tech_id"] == "TECH_WIND_ONSHORE"
+
+    def test_not_provisional(self):
+        """Source page is known (90), so not provisional."""
+        from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+
+        df = build_dim_tech_cost_wind()
+        assert bool(df.iloc[0]["is_provisional"]) is False
+
+
 # ── dim_kek ──────────────────────────────────────────────────────────────────
 
 
@@ -490,6 +648,82 @@ class TestFctLcoe:
         assert (wb["lcoe_allin_usd_mwh"] == wb["lcoe_usd_mwh"]).all()
 
 
+# ── fct_lcoe_wind ────────────────────────────────────────────────────────────
+
+
+class TestFctLcoeWind:
+    @pytest.fixture(scope="class")
+    def wind_lcoe(self):
+        from src.pipeline.build_fct_lcoe_wind import build_fct_lcoe_wind
+
+        return build_fct_lcoe_wind()
+
+    def test_row_count(self, wind_lcoe):
+        """25 KEKs × 9 WACC values × 2 scenarios = 450 rows."""
+        assert len(wind_lcoe) == 450
+
+    def test_wacc_values_full_range(self, wind_lcoe):
+        assert set(wind_lcoe["wacc_pct"].unique()) == {
+            4.0,
+            6.0,
+            8.0,
+            10.0,
+            12.0,
+            14.0,
+            16.0,
+            18.0,
+            20.0,
+        }
+
+    def test_two_scenarios(self, wind_lcoe):
+        assert set(wind_lcoe["scenario"].unique()) == {"within_boundary", "remote_captive"}
+
+    def test_within_boundary_gentie_zero(self, wind_lcoe):
+        wb = wind_lcoe[wind_lcoe["scenario"] == "within_boundary"]
+        assert (wb["gentie_cost_per_kw"] == 0).all()
+
+    def test_higher_wacc_higher_lcoe(self, wind_lcoe):
+        pivot = wind_lcoe.pivot(
+            index=["kek_id", "scenario"], columns="wacc_pct", values="lcoe_usd_mwh"
+        ).dropna()
+        assert (pivot[8.0] < pivot[10.0]).all()
+        assert (pivot[10.0] < pivot[12.0]).all()
+
+    def test_lcoe_low_lt_mid_lt_high(self, wind_lcoe):
+        valid = wind_lcoe.dropna(subset=["lcoe_low_usd_mwh", "lcoe_usd_mwh", "lcoe_high_usd_mwh"])
+        assert (valid["lcoe_low_usd_mwh"] < valid["lcoe_usd_mwh"]).all()
+        assert (valid["lcoe_usd_mwh"] < valid["lcoe_high_usd_mwh"]).all()
+
+    def test_tech_id_is_wind(self, wind_lcoe):
+        assert (wind_lcoe["tech_id"] == "TECH_WIND_ONSHORE").all()
+
+    def test_transmission_lease_zero_for_within_boundary(self, wind_lcoe):
+        wb = wind_lcoe[wind_lcoe["scenario"] == "within_boundary"]
+        assert (wb["transmission_lease_adder_usd_mwh"] == 0.0).all()
+
+    def test_transmission_lease_positive_for_remote_captive(self, wind_lcoe):
+        rc = wind_lcoe[wind_lcoe["scenario"] == "remote_captive"]
+        assert (rc["transmission_lease_adder_usd_mwh"] > 0).all()
+
+    def test_lcoe_allin_gt_base_for_remote_captive(self, wind_lcoe):
+        rc = wind_lcoe[wind_lcoe["scenario"] == "remote_captive"].dropna(
+            subset=["lcoe_usd_mwh", "lcoe_allin_usd_mwh"]
+        )
+        assert (rc["lcoe_allin_usd_mwh"] > rc["lcoe_usd_mwh"]).all()
+
+    def test_wind_lcoe_plausible_range(self, wind_lcoe):
+        """Wind LCOE at WACC=10% should be in $50–600 range (wide due to low-wind sites)."""
+        w10 = wind_lcoe[wind_lcoe["wacc_pct"] == 10.0]
+        valid = w10["lcoe_usd_mwh"].dropna()
+        assert valid.between(50, 600).all(), f"Wind LCOE out of range: {valid.describe()}"
+
+    def test_nan_lcoe_for_zero_cf_keks(self, wind_lcoe):
+        """KEKs with cf_wind_used=0 must have NaN LCOE."""
+        zero_cf = wind_lcoe[wind_lcoe["cf_wind_used"] == 0]
+        if len(zero_cf) > 0:
+            assert zero_cf["lcoe_usd_mwh"].isna().all()
+
+
 # ── fct_substation_proximity ──────────────────────────────────────────────────
 
 
@@ -623,6 +857,7 @@ class TestFctKekScorecard:
             "plan_late",
             "data_missing",
             "not_competitive",
+            "wind_competitive",
         }
         assert set(sc["action_flag"].unique()).issubset(valid_flags)
 
@@ -739,6 +974,42 @@ class TestFctKekScorecard:
     def test_project_viable_is_boolean(self):
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
         assert sc["project_viable"].isin([True, False]).all()
+
+    def test_wind_columns_present(self):
+        """Scorecard must have wind LCOE and best RE technology columns."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        wind_cols = [
+            "lcoe_wind_mid_usd_mwh",
+            "lcoe_wind_allin_mid_usd_mwh",
+            "cf_wind",
+            "wind_speed_ms",
+            "best_re_technology",
+            "best_re_lcoe_mid_usd_mwh",
+            "re_competitive_gap_pct",
+        ]
+        for col in wind_cols:
+            assert col in sc.columns, f"Missing wind column: {col}"
+
+    def test_best_re_technology_valid_values(self):
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        valid = {"solar", "wind", "both", "none"}
+        assert set(sc["best_re_technology"].unique()).issubset(valid)
+
+    def test_best_re_lcoe_leq_both(self):
+        """best_re_lcoe must be <= both solar and wind LCOE."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        valid = sc.dropna(subset=["best_re_lcoe_mid_usd_mwh", "lcoe_mid_usd_mwh"])
+        assert (valid["best_re_lcoe_mid_usd_mwh"] <= valid["lcoe_mid_usd_mwh"] + 0.01).all()
+
+    def test_scorecard_depends_on_fct_lcoe_wind(self):
+        """Pipeline DAG: fct_kek_scorecard must list fct_lcoe_wind as a dependency."""
+        import sys
+
+        sys.path.insert(0, str(REPO_ROOT))
+        import run_pipeline
+
+        scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_kek_scorecard")
+        assert "fct_lcoe_wind" in scorecard_step.depends_on
 
     def test_project_viable_all_true_at_1km_resolution(self):
         """At 1 km GeoTIFF resolution (~86 ha/pixel), even the smallest KEK has far more than

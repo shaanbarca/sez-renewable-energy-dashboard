@@ -51,11 +51,14 @@ PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
 from src.pipeline.build_dim_kek import build_dim_kek
 from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
+from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
 from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
 from src.pipeline.build_fct_kek_resource import build_fct_kek_resource
 from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
+from src.pipeline.build_fct_kek_wind_resource import build_fct_kek_wind_resource
 from src.pipeline.build_fct_lcoe import build_fct_lcoe
+from src.pipeline.build_fct_lcoe_wind import build_fct_lcoe_wind
 from src.pipeline.build_fct_ruptl_pipeline import build_fct_ruptl_pipeline
 from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
 
@@ -75,9 +78,16 @@ PIPELINE: list[Step] = [
     # Stage 1: Dimensions
     Step("dim_kek", build_dim_kek, "dim_kek.csv"),
     Step("dim_tech_cost", build_dim_tech_cost, "dim_tech_cost.csv"),
+    Step("dim_tech_cost_wind", build_dim_tech_cost_wind, "dim_tech_cost_wind.csv"),
     # Stage 2: Facts
     Step(
         "fct_kek_resource", build_fct_kek_resource, "fct_kek_resource.csv", depends_on=["dim_kek"]
+    ),
+    Step(
+        "fct_kek_wind_resource",
+        build_fct_kek_wind_resource,
+        "fct_kek_wind_resource.csv",
+        depends_on=["dim_kek"],
     ),
     Step("fct_kek_demand", build_fct_kek_demand, "fct_kek_demand.csv", depends_on=["dim_kek"]),
     Step(
@@ -100,6 +110,17 @@ PIPELINE: list[Step] = [
         "fct_lcoe.csv",
         depends_on=["dim_kek", "fct_kek_resource", "dim_tech_cost", "fct_substation_proximity"],
     ),
+    Step(
+        "fct_lcoe_wind",
+        build_fct_lcoe_wind,
+        "fct_lcoe_wind.csv",
+        depends_on=[
+            "dim_kek",
+            "fct_kek_wind_resource",
+            "dim_tech_cost_wind",
+            "fct_substation_proximity",
+        ],
+    ),
     # Stage 4: Final scorecard
     Step(
         "fct_kek_scorecard",
@@ -108,6 +129,7 @@ PIPELINE: list[Step] = [
         depends_on=[
             "dim_kek",
             "fct_lcoe",
+            "fct_lcoe_wind",
             "fct_grid_cost_proxy",
             "fct_ruptl_pipeline",
             "fct_kek_demand",

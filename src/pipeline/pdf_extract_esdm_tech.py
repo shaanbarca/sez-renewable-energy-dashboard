@@ -1,35 +1,46 @@
 """
-pdf_extract_esdm_tech.py — extract TECH006 solar PV parameters from ESDM technology catalogue PDF.
+pdf_extract_esdm_tech.py — extract technology cost parameters from ESDM technology catalogue PDF.
 
-This module provides two functions:
-    extract_tech006_from_pdf()   — parse cost datasheet directly from the PDF
-    get_tech006_params()         — extraction with hardcoded fallback (always returns data)
+Supports extraction of multiple technology datasheets from the same PDF:
+    TECH006              — Solar PV ground-mounted, utility-scale (p.66)
+    TECH_WIND_ONSHORE    — Wind power, onshore (p.90)
+
+Each technology has:
+    extract_<tech>_from_pdf()    — parse cost datasheet directly from the PDF
+    get_<tech>_params()          — extraction with hardcoded fallback (always returns data)
 
 Usage
 -----
-    # Run standalone to verify or re-extract:
+    # Run standalone to verify or re-extract all technologies:
     uv run python -m src.pipeline.pdf_extract_esdm_tech
 
-    # Import in build_dim_tech_cost.py (primary source):
+    # Import specific technology in build scripts:
     from src.pipeline.pdf_extract_esdm_tech import get_tech006_params
+    from src.pipeline.pdf_extract_esdm_tech import get_tech_wind_onshore_params
+
+    # Unified dispatcher:
+    from src.pipeline.pdf_extract_esdm_tech import get_tech_params
+    params = get_tech_params("TECH006")
+    params = get_tech_params("TECH_WIND_ONSHORE")
 
 Source PDF
 ----------
     docs/esdm_technology_cost.pdf
-    Indonesia Technology Catalogue 2023, MEMR/ESDM
+    Indonesia Technology Catalogue 2024, MEMR/ESDM
 
-Target: TECH006 — PV ground-mounted, utility-scale, grid connected
-    Datasheet page 66 (physical PDF page, 1-indexed)
-    Parameters: Nominal investment (CAPEX), Fixed O&M, Technical lifetime
+Datasheets
+----------
+    TECH006 — PV ground-mounted, utility-scale, grid connected (p.66)
+    TECH_WIND_ONSHORE — Wind power, onshore, Class III low-wind turbine (p.90)
 
 Design
 ------
-    The Solar PV datasheets in this PDF version are embedded images — pdfplumber
-    returns None for these pages. When extraction fails, get_tech006_params() falls
-    back to VERIFIED_TECH006_DATA (manually verified from the datasheet).
+    Each technology has a VERIFIED_*_DATA dict as the ground truth (manually verified
+    from the datasheet). The pdfplumber extraction is a validation mechanism that
+    auto-upgrades if the PDF is text-based.
 
-    If a future PDF version converts datasheets to text, extract_tech006_from_pdf()
-    will succeed and the hardcoded fallback will be bypassed automatically.
+    Solar PV datasheets in this PDF version are embedded images — pdfplumber returns
+    None. Wind onshore datasheets appear to be text-based and may extract successfully.
 
     This pattern mirrors pdf_extract_ruptl.py: try PDF → fall back to hardcoded.
 """
@@ -72,6 +83,30 @@ VERIFIED_TECH006_DATA: dict[str, dict] = {
 }
 # fmt: on
 
+# ---------------------------------------------------------------------------
+# VERIFIED_TECH_WIND_ONSHORE_DATA — single source of truth for wind onshore.
+#
+# Values from ESDM Technology Catalogue 2024, datasheet p.90:
+#   "Wind power - Onshore" (IEC Class III, low-wind turbine)
+#   Price year: 2022 USD. Reference year: 2023.
+#
+# fmt: off
+VERIFIED_TECH_WIND_ONSHORE_DATA: dict[str, dict] = {
+    "capex": {
+        "central": 1.65, "lower": 1.20, "upper": 2.35,
+        "unit": "MUSD/MWe", "source_page": 90,
+    },
+    "fixed_om": {
+        "central": 40000.0, "lower": 30000.0, "upper": 70000.0,
+        "unit": "USD/MWe/yr", "source_page": 90,
+    },
+    "lifetime": {
+        "central": 27.0, "lower": 25.0, "upper": 35.0,
+        "unit": "years", "source_page": 90,
+    },
+}
+# fmt: on
+
 # Row label patterns used to identify the three target rows in the datasheet table.
 # The PDF may use English or Indonesian labels depending on the version.
 _ROW_PATTERNS: dict[str, list[str]] = {
@@ -97,17 +132,31 @@ _ROW_PATTERNS: dict[str, list[str]] = {
 # ─── Page finder ──────────────────────────────────────────────────────────────
 
 
-def _find_tech006_page(pdf: pdfplumber.PDF) -> Optional[int]:
+def _find_datasheet_page(
+    pdf: pdfplumber.PDF,
+    keywords: list[str],
+    page_range: tuple[int, int],
+) -> Optional[int]:
     """
-    Search PDF pages 60–80 for the utility-scale ground-mounted PV datasheet.
+    Search PDF pages in page_range for a datasheet matching all keywords.
     Returns 0-indexed physical page number, or None if not found.
     """
-    keywords = ["ground", "utility", "grid connected"]
-    for i in range(59, min(80, len(pdf.pages))):
+    start, end = page_range
+    for i in range(start, min(end, len(pdf.pages))):
         text = (pdf.pages[i].extract_text() or "").lower()
         if all(kw in text for kw in keywords):
             return i
     return None
+
+
+def _find_tech006_page(pdf: pdfplumber.PDF) -> Optional[int]:
+    """Search for the utility-scale ground-mounted PV datasheet (p.60–80)."""
+    return _find_datasheet_page(pdf, ["ground", "utility", "grid connected"], (59, 80))
+
+
+def _find_wind_onshore_page(pdf: pdfplumber.PDF) -> Optional[int]:
+    """Search for the onshore wind datasheet (p.88–95)."""
+    return _find_datasheet_page(pdf, ["wind", "onshore", "nominal investment"], (87, 96))
 
 
 # ─── Row extractor ────────────────────────────────────────────────────────────
@@ -231,26 +280,116 @@ def get_tech006_params(pdf_path: Path = ESDM_PDF) -> dict:
     return VERIFIED_TECH006_DATA
 
 
+# ─── Wind onshore extractor ──────────────────────────────────────────────────
+
+
+def extract_wind_onshore_from_pdf(
+    pdf_path: Path = ESDM_PDF,
+) -> Optional[dict]:
+    """
+    Extract wind onshore parameters directly from the ESDM technology catalogue PDF.
+
+    Returns a dict with the same structure as VERIFIED_TECH_WIND_ONSHORE_DATA,
+    or None if the PDF is missing or extraction fails.
+    """
+    if not pdf_path.exists():
+        print(f"  [pdf_extract_esdm] PDF not found: {pdf_path.name} — using hardcoded fallback")
+        return None
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            page_idx = _find_wind_onshore_page(pdf)
+
+            if page_idx is None:
+                print(
+                    "  [pdf_extract_esdm] Wind onshore datasheet page not found — using hardcoded fallback"
+                )
+                return None
+
+            # Try current page and next two (table may span pages)
+            for offset in range(3):
+                idx = page_idx + offset
+                if idx >= len(pdf.pages):
+                    break
+                extracted = _extract_tech006_row(pdf.pages[idx])
+                if extracted is not None:
+                    # Override source_page and units with wind-specific values
+                    for param in extracted:
+                        extracted[param]["unit"] = VERIFIED_TECH_WIND_ONSHORE_DATA[param]["unit"]
+                    return extracted
+
+            print("  [pdf_extract_esdm] Wind onshore rows not found — using hardcoded fallback")
+            return None
+
+    except Exception as e:
+        print(f"  [pdf_extract_esdm] wind extraction error: {e} — using hardcoded fallback")
+        return None
+
+
+def get_tech_wind_onshore_params(pdf_path: Path = ESDM_PDF) -> dict:
+    """
+    Return wind onshore parameters, always. Tries PDF extraction first; falls back
+    to VERIFIED_TECH_WIND_ONSHORE_DATA if extraction returns None.
+
+    This is the function build_dim_tech_cost_wind.py should call.
+    """
+    extracted = extract_wind_onshore_from_pdf(pdf_path)
+    if extracted is not None:
+        return extracted
+    return VERIFIED_TECH_WIND_ONSHORE_DATA
+
+
+# ─── Unified dispatcher ──────────────────────────────────────────────────────
+
+
+_TECH_REGISTRY: dict[str, tuple] = {
+    "TECH006": (get_tech006_params, VERIFIED_TECH006_DATA),
+    "TECH_WIND_ONSHORE": (get_tech_wind_onshore_params, VERIFIED_TECH_WIND_ONSHORE_DATA),
+}
+
+
+def get_tech_params(tech_id: str, pdf_path: Path = ESDM_PDF) -> dict:
+    """
+    Unified dispatcher — return parameters for any registered technology.
+
+    Raises KeyError if tech_id is not registered.
+
+    Usage:
+        params = get_tech_params("TECH006")
+        params = get_tech_params("TECH_WIND_ONSHORE")
+    """
+    if tech_id not in _TECH_REGISTRY:
+        available = list(_TECH_REGISTRY.keys())
+        raise KeyError(f"Unknown tech_id '{tech_id}'. Available: {available}")
+    getter_fn, _ = _TECH_REGISTRY[tech_id]
+    return getter_fn(pdf_path)
+
+
 # ─── Verification ─────────────────────────────────────────────────────────────
 
 
-def verify_tech006_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
+def _verify_against_hardcoded(
+    tech_label: str,
+    extract_fn,
+    verified_data: dict,
+    pdf_path: Path = ESDM_PDF,
+) -> bool:
     """
-    Attempt PDF extraction and diff against VERIFIED_TECH006_DATA.
+    Attempt PDF extraction and diff against verified hardcoded data.
     Returns True if extracted values are within 1% of hardcoded values.
     Returns False (with a note) if extraction falls back to hardcoded — not a failure.
     """
-    print("\nVerifying TECH006 extraction against hardcoded values...")
+    print(f"\nVerifying {tech_label} extraction against hardcoded values...")
     print(f"  PDF: {pdf_path.name}")
 
-    extracted = extract_tech006_from_pdf(pdf_path)
+    extracted = extract_fn(pdf_path)
     if extracted is None:
         print("  NOTE: extraction returned None (image-based datasheet) — hardcoded values in use")
         print("  RESULT: hardcoded values are the verified source — no discrepancy possible")
         return True
 
     all_ok = True
-    for param, hc in VERIFIED_TECH006_DATA.items():
+    for param, hc in verified_data.items():
         for bound in ("central", "lower", "upper"):
             e_val = extracted[param][bound]
             h_val = hc[bound]
@@ -264,25 +403,50 @@ def verify_tech006_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
     if all_ok:
         print("  RESULT: all values match — hardcoded data is consistent with PDF")
     else:
-        print(
-            "  RESULT: discrepancies found — review VERIFIED_TECH006_DATA or PDF extraction logic"
-        )
+        print("  RESULT: discrepancies found — review VERIFIED data or PDF extraction logic")
 
     return all_ok
+
+
+def verify_tech006_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
+    """Verify TECH006 (solar PV) extraction against hardcoded values."""
+    return _verify_against_hardcoded(
+        "TECH006", extract_tech006_from_pdf, VERIFIED_TECH006_DATA, pdf_path
+    )
+
+
+def verify_wind_onshore_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
+    """Verify TECH_WIND_ONSHORE extraction against hardcoded values."""
+    return _verify_against_hardcoded(
+        "TECH_WIND_ONSHORE",
+        extract_wind_onshore_from_pdf,
+        VERIFIED_TECH_WIND_ONSHORE_DATA,
+        pdf_path,
+    )
+
+
+def verify_all_against_hardcoded(pdf_path: Path = ESDM_PDF) -> bool:
+    """Verify all registered technology extractions against hardcoded values."""
+    results = [
+        verify_tech006_against_hardcoded(pdf_path),
+        verify_wind_onshore_against_hardcoded(pdf_path),
+    ]
+    return all(results)
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("ESDM Tech Catalogue PDF extractor — TECH006")
+    print("ESDM Tech Catalogue PDF extractor")
     print("=" * 60)
 
-    params = get_tech006_params()
-    print(f"\nTECH006 parameters (source_page={params['capex']['source_page']}):")
-    for param, data in params.items():
-        print(
-            f"  {param:10s}  central={data['central']}  lower={data['lower']}  upper={data['upper']}  [{data['unit']}]"
-        )
+    for tech_id, (getter_fn, _) in _TECH_REGISTRY.items():
+        params = getter_fn()
+        print(f"\n{tech_id} parameters (source_page={params['capex']['source_page']}):")
+        for param, data in params.items():
+            print(
+                f"  {param:10s}  central={data['central']}  lower={data['lower']}  upper={data['upper']}  [{data['unit']}]"
+            )
 
     print()
-    verify_tech006_against_hardcoded()
+    verify_all_against_hardcoded()

@@ -6,3 +6,4 @@ Hydro,Hydro power plant – medium/small system,TECH004,hydro__hydro_power_plant
 Hydro,Hydro power plant – mini/micro system,TECH005,hydro__hydro_power_plant_mini_micro_system
 Solar,"PV ground-mounted, utility-scale, grid connected",TECH006,solar__pv_ground_mounted_utility_scale_grid_connected
 Solar,"PV household scale, rooftop, grid connected",TECH007,solar__pv_household_scale_rooftop_grid_connected
+Wind,Wind power - Onshore,TECH_WIND_ONSHORE,wind__wind_power_onshore

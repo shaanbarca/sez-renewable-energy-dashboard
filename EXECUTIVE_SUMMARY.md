@@ -134,7 +134,7 @@ All eight output tables are produced by the pipeline. Key outputs:
 | Which KEK is where, what sector, what grid region | `dim_kek` | ✅ Complete |
 | Solar radiation quality per KEK | `fct_kek_resource` | ✅ Filtered — 4-layer buildability applied (ESA WorldCover, GFW Peatlands, DEM slope/elev, Kawasan Hutan) |
 | Estimated 2030 electricity demand per KEK | `fct_kek_demand` | ⚠️ Provisional estimate |
-| Solar LCOE at 3 financing rates (8/10/12% WACC) | `fct_lcoe` | ⚠️ CAPEX needs PDF verification |
+| Solar LCOE at 9 financing rates (4–20% WACC, 2% steps) | `fct_lcoe` | ✅ CAPEX verified (ESDM p.66). See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for full column specs. |
 | Grid electricity cost per PLN region | `fct_grid_cost_proxy` | ✅ Official tariff |
 | PLN's planned solar additions 2025–2034 | `fct_ruptl_pipeline` | ✅ Manually verified |
 | Full scorecard: LCOE vs. grid cost + action flags | `fct_kek_scorecard` | ⚠️ Provisional until CAPEX verified |

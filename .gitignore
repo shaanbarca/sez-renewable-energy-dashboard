@@ -148,5 +148,8 @@ outputs/
 # Buildability raster data — large GeoTIFFs downloaded by scripts/download_buildability_data.py
 data/buildability/
 
+# Wind raster data — Global Wind Atlas GeoTIFF (~300MB)
+data/wind/*.tif
+
 # Office temp files
 data/~$*

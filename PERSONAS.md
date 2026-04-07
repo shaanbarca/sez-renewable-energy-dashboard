@@ -175,6 +175,8 @@ GeoJSON for site team GIS analysis. CSV with LCOE + buildable area columns for i
 - `green_share_geas` quantifies GEAS allocation as a policy lever
 - `carbon_breakeven_usd_tco2` supports carbon market design arguments
 
+**Critical caveat for this persona:** Model is **solar-only**. A KESDM adviser reading `not_competitive` at kek-palu or kek-bitung (which have known geothermal and wind resources) may lose trust in the tool. The dashboard must clearly label that competitiveness assessment covers solar PV only — wind and geothermal are planned for v1.1 (see TODOS.md H1).
+
 **What's missing:**
 - **Model is solar-only** — kek-palu, kek-bitung, kek-morotai are Sulawesi/Maluku KEKs where geothermal and wind are the primary clean energy opportunity; `not_competitive` at these sites is potentially misleading to a KESDM adviser (Gap priority 🟡 6)
 - **21/25 KEKs show `not_competitive`** — the flag is binary; a policy maker needs to see the *distance* to competitiveness (a 5% gap vs. 35% gap require entirely different interventions), which requires drilling into `solar_competitive_gap_pct` rather than reading the flag
@@ -261,6 +263,8 @@ Ranked table CSV filtered to `plan_late = True` KEKs. Screenshot of RUPTL Contex
 6. **Open Quadrant Chart** — confirm shortlisted KEKs are in the "Solar now" or "Invest: resilience" quadrant at WACC=10%.
 7. **Drill into KEK Scorecard for top 3–5 sites** — review PVOUT map (Resource tab), LCOE bands (LCOE tab), demand profile (Demand tab). Download scorecard PDF or screenshot for BD deck.
 8. **Export CSV** — top 10 KEKs with all relevant columns for BD pipeline tracker spreadsheet.
+
+**Note:** IPP developers typically know their own EPC costs better than the ESDM catalogue ($960/kW). The current dashboard shows LCOE at 3 CAPEX bands (low/mid/high = $840/$960/$1,080/kW, ±12.5%). Custom CAPEX input is planned for v1.2 — until then, an IPP can use the exported CSV and recompute LCOE in their own financial model using the CF values provided.
 
 ### What they export
 Ranked table CSV (top 10 sites) for BD pipeline tracker. KEK Scorecard screenshots for project pitch deck. GeoJSON for desktop site analysis.

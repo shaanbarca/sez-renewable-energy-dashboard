@@ -89,7 +89,7 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `fct_kek_resource` — PVOUT at centroid + best within 50km (from GeoTIFF); v1.1: adds `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` (NaN until `data/buildability/` populated — run `scripts/download_buildability_data.py`)
 - `fct_kek_demand` — per-KEK demand estimates
 - `fct_substation_proximity` — nearest PLN substation per KEK; haversine distance + point-in-polygon → `siting_scenario`
-- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (150 rows: 25 × 3 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses `pvout_buildable_best_50km` when available, else `pvout_best_50km`, + gen-tie CAPEX adder
+- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (450 rows: 25 × 9 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses `pvout_buildable_best_50km` when available, else `pvout_best_50km`, + gen-tie CAPEX adder
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
 
@@ -147,6 +147,8 @@ Ready to commit? Or do any of these need attention first?
 | New assumption or threshold added | `METHODOLOGY.md` (document the value and rationale), `src/assumptions.py` (single source of truth for constants) |
 | Persona-relevant capability added or gap closed | `PERSONAS.md` — update the relevant persona's key data needs or data gaps table |
 | Phase or step completed | `PLAN.md` — mark the step ✅ COMPLETE |
+| Design or architecture change | `DESIGN.md` (update relevant section + add §9 Changelog entry), `ARCHITECTURE.md` (if system boundary changed), `EXECUTIVE_SUMMARY.md` (if user-facing capability changed) |
+| Deferred item identified | `TODOS.md` (add with priority tier, source reference, and affected personas) |
 
 **The commit checklist prompt (shown before every commit) checks item 3: "Docs updated?". This rule defines what "docs updated" means.**
 
