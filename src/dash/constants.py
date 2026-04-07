@@ -24,10 +24,23 @@ ACTION_FLAG_LABELS: dict[str, str] = {
 }
 
 ACTION_FLAG_DESCRIPTIONS: dict[str, str] = {
-    "solar_now": "Solar is cost-competitive and grid infrastructure is adequate",
-    "invest_resilience": "Solar is close to competitive (within gap threshold) with high reliability needs",
-    "grid_first": "Grid upgrade needed before solar investment makes sense",
-    "not_competitive": "Solar LCOE exceeds grid cost beyond the resilience threshold",
+    "solar_now": (
+        "Solar LCOE is below grid cost AND PLN has grid infrastructure "
+        "upgrades planned pre-2030 AND the KEK has sufficient GEAS green energy allocation"
+    ),
+    "invest_resilience": (
+        "Solar LCOE is within the resilience gap threshold of grid cost "
+        "(close to competitive) AND the KEK has high reliability requirements"
+    ),
+    "grid_first": (
+        "Solar LCOE is competitive, but PLN's RUPTL grid expansion plan shows no "
+        "substation or transmission upgrade scheduled for this region before 2030. "
+        "Grid infrastructure must come first before solar can connect."
+    ),
+    "not_competitive": (
+        "Solar LCOE exceeds grid cost beyond the resilience gap threshold. "
+        "Solar is not yet cost-competitive in this region at current assumptions."
+    ),
 }
 
 WIND_COLOR = "#00796B"
