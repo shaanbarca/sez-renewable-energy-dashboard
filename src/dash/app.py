@@ -1020,7 +1020,10 @@ def _register_callbacks(app: dash.Dash):
             ),
         )
 
-        body = dbc.Tabs([resource_tab, lcoe_tab, flags_tab])
+        body = dbc.Tabs(
+            [resource_tab, lcoe_tab, flags_tab],
+            active_tab="tab-0",
+        )
         return body, kek_name
 
 
