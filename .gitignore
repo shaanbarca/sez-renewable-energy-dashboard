@@ -151,5 +151,13 @@ data/buildability/
 # Wind raster data — Global Wind Atlas GeoTIFF (~300MB)
 data/wind/*.tif
 
+# Large geospatial data files
+data/*.geojson
+data/kawasan_hutan_092017/
+
+# Reference docs (PDFs, images)
+docs/*.pdf
+docs/*.jpeg
+
 # Office temp files
 data/~$*
