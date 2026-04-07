@@ -48,6 +48,10 @@ from src.model.basic_model import (
 from src.model.basic_model import (
     invest_resilience as invest_resilience_fn,
 )
+from src.pipeline.assumptions import (
+    TARIFF_I4_RP_KWH,
+    rp_kwh_to_usd_mwh,
+)
 
 # ---------------------------------------------------------------------------
 # Dataclasses for user-adjustable assumptions (serialisable to/from dcc.Store)
@@ -294,6 +298,7 @@ def compute_scorecard_live(
     ruptl_metrics_df: pd.DataFrame,
     demand_df: pd.DataFrame,
     grid_df: pd.DataFrame,
+    grid_cost_by_region: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Full live scorecard: LCOE + competitive gap + action flags + carbon breakeven.
 
@@ -322,12 +327,18 @@ def compute_scorecard_live(
     wb = lcoe_df[lcoe_df["scenario"] == "within_boundary"].set_index("kek_id")
     rc = lcoe_df[lcoe_df["scenario"] == "remote_captive"].set_index("kek_id")
 
-    grid_cost = assumptions.grid_benchmark_usd_mwh
+    default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
 
     rows = []
     for _, kek in resource_df.iterrows():
         kek_id = kek["kek_id"]
         grid_region_id = kek.get("grid_region_id")
+
+        # Per-region grid cost (BPP mode) or uniform tariff
+        if grid_cost_by_region and grid_region_id and grid_region_id in grid_cost_by_region:
+            grid_cost = grid_cost_by_region[grid_region_id]
+        else:
+            grid_cost = default_grid_cost
 
         # LCOE from within_boundary (primary)
         lcoe_mid = wb.loc[kek_id, "lcoe_mid_usd_mwh"] if kek_id in wb.index else np.nan
@@ -374,8 +385,12 @@ def compute_scorecard_live(
             post2030_share=post2030_share,
         )
 
-        # Override thresholds: plan_late and invest_resilience use user values
+        # Override thresholds: use user values instead of hardcoded defaults
         flags["plan_late"] = post2030_share >= thresholds.plan_late_threshold
+        flags["solar_now"] = (
+            attractive and not flags["grid_first"] and green_share >= thresholds.geas_threshold
+        )
+        flags["firming_needed"] = attractive and reliability_req >= thresholds.reliability_threshold
         resilience = invest_resilience_fn(
             solar_competitive_gap_pct=gap_pct if pd.notna(gap_pct) else 0.0,
             reliability_req=reliability_req,
@@ -403,8 +418,25 @@ def compute_scorecard_live(
             max_mwp = 0.0
         project_viable = max_mwp >= thresholds.min_viable_mwp
 
+        # Derive action_flag: first True flag wins (priority order)
+        action_flag = "not_competitive"
+        for flag_name in [
+            "solar_now",
+            "grid_first",
+            "firming_needed",
+            "invest_resilience",
+            "plan_late",
+        ]:
+            flag_val = (
+                resilience if flag_name == "invest_resilience" else flags.get(flag_name, False)
+            )
+            if flag_val is True:
+                action_flag = flag_name
+                break
+
         row = {
             "kek_id": kek_id,
+            "action_flag": action_flag,
             "lcoe_mid_usd_mwh": _round(lcoe_mid),
             "lcoe_low_usd_mwh": _round(wb.loc[kek_id, "lcoe_low_usd_mwh"])
             if kek_id in wb.index
@@ -417,6 +449,12 @@ def compute_scorecard_live(
             "solar_now": flags["solar_now"],
             "grid_first": flags["grid_first"],
             "firming_needed": flags["firming_needed"],
+            "firming_adder_usd_mwh": assumptions.firming_adder_mid_usd_mwh
+            if flags["firming_needed"]
+            else 0.0,
+            "lcoe_with_firming_usd_mwh": _round_add(lcoe_mid, assumptions.firming_adder_mid_usd_mwh)
+            if flags["firming_needed"]
+            else _round(lcoe_mid),
             "plan_late": flags["plan_late"],
             "invest_resilience": resilience,
             "carbon_breakeven_usd_tco2": carbon_be,

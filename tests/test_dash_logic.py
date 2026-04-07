@@ -343,3 +343,251 @@ class TestComputeScorecardLive:
         )
         # All 3 KEKs have emission factors, so carbon_breakeven should be non-null
         assert result["carbon_breakeven_usd_tco2"].notna().all()
+
+
+# ---------------------------------------------------------------------------
+# H4: Infrastructure cost wiring tests
+# ---------------------------------------------------------------------------
+
+
+class TestInfrastructureCosts:
+    def test_higher_fom_raises_lcoe(self, sample_resource_df):
+        """Increasing FOM should increase LCOE."""
+        default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
+        high_fom = UserAssumptions(fom_usd_per_kw_yr=15.0)
+        high_result = compute_lcoe_live(sample_resource_df, high_fom)
+
+        wb_default = default_result[default_result["scenario"] == "within_boundary"]
+        wb_high = high_result[high_result["scenario"] == "within_boundary"]
+
+        for kek_id in sample_resource_df["kek_id"]:
+            d = wb_default[wb_default["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = wb_high[wb_high["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            assert h > d, f"LCOE should increase with higher FOM for {kek_id}"
+
+    def test_higher_gentie_raises_remote_only(self, sample_resource_df):
+        """Higher gen-tie cost should raise remote_captive LCOE but not within_boundary."""
+        default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
+        high_gt = UserAssumptions(gentie_cost_per_kw_km=12.0)
+        high_result = compute_lcoe_live(sample_resource_df, high_gt)
+
+        # Within-boundary should be unchanged
+        wb_d = default_result[default_result["scenario"] == "within_boundary"]
+        wb_h = high_result[high_result["scenario"] == "within_boundary"]
+        for kek_id in sample_resource_df["kek_id"]:
+            assert (
+                wb_d[wb_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+                == wb_h[wb_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            )
+
+        # Remote captive should increase
+        rc_d = default_result[default_result["scenario"] == "remote_captive"]
+        rc_h = high_result[high_result["scenario"] == "remote_captive"]
+        for kek_id in sample_resource_df["kek_id"]:
+            d = rc_d[rc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = rc_h[rc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            if pd.notna(d) and pd.notna(h):
+                assert h > d, f"Remote LCOE should increase with higher gen-tie for {kek_id}"
+
+    def test_higher_substation_raises_remote_only(self, sample_resource_df):
+        """Higher substation works should raise remote_captive LCOE only."""
+        default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
+        high_sub = UserAssumptions(substation_works_per_kw=250.0)
+        high_result = compute_lcoe_live(sample_resource_df, high_sub)
+
+        rc_d = default_result[default_result["scenario"] == "remote_captive"]
+        rc_h = high_result[high_result["scenario"] == "remote_captive"]
+        for kek_id in sample_resource_df["kek_id"]:
+            d = rc_d[rc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = rc_h[rc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            if pd.notna(d) and pd.notna(h):
+                assert h > d, f"Remote LCOE should increase with higher substation for {kek_id}"
+
+    def test_higher_lease_raises_allin_only(self, sample_resource_df):
+        """Higher transmission lease should raise all-in LCOE for remote_captive."""
+        default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
+        high_lease = UserAssumptions(transmission_lease_mid_usd_mwh=20.0)
+        high_result = compute_lcoe_live(sample_resource_df, high_lease)
+
+        rc_d = default_result[default_result["scenario"] == "remote_captive"]
+        rc_h = high_result[high_result["scenario"] == "remote_captive"]
+        for kek_id in sample_resource_df["kek_id"]:
+            d = rc_d[rc_d["kek_id"] == kek_id]["lcoe_allin_mid_usd_mwh"].iloc[0]
+            h = rc_h[rc_h["kek_id"] == kek_id]["lcoe_allin_mid_usd_mwh"].iloc[0]
+            if pd.notna(d) and pd.notna(h):
+                assert h > d, f"All-in LCOE should increase with higher lease for {kek_id}"
+
+    def test_idr_usd_rate_affects_grid_benchmark(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Weaker rupiah (higher IDR/USD) should lower grid benchmark in USD terms."""
+        default = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        weak_rupiah = UserAssumptions(idr_usd_rate=17_000.0)
+        result = compute_scorecard_live(
+            sample_resource_df,
+            weak_rupiah,
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        # Grid cost in USD should decrease when rupiah weakens
+        assert result.iloc[0]["grid_cost_usd_mwh"] < default.iloc[0]["grid_cost_usd_mwh"]
+
+    def test_firming_adder_applied_when_firming_needed(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """KEKs with firming_needed=True should have non-zero firming adder."""
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        firming_rows = result[result["firming_needed"]]
+        if len(firming_rows) > 0:
+            assert (firming_rows["firming_adder_usd_mwh"] > 0).all()
+            for _, row in firming_rows.iterrows():
+                if pd.notna(row["lcoe_mid_usd_mwh"]):
+                    assert row["lcoe_with_firming_usd_mwh"] > row["lcoe_mid_usd_mwh"]
+
+    def test_firming_adder_zero_when_not_needed(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """KEKs with firming_needed=False should have zero firming adder."""
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        no_firming = result[~result["firming_needed"]]
+        assert (no_firming["firming_adder_usd_mwh"] == 0.0).all()
+
+    def test_scorecard_has_firming_columns(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Scorecard output should include firming adder columns."""
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        assert "firming_adder_usd_mwh" in result.columns
+        assert "lcoe_with_firming_usd_mwh" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# H5: Flag threshold wiring tests
+# ---------------------------------------------------------------------------
+
+
+class TestThresholdWiring:
+    def test_geas_threshold_affects_solar_now(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Lowering GEAS threshold should allow more KEKs to be solar_now."""
+        # Use low CAPEX to make solar attractive for all KEKs
+        low_capex = UserAssumptions(capex_usd_per_kw=600.0)
+        strict = UserThresholds(geas_threshold=0.50)
+        lenient = UserThresholds(geas_threshold=0.05)
+
+        strict_result = compute_scorecard_live(
+            sample_resource_df,
+            low_capex,
+            strict,
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        lenient_result = compute_scorecard_live(
+            sample_resource_df,
+            low_capex,
+            lenient,
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        # Lenient threshold should produce >= solar_now count
+        assert lenient_result["solar_now"].sum() >= strict_result["solar_now"].sum()
+
+    def test_reliability_threshold_affects_firming_needed(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Lowering reliability threshold should flag more KEKs as firming_needed."""
+        low_capex = UserAssumptions(capex_usd_per_kw=600.0)
+        strict = UserThresholds(reliability_threshold=0.90)
+        lenient = UserThresholds(reliability_threshold=0.30)
+
+        strict_result = compute_scorecard_live(
+            sample_resource_df,
+            low_capex,
+            strict,
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        lenient_result = compute_scorecard_live(
+            sample_resource_df,
+            low_capex,
+            lenient,
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        # Lower threshold means more KEKs meet it, so more firming_needed
+        assert lenient_result["firming_needed"].sum() >= strict_result["firming_needed"].sum()
+
+    def test_extreme_thresholds_no_crash(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Extreme threshold values should not cause crashes."""
+        extreme = UserThresholds(
+            pvout_threshold=0.0,
+            plan_late_threshold=0.0,
+            geas_threshold=0.0,
+            resilience_gap_pct=0.0,
+            min_viable_mwp=0.0,
+            reliability_threshold=0.0,
+        )
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            extreme,
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        assert len(result) == 3
+
+        extreme_high = UserThresholds(
+            pvout_threshold=9999.0,
+            plan_late_threshold=1.0,
+            geas_threshold=1.0,
+            resilience_gap_pct=100.0,
+            min_viable_mwp=9999.0,
+            reliability_threshold=1.0,
+        )
+        result2 = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            extreme_high,
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        assert len(result2) == 3
