@@ -275,7 +275,61 @@ def _build_map():
                             dbc.Col(
                                 html.Div(
                                     [
-                                        html.Label("Map Layers", className="fw-bold small mb-2"),
+                                        html.Label(
+                                            [
+                                                "Map Layers ",
+                                                dbc.Badge(
+                                                    "?",
+                                                    id="info-map-layers",
+                                                    color="secondary",
+                                                    pill=True,
+                                                    style={
+                                                        "cursor": "help",
+                                                        "fontSize": "9px",
+                                                    },
+                                                ),
+                                            ],
+                                            className="fw-bold small mb-2",
+                                        ),
+                                        dbc.Popover(
+                                            dbc.PopoverBody(
+                                                [
+                                                    html.P(
+                                                        "Solar Buildable Area shows land where solar PV "
+                                                        "can actually be built, after removing:",
+                                                        className="small mb-1",
+                                                    ),
+                                                    html.Ul(
+                                                        [
+                                                            html.Li(
+                                                                "Protected forest (Kawasan Hutan)",
+                                                                className="small",
+                                                            ),
+                                                            html.Li(
+                                                                "Peatland (KLHK)",
+                                                                className="small",
+                                                            ),
+                                                            html.Li(
+                                                                "Cropland, water, urban, mangroves (ESA WorldCover)",
+                                                                className="small",
+                                                            ),
+                                                            html.Li(
+                                                                "Steep slopes (>8 deg) and high elevation (>1500m)",
+                                                                className="small",
+                                                            ),
+                                                        ],
+                                                        className="small mb-1 ps-3",
+                                                    ),
+                                                    html.P(
+                                                        "Only 15% of Indonesia's land passes all filters.",
+                                                        className="small text-muted mb-0",
+                                                    ),
+                                                ]
+                                            ),
+                                            target="info-map-layers",
+                                            trigger="hover",
+                                            placement="left",
+                                        ),
                                         dbc.Checklist(
                                             id="map-layer-toggle",
                                             options=LAYER_OPTIONS,
@@ -882,11 +936,24 @@ def _register_callbacks(app: dash.Dash):
                 "Click a KEK on the map or table to view details.", className="text-muted"
             ), "Select a KEK"
 
-        # Get scorecard data
+        # Get scorecard data, merge resource columns for display
         if scorecard_data:
             sc = _pd_from_records(scorecard_data)
         else:
             sc = _DATA["fct_kek_scorecard"]
+
+        # Merge resource data (pvout, buildable area, etc.)
+        resource_cols = [
+            "kek_id",
+            "pvout_centroid",
+            "pvout_best_50km",
+            "buildable_area_ha",
+            "max_captive_capacity_mwp",
+        ]
+        available = [c for c in resource_cols if c in _RESOURCE_DF.columns]
+        for col in available:
+            if col != "kek_id" and col not in sc.columns:
+                sc = sc.merge(_RESOURCE_DF[["kek_id", col]], on="kek_id", how="left")
 
         kek_row = sc[sc["kek_id"] == selected_kek]
         if kek_row.empty:
