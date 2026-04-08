@@ -2,13 +2,13 @@ import { useDashboardStore } from '../../store/dashboard';
 
 const LAYER_ITEMS = [
   { name: 'substations', label: 'Substations (PLN)' },
-  { name: 'kek_boundaries', label: 'KEK Boundaries' },
+  { name: 'kek_polygons', label: 'KEK Boundaries' },
   { name: 'pvout', label: 'Solar Potential (PVOUT)' },
-  { name: 'buildable_area', label: 'Solar Buildable Area' },
-  { name: 'wind_speed', label: 'Wind Speed (100m)' },
+  { name: 'buildable', label: 'Solar Buildable Area' },
+  { name: 'wind', label: 'Wind Speed (100m)' },
   { name: 'peatland', label: 'Peatland' },
   { name: 'protected_forest', label: 'Protected Forest' },
-  { name: 'industrial_facilities', label: 'Industrial Facilities' },
+  { name: 'industrial', label: 'Industrial Facilities' },
 ] as const;
 
 export default function LayerControl() {

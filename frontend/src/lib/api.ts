@@ -53,13 +53,13 @@ export async function fetchKekSubstations(
 }
 
 export async function fetchRuptlMetrics(): Promise<unknown> {
-  const res = await fetch('/api/ruptl/metrics');
-  if (!res.ok) throw new Error(`GET /api/ruptl/metrics failed: ${res.status}`);
+  const res = await fetch('/api/ruptl-metrics');
+  if (!res.ok) throw new Error(`GET /api/ruptl-metrics failed: ${res.status}`);
   return res.json();
 }
 
 export async function fetchInfrastructure(): Promise<unknown> {
-  const res = await fetch('/api/infrastructure');
-  if (!res.ok) throw new Error(`GET /api/infrastructure failed: ${res.status}`);
+  const res = await fetch('/api/layers/infrastructure');
+  if (!res.ok) throw new Error(`GET /api/layers/infrastructure failed: ${res.status}`);
   return res.json();
 }

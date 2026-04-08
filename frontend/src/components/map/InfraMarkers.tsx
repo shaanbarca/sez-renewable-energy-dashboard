@@ -3,88 +3,83 @@ import { Source, Layer } from 'react-map-gl/maplibre';
 import { useDashboardStore } from '../../store/dashboard';
 import { fetchInfrastructure, fetchKekSubstations } from '../../lib/api';
 
-interface InfraFeature {
-  type: 'Feature';
-  geometry: { type: 'Point'; coordinates: [number, number] };
-  properties: {
-    name?: string;
-    inside_sez: boolean;
-    nearest_substation?: boolean;
+interface InfraMarker {
+  kek_id: string;
+  lat: number;
+  lon: number;
+  title: string;
+  category: string;
+}
+
+interface SubstationMarker {
+  lat: number;
+  lon: number;
+  name: string;
+  dist_km: number;
+  is_nearest: boolean;
+  voltage?: string;
+  capacity_mva?: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function markersToGeojson(markers: any[]) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: markers.map((m) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [m.lon, m.lat] },
+      properties: { ...m },
+    })),
   };
-}
-
-interface InfraResponse {
-  type: 'FeatureCollection';
-  features: InfraFeature[];
-}
-
-interface SubstationFeature {
-  type: 'Feature';
-  geometry: { type: 'Point'; coordinates: [number, number] };
-  properties: {
-    name?: string;
-    distance_km?: number;
-    nearest?: boolean;
-  };
-}
-
-interface SubstationResponse {
-  type: 'FeatureCollection';
-  features: SubstationFeature[];
 }
 
 export default function InfraMarkers() {
   const selectedKek = useDashboardStore((s) => s.selectedKek);
-  const [infra, setInfra] = useState<InfraResponse | null>(null);
-  const [substations, setSubstations] = useState<SubstationResponse | null>(null);
+  const [infraMarkers, setInfraMarkers] = useState<InfraMarker[]>([]);
+  const [substationMarkers, setSubstationMarkers] = useState<SubstationMarker[]>([]);
 
   useEffect(() => {
     if (!selectedKek) {
-      setInfra(null);
-      setSubstations(null);
+      setInfraMarkers([]);
+      setSubstationMarkers([]);
       return;
     }
 
     fetchInfrastructure()
-      .then((data) => setInfra(data as InfraResponse))
+      .then((data) => {
+        const resp = data as { markers: InfraMarker[] };
+        // Filter to infrastructure for this KEK
+        const forKek = resp.markers.filter((m) => m.kek_id === selectedKek);
+        setInfraMarkers(forKek);
+      })
       .catch((err) => console.error('Failed to fetch infrastructure:', err));
 
     fetchKekSubstations(selectedKek)
-      .then((data) => setSubstations(data as SubstationResponse))
+      .then((data) => {
+        const resp = data as { substations: SubstationMarker[] };
+        setSubstationMarkers(resp.substations ?? []);
+      })
       .catch((err) => console.error('Failed to fetch substations:', err));
   }, [selectedKek]);
 
-  // Split infra into inside/outside SEZ
-  const insideGeojson = useMemo(() => {
-    if (!infra) return null;
-    return {
-      type: 'FeatureCollection' as const,
-      features: infra.features.filter((f) => f.properties.inside_sez),
-    };
-  }, [infra]);
+  const infraGeojson = useMemo(() => {
+    if (!infraMarkers.length) return null;
+    return markersToGeojson(infraMarkers);
+  }, [infraMarkers]);
 
-  const outsideGeojson = useMemo(() => {
-    if (!infra) return null;
-    return {
-      type: 'FeatureCollection' as const,
-      features: infra.features.filter((f) => !f.properties.inside_sez),
-    };
-  }, [infra]);
-
-  // Nearest substation highlighted
   const substationGeojson = useMemo(() => {
-    if (!substations) return null;
-    return substations;
-  }, [substations]);
+    if (!substationMarkers.length) return null;
+    return markersToGeojson(substationMarkers);
+  }, [substationMarkers]);
 
   if (!selectedKek) return null;
 
   return (
     <>
-      {insideGeojson && insideGeojson.features.length > 0 && (
-        <Source id="infra-inside" type="geojson" data={insideGeojson}>
+      {infraGeojson && (
+        <Source id="infra-markers" type="geojson" data={infraGeojson}>
           <Layer
-            id="infra-inside-circles"
+            id="infra-circles"
             type="circle"
             paint={{
               'circle-radius': 5,
@@ -96,22 +91,7 @@ export default function InfraMarkers() {
           />
         </Source>
       )}
-      {outsideGeojson && outsideGeojson.features.length > 0 && (
-        <Source id="infra-outside" type="geojson" data={outsideGeojson}>
-          <Layer
-            id="infra-outside-circles"
-            type="circle"
-            paint={{
-              'circle-radius': 5,
-              'circle-color': '#42A5F5',
-              'circle-stroke-color': '#ffffff',
-              'circle-stroke-width': 1,
-              'circle-opacity': 0.85,
-            }}
-          />
-        </Source>
-      )}
-      {substationGeojson && substationGeojson.features.length > 0 && (
+      {substationGeojson && (
         <Source id="substations-nearby" type="geojson" data={substationGeojson}>
           <Layer
             id="substations-circles"
@@ -119,15 +99,15 @@ export default function InfraMarkers() {
             paint={{
               'circle-radius': [
                 'case',
-                ['==', ['get', 'nearest'], true],
+                ['==', ['get', 'is_nearest'], true],
                 8,
                 5,
               ],
               'circle-color': [
                 'case',
-                ['==', ['get', 'nearest'], true],
+                ['==', ['get', 'is_nearest'], true],
                 '#FFD600',
-                '#FFF176',
+                '#42A5F5',
               ],
               'circle-stroke-color': '#ffffff',
               'circle-stroke-width': 1,

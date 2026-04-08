@@ -10,6 +10,7 @@ import KekMarkers from './KekMarkers';
 import type { HoverInfo } from './KekMarkers';
 import LayerControl from './LayerControl';
 import RasterOverlay from './RasterOverlay';
+import VectorOverlay from './VectorOverlay';
 import InfraMarkers from './InfraMarkers';
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
@@ -43,7 +44,18 @@ export default function MapView() {
       return;
     }
     fetchKekPolygon(selectedKek)
-      .then((data) => setPolygon(data as PolygonData))
+      .then((data) => {
+        // API returns { feature, bbox, center } — wrap single feature into FeatureCollection
+        const resp = data as { feature: unknown; bbox: unknown; center: unknown };
+        if (resp.feature) {
+          setPolygon({
+            type: 'FeatureCollection',
+            features: [resp.feature as PolygonData['features'][0]],
+          });
+        } else {
+          setPolygon(null);
+        }
+      })
       .catch((err) => {
         console.error('Failed to fetch KEK polygon:', err);
         setPolygon(null);
@@ -115,6 +127,7 @@ export default function MapView() {
 
         <KekMarkers hoverInfo={hoverInfo} />
         <RasterOverlay />
+        <VectorOverlay />
         <InfraMarkers />
 
         {/* Selected KEK polygon */}

@@ -17,11 +17,13 @@ export default function BottomPanel() {
 
   return (
     <div
-      className="h-72 border-t"
+      className="h-72 border-t relative"
       style={{
-        backdropFilter: 'var(--blur-heavy, blur(24px))',
-        background: 'var(--glass-heavy, rgba(18, 18, 18, 0.85))',
-        borderColor: 'var(--glass-border, rgba(255, 255, 255, 0.08))',
+        backdropFilter: 'var(--blur-heavy)',
+        WebkitBackdropFilter: 'var(--blur-heavy)',
+        background: 'var(--glass-heavy)',
+        borderColor: 'var(--glass-border)',
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
       }}
     >
       <Tabs.Root
