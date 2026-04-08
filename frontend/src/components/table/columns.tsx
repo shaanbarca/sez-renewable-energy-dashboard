@@ -49,13 +49,16 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
           </text>
         </svg>
         <span
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 px-2.5 py-2
+          className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 px-2.5 py-2
                      text-[10px] leading-relaxed text-zinc-300 font-normal whitespace-normal
-                     rounded-md shadow-lg z-50 pointer-events-none
+                     rounded-md shadow-lg z-[9999] pointer-events-none
                      opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150"
           style={{
-            background: 'rgba(30, 30, 30, 0.95)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'var(--glass-heavy)',
+            backdropFilter: 'var(--blur-heavy)',
+            WebkitBackdropFilter: 'var(--blur-heavy)',
+            border: '1px solid var(--glass-border-bright)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
           }}
         >
           {tip}
@@ -99,8 +102,11 @@ function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, string> }) {
                      rounded-md shadow-lg z-50 pointer-events-none
                      opacity-0 group-hover/flag:opacity-100 transition-opacity duration-150"
           style={{
-            background: 'rgba(30, 30, 30, 0.95)',
+            background: 'var(--glass-heavy)',
+            backdropFilter: 'var(--blur-heavy)',
+            WebkitBackdropFilter: 'var(--blur-heavy)',
             border: `1px solid ${color}44`,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
           }}
         >
           <span className="font-medium" style={{ color }}>

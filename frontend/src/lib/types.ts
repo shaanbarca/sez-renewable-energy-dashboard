@@ -55,6 +55,13 @@ export interface ScorecardRow {
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;
+
+  // Action flag detail fields (backend always sends these)
+  solar_attractive?: boolean;
+  grid_first?: boolean;
+  firming_needed?: boolean;
+  firming_adder_usd_mwh?: number;
+  lcoe_with_firming_usd_mwh?: number;
 }
 
 export interface SliderConfig {

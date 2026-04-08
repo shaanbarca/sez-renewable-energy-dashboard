@@ -131,13 +131,34 @@ function FlagBadge({ active, label, color }: { active: boolean; label: string; c
   );
 }
 
-const ACTION_FLAG_DESCRIPTIONS: Record<string, string> = {
-  solar_now: 'Solar is cost-competitive with the grid today.',
-  invest_resilience: 'Near-competitive; invest for reliability and resilience.',
-  grid_first: 'Grid power is cheaper; focus on grid improvements first.',
-  plan_late: 'Low solar resource; revisit when costs decline further.',
-  not_competitive: 'Solar is not competitive under current conditions.',
-};
+function getFlagExplanation(flag: string, row: ScorecardRow): string {
+  switch (flag) {
+    case 'solar_now':
+      return 'Solar is cost-competitive with the grid today. Grid upgrades are planned and sufficient GEAS allocation exists.';
+    case 'invest_resilience': {
+      const gap = row.solar_competitive_gap_pct;
+      return `Solar is within ${gap != null ? Math.abs(gap).toFixed(0) : '~20'}% of grid parity. Investing now builds resilience against future grid cost increases.`;
+    }
+    case 'grid_first':
+      return `Solar is cost-competitive here (LCOE $${row.lcoe_mid_usd_mwh?.toFixed(1)}/MWh vs grid $${row.grid_cost_usd_mwh?.toFixed(1)}/MWh), but ${row.grid_upgrade_planned === false ? 'no grid upgrade is planned before 2030' : 'grid infrastructure needs improvement'} — solar cannot connect until the grid catches up.`;
+    case 'firming_needed': {
+      const parts = ['Solar economics work, but this KEK has high reliability requirements.'];
+      if (row.firming_adder_usd_mwh)
+        parts.push(
+          `Firming adds +$${row.firming_adder_usd_mwh.toFixed(0)}/MWh (battery/backup) to ensure stable supply.`,
+        );
+      if (row.lcoe_with_firming_usd_mwh)
+        parts.push(`All-in cost with firming: $${row.lcoe_with_firming_usd_mwh.toFixed(1)}/MWh.`);
+      return parts.join(' ');
+    }
+    case 'plan_late':
+      return 'Over 60% of planned solar additions in this grid region slip past 2030. The RUPTL pipeline needs acceleration for this KEK to benefit.';
+    case 'not_competitive':
+      return `Solar LCOE ($${row.lcoe_mid_usd_mwh?.toFixed(1)}/MWh) exceeds grid cost ($${row.grid_cost_usd_mwh?.toFixed(1)}/MWh) by too wide a margin under current assumptions.`;
+    default:
+      return '';
+  }
+}
 
 /* ---------- Tab content components ---------- */
 
@@ -363,12 +384,18 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
     <>
       <StatCard>
         {flagKeys.map((flag) => (
-          <FlagBadge
-            key={flag}
-            active={activeFlag === flag}
-            label={ACTION_FLAG_LABELS[flag] ?? flag}
-            color={ACTION_FLAG_COLORS[flag] ?? '#666'}
-          />
+          <div key={flag}>
+            <FlagBadge
+              active={activeFlag === flag}
+              label={ACTION_FLAG_LABELS[flag] ?? flag}
+              color={ACTION_FLAG_COLORS[flag] ?? '#666'}
+            />
+            {activeFlag === flag && (
+              <p className="text-[10px] text-zinc-400 leading-relaxed mt-1 mb-2 pl-5">
+                {getFlagExplanation(flag, row)}
+              </p>
+            )}
+          </div>
         ))}
       </StatCard>
       <StatCard>
@@ -452,7 +479,7 @@ export default function ScoreDrawer() {
 
   const flagColor = row ? (ACTION_FLAG_COLORS[row.action_flag] ?? '#666') : '#666';
   const flagLabel = row ? (ACTION_FLAG_LABELS[row.action_flag] ?? row.action_flag) : '';
-  const flagDescription = row ? (ACTION_FLAG_DESCRIPTIONS[row.action_flag] ?? '') : '';
+  const flagDescription = row ? getFlagExplanation(row.action_flag, row) : '';
 
   return (
     <div

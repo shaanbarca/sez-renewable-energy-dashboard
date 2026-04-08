@@ -249,13 +249,13 @@ export default function DataTable() {
       </div>
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10" style={{ background: 'var(--glass-heavy)' }}>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="text-left px-3 py-2 text-[#999] font-medium cursor-pointer select-none border-b border-white/5"
+                    className="text-left px-3 py-2 text-[#999] font-medium cursor-pointer select-none border-b border-white/5 overflow-visible"
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <span className="flex items-center gap-1">

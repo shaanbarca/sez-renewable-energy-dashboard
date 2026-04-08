@@ -64,6 +64,9 @@ Key directories:
 - `frontend/src/components/charts/` — Recharts (QuadrantChart, RuptlChart)
 - `frontend/src/components/ui/` — Header, BottomPanel, EnergyToggle, MethodologyModal
 
+UI conventions:
+- **Liquid glass styling** — all floating panels, tooltips, and overlays use the CSS custom properties defined in `globals.css`: `--glass-heavy` background, `--blur-heavy` backdrop-filter, `--glass-border-bright` border, plus `inset 0 1px 0 rgba(255,255,255,0.06)` shine. Never use opaque backgrounds for tooltips or popups.
+
 Formatting and linting:
 ```bash
 cd frontend
