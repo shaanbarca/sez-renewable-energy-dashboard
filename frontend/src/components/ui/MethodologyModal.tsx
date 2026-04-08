@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchMethodology } from '../../lib/api';
+
+/** Convert heading text to a URL-friendly slug (matches GitHub's anchor generation). */
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-');
+}
 
 interface MethodologyModalProps {
   open: boolean;
@@ -11,6 +21,7 @@ interface MethodologyModalProps {
 export default function MethodologyModal({ open, onClose }: MethodologyModalProps) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open || content) return;
@@ -68,7 +79,7 @@ export default function MethodologyModal({ open, onClose }: MethodologyModalProp
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto px-8 py-6 flex-1 methodology-content">
+        <div ref={scrollRef} className="overflow-y-auto px-8 py-6 flex-1 methodology-content">
           {error && <p className="text-red-400 text-sm">{error}</p>}
           {!content && !error && (
             <p className="text-zinc-500 text-sm animate-pulse">Loading methodology...</p>
@@ -77,18 +88,38 @@ export default function MethodologyModal({ open, onClose }: MethodologyModalProp
             <Markdown
               remarkPlugins={[remarkGfm]}
               components={{
-                h1: ({ children }) => (
-                  <h1 className="text-2xl font-bold text-white mt-8 mb-4 first:mt-0">{children}</h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-xl font-semibold text-white mt-8 mb-3">{children}</h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-base font-semibold text-zinc-200 mt-6 mb-2">{children}</h3>
-                ),
-                h4: ({ children }) => (
-                  <h4 className="text-sm font-semibold text-zinc-300 mt-4 mb-2">{children}</h4>
-                ),
+                h1: ({ children }) => {
+                  const id = slugify(String(children));
+                  return (
+                    <h1 id={id} className="text-2xl font-bold text-white mt-8 mb-4 first:mt-0">
+                      {children}
+                    </h1>
+                  );
+                },
+                h2: ({ children }) => {
+                  const id = slugify(String(children));
+                  return (
+                    <h2 id={id} className="text-xl font-semibold text-white mt-8 mb-3">
+                      {children}
+                    </h2>
+                  );
+                },
+                h3: ({ children }) => {
+                  const id = slugify(String(children));
+                  return (
+                    <h3 id={id} className="text-base font-semibold text-zinc-200 mt-6 mb-2">
+                      {children}
+                    </h3>
+                  );
+                },
+                h4: ({ children }) => {
+                  const id = slugify(String(children));
+                  return (
+                    <h4 id={id} className="text-sm font-semibold text-zinc-300 mt-4 mb-2">
+                      {children}
+                    </h4>
+                  );
+                },
                 p: ({ children }) => (
                   <p className="text-sm text-zinc-300 leading-relaxed mb-3">{children}</p>
                 ),
@@ -103,16 +134,27 @@ export default function MethodologyModal({ open, onClose }: MethodologyModalProp
                   </ol>
                 ),
                 li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    className="text-[#90CAF9] hover:text-white underline underline-offset-2"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {children}
-                  </a>
-                ),
+                a: ({ href, children }) => {
+                  const isAnchor = href?.startsWith('#');
+                  const handleClick = isAnchor
+                    ? (e: React.MouseEvent) => {
+                        e.preventDefault();
+                        const targetId = href!.slice(1);
+                        const el = scrollRef.current?.querySelector(`#${CSS.escape(targetId)}`);
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    : undefined;
+                  return (
+                    <a
+                      href={href}
+                      onClick={handleClick}
+                      className="text-[#90CAF9] hover:text-white underline underline-offset-2 cursor-pointer"
+                      {...(isAnchor ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+                    >
+                      {children}
+                    </a>
+                  );
+                },
                 code: ({ children, className }) => {
                   const isBlock = className?.includes('language-');
                   if (isBlock) {
