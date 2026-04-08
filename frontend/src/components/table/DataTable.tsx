@@ -1,4 +1,6 @@
 import {
+  type Column,
+  type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -6,7 +8,8 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import { columns } from './columns';
 
@@ -32,26 +35,129 @@ function exportCsv(rows: Record<string, unknown>[], headers: string[]) {
   URL.revokeObjectURL(url);
 }
 
+// Columns that get dropdown filters (categorical)
+const DROPDOWN_COLUMNS = new Set([
+  'action_flag',
+  'province',
+  'kek_type',
+  'category',
+  'best_re_technology',
+]);
+// Columns that get range filters (numeric)
+const RANGE_COLUMNS = new Set([
+  'max_captive_capacity_mwp',
+  'lcoe_mid_usd_mwh',
+  'solar_competitive_gap_pct',
+  'dashboard_rate_usd_mwh',
+  'area_ha',
+]);
+
+function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: ScorecardRow[] }) {
+  const filterValue = (column.getFilterValue() as string) ?? '';
+  const options = useMemo(() => {
+    const vals = new Set<string>();
+    for (const row of data) {
+      const v = row[column.id as keyof ScorecardRow];
+      if (v != null && v !== '') vals.add(String(v));
+    }
+    return Array.from(vals).sort();
+  }, [data, column.id]);
+
+  return (
+    <select
+      value={filterValue}
+      onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+      className="w-full bg-transparent text-[10px] text-zinc-400 outline-none border border-white/10 rounded px-1 py-0.5 mt-1 cursor-pointer"
+      style={{ maxWidth: 120 }}
+    >
+      <option value="">All</option>
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function RangeFilter({ column, data }: { column: Column<ScorecardRow>; data: ScorecardRow[] }) {
+  const filterValue = (column.getFilterValue() as [number | '', number | '']) ?? ['', ''];
+  const [min, max] = useMemo(() => {
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
+    for (const row of data) {
+      const v = row[column.id as keyof ScorecardRow];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    return [Number.isFinite(lo) ? lo : 0, Number.isFinite(hi) ? hi : 0];
+  }, [data, column.id]);
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const handleChange = (idx: 0 | 1, val: string) => {
+    const next = [...filterValue] as [number | '', number | ''];
+    next[idx] = val === '' ? '' : Number(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      column.setFilterValue(next[0] === '' && next[1] === '' ? undefined : next);
+    }, 300);
+  };
+
+  return (
+    <div className="flex gap-1 mt-1">
+      <input
+        type="number"
+        placeholder={min.toFixed(0)}
+        defaultValue={filterValue[0]}
+        onChange={(e) => handleChange(0, e.target.value)}
+        className="w-14 bg-transparent text-[10px] text-zinc-400 outline-none border border-white/10 rounded px-1 py-0.5 tabular-nums"
+      />
+      <input
+        type="number"
+        placeholder={max.toFixed(0)}
+        defaultValue={filterValue[1]}
+        onChange={(e) => handleChange(1, e.target.value)}
+        className="w-14 bg-transparent text-[10px] text-zinc-400 outline-none border border-white/10 rounded px-1 py-0.5 tabular-nums"
+      />
+    </div>
+  );
+}
+
 export default function DataTable() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const selectedKek = useDashboardStore((s) => s.selectedKek);
   const selectKek = useDashboardStore((s) => s.selectKek);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   const data = useMemo(() => scorecard ?? [], [scorecard]);
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, columnFilters },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
     globalFilterFn: (row, _columnId, filterValue: string) => {
       const search = filterValue.toLowerCase();
       const name = (row.original.kek_name ?? '').toLowerCase();
       const province = (row.original.province ?? '').toLowerCase();
       return name.includes(search) || province.includes(search);
+    },
+    filterFns: {
+      inRange: (row, columnId, value: [number | '', number | '']) => {
+        const v = row.getValue<number>(columnId);
+        if (v == null) return true;
+        const [lo, hi] = value;
+        if (lo !== '' && v < lo) return false;
+        if (hi !== '' && v > hi) return false;
+        return true;
+      },
     },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -104,6 +210,7 @@ export default function DataTable() {
           />
           {globalFilter && (
             <button
+              type="button"
               onClick={() => setGlobalFilter('')}
               className="text-zinc-500 hover:text-zinc-300 text-[10px] cursor-pointer"
             >
@@ -113,8 +220,29 @@ export default function DataTable() {
         </div>
         <div className="flex-1" />
         <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`border px-3 py-1 text-xs rounded cursor-pointer transition-colors ${
+            showFilters || columnFilters.length > 0
+              ? 'text-[#90CAF9] border-[#90CAF9]/30 bg-[#90CAF9]/10'
+              : 'text-zinc-500 hover:text-zinc-300 border-white/10'
+          }`}
+        >
+          Filters{columnFilters.length > 0 ? ` (${columnFilters.length})` : ''}
+        </button>
+        {columnFilters.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setColumnFilters([])}
+            className="text-zinc-500 hover:text-zinc-300 text-[10px] cursor-pointer"
+          >
+            Clear all
+          </button>
+        )}
+        <button
+          type="button"
           onClick={handleExport}
-          className="text-zinc-500 hover:text-zinc-300 border border-white/10 px-3 py-1 text-xs rounded"
+          className="text-zinc-500 hover:text-zinc-300 border border-white/10 px-3 py-1 text-xs rounded cursor-pointer"
         >
           Export CSV
         </button>
@@ -141,6 +269,20 @@ export default function DataTable() {
                 ))}
               </tr>
             ))}
+            {showFilters && (
+              <tr>
+                {table.getHeaderGroups()[0].headers.map((header) => (
+                  <th key={`filter-${header.id}`} className="px-3 py-1 border-b border-white/5">
+                    {DROPDOWN_COLUMNS.has(header.column.id) && (
+                      <DropdownFilter column={header.column} data={data} />
+                    )}
+                    {RANGE_COLUMNS.has(header.column.id) && (
+                      <RangeFilter column={header.column} data={data} />
+                    )}
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (

@@ -1,6 +1,12 @@
-import { createColumnHelper } from '@tanstack/react-table';
+import { createColumnHelper, type FilterFn } from '@tanstack/react-table';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type { ScorecardRow } from '../../lib/types';
+
+declare module '@tanstack/react-table' {
+  interface FilterFns {
+    inRange: FilterFn<unknown>;
+  }
+}
 
 const col = createColumnHelper<ScorecardRow>();
 
@@ -23,6 +29,15 @@ export const columns = [
   }),
   col.accessor('area_ha', {
     header: 'Area (ha)',
+    filterFn: 'inRange',
+    cell: (info) => {
+      const v = info.getValue();
+      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+    },
+  }),
+  col.accessor('max_captive_capacity_mwp', {
+    header: 'Capacity (MWp)',
+    filterFn: 'inRange',
     cell: (info) => {
       const v = info.getValue();
       return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
@@ -47,10 +62,12 @@ export const columns = [
   }),
   col.accessor('lcoe_mid_usd_mwh', {
     header: 'LCOE ($/MWh)',
+    filterFn: 'inRange',
     cell: (info) => info.getValue().toFixed(1),
   }),
   col.accessor('solar_competitive_gap_pct', {
     header: 'Gap (%)',
+    filterFn: 'inRange',
     cell: (info) => {
       const val = info.getValue();
       const sign = val > 0 ? '+' : '';
@@ -69,6 +86,7 @@ export const columns = [
   }),
   col.accessor('dashboard_rate_usd_mwh', {
     header: 'Grid Rate ($/MWh)',
+    filterFn: 'inRange',
     cell: (info) => info.getValue().toFixed(1),
   }),
 ];
