@@ -416,12 +416,17 @@ function StepOverlay() {
 
   if (!currentStep) return null;
 
-  // Position the tooltip near the spotlight
+  // If the target covers most of the viewport, don't spotlight it — just show tooltip centered
+  const isLargeTarget =
+    spotlightRect &&
+    spotlightRect.width > window.innerWidth * 0.6 &&
+    spotlightRect.height > window.innerHeight * 0.6;
+
+  // Position the tooltip near the spotlight (or center if large/missing target)
   const tooltipStyle: React.CSSProperties = {};
-  if (spotlightRect) {
+  if (spotlightRect && !isLargeTarget) {
     const pad = 16;
     const tooltipWidth = 340;
-    // Try to place tooltip to the right of the spotlight, or below if no room
     if (spotlightRect.right + tooltipWidth + pad < window.innerWidth) {
       tooltipStyle.left = spotlightRect.right + pad;
       tooltipStyle.top = Math.max(pad, spotlightRect.top);
@@ -430,19 +435,28 @@ function StepOverlay() {
       tooltipStyle.top = Math.max(pad, spotlightRect.top);
     } else {
       tooltipStyle.left = Math.max(pad, (window.innerWidth - tooltipWidth) / 2);
-      tooltipStyle.top = spotlightRect.bottom + pad;
+      tooltipStyle.top = Math.max(pad, spotlightRect.top + 60);
     }
   } else {
-    // Center
+    // Center the tooltip
     tooltipStyle.left = '50%';
-    tooltipStyle.top = '50%';
+    tooltipStyle.top = '40%';
     tooltipStyle.transform = 'translate(-50%, -50%)';
   }
 
   return (
     <div className="fixed inset-0 z-[60]" style={{ pointerEvents: 'none' }}>
-      {/* Dimming overlay with spotlight hole */}
-      {spotlightRect && (
+      {/* Dimming backdrop */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: isLargeTarget || !spotlightRect ? 'rgba(0,0,0,0.5)' : 'transparent',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Spotlight hole (only for small/medium targets) */}
+      {spotlightRect && !isLargeTarget && (
         <div
           className="absolute rounded-lg"
           style={{
