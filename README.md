@@ -77,3 +77,7 @@ uv run pytest tests/       # 302 tests
 uv run ruff check src/     # Python lint
 cd frontend && npm run lint # TypeScript lint (Biome)
 ```
+
+## Author
+
+Shaan Barca (shaan.b1223@gmail.com)
