@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useDashboardStore } from './store/dashboard';
 import Header from './components/ui/Header';
+import MapView from './components/map/MapView';
 
 function App() {
   const initialize = useDashboardStore((s) => s.initialize);
@@ -13,12 +14,8 @@ function App() {
     <div className="h-screen flex flex-col bg-[#121212]">
       <Header />
       <div className="flex-1 relative">
-        {/* MAP slot - Lane C will fill this */}
-        <div id="map-slot" className="absolute inset-0">
-          <div className="flex items-center justify-center h-full text-zinc-600">
-            Map placeholder
-          </div>
-        </div>
+        {/* MAP - Lane C */}
+        <MapView />
 
         {/* ASSUMPTIONS slot - Lane E will fill this */}
 
