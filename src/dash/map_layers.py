@@ -56,6 +56,64 @@ def load_kek_polygons() -> dict | None:
         return json.load(f)
 
 
+def get_kek_polygon_by_id(kek_id: str) -> dict | None:
+    """Extract a single KEK polygon feature from the full GeoJSON by slug/kek_id.
+
+    Returns the GeoJSON feature dict with geometry and properties, or None.
+    """
+    gj = load_kek_polygons()
+    if not gj:
+        return None
+    for feat in gj.get("features", []):
+        props = feat.get("properties", {})
+        if props.get("slug") == kek_id:
+            return feat
+    return None
+
+
+def polygon_bbox(feature: dict) -> tuple[float, float, float, float, float, float]:
+    """Compute bounding box and centroid from a GeoJSON polygon feature.
+
+    Returns (min_lon, min_lat, max_lon, max_lat, center_lat, center_lon).
+    """
+    geom = feature.get("geometry", {})
+    coords_list = geom.get("coordinates", [])
+    all_points = []
+    if geom.get("type") == "MultiPolygon":
+        for poly in coords_list:
+            for ring in poly:
+                all_points.extend(ring)
+    elif geom.get("type") == "Polygon":
+        for ring in coords_list:
+            all_points.extend(ring)
+    if not all_points:
+        return (0, 0, 0, 0, 0, 0)
+    lons = [p[0] for p in all_points]
+    lats = [p[1] for p in all_points]
+    min_lon, max_lon = min(lons), max(lons)
+    min_lat, max_lat = min(lats), max(lats)
+    return (min_lon, min_lat, max_lon, max_lat, (min_lat + max_lat) / 2, (min_lon + max_lon) / 2)
+
+
+def filter_substations_near_point(lat: float, lon: float, radius_km: float = 50.0) -> list[dict]:
+    """Filter substations within radius_km of a point using haversine distance."""
+    import math
+
+    stations = load_substations()
+    nearby = []
+    for s in stations:
+        # Haversine
+        lat1, lon1 = math.radians(lat), math.radians(lon)
+        lat2, lon2 = math.radians(s["lat"]), math.radians(s["lon"])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        dist_km = 6371.0 * 2 * math.asin(math.sqrt(a))
+        if dist_km <= radius_km:
+            nearby.append({**s, "dist_km": round(dist_km, 1)})
+    return nearby
+
+
 # ---------------------------------------------------------------------------
 # Raster layer helpers
 # ---------------------------------------------------------------------------

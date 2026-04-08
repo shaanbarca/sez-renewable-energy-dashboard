@@ -52,6 +52,28 @@ ACTION_FLAG_DESCRIPTIONS: dict[str, str] = {
 WIND_COLOR = "#00796B"
 
 # ---------------------------------------------------------------------------
+# RUPTL chart region colours
+# ---------------------------------------------------------------------------
+
+RUPTL_REGION_COLORS: dict[str, str] = {
+    "JAVA_BALI": "#1976D2",
+    "SUMATERA": "#388E3C",
+    "KALIMANTAN": "#F57C00",
+    "SULAWESI": "#00897B",
+    "MALUKU": "#7B1FA2",
+    "PAPUA": "#C62828",
+    "NTB": "#5D4037",
+}
+
+# ---------------------------------------------------------------------------
+# Infrastructure marker colours (zoomed KEK view)
+# ---------------------------------------------------------------------------
+
+INFRA_INSIDE_SEZ_COLOR = "#4CAF50"  # green
+INFRA_OUTSIDE_SEZ_COLOR = "#42A5F5"  # blue
+NEAREST_SUBSTATION_COLOR = "#FFD600"  # yellow highlight
+
+# ---------------------------------------------------------------------------
 # WACC slider marks (9 snap points, 4–20% in 2% steps)
 # ---------------------------------------------------------------------------
 

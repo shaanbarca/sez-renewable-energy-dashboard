@@ -1,0 +1,52 @@
+/* Push Leaflet layer control above the bottom drawer */
+.leaflet-bottom.leaflet-left {
+    bottom: 45vh;
+}
+
+/* Dark theme for Dash 4 slider tooltips */
+.dash-slider-tooltip {
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+    border: 1px solid #555 !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Dark theme for slider mark labels (all white) */
+.dash-slider-mark,
+.dash-slider-mark-outside-selection {
+    color: #ffffff !important;
+    font-size: 10px !important;
+}
+
+/* Fallback for rc-slider (older Dash) */
+.rc-slider-tooltip-inner {
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+    border: 1px solid #555 !important;
+}
+.rc-slider-mark-text,
+.rc-slider-mark-text-active {
+    color: #ffffff !important;
+}
+
+/* Dark theme for Mantine Accordion */
+.mantine-Accordion-control {
+    background-color: rgba(30, 30, 30, 0.95) !important;
+    color: #e0e0e0 !important;
+}
+.mantine-Accordion-control:hover {
+    background-color: rgba(50, 50, 50, 0.95) !important;
+}
+.mantine-Accordion-panel {
+    background-color: rgba(25, 25, 25, 0.95) !important;
+    color: #e0e0e0 !important;
+}
+.mantine-Accordion-item {
+    background-color: rgba(30, 30, 30, 0.95) !important;
+    border-color: #444 !important;
+}
+.mantine-Accordion-chevron {
+    color: #aaa !important;
+}

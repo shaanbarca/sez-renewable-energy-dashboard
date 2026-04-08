@@ -124,3 +124,52 @@ def compute_ruptl_region_metrics(ruptl_df: pd.DataFrame) -> pd.DataFrame:
         )
 
     return pd.DataFrame(rows)
+
+
+def load_kek_infrastructure() -> dict[str, list[dict]]:
+    """Load infrastructure markers per KEK from kek_info_and_markers.csv.
+
+    Returns dict mapping kek_id (slug) to list of infrastructure markers,
+    each with keys: title, category, lat, lon.
+    """
+    import ast
+
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "outputs"
+        / "data"
+        / "raw"
+        / "kek_info_and_markers.csv"
+    )
+    if not path.exists():
+        return {}
+
+    df = pd.read_csv(path)
+    result: dict[str, list[dict]] = {}
+    for _, row in df.iterrows():
+        slug = row.get("slug", "")
+        infra_raw = row.get("infrastructures", "[]")
+        try:
+            infra_list = ast.literal_eval(infra_raw) if isinstance(infra_raw, str) else []
+        except (ValueError, SyntaxError):
+            infra_list = []
+
+        markers = []
+        for item in infra_list:
+            lat = item.get("latitude")
+            lon = item.get("longitude")
+            if lat is not None and lon is not None:
+                cat = item.get("category", {})
+                cat_name = cat.get("name", "Unknown") if isinstance(cat, dict) else str(cat)
+                markers.append(
+                    {
+                        "title": item.get("title", ""),
+                        "category": cat_name,
+                        "lat": float(lat),
+                        "lon": float(lon),
+                    }
+                )
+        if markers:
+            result[slug] = markers
+
+    return result

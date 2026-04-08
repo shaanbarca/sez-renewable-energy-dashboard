@@ -1,7 +1,8 @@
 # Design — Indonesia KEK Power Competitiveness Dashboard
 
-**Status:** Phase 3 design spec (post-autoplan review, 2026-04-07). All §6 questions resolved. Ready for Dash build.
+**Status:** Phase 4 design spec (post design-shotgun refresh, 2026-04-08). Map-forward layout with zoomed KEK detail, bottom drawer, and RUPTL Context view.
 **Related:** [PERSONAS.md](PERSONAS.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [PLAN.md](PLAN.md)
+**Design mockups:** [docs/designs/2026-04-dashboard-refresh/](docs/designs/2026-04-dashboard-refresh/) (4 interaction states + 3 exploration variants)
 
 ---
 
@@ -36,42 +37,101 @@ Indonesia's 25 Special Economic Zones (KEKs) face a fragmented energy landscape:
 
 ## §2 Information Architecture
 
-Six named views. Each is a page or panel within the single-page Dash app.
+Six named views arranged in a **map-forward layout**. The map is always visible. Other views appear as overlays (right panel, bottom drawer).
 
-| # | View | Purpose | Primary data source | Key interaction |
-|---|------|---------|-------------------|----------------|
-| 1 | **Overview Map** | Spatial distribution of clean power competitiveness across all 25 KEKs | `fct_kek_scorecard.action_flag`, `solar_competitive_gap_wacc10_pct` | Click marker → load KEK Scorecard |
-| 2 | **Quadrant Chart** | LCOE vs. grid cost proxy for all KEKs simultaneously — four zones visible at once | `fct_lcoe` (WACC-filtered) + `fct_grid_cost_proxy` | WACC selector updates positions live |
-| 3 | **Ranked Table** | Sortable, filterable comparison of all 25 KEKs | `fct_kek_scorecard` | Column sort; action flag filter; CSV export |
-| 4 | **KEK Scorecard** | Single-zone deep-dive: LCOE bands, resource, demand, grid context, action flag | All joined tables (one row per KEK) | Tab between Resource / LCOE / Demand / Pipeline |
-| 5 | **Flip Scenario Panel** | "Which KEKs become competitive under changed assumptions?" | `fct_lcoe` WACC=8% columns + threshold slider | WACC selector + competitive-gap threshold slider |
-| 6 | **RUPTL Context** | Regional grid pipeline timing — when does PLN's solar come online near each KEK? | `fct_ruptl_pipeline` | Year range slider; region filter |
+| # | View | Container | Purpose | Primary data source | Key interaction |
+|---|------|-----------|---------|-------------------|----------------|
+| 1 | **Overview Map** | Full-screen (always visible) | Spatial distribution of clean power competitiveness across all 25 KEKs | `fct_kek_scorecard.action_flag`, `solar_competitive_gap_wacc10_pct` | Click marker → zoom to KEK + show Scorecard |
+| 2 | **Quadrant Chart** | Bottom drawer (tab 2) | LCOE vs. grid cost proxy for all KEKs simultaneously — four zones visible at once | `fct_lcoe` (WACC-filtered) + `fct_grid_cost_proxy` | WACC selector updates positions live |
+| 3 | **Ranked Table** | Bottom drawer (tab 1) | Sortable, filterable comparison of all 25 KEKs | `fct_kek_scorecard` | Column sort; action flag filter; CSV export |
+| 4 | **KEK Scorecard** | Right side panel (slides in on KEK click) | Single-zone deep-dive: LCOE bands, resource, demand, grid context, action flag | All joined tables (one row per KEK) | Tab between Resource / LCOE / Demand / Pipeline / Flags |
+| 5 | **Flip Scenario Panel** | Bottom drawer (tab 4) | "Which KEKs become competitive under changed assumptions?" | `fct_lcoe` WACC=8% columns + threshold slider | WACC selector + competitive-gap threshold slider |
+| 6 | **RUPTL Context** | Bottom drawer (tab 3) | Regional grid pipeline timing — when does PLN's solar come online near each KEK? | `fct_ruptl_pipeline` | Region filter; scenario toggle (RE Base / ARED) |
 
-### View flow
+### Layout containers
 
 ```
-Overview Map
-    │ click KEK
-    ▼
-KEK Scorecard ──────────────────────────┐
-    │ tab: Pipeline                      │
-    ▼                                    │
-RUPTL Context                           │
-    │ return                             │
-    ▼                                    │
-Flip Scenario Panel                      │
-    │ "which KEKs flip?"                 │
-    ▼                                    │
-Quadrant Chart ◄── WACC slider ─────────┤
-    │              + Grid benchmark      │
-    ▼                                    │
-Ranked Table ◄──────────────────────────┘
-    │ CSV + GeoJSON export
-    ▼
-Investment memo / policy brief
+┌─────────────────────────────────────────────────────────────┐
+│  Indonesia KEK Power Competitiveness  [Solar|Wind|Overall]  │  ← header bar
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐                    ┌──────────────────┐   │
+│  │ Assumptions  │                    │ ACTION FLAG      │   │
+│  │ WACC   10%   │    FULL-SCREEN     │ LEGEND           │   │
+│  │ CAPEX  960   │       MAP          │ ● Solar Now      │   │
+│  │ Life   27yr  │                    │ ● Invest Res.    │   │
+│  │ FOM    7.5   │                    │ ● Grid First     │   │
+│  │ [▼ expand]   │                    │ ● Plan Late      │   │
+│  └──────────────┘                    │ ● Not Competitive│   │
+│                                      └──────────────────┘   │
+│                      ┌─────────────────────┐                │
+│                      │ KEK Scorecard       │ ← slides in    │
+│                      │ (right panel,       │   on KEK click  │
+│                      │  only in State 2)   │                │
+│                      └─────────────────────┘                │
+├─────────────────────────────────────────────────────────────┤
+│  ═══ grab handle ═══                                        │
+│  [Table] [Quadrant Chart] [RUPTL] [Flip Scenario]           │
+│  Bottom drawer (~40% height, translucent dark glass)        │
+│  OPEN BY DEFAULT. Slides up/down via grab handle.           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-*Changed 2026-04-07 (decision #25): Flip Scenario moved after Scorecard. Users confirm individual KEK picks before stress-testing assumptions.*
+### Interaction states (2 states + persistent elements)
+
+See mockups in [docs/designs/2026-04-dashboard-refresh/](docs/designs/2026-04-dashboard-refresh/).
+
+**Persistent UI elements** (always visible in both states):
+- **Header bar**: Title + energy source segmented control (Solar / Wind / Overall) — `dmc.SegmentedControl`
+- **Assumptions card** (top-left): Compact summary of WACC, CAPEX, Lifetime, FOM. Expandable to full Tier 1/2/3 slider panels — `dmc.Accordion` or `dmc.Collapse`
+- **Action flag legend** (top-right): Color-coded legend for all 5 action flags
+- **Bottom drawer** (open by default, collapsible via grab handle): Translucent dark glass panel (~40vh). Contains 4 tabs (`dmc.Tabs`):
+  1. Ranked Table — sortable, filterable, CSV/GeoJSON export
+  2. Quadrant Chart — LCOE vs grid cost scatter with zone shading
+  3. RUPTL Context — grouped bar chart of planned solar additions by region and year
+  4. Flip Scenario — before/after comparison when assumptions change
+
+**State 1 — National view** (default) ([state-1-default-map.png](docs/designs/2026-04-dashboard-refresh/state-1-default-map.png)):
+Full-screen dark map with all 25 KEK markers color-coded by action flag. No KEK selected. All persistent elements visible. Drawer open by default.
+
+**State 2 — Zoomed KEK** ([state-2-kek-zoomed.png](docs/designs/2026-04-dashboard-refresh/state-2-kek-zoomed.png)):
+Triggered by clicking a KEK `dl.CircleMarker` on map or a row in the ranked table.
+- Map zooms to fit the selected KEK polygon (bounding box + padding via `polygon_bbox()`)
+- KEK polygon boundary rendered via `dl.GeoJSON` (action-flag color outline, 0.15 opacity fill)
+- Infrastructure markers shown within/near KEK as `dl.CircleMarker` with `dl.Tooltip`:
+  - PLN substations from `data/substation.geojson` (filtered to ~50km radius via `filter_substations_near_point()`; nearest highlighted yellow)
+  - Scraped infrastructure from `kek_info_and_markers.csv` → `infrastructures` JSON (green = inside SEZ, blue = outside SEZ)
+- Selected KEK marker enlarged (radius 14, yellow border) to indicate selection
+- "Back to National View" button appears (top-center, `dmc.Button`) to exit zoomed state
+- Scorecard panel slides in from right (`dmc.Drawer`, 380px, title "KEK Scorecard", visible close X button)
+  - 5 tabs: Resource / LCOE / Demand / Pipeline / Flags
+  - Close (X) or click outside → zoom back to national view, return to State 1
+- Bottom drawer still available — RUPTL tab auto-filters to this KEK's grid region
+- Click a different KEK in table → transitions directly (no return to State 1 first)
+
+### View flow (updated)
+
+```
+National View (State 1)
+    │ click KEK marker or table row
+    ▼
+Zoomed KEK (State 2)
+    │ polygon + infra markers + scorecard side panel
+    │ "Back to National View" button OR close drawer (X) → back to State 1
+    │ click different KEK in table → stay in State 2, switch KEK
+    │
+    │ RUPTL tab auto-filters to KEK's region
+    │ slider changes → everything updates live (scorecard + map colors)
+    │
+Bottom Drawer (persistent, open by default, toggle via grab handle)
+    ├─ Tab 1: Ranked Table → click row → State 2
+    ├─ Tab 2: Quadrant Chart
+    ├─ Tab 3: RUPTL Context
+    └─ Tab 4: Flip Scenario
+
+Energy Toggle (persistent, header bar) → switches Solar/Wind/Overall context
+```
+
+*Changed 2026-04-08: Map-forward redesign with 2-state model. Drawer and energy toggle are persistent UI elements, not states. Full dbc → DMC migration for consistent dark theme.*
 
 ---
 
@@ -133,10 +193,20 @@ All callbacks use `prevent_initial_call=True` except startup data loaders.
 
 | Component | Implementation | Rationale |
 |-----------|---------------|-----------|
-| Map | `plotly.Scatter_mapbox` with Carto tile provider | No Mapbox token required for Carto; fallback to `plotly.Scatter_geo` if token absent |
-| Quadrant chart | `plotly.Scatter` with `shapes` for zone shading | Full control over quadrant lines; no external dep |
-| Ranked table | `dash_table.DataTable` | Built-in sorting, filtering, CSV export |
-| Scorecard cards | `dbc.Card` (dash-bootstrap-components) | Clean layout without custom CSS |
+| Map | `dash-leaflet.MapContainer` with Mapbox dark-v11 tiles | Full-screen, always visible. Mapbox token loaded from `.env` via python-dotenv. Native `dl.LayersControl` (bottom-left) for toggling overlays |
+| Map layers | `dl.LayersControl` with `dl.Overlay` wrappers | Native Leaflet layer control (expandable checkbox panel). Overlays: Substations, KEK Boundaries, PVOUT, Buildable Solar, Wind Speed |
+| Raster overlays | `dl.ImageOverlay` inside `dl.Overlay` | Base64 PNG rasters toggled via LayersControl. Opacity 0.7 when active |
+| Quadrant chart | `plotly.Scatter` with `shapes` for zone shading | Full control over quadrant lines; lives in bottom drawer tab 2 |
+| Ranked table | `dash_table.DataTable` | Built-in sorting, filtering, CSV export; lives in bottom drawer tab 1 |
+| RUPTL Context chart | `plotly.Bar` (grouped) with region dropdown + scenario toggle | Bottom drawer tab 3. Shows 7 regions × 10 years of planned solar capacity |
+| KEK Scorecard panel | `dmc.Drawer(position="right", size="380px")` | Right-side slide-in panel, dark translucent. Title "KEK Scorecard" with visible close (X) button. `closeOnClickOutside=True` |
+| Bottom drawer | `html.Div` with CSS transform + grab handle | Translucent dark glass (~40% height), slides up/down. Contains Table/Quadrant/RUPTL/Flip tabs |
+| Energy toggle | `dmc.SegmentedControl` (Solar/Wind/Overall) | Header bar, right of title |
+| Infrastructure markers | `dl.CircleMarker` with `dl.Tooltip` | Green (inside SEZ) / blue (outside SEZ). Shown only in State 2 (zoomed KEK view) |
+| KEK polygon fill | `dl.GeoJSON` with fillOpacity style | Action-flag color at 0.15 opacity fill, 2px outline |
+| KEK markers | `dl.CircleMarker` with pattern-matching `n_clicks` callback | Color-coded by action flag. Click to zoom + open scorecard |
+| Back to National | `dmc.Button` (top-center, visible in State 2 only) | Clears selected KEK, closes scorecard, returns to national view |
+| Scorecard cards | `dmc.Paper` (dash-mantine-components) | Clean layout in side panel, dark theme |
 | WACC selector | `dcc.Slider` with marks at [4, 6, 8, 10, 12, 14, 16, 18, 20], default=10 | 9 snap points covering full concessional-to-equity range; no interpolation needed |
 | Grid benchmark override | `dcc.Input(type="number")`, default=63.08, USD/MWh | Allows users to test competitive gap against a custom grid cost (e.g., negotiated PPA rate) |
 | Demand override | `dcc.Input(type="number")` in Scorecard Demand tab | Calls `resolve_demand()` server-side; recalculates GEAS green share |
@@ -159,6 +229,9 @@ All callbacks use `prevent_initial_call=True` except startup data loaders.
 | Error | CSV files not found at startup | ✅ Inline red `dbc.Alert`: "Data not found. Run `uv run python run_pipeline.py`." |
 | Partial data | Any cell value is null (e.g., `nearest_substation_capacity_mva` for 5 KEKs) | ✅ Em-dash "---" per cell via `_val()` helper. Never hides rows with partial data. |
 | Selected KEK | User clicks a KEK on map or table | ✅ Yellow halo (28px outer + 20px inner) highlights selected marker on map |
+| KEK Zoomed | User clicks KEK marker or table row | Map zooms to KEK polygon bbox. Polygon fill + outline rendered. Infrastructure markers (substations, airports, ports, railways) shown. Scorecard slides in from right. |
+| Drawer Open | Default state; user can also pull up after collapsing | Translucent bottom drawer (~40% height) with Table/Quadrant Chart/RUPTL/Flip Scenario tabs |
+| Drawer Closed | User pushes down grab handle or clicks collapse | Only grab handle bar visible at bottom of screen. Map expands to full height. |
 
 ### Input Validation
 
@@ -296,7 +369,7 @@ All resolved during Phase 3 autoplan review (2026-04-07):
 | # | Question | Resolution | Decision # |
 |---|----------|-----------|------------|
 | 1 | **WACC slider** | ✅ **9-value `dcc.Slider`** with snap points at [4,6,8,10,12,14,16,18,20], default=10%. Covers full concessional-to-equity range. | #21, #27 |
-| 2 | **Map tile provider** | ✅ **Carto for MVP**. No Mapbox token required. Mapbox deferred to v2 (see [TODOS.md](TODOS.md) L6). | — |
+| 2 | **Map tile provider** | ✅ **Mapbox dark-v11** via dash-leaflet. Token loaded from `.env` via python-dotenv. Native `dl.LayersControl` for overlay toggling. | — |
 | 3 | **Mobile layout** | ✅ **Desktop-only for MVP**. Primary users are analysts with laptops. Responsive deferred to v2 (see [TODOS.md](TODOS.md) L7). | — |
 | 4 | **Provisional data warning** | ✅ **Dagger (†) per cell**. Cell-level precision; no banner noise. | — |
 | 5 | **Export format** | ✅ **CSV + GeoJSON**. DFI investors need GeoJSON for site team handoff (see [PERSONAS.md §DFI Investor](PERSONAS.md)). | — |
@@ -380,3 +453,19 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-08 | — | Expand scorecard: add Demand tab + Pipeline tab, complete Resource/LCOE fields | Scorecard was missing ~half of DESIGN.md §3 fields, 2 of 4 tabs |
 | 2026-04-08 | — | Add quadrant zone shading (green/red) with labels | Parity line alone didn't communicate competitive zones |
 | 2026-04-08 | — | Polish: rgba() table colors, Badge tooltips, consistent helper naming | Design review polish findings (hex hack, inconsistent "?" style) |
+| 2026-04-08 | — | Map-forward redesign: full-screen map, right slide-in scorecard, bottom drawer with Table/Quadrant/RUPTL/Flip tabs | Design-shotgun exploration chose variant C (map-forward) refined to 4 interaction states |
+| 2026-04-08 | — | Add zoomed KEK detail: polygon boundary, infrastructure markers, substation proximity on click | KEK click should show spatial context (polygon, nearby infra) not just data |
+| 2026-04-08 | — | Add RUPTL Context view as bottom drawer tab 3 | DESIGN.md View 6 was unimplemented; grouped bar chart of planned solar by region/year |
+| 2026-04-08 | — | Energy source segmented control (Solar/Wind/Overall) in header bar | Supports wind integration (§7) and overall best-RE view |
+| 2026-04-08 | — | Bottom drawer open by default; assumptions as compact summary card (expandable) | Default state should show data immediately, not require interaction to access table/charts |
+| 2026-04-08 | — | Simplify to 2-state model (National View + Zoomed KEK); drawer and energy toggle are persistent elements | States 3/4 weren't separate states, just UI elements available in both states |
+| 2026-04-08 | — | Full migration from dash-bootstrap-components to dash-mantine-components (DMC) | DMC has native dark theme, SegmentedControl, Drawer, better Tabs. Single component library. |
+| 2026-04-08 | — | Live updates in Zoomed KEK state: scorecard + map markers + polygon fill all recompute when sliders change | User should see impact immediately without returning to national view |
+| 2026-04-08 | — | Drawer toggle: click grab handle to toggle between collapsed (0%) and open (40vh), no drag-to-resize | Simple, predictable. Avoids custom JS and Plotly resize complexity |
+| 2026-04-08 | — | Migrate map from Plotly Scattermapbox to dash-leaflet with native `dl.LayersControl` | Leaflet provides native layer toggle UI (expandable checkbox panel), no custom sidebar needed |
+| 2026-04-08 | — | Switch from Carto tiles to Mapbox dark-v11 via `dl.TileLayer` | User added Mapbox token to `.env`; Mapbox has better styling and satellite options |
+| 2026-04-08 | — | Add python-dotenv + dash-leaflet dependencies | Token loaded from `.env` at startup; dash-leaflet replaces Plotly map rendering |
+| 2026-04-08 | — | Add "Back to National View" button (top-center, State 2 only) | No way to exit zoomed KEK state without closing scorecard drawer; explicit back button is clearer |
+| 2026-04-08 | — | Scorecard drawer: title "KEK Scorecard", visible close X, closeOnClickOutside | Close button was invisible with empty title; clicking outside should also close |
+| 2026-04-08 | — | Dark theme CSS overrides for slider marks, tooltips, and Mantine Accordion | Slider mark text and tooltip values were illegible (dark text on dark background) |
+| 2026-04-08 | — | LayersControl positioned at bottom-left to avoid overlap with action flag legend | Default top-right position overlapped with the legend panel |

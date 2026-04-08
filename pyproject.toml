@@ -14,13 +14,15 @@ dependencies = [
     "rioxarray>=0.17",
     "pdfplumber>=0.11",
     "dash>=2.17",
-    "dash-bootstrap-components>=1.6",
+    "dash-mantine-components>=0.14",
     "plotly>=5.22",
     "matplotlib>=3.8",
     "folium>=0.17",
     "playwright",
     "openpyxl>=3.1.5",
     "scipy>=1.13",
+    "python-dotenv>=1.0",
+    "dash-leaflet>=1.0",
 ]
 
 [dependency-groups]

@@ -161,3 +161,4 @@ docs/*.jpeg
 
 # Office temp files
 data/~$*
+.gstack/
