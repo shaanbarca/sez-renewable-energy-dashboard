@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KEK Power Competitiveness Dashboard — Design Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #121212;
+    --glass: rgba(20, 20, 24, 0.55);
+    --glass-heavy: rgba(20, 20, 24, 0.65);
+    --glass-light: rgba(20, 20, 24, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-border-bright: rgba(255, 255, 255, 0.15);
+    --glass-shine: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 50%);
+    --card: rgba(30, 30, 30, 0.92);
+    --card-hover: rgba(50, 50, 50, 0.95);
+    --border: #555;
+    --text: #e0e0e0;
+    --text-muted: #999;
+    --text-bright: #ffffff;
+    --accent-green: #2E7D32;
+    --accent-orange: #F57C00;
+    --accent-blue: #1565C0;
+    --accent-red: #C62828;
+    --accent-purple: #7B1FA2;
+    --accent-teal: #00796B;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --blur: blur(24px) saturate(1.4);
+    --blur-heavy: blur(32px) saturate(1.5);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* --- Header --- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--glass-border);
+    background: var(--glass-heavy);
+    backdrop-filter: var(--blur-heavy);
+    -webkit-backdrop-filter: var(--blur-heavy);
+    flex-shrink: 0;
+    height: 48px;
+  }
+  .header-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-bright);
+    letter-spacing: -0.01em;
+  }
+  .energy-toggle {
+    display: flex;
+    gap: 0;
+    background: rgba(255,255,255,0.04);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+  }
+  .energy-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 5px 14px;
+    font-size: 12px;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .energy-toggle button:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+  }
+  .energy-toggle button.active {
+    background: rgba(255,255,255,0.12);
+    color: var(--text-bright);
+    font-weight: 600;
+  }
+
+  /* --- Main layout --- */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .map-area {
+    flex: 1;
+    position: relative;
+    background: #1a1a2e;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* --- Map placeholder --- */
+  .map-bg {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .map-bg svg {
+    width: 100%;
+    height: 100%;
+    opacity: 0.15;
+  }
+  .map-attribution {
+    position: absolute;
+    bottom: 6px;
+    right: 10px;
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  /* --- KEK markers on map --- */
+  .kek-marker {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  }
+  .kek-marker:hover {
+    transform: translate(-50%, -50%) scale(1.5);
+    box-shadow: 0 0 8px rgba(255,255,255,0.2);
+  }
+
+  /* --- Assumptions card --- */
+  .assumptions-card {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: var(--glass);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-border-bright);
+    border-radius: 12px;
+    padding: 16px 20px 14px;
+    width: 310px;
+    max-height: calc(100% - 32px);
+    overflow-y: auto;
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .assumptions-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: var(--glass-shine);
+    pointer-events: none;
+  }
+  .assumptions-card::-webkit-scrollbar { width: 4px; }
+  .assumptions-card::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .assumptions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .assumptions-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+  .reset-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-family: var(--font);
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .reset-btn:hover { color: var(--text); border-color: var(--glass-border-bright); background: rgba(255,255,255,0.08); }
+  .tier-heading {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 12px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .tier-heading:first-of-type { margin-top: 0; }
+  .slider-group {
+    margin-bottom: 12px;
+  }
+  .slider-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .slider-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .slider-label .info-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: var(--text-muted);
+    cursor: help;
+    flex-shrink: 0;
+  }
+  .slider-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+    font-variant-numeric: tabular-nums;
+  }
+  .slider-value .unit {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-left: 2px;
+  }
+  .slider-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    position: relative;
+    margin: 6px 0 2px;
+    cursor: pointer;
+  }
+  .slider-fill {
+    height: 100%;
+    background: #90CAF9;
+    border-radius: 2px;
+    position: relative;
+  }
+  .slider-thumb {
+    width: 14px;
+    height: 14px;
+    background: #90CAF9;
+    border: 2px solid var(--text-bright);
+    border-radius: 50%;
+    position: absolute;
+    right: -7px;
+    top: 50%;
+    transform: translateY(-50%);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    cursor: grab;
+  }
+  .slider-marks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .assumptions-divider {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    margin: 10px 0;
+  }
+
+  /* --- Legend strip (horizontal, top center) --- */
+  .legend-strip {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--glass);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-border-bright);
+    border-radius: 20px;
+    padding: 7px 18px;
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* --- Bottom panel --- */
+  .bottom-panel {
+    flex-shrink: 0;
+    background: var(--glass-heavy);
+    backdrop-filter: var(--blur-heavy);
+    -webkit-backdrop-filter: var(--blur-heavy);
+    border-top: 1px solid var(--glass-border);
+    height: 240px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
+  }
+  .tabs {
+    display: flex;
+    gap: 0;
+  }
+  .tab {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--text-bright);
+    border-bottom-color: var(--text-bright);
+  }
+  .panel-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .panel-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .export-btn {
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .export-btn:hover {
+    color: var(--text);
+    border-color: var(--glass-border-bright);
+    background: rgba(255,255,255,0.08);
+  }
+  .export-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* --- Data table --- */
+  .table-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 11px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    position: sticky;
+    top: 0;
+    background: rgba(20, 20, 24, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 1;
+    white-space: nowrap;
+  }
+  .data-table th:last-child,
+  .data-table td:last-child {
+    text-align: right;
+  }
+  .data-table td {
+    padding: 7px 12px;
+    color: var(--text);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-table tr {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .data-table tbody tr:hover td {
+    background: rgba(255,255,255,0.04);
+  }
+  .col-rank { width: 50px; }
+  .col-name { width: 160px; }
+  .col-province { width: 160px; }
+  .col-flag { width: 140px; }
+  .col-action { width: 120px; }
+  .col-lcoe { width: 110px; }
+
+  .flag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .flag-badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* --- Pretext contenteditable --- */
+  [contenteditable] {
+    outline: none;
+    cursor: text;
+  }
+  [contenteditable]:hover {
+    box-shadow: inset 0 0 0 1px rgba(144, 202, 249, 0.2);
+    border-radius: 2px;
+  }
+  [contenteditable]:focus {
+    box-shadow: inset 0 0 0 1px rgba(144, 202, 249, 0.5);
+    border-radius: 2px;
+  }
+
+  /* --- Scrollbar --- */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="header">
+  <span class="header-title" contenteditable>Indonesia KEK Power Competitiveness</span>
+  <div class="energy-toggle">
+    <button>Solar</button>
+    <button>Wind</button>
+    <button class="active">Overall</button>
+  </div>
+</header>
+
+<!-- ============ MAIN ============ -->
+<div class="main">
+
+  <!-- Map area -->
+  <div class="map-area">
+    <div class="map-bg">
+      <!-- Simplified Indonesia archipelago outline -->
+      <svg viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <!-- Sumatra -->
+        <path d="M120,120 L160,100 L190,130 L200,180 L180,240 L150,280 L120,260 L100,200 L110,160 Z"
+              fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <!-- Java -->
+        <path d="M250,250 L350,240 L420,250 L450,260 L420,270 L350,270 L280,265 L250,260 Z"
+              fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <!-- Kalimantan -->
+        <path d="M300,100 L370,80 L420,100 L440,150 L420,200 L370,210 L320,190 L290,150 Z"
+              fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <!-- Sulawesi -->
+        <path d="M480,100 L510,80 L530,100 L520,140 L540,160 L530,200 L510,180 L490,200 L480,170 L470,130 Z"
+              fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <!-- Papua -->
+        <path d="M700,120 L780,100 L840,110 L860,140 L840,180 L790,190 L740,180 L710,160 L700,140 Z"
+              fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <!-- Bali + NTB + NTT chain -->
+        <path d="M460,270 L480,265 L490,270 M510,268 L530,264 L540,268 M560,266 L580,262 L590,266"
+              fill="none" stroke="#3a3a5e" stroke-width="1"/>
+        <!-- Maluku small islands -->
+        <circle cx="620" cy="150" r="8" fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <circle cx="640" cy="180" r="6" fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+        <circle cx="660" cy="160" r="5" fill="#2a2a3e" stroke="#3a3a5e" stroke-width="0.5"/>
+      </svg>
+
+      <!-- KEK markers (positioned approximately on map) -->
+      <!-- Sumatra KEKs -->
+      <div class="kek-marker" style="background:#F57C00; top:42%; left:17%" title="Sei Mangkei"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:32%; left:19%" title="Arun Lhokseumawe"></div>
+      <!-- Riau Islands -->
+      <div class="kek-marker" style="background:#2E7D32; top:38%; left:23%" title="Batam Aero"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:42%; left:24%" title="Galang Batang"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:40%; left:25%" title="Nongsa"></div>
+      <!-- Java KEKs -->
+      <div class="kek-marker" style="background:#1565C0; top:63%; left:32%" title="Tanjung Lesung"></div>
+      <div class="kek-marker" style="background:#1565C0; top:62%; left:38%" title="Kendal"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:64%; left:42%" title="Singhasari"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:65%; left:44%" title="Gresik"></div>
+      <!-- Kalimantan -->
+      <div class="kek-marker" style="background:#7B1FA2; top:38%; left:36%" title="MBTK"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:42%; left:40%" title="Kariangau"></div>
+      <!-- Sulawesi -->
+      <div class="kek-marker" style="background:#2E7D32; top:40%; left:50%" title="Morowali"></div>
+      <div class="kek-marker" style="background:#2E7D32; top:34%; left:52%" title="Palu"></div>
+      <div class="kek-marker" style="background:#1565C0; top:48%; left:48%" title="Bitung"></div>
+      <!-- Bali / NTB -->
+      <div class="kek-marker" style="background:#2E7D32; top:68%; left:48%" title="Mandalika"></div>
+      <!-- Papua -->
+      <div class="kek-marker" style="background:#C62828; top:38%; left:78%" title="Sorong"></div>
+      <!-- Maluku -->
+      <div class="kek-marker" style="background:#7B1FA2; top:42%; left:64%" title="Morotai"></div>
+    </div>
+
+    <span class="map-attribution">Leaflet</span>
+
+    <!-- Assumptions overlay card (expanded) -->
+    <div class="assumptions-card">
+      <div class="assumptions-header">
+        <div class="assumptions-title" contenteditable>Assumptions</div>
+        <button class="reset-btn">Reset defaults</button>
+      </div>
+
+      <!-- Tier 1: Core -->
+      <div class="tier-heading">Core</div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">WACC <span class="info-icon" title="Weighted average cost of capital, reflects financing risk premium">i</span></span>
+          <span class="slider-value">10<span class="unit">%</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:37.5%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>4%</span><span>12%</span><span>20%</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">CAPEX <span class="info-icon" title="Installed solar PV capital cost per kilowatt of capacity">i</span></span>
+          <span class="slider-value">960<span class="unit">$/kW</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:40%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>600</span><span>1050</span><span>1500</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Lifetime <span class="info-icon" title="Expected operating lifetime of the solar plant">i</span></span>
+          <span class="slider-value">27<span class="unit">yr</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:47%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>20</span><span>27</span><span>35</span></div>
+      </div>
+
+      <!-- Tier 2: Cost adders -->
+      <div class="tier-heading">Cost Adders</div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Fixed O&M <span class="info-icon" title="Annual fixed operations & maintenance cost">i</span></span>
+          <span class="slider-value">7.5<span class="unit">$/kW-yr</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:37.5%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>3</span><span>9</span><span>15</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Gen-tie cost <span class="info-icon" title="Cost to build gen-tie line from solar plant to substation">i</span></span>
+          <span class="slider-value">5<span class="unit">$/kW-km</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:30%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>2</span><span>7</span><span>12</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Substation works <span class="info-icon" title="Cost of substation upgrades/connection works per kW">i</span></span>
+          <span class="slider-value">150<span class="unit">$/kW</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:41%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>80</span><span>165</span><span>250</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Transmission lease <span class="info-icon" title="Ongoing transmission access fee added to LCOE">i</span></span>
+          <span class="slider-value">10<span class="unit">$/MWh</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:41%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>3</span><span>12</span><span>20</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Firming adder <span class="info-icon" title="Cost of battery/backup to firm intermittent solar output">i</span></span>
+          <span class="slider-value">11<span class="unit">$/MWh</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:40%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>5</span><span>12</span><span>20</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">IDR/USD rate <span class="info-icon" title="Indonesian Rupiah to USD exchange rate">i</span></span>
+          <span class="slider-value">16000</span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:50%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>14k</span><span>16k</span><span>18k</span></div>
+      </div>
+
+      <!-- Tier 3: Thresholds -->
+      <div class="tier-heading">Thresholds</div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">PVOUT threshold <span class="info-icon" title="Minimum annual solar yield for a site to be considered viable">i</span></span>
+          <span class="slider-value">1400<span class="unit">kWh/kWp</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:33%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>1200</span><span>1500</span><span>1800</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Plan-late threshold <span class="info-icon" title="Share of planned grid capacity after 2030 that flags delayed infrastructure">i</span></span>
+          <span class="slider-value">0.60</span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:43%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>0.3</span><span>0.65</span><span>1.0</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Resilience gap <span class="info-icon" title="Max LCOE-vs-grid gap (%) for Invest Resilience classification">i</span></span>
+          <span class="slider-value">20<span class="unit">%</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:33%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>5%</span><span>25%</span><span>50%</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-label">Min viable capacity <span class="info-icon" title="Minimum buildable capacity for a project to be flagged viable">i</span></span>
+          <span class="slider-value">20<span class="unit">MWp</span></span>
+        </div>
+        <div class="slider-track"><div class="slider-fill" style="width:33%"><div class="slider-thumb"></div></div></div>
+        <div class="slider-marks"><span>5</span><span>25</span><span>50</span></div>
+      </div>
+
+    </div>
+
+    <!-- Action Flag Legend (horizontal strip, top center) -->
+    <div class="legend-strip">
+      <div class="legend-item"><span class="legend-dot" style="background: var(--accent-green)"></span> Solar Now</div>
+      <div class="legend-item"><span class="legend-dot" style="background: var(--accent-orange)"></span> Invest Resilience</div>
+      <div class="legend-item"><span class="legend-dot" style="background: var(--accent-blue)"></span> Grid First</div>
+      <div class="legend-item"><span class="legend-dot" style="background: var(--accent-purple)"></span> Plan Late</div>
+      <div class="legend-item"><span class="legend-dot" style="background: var(--accent-red)"></span> Not Competitive</div>
+    </div>
+  </div>
+
+  <!-- Bottom panel -->
+  <div class="bottom-panel">
+    <div class="panel-header">
+      <div class="tabs">
+        <div class="tab active">Table</div>
+        <div class="tab">Quadrant Chart</div>
+        <div class="tab">RUPTL Context</div>
+      </div>
+      <div class="panel-right">
+        <span class="panel-meta">LCOE (USD)</span>
+        <button class="export-btn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v8M5 7l3 3 3-3M3 12v1.5h10V12"/>
+          </svg>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="col-rank">Rank</th>
+            <th class="col-name">KEK Name</th>
+            <th class="col-province">Province</th>
+            <th class="col-flag">Action Flag</th>
+            <th class="col-action">Action Flag</th>
+            <th class="col-lcoe">USD per MWh</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td contenteditable>Morowali</td>
+            <td>Central Sulawesi</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-green)"></span> Solar Now</span></td>
+            <td>Solar Now</td>
+            <td>41</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td contenteditable>Batam Aero</td>
+            <td>Riau Islands</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-green)"></span> Solar Now</span></td>
+            <td>Solar Now</td>
+            <td>46</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td contenteditable>Sei Mangkei</td>
+            <td>North Sumatra</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-orange)"></span> Invest Resilience</span></td>
+            <td>Grid First</td>
+            <td>57</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td contenteditable>Galang Batang</td>
+            <td>Riau Islands</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-green)"></span> Solar Now</span></td>
+            <td>Solar Now</td>
+            <td>61</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td contenteditable>Palu</td>
+            <td>Central Sulawesi</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-green)"></span> Solar Now</span></td>
+            <td>Solar Now</td>
+            <td>63</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td contenteditable>Arun Lhokseumawe</td>
+            <td>Aceh</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-green)"></span> Solar Now</span></td>
+            <td>Solar Now</td>
+            <td>65</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td contenteditable>Kendal</td>
+            <td>Central Java</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-blue)"></span> Grid First</span></td>
+            <td>Grid First</td>
+            <td>68</td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td contenteditable>Mandalika</td>
+            <td>West Nusa Tenggara</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-green)"></span> Solar Now</span></td>
+            <td>Solar Now</td>
+            <td>70</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td contenteditable>MBTK</td>
+            <td>East Kalimantan</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-purple)"></span> Plan Late</span></td>
+            <td>Plan Late</td>
+            <td>74</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td contenteditable>Sorong</td>
+            <td>West Papua</td>
+            <td><span class="flag-badge"><span class="dot" style="background: var(--accent-red)"></span> Not Competitive</span></td>
+            <td>Not Competitive</td>
+            <td>92</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ PRETEXT WIRING ============ -->
+<script type="module">
+// Inline Pretext for self-contained mockup
+// Using dynamic import from CDN as fallback since vendored bundle is minified
+// Pretext provides proper text reflow on resize
+
+const PRETEXT_ELEMENTS = [];
+
+function measureText(text, font) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+// Wire up contenteditable elements with Pretext-style behavior
+function initContentEditable() {
+  document.querySelectorAll('[contenteditable]').forEach(el => {
+    el.addEventListener('blur', () => {
+      // Trim whitespace on blur
+      el.textContent = el.textContent.trim();
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        el.blur();
+      }
+    });
+  });
+}
+
+// Tab switching
+function initTabs() {
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+}
+
+// Energy toggle
+function initEnergyToggle() {
+  const buttons = document.querySelectorAll('.energy-toggle button');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+}
+
+// Advanced assumptions expand/collapse
+function initAdvancedLink() {
+  const link = document.querySelector('.advanced-link');
+  if (link) {
+    link.addEventListener('click', () => {
+      const chevron = link.querySelector('.chevron');
+      if (chevron.style.transform === 'rotate(90deg)') {
+        chevron.style.transform = '';
+      } else {
+        chevron.style.transform = 'rotate(90deg)';
+      }
+    });
+  }
+}
+
+// Table row hover highlight
+function initTableInteraction() {
+  const rows = document.querySelectorAll('.data-table tbody tr');
+  rows.forEach(row => {
+    row.addEventListener('click', () => {
+      rows.forEach(r => r.style.background = '');
+      row.style.background = 'rgba(255,255,255,0.06)';
+    });
+  });
+}
+
+// Wait for fonts then init
+document.fonts.ready.then(() => {
+  initContentEditable();
+  initTabs();
+  initEnergyToggle();
+  initAdvancedLink();
+  initTableInteraction();
+});
+</script>
+</body>
+</html>
