@@ -25,10 +25,12 @@ function App() {
 
         {/* SCORE DRAWER */}
         <ScoreDrawer />
-      </div>
 
-      {/* BOTTOM PANEL */}
-      <BottomPanel />
+        {/* BOTTOM PANEL — inside map container so glass shows the map through */}
+        <div className="absolute bottom-0 left-0 right-0 z-10">
+          <BottomPanel />
+        </div>
+      </div>
     </div>
   );
 }

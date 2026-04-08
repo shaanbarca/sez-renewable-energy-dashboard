@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/maplibre';
-import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre';
+import type { MapRef, MapLayerMouseEvent, ViewStateChangeEvent } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useDashboardStore } from '../../store/dashboard';
@@ -33,9 +33,27 @@ export default function MapView() {
   const selectKek = useDashboardStore((s) => s.selectKek);
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
+  const [isZoomedIn, setIsZoomedIn] = useState(false);
+
+  const handleZoom = useCallback((e: ViewStateChangeEvent) => {
+    setIsZoomedIn(e.viewState.zoom > INITIAL_ZOOM + 1);
+  }, []);
 
   // Activate lazy layer loading
   useMapLayers();
+
+  // Fly to selected KEK (works from table clicks, search, etc.)
+  const scorecard = useDashboardStore((s) => s.scorecard);
+  useEffect(() => {
+    if (!selectedKek || !scorecard) return;
+    const row = scorecard.find((r) => r.kek_id === selectedKek);
+    if (!row) return;
+    mapRef.current?.flyTo({
+      center: [row.longitude, row.latitude],
+      zoom: KEK_ZOOM,
+      duration: 2200,
+    });
+  }, [selectedKek, scorecard]);
 
   // Fetch KEK polygon when selected
   useEffect(() => {
@@ -68,12 +86,6 @@ export default function MapView() {
       if (!feature || !feature.properties) return;
       const kekId = feature.properties.kek_id as string;
       selectKek(kekId);
-      const coords = (feature.geometry as GeoJSON.Point).coordinates;
-      mapRef.current?.flyTo({
-        center: [coords[0], coords[1]],
-        zoom: KEK_ZOOM,
-        duration: 1400,
-      });
     },
     [selectKek],
   );
@@ -104,7 +116,7 @@ export default function MapView() {
     mapRef.current?.flyTo({
       center: [INITIAL_CENTER.longitude, INITIAL_CENTER.latitude],
       zoom: INITIAL_ZOOM,
-      duration: 1200,
+      duration: 2000,
     });
   }, [selectKek]);
 
@@ -122,6 +134,7 @@ export default function MapView() {
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onZoom={handleZoom}
       >
         <NavigationControl position="bottom-right" />
 
@@ -156,19 +169,20 @@ export default function MapView() {
 
       <LayerControl />
 
-      {/* Back to National View button */}
-      {selectedKek && (
+      {/* Back to National View button — centered top, above assumptions panel */}
+      {(selectedKek || isZoomedIn) && (
         <button
           onClick={resetView}
-          className="absolute top-3 left-3 z-10 rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-200 hover:text-white transition-colors cursor-pointer"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded-lg px-5 py-2 text-sm font-medium text-zinc-200 hover:text-white transition-colors cursor-pointer"
           style={{
-            backdropFilter: 'var(--blur)',
-            WebkitBackdropFilter: 'var(--blur)',
-            background: 'var(--glass)',
-            border: '1px solid var(--glass-border)',
+            backdropFilter: 'blur(24px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+            background: 'rgba(20, 20, 24, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
           }}
         >
-          &larr; National View
+          ‹ Back to National View
         </button>
       )}
     </div>

@@ -15,7 +15,7 @@ router = APIRouter()
 
 # Valid layer names and their types
 _POINT_LAYERS = {"substations", "industrial"}
-_GEOJSON_LAYERS = {"kek_polygons", "peatland", "protected_forest"}
+_GEOJSON_LAYERS = {"kek_polygons", "peatland", "protected_forest", "grid_lines"}
 _RASTER_LAYERS = {"pvout", "wind", "buildable"}
 _ALL_LAYERS = _POINT_LAYERS | _GEOJSON_LAYERS | _RASTER_LAYERS
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -12,11 +12,10 @@ import { fetchRuptlMetrics } from '../../lib/api';
 import { RUPTL_REGION_COLORS } from '../../lib/constants';
 
 interface RuptlRow {
-  region: string;
+  grid_region_id: string;
   year: number;
-  capacity_mw: number;
-  technology: string;
-  status: string;
+  plts_new_mw_re_base: number;
+  plts_new_mw_ared: number;
 }
 
 interface RuptlResponse {
@@ -61,20 +60,32 @@ export default function RuptlChart() {
     const yearMap = new Map<number, Record<string, number>>();
 
     for (const row of data) {
-      regionSet.add(row.region);
+      regionSet.add(row.grid_region_id);
       if (!yearMap.has(row.year)) {
         yearMap.set(row.year, {});
       }
       const entry = yearMap.get(row.year)!;
-      entry[row.region] = (entry[row.region] ?? 0) + row.capacity_mw;
+      entry[row.grid_region_id] = (entry[row.grid_region_id] ?? 0) + (row.plts_new_mw_re_base ?? 0);
     }
 
     const regions = Array.from(regionSet).sort();
-    const pivoted: PivotedRow[] = Array.from(yearMap.entries())
+    const annual: PivotedRow[] = Array.from(yearMap.entries())
       .sort(([a], [b]) => a - b)
       .map(([year, vals]) => ({ year, ...vals }));
 
-    return { pivoted, regions };
+    // Accumulate: each year = sum of all previous years + current
+    const cumulative: PivotedRow[] = [];
+    const running: Record<string, number> = {};
+    for (const row of annual) {
+      const cum: PivotedRow = { year: row.year };
+      for (const region of regions) {
+        running[region] = (running[region] ?? 0) + (row[region] ?? 0);
+        cum[region] = running[region];
+      }
+      cumulative.push(cum);
+    }
+
+    return { pivoted: cumulative, regions };
   }, [data]);
 
   if (loading) {
@@ -96,7 +107,7 @@ export default function RuptlChart() {
   return (
     <div className="h-full w-full px-4 py-2">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={pivoted} margin={{ top: 10, right: 20, bottom: 30, left: 20 }}>
+        <AreaChart data={pivoted} margin={{ top: 10, right: 20, bottom: 30, left: 20 }}>
           <XAxis
             dataKey="year"
             tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 11 }}
@@ -105,7 +116,7 @@ export default function RuptlChart() {
           <YAxis
             tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 11 }}
             label={{
-              value: 'Capacity (MW)',
+              value: 'Cumulative Capacity (MW)',
               angle: -90,
               position: 'insideLeft',
               offset: -5,
@@ -115,6 +126,8 @@ export default function RuptlChart() {
             stroke="rgba(255,255,255,0.1)"
           />
           <Tooltip
+            position={{ y: 0 }}
+            offset={10}
             contentStyle={{
               backgroundColor: '#1e1e1e',
               border: '1px solid rgba(255,255,255,0.1)',
@@ -127,15 +140,18 @@ export default function RuptlChart() {
             wrapperStyle={{ color: '#e0e0e0', fontSize: 11 }}
           />
           {regions.map((region) => (
-            <Bar
+            <Area
               key={region}
+              type="monotone"
               dataKey={region}
               stackId="a"
               fill={RUPTL_REGION_COLORS[region] ?? '#666'}
+              stroke={RUPTL_REGION_COLORS[region] ?? '#666'}
+              fillOpacity={0.6}
               name={region}
             />
           ))}
-        </BarChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

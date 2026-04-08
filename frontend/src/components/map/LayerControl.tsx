@@ -9,6 +9,7 @@ const LAYER_ITEMS = [
   { name: 'peatland', label: 'Peatland' },
   { name: 'protected_forest', label: 'Protected Forest' },
   { name: 'industrial', label: 'Industrial Facilities' },
+  { name: 'grid_lines', label: 'PLN Grid Lines' },
 ] as const;
 
 export default function LayerControl() {

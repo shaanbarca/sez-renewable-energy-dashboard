@@ -40,6 +40,13 @@ export interface ScorecardRow {
   bpp_usd_mwh: number | null;
   grid_region_id: string;
 
+  // KEK info fields
+  kek_type?: string;
+  category?: string;
+  area_ha?: number;
+  developer?: string;
+  legal_basis?: string;
+
   // Optional fields that may be present depending on pipeline data
   pvout_centroid_kwh_kwp_yr?: number;
   pvout_best_50km_kwh_kwp_yr?: number;

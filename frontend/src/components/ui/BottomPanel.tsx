@@ -21,52 +21,51 @@ export default function BottomPanel() {
 
   return (
     <div
-      className="border-t relative transition-[height] duration-300 ease-in-out"
+      className="relative transition-[height] duration-300 ease-in-out"
       style={{
-        height: collapsed ? 36 : PANEL_HEIGHT,
-        backdropFilter: 'var(--blur-heavy)',
-        WebkitBackdropFilter: 'var(--blur-heavy)',
-        background: 'var(--glass-heavy)',
+        height: collapsed ? 34 : PANEL_HEIGHT,
+        backdropFilter: 'blur(32px) saturate(1.5)',
+        WebkitBackdropFilter: 'blur(32px) saturate(1.5)',
+        background: 'rgba(20, 20, 24, 0.45)',
         borderColor: 'var(--glass-border)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
         overflow: 'hidden',
       }}
     >
-      {/* Drag handle / collapse toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -top-4 left-1/2 -translate-x-1/2 z-20
-                   flex items-center justify-center w-20 h-8 rounded-t-lg cursor-pointer
-                   hover:brightness-125 transition-all"
-        style={{
-          background: 'rgba(50, 50, 55, 0.95)',
-          border: '1px solid rgba(255, 255, 255, 0.25)',
-          borderBottom: 'none',
-          boxShadow: '0 -2px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)',
-        }}
-        title={collapsed ? 'Expand panel' : 'Collapse panel'}
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`text-white transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-
       <Tabs.Root
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as BottomTab)}
         className="h-full flex flex-col"
       >
-        <Tabs.List className="flex gap-1 px-3 pt-2 pb-0 shrink-0">
+        {/* Full-width toggle handle */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full h-8 flex items-center justify-center gap-2
+                     text-[#90CAF9] text-xs font-medium tracking-wide
+                     hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+          style={{
+            background: 'rgba(144, 202, 249, 0.08)',
+            borderTop: '2px solid rgba(144, 202, 249, 0.3)',
+          }}
+          title={collapsed ? 'Show table panel' : 'Hide table panel'}
+        >
+          <span>{collapsed ? 'Show Table' : 'Hide Table'}</span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        <Tabs.List className="flex gap-1 px-3 pt-2 pb-0 shrink-0 border-b border-white/10">
           {TAB_ITEMS.map(({ value, label }) => (
             <Tabs.Trigger
               key={value}

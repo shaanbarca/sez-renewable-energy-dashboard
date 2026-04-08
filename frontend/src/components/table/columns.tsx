@@ -13,6 +13,21 @@ export const columns = [
     header: 'Province',
     cell: (info) => info.getValue(),
   }),
+  col.accessor('kek_type', {
+    header: 'Type',
+    cell: (info) => info.getValue() ?? '—',
+  }),
+  col.accessor('category', {
+    header: 'Category',
+    cell: (info) => info.getValue() ?? '—',
+  }),
+  col.accessor('area_ha', {
+    header: 'Area (ha)',
+    cell: (info) => {
+      const v = info.getValue();
+      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+    },
+  }),
   col.accessor('action_flag', {
     header: 'Action Flag',
     cell: (info) => {

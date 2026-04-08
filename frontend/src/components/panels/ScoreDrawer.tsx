@@ -36,6 +36,38 @@ function StatRow({ label, value, unit }: { label: string; value: string | number
   );
 }
 
+function StatRowWithTip({ label, value, unit, tip }: { label: string; value: string | number | null | undefined; unit?: string; tip: string }) {
+  const [showTip, setShowTip] = useState(false);
+  const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-[11px] text-zinc-500 relative">
+        {label}
+        <span
+          className="ml-1 text-zinc-600 hover:text-zinc-300 cursor-help inline-block"
+          onMouseEnter={() => setShowTip(true)}
+          onMouseLeave={() => setShowTip(false)}
+        >
+          ?
+          {showTip && (
+            <span
+              className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] text-zinc-200 leading-snug whitespace-normal w-48"
+              style={{
+                background: 'rgba(20, 20, 24, 0.95)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+              }}
+            >
+              {tip}
+            </span>
+          )}
+        </span>
+      </span>
+      <span className="text-[12px] font-medium text-zinc-200 tabular-nums">{display}</span>
+    </div>
+  );
+}
+
 function StatCard({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -81,6 +113,36 @@ const ACTION_FLAG_DESCRIPTIONS: Record<string, string> = {
 };
 
 /* ---------- Tab content components ---------- */
+
+function InfoTab({ row }: { row: ScorecardRow }) {
+  return (
+    <>
+      <StatCard>
+        <StatRow label="Type" value={row.kek_type ?? null} />
+        <StatRow label="Category" value={row.category ?? null} />
+        <StatRow label="Area" value={row.area_ha != null ? row.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 }) : null} unit="ha" />
+      </StatCard>
+      <StatCard>
+        <StatRow label="Province" value={row.province} />
+        <StatRow label="Grid Region" value={row.grid_region_id} />
+      </StatCard>
+      <StatCard>
+        <StatRow label="Developer" value={row.developer ?? null} />
+        <StatRow label="Legal Basis" value={row.legal_basis ?? null} />
+      </StatCard>
+      {row.demand_2030_gwh != null && (
+        <StatCard>
+          <StatRowWithTip
+            label="Est. Demand 2030"
+            value={row.demand_2030_gwh.toFixed(1)}
+            unit="GWh"
+            tip="Estimated annual electricity demand in 2030, derived from zone area × energy intensity by KEK type. This is a provisional estimate."
+          />
+        </StatCard>
+      )}
+    </>
+  );
+}
 
 function ResourceTab({ row, substations, loadingSubs }: { row: ScorecardRow; substations: SubstationInfo[]; loadingSubs: boolean }) {
   const pvoutCentroid = row.pvout_centroid_kwh_kwp_yr;
@@ -131,8 +193,25 @@ function LCOETab({ row }: { row: ScorecardRow }) {
         </StatCard>
       )}
       <StatCard>
-        <StatRow label="Competitive Gap" value={row.solar_competitive_gap_pct?.toFixed(1)} unit="%" />
         <StatRow label="Grid Cost" value={row.grid_cost_usd_mwh?.toFixed(1)} unit="$/MWh" />
+        <StatRow label="Gap vs Grid Cost" value={row.solar_competitive_gap_pct?.toFixed(1)} unit="%" />
+      </StatCard>
+      <StatCard>
+        <StatRowWithTip
+          label="BPP"
+          value={row.bpp_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="Biaya Pokok Penyediaan — PLN's unsubsidized cost of electricity supply for this grid region. Unlike the industrial tariff, BPP reflects the true generation + transmission cost."
+        />
+        <StatRow
+          label="Gap vs BPP"
+          value={
+            row.bpp_usd_mwh != null && row.lcoe_mid_usd_mwh != null && row.bpp_usd_mwh > 0
+              ? (((row.lcoe_mid_usd_mwh - row.bpp_usd_mwh) / row.bpp_usd_mwh) * 100).toFixed(1)
+              : null
+          }
+          unit="%"
+        />
       </StatCard>
     </>
   );
@@ -203,6 +282,7 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
 /* ---------- Main drawer ---------- */
 
 const TABS = [
+  { value: 'info', label: 'KEK Info' },
   { value: 'resource', label: 'Resource' },
   { value: 'lcoe', label: 'LCOE' },
   { value: 'demand', label: 'Demand' },
@@ -328,7 +408,7 @@ export default function ScoreDrawer() {
           </div>
 
           {/* Tabs */}
-          <Tabs.Root defaultValue="resource" className="flex-1 flex flex-col min-h-0">
+          <Tabs.Root defaultValue="info" className="flex-1 flex flex-col min-h-0">
             <Tabs.List
               className="flex px-4 gap-0.5"
               style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
@@ -350,6 +430,9 @@ export default function ScoreDrawer() {
             </Tabs.List>
 
             <div className="flex-1 overflow-y-auto px-4 py-3">
+              <Tabs.Content value="info">
+                <InfoTab row={row} />
+              </Tabs.Content>
               <Tabs.Content value="resource">
                 <ResourceTab row={row} substations={substations} loadingSubs={loadingSubs} />
               </Tabs.Content>

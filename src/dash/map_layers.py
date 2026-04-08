@@ -161,6 +161,15 @@ def load_industrial_facilities() -> list[dict]:
     return facilities
 
 
+def load_grid_lines() -> dict | None:
+    """Load PLN transmission grid lines from pre-extracted GeoJSON."""
+    grid_path = DATA_DIR / "pln_grid_lines.geojson"
+    if not grid_path.exists():
+        return None
+    with open(grid_path) as f:
+        return json.load(f)
+
+
 def filter_substations_near_point(lat: float, lon: float, radius_km: float = 50.0) -> list[dict]:
     """Filter substations within radius_km of a point using haversine distance."""
     import math
@@ -413,6 +422,14 @@ def get_all_layers() -> dict:
     except Exception as e:
         print(f"    Industrial facilities: failed ({e})")
         layers["industrial"] = []
+
+    try:
+        layers["grid_lines"] = load_grid_lines()
+        n = len(layers["grid_lines"]["features"]) if layers["grid_lines"] else 0
+        print(f"    Grid lines: {n} lines")
+    except Exception as e:
+        print(f"    Grid lines: failed ({e})")
+        layers["grid_lines"] = None
 
     _LAYERS_CACHE = layers
     return layers

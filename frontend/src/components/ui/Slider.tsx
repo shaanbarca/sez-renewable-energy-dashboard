@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import * as RadixSlider from '@radix-ui/react-slider';
 
 interface SliderProps {
@@ -23,17 +24,32 @@ export default function Slider({
   description,
   marks,
 }: SliderProps) {
+  const [showTip, setShowTip] = useState(false);
+
   return (
     <div className="group py-1.5">
       <div className="flex items-center justify-between mb-1">
-        <label
-          className="text-[11px] text-zinc-400 leading-tight"
-          title={description}
-        >
+        <label className="text-[11px] text-zinc-400 leading-tight relative">
           {label}
           {description && (
-            <span className="ml-1 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-help">
+            <span
+              className="ml-1 text-zinc-600 hover:text-zinc-300 cursor-help inline-block"
+              onMouseEnter={() => setShowTip(true)}
+              onMouseLeave={() => setShowTip(false)}
+            >
               ?
+              {showTip && (
+                <span
+                  className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] text-zinc-200 leading-snug whitespace-normal w-48"
+                  style={{
+                    background: 'rgba(20, 20, 24, 0.95)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  {description}
+                </span>
+              )}
             </span>
           )}
         </label>

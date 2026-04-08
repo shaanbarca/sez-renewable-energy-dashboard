@@ -12,6 +12,12 @@ The Dash dashboard works as a proof-of-concept but has hit a design ceiling:
 
 **What's NOT broken**: The Python backend. The modeling (`src/model/`), pipeline (`src/pipeline/`), data loaders, and computation logic are solid, well-tested, and stay exactly as they are.
 
+### Alternatives considered
+
+**Partial migration (embed MapLibre in Dash via `dash_extensions`)**: Replace only the map component while keeping Dash for everything else. Lower risk, lower effort. Rejected because the pain isn't just the map. DataTable styling (40+ CSS `!important` hacks), drawer behavior, slider callback roundtrips, and the Mantine component limitations all remain. A partial migration fixes one symptom; the full migration fixes the disease.
+
+**Keep Dash, fix CSS**: Continue with `leaflet-overrides.css` and per-component style hacks. Already tried. Every new feature requires more `!important` overrides, and DataTable internals are not exposed as props. This is a losing battle.
+
 ## 2. What Stays (Python Backend)
 
 These files are untouched. They become the API's internal implementation:
@@ -30,8 +36,8 @@ These files are untouched. They become the API's internal implementation:
 ## 3. Architecture
 
 ```
-                    React / Next.js Frontend
-                    ========================
+                    React / Vite SPA Frontend
+                    =========================
                     MapLibre GL JS (map)
                     TanStack Table (data grid)
                     Recharts (charts)
@@ -131,7 +137,9 @@ The main computation endpoint. Recomputes LCOE and action flags for all 25 KEKs 
       "max_captive_capacity_mwp": 247.7,
       "project_viable": true,
       "best_re_technology": "solar",
-      "grid_cost_usd_mwh": 63.08
+      "grid_cost_usd_mwh": 63.08,
+      "bpp_usd_mwh": 57.2,
+      "grid_region_id": "JAVA_BALI"
     },
     ...
   ]
@@ -201,36 +209,38 @@ Returns substations near a KEK, with nearest highlighted.
 
 **Implementation**: `filter_substations_near_point()` + lookup in `fct_substation_proximity`.
 
-### 4.6 POST `/api/charts/quadrant`
+### 4.6 GET `/api/ruptl-metrics`
 
-Returns Plotly figure JSON for the LCOE vs grid cost quadrant chart.
-
-**Request**: `{ "scorecard": [...], "benchmark_mode": "bpp" }`
-**Response**: `{ "data": [...], "layout": {...} }` (Plotly figure dict)
-
-**Implementation**: Same logic as current `update_quadrant` callback.
-
-### 4.7 POST `/api/charts/ruptl`
-
-Returns Plotly figure JSON for the RUPTL capacity additions chart.
-
-**Request**: `{ "scorecard": [...], "region_filter": "all", "scenario": "baseline", "selected_kek": null }`
-**Response**: `{ "data": [...], "layout": {...} }` (Plotly figure dict)
-
-**Implementation**: Same logic as current `update_ruptl` callback.
-
-### 4.8 GET `/api/tables/scorecard`
-
-Returns the precomputed scorecard as JSON (no live computation, default assumptions).
+Returns RUPTL pipeline data for the RUPTL capacity additions chart. Charts are rendered client-side in Recharts using this raw data.
 
 ```json
 {
-  "columns": ["kek_name", "province", "action_flag", ...],
-  "records": [...]
+  "pipeline": [
+    { "region": "JAVA_BALI", "year": 2024, "capacity_mw": 1200, "technology": "solar", "status": "planned" },
+    ...
+  ],
+  "region_colors": { "JAVA_BALI": "#1976D2", ... }
 }
 ```
 
-**Implementation**: Reads `_DATA["fct_kek_scorecard"]`.
+**Implementation**: Reads `_DATA["fct_ruptl_pipeline"]` + `RUPTL_REGION_COLORS` from constants.
+
+> **Note**: Chart endpoints (Plotly figure JSON) were considered and cut. The scorecard response includes all fields needed for the quadrant chart (LCOE, grid cost, BPP, action flag, gap %). The RUPTL chart uses this endpoint for pipeline data. Charts are rendered entirely client-side in Recharts.
+
+### 4.7 GET `/api/layers/infrastructure`
+
+Returns infrastructure markers for inside/outside-SEZ classification (shown when zoomed to a KEK).
+
+```json
+{
+  "markers": [
+    { "lat": -6.95, "lon": 110.2, "name": "PT Semen Indonesia", "province": "Central Java", "inside_sez": true },
+    ...
+  ]
+}
+```
+
+**Implementation**: Returns from `load_kek_infrastructure()` cache.
 
 ## 5. Frontend Components
 
@@ -240,7 +250,7 @@ Returns the precomputed scorecard as JSON (no live computation, default assumpti
 <App>
   <Header>
     <Title />
-    <EnergyToggle />          // SegmentedControl → radio group
+    <EnergyToggle />          // SegmentedControl (Solar/Wind/Overall) → radio group
     <ActionFlagLegend />      // horizontal dot legend
     <KEKCounter />            // "25 KEKs" badge
   </Header>
@@ -312,6 +322,7 @@ interface DashboardStore {
   activeTab: 'table' | 'quadrant' | 'ruptl' | 'flip';
   layerVisibility: Record<string, boolean>;
   benchmarkMode: 'bpp' | 'tariff';
+  energyMode: 'solar' | 'wind' | 'overall';
 
   // Actions
   setAssumptions: (a: Partial<UserAssumptions>) => void;
@@ -373,13 +384,16 @@ Every current Dash callback and where it goes:
 | 8 | `recompute_scorecard` | `POST /api/scorecard` via `recomputeScorecard()` | **Yes** |
 | 9 | `update_map` | MapLibre re-renders from `store.scorecard` (client-side) | No |
 | 10 | `update_table` | TanStack Table re-filters from `store.scorecard` (client-side) | No |
-| 11 | `update_quadrant` | Recharts scatter re-renders from `store.scorecard` | No (or Yes if keeping Plotly) |
-| 12 | `update_ruptl` | Recharts bar re-renders, or `POST /api/charts/ruptl` | Optional |
+| 11 | `update_quadrant` | Recharts scatter re-renders from `store.scorecard` (includes grid cost, BPP, gap fields) | No |
+| 12 | `update_ruptl` | Recharts bar re-renders from `GET /api/ruptl-metrics` data (cached in Zustand) | Fetch once |
 | 13 | `marker_click` | `map.on('click')` → `selectKek(id)` | No |
 | 14 | `back_to_national` | `selectKek(null)` + `map.flyTo(national)` | No |
 | 15 | `table_click` | `onRowClick` → `selectKek(id)` | No |
 | 16 | `clear_kek_on_close` | Drawer `onClose` → `selectKek(null)` | No |
 | 17 | `update_scorecard` | `<ScoreDrawer>` reads `store.scorecard` + fetches polygon/substations | Partial (polygon + substations) |
+
+| 18 | `energy_toggle` (Solar/Wind/Overall) | Zustand `setEnergyMode()` → filters `best_re_technology` in scorecard display | No |
+| 19 | Infrastructure markers (zoomed KEK view) | MapLibre circle layer from `GET /api/layers/infrastructure`, colored by inside/outside-SEZ | Fetch once |
 
 **Result**: Only 1-3 endpoints actually need the server. The rest is client-side state. This is the whole performance gain.
 
@@ -411,27 +425,28 @@ src/api/
 ```
 frontend/
   package.json
-  next.config.js
+  vite.config.ts           # API proxy to :8000
   tailwind.config.js
+  index.html               # Vite entry
   src/
-    app/
-      layout.tsx
-      page.tsx
+    main.tsx
+    App.tsx
+    globals.css            # Tailwind + dark theme
     components/
       map/
         MapView.tsx        # MapLibre container
         LayerControl.tsx   # toggle panel
-        markers.ts         # KEK circle layer config
-      layout/
+        KekMarkers.tsx     # KEK circle layer config
+        InfraMarkers.tsx   # inside/outside-SEZ markers
+      ui/
         Header.tsx
+        EnergyToggle.tsx   # Solar/Wind/Overall
         BottomPanel.tsx
     store/
       dashboard.ts         # Zustand store
     lib/
       api.ts               # fetch wrappers
       types.ts             # TypeScript interfaces
-    styles/
-      globals.css          # Tailwind + dark theme
 ```
 
 - MapLibre GL JS with dark Mapbox style (same tile URL)
@@ -474,7 +489,7 @@ frontend/
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Framework | **Next.js 14** (App Router) | File-based routing, server components for initial data, great DX |
+| Framework | **Vite + React 18** (SPA) | Fast dev server, no framework overhead, simple for single-page dashboard. Migrate to Next.js in ~30min if multi-page is ever needed. |
 | Map | **MapLibre GL JS** via `react-map-gl` | Vector tiles, smooth fly-to, custom markers, free, no token needed for self-hosted styles |
 | Map style | **Mapbox Dark v11** (current) or **MapTiler Dark** | Already using Mapbox tiles, keep the same look |
 | Table | **TanStack Table v8** | Headless, virtual scrolling, full styling control, sorting/filtering built in |
@@ -504,23 +519,24 @@ eez/
       map_layers.py               # Imported by api/routes/layers.py
       data_loader.py              # Imported by api/main.py
       constants.py                # Imported by both
-  frontend/                       # NEW: React app
+  frontend/                       # NEW: React app (Vite SPA)
     package.json
-    next.config.js
+    vite.config.ts                 # includes API proxy to :8000
     tailwind.config.js
     tsconfig.json
+    index.html                     # Vite entry point
     public/
     src/
-      app/
-        layout.tsx
-        page.tsx
-        globals.css
+      main.tsx                     # React entry
+      App.tsx                      # Root component
+      globals.css
       components/
         map/
           MapView.tsx
           LayerControl.tsx
           KekMarkers.tsx
           RasterOverlay.tsx
+          InfraMarkers.tsx         # inside/outside-SEZ markers
         panels/
           AssumptionsPanel.tsx
           ScoreDrawer.tsx
@@ -534,6 +550,7 @@ eez/
         ui/
           Header.tsx
           ActionFlagLegend.tsx
+          EnergyToggle.tsx         # Solar/Wind/Overall toggle
           Slider.tsx
           Tabs.tsx
       store/
@@ -545,6 +562,9 @@ eez/
       hooks/
         useScorecard.ts
         useMapLayers.ts
+    tests/
+      components/                  # Vitest + React Testing Library
+      e2e/                         # Playwright
 ```
 
 ## 12. Running Both During Migration
@@ -555,11 +575,22 @@ During development, both apps can run simultaneously:
 # Terminal 1: FastAPI backend (replaces Dash for data)
 uv run uvicorn src.api.main:app --reload --port 8000
 
-# Terminal 2: React frontend
-cd frontend && npm run dev    # localhost:3000, proxies API to :8000
+# Terminal 2: React frontend (Vite dev server)
+cd frontend && npm run dev    # localhost:5173, proxies /api to :8000
 
 # Terminal 3: Dash app (still works as fallback)
 uv run python -m src.dash.app   # localhost:8050
+```
+
+Vite proxy config in `vite.config.ts`:
+```typescript
+export default defineConfig({
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000'
+    }
+  }
+})
 ```
 
 The Dash app remains functional throughout migration. Switch over when the React app reaches feature parity. No big-bang cutover.
@@ -572,7 +603,7 @@ The Dash app remains functional throughout migration. Switch over when the React
 | Map fly-to on KEK click | ~300ms (callback → rebuild MapContainer) | ~100ms (client-side flyTo, no server) |
 | Layer toggle | ~200ms (callback → rebuild layers) | ~5ms (CSS visibility toggle) |
 | Table sort | ~150ms (callback) | ~10ms (client-side TanStack sort) |
-| Initial page load | ~3s (load all layers + compute scorecard) | ~1.5s (parallel fetch + streaming) |
+| Initial page load | ~3s (load all layers + compute scorecard) | ~1s (fetch defaults + scorecard only, layers lazy-loaded on toggle) |
 
 ## 14. Risks and Mitigations
 
@@ -580,6 +611,78 @@ The Dash app remains functional throughout migration. Switch over when the React
 |------|-----------|
 | MapLibre learning curve | `react-map-gl` abstracts most complexity. Mapbox GL JS docs apply 1:1. |
 | Raster overlay compatibility | MapLibre supports `image` source type. Same base64 PNG approach works. |
-| Chart parity | Start with `react-plotly.js` for exact parity, migrate to Recharts later for bundle size. |
-| Two apps to maintain during migration | Phase-by-phase approach. Dash app stays until React has full parity. |
-| Deployment complexity | Frontend: Vercel or static export. Backend: same Python server. Or combine with Next.js API routes if backend is simple enough. |
+| Chart parity | Use Recharts from the start. Scorecard response includes all fields needed for quadrant chart. RUPTL data served by `/api/ruptl-metrics`. |
+| Two apps to maintain during migration | Phase-by-phase approach. Dash app stays until React has full parity, then archived (Phase 6). |
+| Deployment complexity | Frontend: Vercel or static export. Backend: same Python server. |
+| Silent layer load failure | Lazy-loaded layers need loading indicators + error toasts. If `GET /api/layers/peatland` times out, user sees nothing. |
+| Stale API responses | Rapid slider changes can cause out-of-order responses. Use `AbortController` to cancel in-flight requests on new slider value. |
+
+## 15. Testing Strategy
+
+### Backend API tests (pytest + httpx TestClient)
+
+| # | Test | Assertion |
+|---|------|-----------|
+| 1 | `POST /api/scorecard` with valid assumptions | Returns 25 rows, each with `kek_name`, `action_flag`, `lcoe_mid_usd_mwh` |
+| 2 | `POST /api/scorecard` with bad input (negative CAPEX) | Returns 422 validation error |
+| 3 | `GET /api/defaults` | Returns slider configs matching `constants.py` |
+| 4 | `GET /api/layers/substations` | Returns GeoJSON FeatureCollection |
+| 5 | `GET /api/layers/nonexistent` | Returns 404 |
+| 6 | `GET /api/kek/kek-kendal/polygon` | Returns feature with bbox |
+| 7 | `GET /api/kek/invalid-id/polygon` | Returns 404 |
+| 8 | `GET /api/ruptl-metrics` | Returns pipeline data with region colors |
+| 9 | `GET /api/layers/infrastructure` | Returns markers with inside_sez field |
+| 10 | `GET /api/kek/kek-kendal/substations` | Returns substations with dist_km |
+
+### Frontend component tests (Vitest + React Testing Library)
+
+| # | Test | Assertion |
+|---|------|-----------|
+| 1 | `<DataTable />` renders scorecard | 25 rows, colored action flag dots |
+| 2 | `<AssumptionsPanel />` slider change | Store updates on slider move |
+| 3 | `<ScoreDrawer />` open/close | Opens on KEK selection, closes on null |
+| 4 | `<Header />` | Renders legend strip + KEK counter + energy toggle |
+| 5 | `<EnergyToggle />` | Switches between Solar/Wind/Overall |
+
+### E2E smoke test (Playwright)
+
+One test covering the core flow:
+1. Load page → map renders with 25 KEK markers
+2. Click a KEK marker → map flies to polygon → drawer opens
+3. Switch drawer tab → tab content visible
+4. Adjust CAPEX slider → table values update
+5. Toggle peatland layer → overlay appears on map
+
+## 16. Phase 6: Cutover
+
+After the React app reaches feature parity with the Dash dashboard:
+
+1. Run side-by-side comparison: verify same 25 KEKs, same LCOE values, same action flags
+2. Archive `src/dash/app.py` and `src/dash/assets/` (move to `archive/dash/` or delete)
+3. Keep `src/dash/logic.py`, `map_layers.py`, `data_loader.py`, `constants.py` (shared with API)
+4. Update CLAUDE.md and ARCHITECTURE.md to reflect React frontend
+5. Remove Dash dependencies from `pyproject.toml` (`dash`, `dash-leaflet`, `dash-mantine-components`)
+
+## 17. TODOS Cross-References
+
+- **L1 (Datasette REST API)**: Redundant once FastAPI is running. The API endpoints serve the same purpose with live computation. Close L1 when API ships.
+- **M7 (Scenario save/compare)**: Much easier in React + Zustand than Dash + dcc.Store. Natural Phase 5 or post-migration addition. Zustand + localStorage for save, side-by-side render for compare.
+- **L6 (Mapbox upgrade)**: Addressed directly. MapLibre + dark Mapbox/MapTiler style is part of Phase 2.
+- **L7 (Mobile responsive)**: Addressed in Phase 5. Desktop-first, responsive layout for tablets.
+
+## 18. Raster Optimization (Future)
+
+Base64-encoded PNG raster overlays (PVOUT, wind, buildable) work fine at current resolution. If higher-res rasters or more layers are needed, pre-tile them into **PMTiles** (a single-file tile archive). MapLibre supports PMTiles natively via the `pmtiles` protocol adapter. This avoids sending multi-MB base64 strings over the wire and enables zoom-level-appropriate tiling.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR (via /autoplan) | mode: SELECTIVE_EXPANSION, 0 critical gaps |
+| Codex Review | `/codex review` | Independent 2nd opinion | 1 | issues_found | 7 findings from Claude subagent |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 2 | CLEAR (PLAN) | 8 issues, 1 critical gap (silent layer load failure) |
+| Design Review | `/plan-design-review` | UI/UX gaps | 2 | CLEAR | score: 7/10 -> 9/10, 4 decisions |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+- **UNRESOLVED:** 0 decisions
+- **VERDICT:** CEO + ENG + DESIGN CLEARED — ready to implement

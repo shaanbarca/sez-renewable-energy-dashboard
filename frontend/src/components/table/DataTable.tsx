@@ -1,12 +1,12 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
+  getFilteredRowModel,
   flexRender,
   type SortingState,
 } from '@tanstack/react-table';
-import { useState } from 'react';
 import { useDashboardStore } from '../../store/dashboard';
 import { columns } from './columns';
 
@@ -35,16 +35,25 @@ export default function DataTable() {
   const selectedKek = useDashboardStore((s) => s.selectedKek);
   const selectKek = useDashboardStore((s) => s.selectKek);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState('');
 
   const data = useMemo(() => scorecard ?? [], [scorecard]);
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
+    state: { sorting, globalFilter },
     onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, _columnId, filterValue: string) => {
+      const search = filterValue.toLowerCase();
+      const name = (row.original.kek_name ?? '').toLowerCase();
+      const province = (row.original.province ?? '').toLowerCase();
+      return name.includes(search) || province.includes(search);
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
   });
 
   const handleExport = useCallback(() => {
@@ -67,7 +76,23 @@ export default function DataTable() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex justify-end px-3 py-1">
+      <div className="flex items-center gap-2 px-3 py-1">
+        <div className="flex items-center gap-1.5 flex-1 max-w-xs px-2 py-1 rounded border border-white/10 bg-white/[0.03]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-500 shrink-0">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Search KEK or province..."
+            className="bg-transparent text-xs text-zinc-200 placeholder-zinc-500 outline-none w-full"
+          />
+          {globalFilter && (
+            <button onClick={() => setGlobalFilter('')} className="text-zinc-500 hover:text-zinc-300 text-[10px] cursor-pointer">✕</button>
+          )}
+        </div>
+        <div className="flex-1" />
         <button
           onClick={handleExport}
           className="text-zinc-500 hover:text-zinc-300 border border-white/10 px-3 py-1 text-xs rounded"

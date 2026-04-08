@@ -141,7 +141,18 @@ def post_scorecard(req: ScorecardRequest):
     # Merge dim_kek columns
     dim_kek = tables["dim_kek"]
     merge_cols_kek = ["kek_id"]
-    for col in ["kek_name", "province", "latitude", "longitude", "grid_region_id"]:
+    for col in [
+        "kek_name",
+        "province",
+        "latitude",
+        "longitude",
+        "grid_region_id",
+        "kek_type",
+        "category",
+        "area_ha",
+        "developer",
+        "legal_basis",
+    ]:
         if col in dim_kek.columns and col not in scorecard_df.columns:
             merge_cols_kek.append(col)
     if len(merge_cols_kek) > 1:

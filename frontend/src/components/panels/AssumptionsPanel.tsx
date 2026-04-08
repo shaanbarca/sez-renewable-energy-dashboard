@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as Accordion from '@radix-ui/react-accordion';
 import { useDashboardStore } from '../../store/dashboard';
 import { useScorecard } from '../../hooks/useScorecard';
@@ -36,7 +36,7 @@ function SummaryBlock() {
   ];
 
   return (
-    <div className="flex gap-2 mb-2">
+    <div className="flex gap-2 mt-2 mb-2">
       {items.map((item) => (
         <div
           key={item.label}
@@ -161,6 +161,21 @@ function AccordionTrigger({
 
 export default function AssumptionsPanel() {
   const [collapsed, setCollapsed] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [bodyHeight, setBodyHeight] = useState<number | undefined>(undefined);
+
+  // Measure content height for smooth animation
+  useEffect(() => {
+    if (bodyRef.current) {
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setBodyHeight(entry.contentRect.height);
+        }
+      });
+      observer.observe(bodyRef.current);
+      return () => observer.disconnect();
+    }
+  }, []);
 
   const assumptions = useDashboardStore((s) => s.assumptions);
   const thresholds = useDashboardStore((s) => s.thresholds);
@@ -191,7 +206,7 @@ export default function AssumptionsPanel() {
         WebkitBackdropFilter: 'var(--blur-heavy)',
         border: '1px solid var(--glass-border)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-        maxHeight: 'calc(100vh - 140px)',
+        maxHeight: 'calc(100vh - 100px)',
       }}
     >
       {/* Header */}
@@ -212,9 +227,15 @@ export default function AssumptionsPanel() {
         />
       </button>
 
-      {/* Expandable body */}
-      {!collapsed && (
-        <div className="px-3.5 pb-3 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent' }}>
+      {/* Expandable body — smooth animated collapse */}
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: collapsed ? 0 : (bodyHeight ?? 800),
+          opacity: collapsed ? 0 : 1,
+        }}
+      >
+        <div ref={bodyRef} className="px-3.5 pb-3 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent', maxHeight: 'calc(100vh - 150px)' }}>
           <SummaryBlock />
 
           {/* Tier 1: Core */}
@@ -261,14 +282,14 @@ export default function AssumptionsPanel() {
           {/* Reset */}
           <button
             onClick={resetDefaults}
-            className="w-full mt-3 py-1.5 rounded text-[11px] font-medium text-zinc-400
+            className="w-full mt-3 mb-2 py-1.5 rounded text-[11px] font-medium text-zinc-400
                        hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
             style={{ border: '1px solid rgba(255,255,255,0.06)' }}
           >
             Reset to Defaults
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
