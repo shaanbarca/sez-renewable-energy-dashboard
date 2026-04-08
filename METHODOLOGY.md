@@ -58,33 +58,34 @@ The model answers one question per KEK: **is captive solar cheaper than buying g
 
 ### Data flow (5 steps)
 
-```
-Step 1 — Solar resource
-  GeoTIFF (PVOUT daily, kWh/kWp/day)
-    → × 365 → PVOUT_annual (kWh/kWp/yr)
-    → ÷ 8760 → CF (capacity factor, decimal)
+**Step 1 — Solar resource**
 
-Step 2 — LCOE
-  CAPEX [USD/kW] + FOM [USD/kW/yr] + WACC + lifetime + CF
-    → CRF = WACC×(1+WACC)^n / ((1+WACC)^n − 1)
-    → LCOE [USD/MWh] = (CAPEX×CRF + FOM) / (CF × 8.76)
+$$\text{PVOUT}_{\text{annual}} = \text{PVOUT}_{\text{daily}} \times 365 \quad [\text{kWh/kWp/yr}]$$
 
-Step 3 — Grid cost reference
-  Permen ESDM No.7/2024, Lampiran IV
-    → I-4/TT tariff = 996.74 Rp/kWh ≈ 63.1 USD/MWh  [uniform nationwide]
-    → I-3/TM tariff = 1,035.78 Rp/kWh ≈ 65.6 USD/MWh [uniform nationwide]
-    (BPP Pembangkitan varies by PLN system — sourced from Kepmen ESDM 169/2021; I-4/TT used as primary tariff comparator)
+$$CF = \frac{\text{PVOUT}_{\text{annual}}}{8{,}760}$$
 
-Step 4 — Competitiveness gap
-  solar_competitive_gap [%] = (LCOE − grid_cost) / grid_cost × 100
-  Negative = solar already cheaper; Positive = solar more expensive
+**Step 2 — LCOE**
 
-Step 5 — Action flags (per KEK)
-  solar_now       : solar attractive AND grid ready AND GEAS ≥ 30%
-  grid_first      : solar attractive BUT grid upgrade not yet pre-2030
-  firming_needed  : solar attractive AND industrial reliability req ≥ 0.75
-  plan_late       : ≥ 60% of RUPTL solar additions slip to post-2030
-```
+$$CRF = \frac{r \cdot (1+r)^n}{(1+r)^n - 1}$$
+
+$$LCOE = \frac{CAPEX \cdot CRF + FOM}{CF \times 8.76} \quad [\text{USD/MWh}]$$
+
+**Step 3 — Grid cost reference** (Permen ESDM No.7/2024, Lampiran IV)
+- I-4/TT tariff = 996.74 Rp/kWh $\approx$ 63.1 USD/MWh (uniform nationwide)
+- I-3/TM tariff = 1,035.78 Rp/kWh $\approx$ 65.6 USD/MWh (uniform nationwide)
+- BPP Pembangkitan varies by PLN system (Kepmen ESDM 169/2021; I-4/TT used as primary comparator)
+
+**Step 4 — Competitiveness gap**
+
+$$\text{gap} = \frac{LCOE - C_{\text{grid}}}{C_{\text{grid}}} \times 100\%$$
+
+Negative = solar already cheaper; Positive = solar more expensive
+
+**Step 5 — Action flags** (per KEK)
+- `solar_now`: solar attractive AND grid ready AND GEAS $\geq$ 30%
+- `grid_first`: solar attractive BUT grid upgrade not yet pre-2030
+- `firming_needed`: solar attractive AND industrial reliability req $\geq$ 0.75
+- `plan_late`: $\geq$ 60% of RUPTL solar additions slip to post-2030
 
 ### Key inputs and sources
 
@@ -134,17 +135,13 @@ Step 5 — Action flags (per KEK)
 
 The GeoTIFF stores **average daily** values. Convert to annual before any further calculation:
 
-```
-PVOUT_annual [kWh/kWp/yr] = PVOUT_daily [kWh/kWp/day] × 365
-```
+$$\text{PVOUT}_{\text{annual}} = \text{PVOUT}_{\text{daily}} \times 365 \quad [\text{kWh/kWp/yr}]$$
 
 **Plausibility bounds for Indonesia:** 1,200 ≤ PVOUT_annual ≤ 2,200 kWh/kWp/yr. Values outside this range indicate a unit error or wrong raster band. Enforce as an assertion in `build_fct_kek_resource.py`.
 
 ### 2.3 Capacity factor
 
-```
-CF = PVOUT_annual / 8,760
-```
+$$CF = \frac{\text{PVOUT}_{\text{annual}}}{8{,}760}$$
 
 Where 8,760 = hours per year. CF is dimensionless (decimal, not percent).
 
@@ -166,11 +163,9 @@ Two PVOUT values are computed per KEK:
 **Rationale for `pvout_best_50km`:** A captive solar plant does not have to sit exactly at the KEK centroid — it can be sited at the best available location within 50km and power wheeled to the zone. Using the best resource within a reasonable siting radius gives a more actionable economics estimate. 50km is consistent with typical captive power project development radius in Indonesia.
 
 **Radius calculation:** 50km in degrees is latitude-dependent. Use:
-```
-lat_buffer_deg = 50 / 111.32
-lon_buffer_deg = 50 / (111.32 × cos(lat_rad))
-```
-where `lat_rad` is the KEK centroid latitude in radians. Do not use a fixed 0.45° buffer for both axes.
+$$\Delta\phi = \frac{50}{111.32} \qquad \Delta\lambda = \frac{50}{111.32 \cdot \cos\phi}$$
+
+where $\phi$ is the KEK centroid latitude in radians. Do not use a fixed 0.45° buffer for both axes.
 
 ### 2.5 Geospatial Buildability Constraints
 
@@ -461,24 +456,22 @@ This model evaluates two distinct captive solar configurations per KEK:
 
 The LCOE for utility-scale solar PV is computed using the annuity method (standard capital recovery factor approach):
 
-```
-CRF(wacc, n) = wacc × (1 + wacc)^n / ((1 + wacc)^n − 1)
+$$CRF(r, n) = \frac{r \cdot (1 + r)^n}{(1 + r)^n - 1}$$
 
-LCOE [USD/MWh] = (CAPEX × CRF + FOM) / (CF × 8.76)
-```
+$$LCOE = \frac{CAPEX \cdot CRF + FOM}{CF \times 8.76} \quad [\text{USD/MWh}]$$
 
 Where:
-- `CAPEX` = capital expenditure [USD/kW]
-- `FOM` = fixed operations and maintenance cost [USD/kW/yr]
-- `wacc` = weighted average cost of capital [decimal, e.g. 0.10 for 10%]
-- `n` = project lifetime [years]
-- `CF` = capacity factor [decimal]
-- `8.76` = 8,760 hours/year ÷ 1,000 W/kW (unit conversion to MWh/kW/yr)
+- $CAPEX$ = capital expenditure [USD/kW]
+- $FOM$ = fixed operations and maintenance cost [USD/kW/yr]
+- $r$ = weighted average cost of capital (WACC) [decimal, e.g. 0.10 for 10%]
+- $n$ = project lifetime [years]
+- $CF$ = capacity factor [decimal]
+- $8.76 = 8{,}760 \div 1{,}000$ (unit conversion: hours/year to MWh/kW/yr)
 
 **Derivation:**
-- `CAPEX × CRF` = annualized capital cost per kW of installed capacity [USD/kW/yr]
-- `CAPEX × CRF + FOM` = total annual cost per kW [USD/kW/yr]
-- `CF × 8.76` = annual energy production per kW [MWh/kW/yr]
+- $CAPEX \times CRF$ = annualized capital cost per kW [USD/kW/yr]
+- $CAPEX \times CRF + FOM$ = total annual cost per kW [USD/kW/yr]
+- $CF \times 8.76$ = annual energy production per kW [MWh/kW/yr]
 - Ratio = cost per unit of energy [USD/MWh]
 
 ### 3.2 Technology parameters (TECH006 — utility-scale solar PV)
@@ -496,9 +489,9 @@ Where:
 | Lifetime | 27 | years | ESDM p.66 (central value) |
 
 **Unit conversion required:** The Technology Catalogue stores CAPEX in MUSD/MWe (millions USD per MW electric). Convert to USD/kW:
-```
-CAPEX [USD/kW] = CAPEX_catalogue [MUSD/MWe] × 1,000
-```
+
+$$CAPEX_{\text{USD/kW}} = CAPEX_{\text{MUSD/MWe}} \times 1{,}000$$
+
 (1 MUSD/MWe = 1,000,000 USD / 1,000 kW = 1,000 USD/kW)
 
 Add assertion: `assert 200 < CAPEX < 3000` to catch unit errors.
@@ -563,11 +556,9 @@ Grid costs are at PLN **system level** (e.g., Sistem Jawa-Bali, Sistem Sumatera)
 
 ### 5.1 Solar competitive gap
 
-```
-solar_competitive_gap [%] = (lcoe_mid − grid_cost) / grid_cost × 100
-```
+$$\text{solar\_competitive\_gap} = \frac{LCOE_{\text{mid}} - C_{\text{grid}}}{C_{\text{grid}}} \times 100\%$$
 
-Where `grid_cost` = `dashboard_rate_usd_mwh` from `fct_grid_cost_proxy`.
+Where $C_{\text{grid}}$ = `dashboard_rate_usd_mwh` from `fct_grid_cost_proxy`.
 
 **Interpretation:**
 - **Negative gap:** Solar LCOE < grid cost → solar is already cheaper at this WACC
@@ -612,11 +603,8 @@ The `invest_resilience` flag captures scenarios where the investment case for ca
 - Tourism: 0.4 → not eligible
 
 **Formula:**
-```
-invest_resilience = (solar_competitive_gap_pct > 0)         # solar not yet at grid parity
-                  AND (solar_competitive_gap_pct ≤ 20.0)    # within 20% of grid cost
-                  AND (reliability_req ≥ 0.75)              # high reliability KEK
-```
+
+$$\text{invest\_resilience} = \bigl(0 < \text{gap}_\% \leq 20\bigr) \;\wedge\; \bigl(\text{reliability\_req} \geq 0.75\bigr)$$
 
 **Constant:** `RESILIENCE_LCOE_GAP_THRESHOLD_PCT = 20.0` (src/assumptions.py)
 **Implementation:** `invest_resilience()` in `src/model/basic_model.py`
@@ -624,9 +612,8 @@ invest_resilience = (solar_competitive_gap_pct > 0)         # solar not yet at g
 **Current results (WACC=10%):** 4 KEKs fire this flag — Kendal (gap=13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). All are manufacturing KEKs in Java-Bali and Sulawesi. Carbon breakeven for these: $10–17/tCO2 — well within Indonesia's emerging carbon market trajectory.
 
 **`solar_attractive` definition (✅ resolved — Option B implemented):**
-```
-solar_attractive = (pvout_best_50km ≥ 1,550 kWh/kWp/yr) AND (lcoe_mid ≤ grid_cost_usd_mwh)
-```
+
+$$\text{solar\_attractive} = \bigl(\text{PVOUT}_{\text{best50km}} \geq 1{,}550\bigr) \;\wedge\; \bigl(LCOE_{\text{mid}} \leq C_{\text{grid}}\bigr)$$
 
 WACC-dependent: `solar_attractive` means "solar LCOE ≤ grid cost at current WACC AND resource is sufficient." This makes the flag directly interpretable — no hardcoded LCOE threshold needed. Implementation: `is_solar_attractive()` in `src/model/basic_model.py`.
 
@@ -652,22 +639,18 @@ WACC-dependent: `solar_attractive` means "solar LCOE ≤ grid cost at current WA
 GEAS (Green Energy Auction Scheme) allocates renewable energy from RUPTL-planned solar additions to industrial zones on a pro-rata basis.
 
 **Baseline allocation (proportional to demand):**
-```
-geas_alloc_mwh[kek] = allocatable_green_mwh[region] × (demand_mwh[kek] / region_demand_mwh)
 
-green_share_geas[kek] = min(1.0, geas_alloc_mwh[kek] / demand_mwh[kek])
-```
+$$\text{GEAS}_{\text{alloc}}^{i} = E_{\text{green}}^{r} \times \frac{D^{i}}{D^{r}_{\text{total}}}$$
 
-Where `allocatable_green_mwh[region] = pre2030_solar_mw[region] × 8,760 × CF_region`.
+$$\text{green\_share}^{i} = \min\!\left(1,\;\frac{\text{GEAS}_{\text{alloc}}^{i}}{D^{i}}\right)$$
 
-`CF_region` = assumed regional average CF = 0.20 (20%). This is a system-level assumption for RUPTL-planned solar (not site-specific).
+Where $E_{\text{green}}^{r} = \text{pre2030\_solar\_MW}^{r} \times 8{,}760 \times CF_r$ and $CF_r = 0.20$ (system-level assumption for RUPTL-planned solar).
 
-**Policy scenario allocation (proportional to demand × PVOUT):**
-```
-priority_score[kek] = demand_mwh[kek] × pvout_best_50km[kek]
+**Policy scenario allocation (proportional to demand $\times$ PVOUT):**
 
-geas_alloc_policy[kek] = allocatable_green_mwh_policy[region] × (priority_score[kek] / region_priority_score)
-```
+$$w^{i} = D^{i} \times \text{PVOUT}_{\text{best50km}}^{i}$$
+
+$$\text{GEAS}_{\text{policy}}^{i} = E_{\text{green,policy}}^{r} \times \frac{w^{i}}{\sum_{j \in r} w^{j}}$$
 
 This prioritizes zones with both high demand and high solar resource.
 
@@ -676,16 +659,10 @@ This prioritizes zones with both high demand and high solar resource.
 The carbon breakeven price answers the policy question: **"At what carbon price does solar become cost-competitive with the grid?"**
 
 **Formula:**
-```
-lcoe_gap_usd_mwh = lcoe_mid_usd_mwh - grid_cost_usd_mwh
 
-if lcoe_gap_usd_mwh ≤ 0:
-    carbon_breakeven = 0.0   # solar already competitive — no carbon price needed
-else:
-    carbon_breakeven = lcoe_gap_usd_mwh / grid_emission_factor_t_co2_mwh
-```
+$$P_{\text{carbon}} = \begin{cases} 0 & \text{if } LCOE_{\text{mid}} \leq C_{\text{grid}} \\ \displaystyle\frac{LCOE_{\text{mid}} - C_{\text{grid}}}{EF_{\text{grid}}} & \text{otherwise} \end{cases} \quad [\text{USD/tCO}_2]$$
 
-Unit: USD/tCO2. Interpretation: if carbon is priced at or above this level (via Indonesia's carbon market, EU CBAM exposure, or corporate net-zero commitments), solar wins on adjusted total cost.
+Interpretation: if carbon is priced at or above $P_{\text{carbon}}$ (via Indonesia's carbon market, EU CBAM exposure, or corporate net-zero commitments), solar wins on adjusted total cost.
 
 **Simplification note:** This formula assumes zero lifecycle emissions from solar. Actual solar lifecycle emissions are ~40 gCO2/MWh (IPCC AR6 median, covering manufacturing, transport, installation, and decommissioning). The corrected formula would be `lcoe_gap / (grid_EF − 0.040)`, which raises breakeven prices by ~5–8% depending on the grid region. This simplification is standard for grid displacement calculations but should be noted when citing breakeven values in formal analysis.
 
@@ -716,13 +693,9 @@ Source: KESDM Tier 2 grid emission factor database, 2019 vintage (`data/grid_emi
 
 The flip scenario identifies KEKs that are close to solar-competitive:
 
-```
-flip_threshold [%]: user-adjustable, default 20%
+$$\text{flip\_candidates} = \bigl\{k \;\big|\; 0 < \text{gap}_k \leq \tau_{\text{flip}}\bigr\}$$
 
-flip_candidates = [kek for kek in all_keks if 0 < solar_competitive_gap[kek] ≤ flip_threshold]
-```
-
-These are zones where solar is not yet competitive but is within `flip_threshold`% — meaning a modest policy intervention (CAPEX reduction via GBT program, lower WACC, or tariff adjustment) could make it competitive.
+Where $\tau_{\text{flip}}$ is user-adjustable (default 20%). These are zones where solar is not yet competitive but is within $\tau_{\text{flip}}\%$, meaning a modest policy intervention (CAPEX reduction via GBT program, lower WACC, or tariff adjustment) could make it competitive.
 
 ### 5.5 All-in captive solar cost (investment screen)
 

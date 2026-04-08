@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import 'katex/dist/katex.min.css';
 import Markdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import { fetchMethodology } from '../../lib/api';
 
 /** Convert heading text to a URL-friendly slug (matches GitHub's anchor generation). */
@@ -86,7 +89,8 @@ export default function MethodologyModal({ open, onClose }: MethodologyModalProp
           )}
           {content && (
             <Markdown
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
               components={{
                 h1: ({ children }) => {
                   const id = slugify(String(children));

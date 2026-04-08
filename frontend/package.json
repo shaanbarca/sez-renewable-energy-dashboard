@@ -18,13 +18,16 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.0",
     "@tanstack/react-table": "^8.20.0",
+    "katex": "^0.16.45",
     "maplibre-gl": "^4.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-map-gl": "^7.1.0",
     "react-markdown": "^10.1.0",
     "recharts": "^2.13.0",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
