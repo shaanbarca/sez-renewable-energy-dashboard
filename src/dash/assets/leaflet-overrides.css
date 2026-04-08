@@ -1,6 +1,54 @@
-/* Push Leaflet layer control above the bottom drawer */
-.leaflet-bottom.leaflet-left {
-    bottom: 45vh;
+/* Force dark background on body and root elements */
+body, #react-entry-point, ._dash-loading {
+    background-color: #121212 !important;
+}
+
+/* Dark theme for Leaflet zoom controls */
+.leaflet-control-zoom {
+    border: 1px solid #555 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6) !important;
+}
+.leaflet-control-zoom a,
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+    background-color: rgba(30, 30, 30, 0.92) !important;
+    color: #e0e0e0 !important;
+    border-color: #555 !important;
+}
+.leaflet-control-zoom a:hover {
+    background-color: rgba(60, 60, 60, 0.95) !important;
+    color: #ffffff !important;
+}
+
+/* Make layer control icon visible on dark map */
+.leaflet-control-layers {
+    background-color: rgba(30, 30, 30, 0.92) !important;
+    border: 1px solid #555 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6) !important;
+    z-index: 800 !important;
+}
+.leaflet-control-layers-toggle {
+    background-color: rgba(30, 30, 30, 0.92) !important;
+    border-radius: 6px !important;
+    width: 36px !important;
+    height: 36px !important;
+}
+.leaflet-control-layers-expanded {
+    background-color: rgba(30, 30, 30, 0.95) !important;
+    color: #e0e0e0 !important;
+    padding: 8px 12px !important;
+}
+.leaflet-control-layers-separator {
+    border-top-color: #555 !important;
+}
+.leaflet-control-layers label {
+    color: #e0e0e0 !important;
+    font-size: 12px !important;
+}
+.leaflet-control-layers input[type="checkbox"] {
+    accent-color: #90CAF9;
 }
 
 /* Dark theme for Dash 4 slider tooltips */
@@ -49,4 +97,90 @@
 }
 .mantine-Accordion-chevron {
     color: #aaa !important;
+}
+
+/* DataTable dark theme polish */
+.dash-table-container {
+    background-color: transparent !important;
+}
+.dash-spreadsheet-container {
+    background-color: transparent !important;
+    border: none !important;
+}
+.dash-spreadsheet {
+    background-color: transparent !important;
+    border: none !important;
+}
+.dash-spreadsheet td,
+.dash-spreadsheet th {
+    background-color: transparent !important;
+}
+/* Sort arrow color */
+.dash-table-container .column-header--sort {
+    color: #666 !important;
+}
+/* Selected/hover/active cell — subtle dark highlight, no white flash */
+.dash-spreadsheet td.focused,
+.dash-spreadsheet td.cell--selected,
+.dash-spreadsheet td.cell--active,
+.dash-spreadsheet-inner td.focused,
+.dash-spreadsheet-inner td.cell--selected,
+.dash-spreadsheet-inner td.cell--active {
+    outline: none !important;
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    box-shadow: none !important;
+}
+.dash-spreadsheet td.cell--selected::after,
+.dash-spreadsheet td.cell--active::after {
+    border: none !important;
+}
+/* Row hover */
+.dash-spreadsheet tr:hover td {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+}
+/* Remove the bright input box on cell click */
+.dash-spreadsheet td input,
+.dash-cell-value {
+    background-color: transparent !important;
+    color: inherit !important;
+    caret-color: transparent !important;
+}
+/* Pagination controls dark theme */
+.dash-table-container .previous-next-container {
+    color: #999 !important;
+}
+.dash-table-container .page-number {
+    color: #e0e0e0 !important;
+    background-color: transparent !important;
+    border: 1px solid #444 !important;
+}
+/* Export button clean style */
+.dash-table-container .export,
+.dash-spreadsheet-container .export {
+    background-color: transparent !important;
+    color: #999 !important;
+    border: 1px solid #444 !important;
+    border-radius: 4px !important;
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+}
+.dash-table-container .export:hover,
+.dash-spreadsheet-container .export:hover {
+    color: #e0e0e0 !important;
+    border-color: #666 !important;
+}
+
+/* Hide Dash dev tools debug button */
+._dash-debug-menu,
+._dash-debug-menu__outer {
+    display: none !important;
+}
+
+/* Dark background for Mantine Drawer content area */
+.mantine-Drawer-content {
+    background-color: rgba(20, 20, 20, 0.95) !important;
+}
+.mantine-Drawer-body {
+    background-color: rgba(20, 20, 20, 0.95) !important;
 }

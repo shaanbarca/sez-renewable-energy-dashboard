@@ -95,6 +95,72 @@ def polygon_bbox(feature: dict) -> tuple[float, float, float, float, float, floa
     return (min_lon, min_lat, max_lon, max_lat, (min_lat + max_lat) / 2, (min_lon + max_lon) / 2)
 
 
+def load_peatland() -> dict | None:
+    """Load Indonesian peatland polygons, simplified + dissolved for web display."""
+    path = DATA_DIR / "Indonesia_peat_lands.geojson"
+    if not path.exists():
+        return None
+
+    import geopandas as gpd
+
+    gdf = gpd.read_file(path)
+    if gdf.empty:
+        return None
+    # Dissolve all into one multipolygon and simplify for performance
+    gdf["geometry"] = gdf.geometry.simplify(0.01)
+    dissolved = gdf.dissolve()
+    dissolved["geometry"] = dissolved.geometry.simplify(0.05)
+    return json.loads(dissolved.to_json())
+
+
+def load_protected_forest() -> dict | None:
+    """Load kawasan hutan (conservation + protected forest), dissolved + simplified."""
+    path = DATA_DIR / "buildability" / "kawasan_hutan.shp"
+    if not path.exists():
+        return None
+
+    import geopandas as gpd
+
+    gdf = gpd.read_file(path)
+    if gdf.empty:
+        return None
+    # Only conservation and protected forest (actual no-build zones)
+    protected = gdf[gdf["kelas"].isin(["Hutan Konservasi", "Hutan Lindung"])]
+    if protected.empty:
+        return None
+    dissolved = protected.dissolve(by="kelas")
+    dissolved["geometry"] = dissolved.geometry.simplify(0.05)
+    return json.loads(dissolved.to_json())
+
+
+def load_industrial_facilities() -> list[dict]:
+    """Load industrial facilities (50k+ employees) as point markers."""
+    import glob
+
+    shp_files = glob.glob(str(DATA_DIR / "industrial_data" / "*.shp"))
+    if not shp_files:
+        return []
+
+    import geopandas as gpd
+
+    gdf = gpd.read_file(shp_files[0])
+    facilities = []
+    for _, row in gdf.iterrows():
+        geom = row.geometry
+        if geom is None:
+            continue
+        facilities.append(
+            {
+                "lon": geom.x,
+                "lat": geom.y,
+                "name": row.get("namobj", "Unknown"),
+                "province": row.get("wadmpr", ""),
+                "district": row.get("wadmkk", ""),
+            }
+        )
+    return facilities
+
+
 def filter_substations_near_point(lat: float, lon: float, radius_km: float = 50.0) -> list[dict]:
     """Filter substations within radius_km of a point using haversine distance."""
     import math
@@ -326,6 +392,27 @@ def get_all_layers() -> dict:
     except Exception as e:
         print(f"    Buildable solar: failed ({e})")
         layers["buildable"] = None
+
+    try:
+        layers["peatland"] = load_peatland()
+        print(f"    Peatland: {'loaded' if layers['peatland'] else 'not found'}")
+    except Exception as e:
+        print(f"    Peatland: failed ({e})")
+        layers["peatland"] = None
+
+    try:
+        layers["protected_forest"] = load_protected_forest()
+        print(f"    Protected forest: {'loaded' if layers['protected_forest'] else 'not found'}")
+    except Exception as e:
+        print(f"    Protected forest: failed ({e})")
+        layers["protected_forest"] = None
+
+    try:
+        layers["industrial"] = load_industrial_facilities()
+        print(f"    Industrial facilities: {len(layers['industrial'])} points")
+    except Exception as e:
+        print(f"    Industrial facilities: failed ({e})")
+        layers["industrial"] = []
 
     _LAYERS_CACHE = layers
     return layers

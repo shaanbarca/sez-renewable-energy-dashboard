@@ -385,55 +385,54 @@ def _build_assumptions_card():
             "top": "60px",
             "left": "12px",
             "zIndex": 1000,
-            "width": "280px",
+            "width": "340px",
+            "maxHeight": "calc(85vh - 80px)",
+            "overflowY": "auto",
             "backgroundColor": "rgba(30,30,30,0.92)",
             "backdropFilter": "blur(8px)",
+            "border": "1px solid #555",
+            "borderRadius": "8px",
         },
     )
 
 
 def _build_legend():
-    """Action flag legend panel (top-right)."""
+    """Action flag legend, horizontal inline strip for the header bar."""
     items = []
     for flag, color in ACTION_FLAG_COLORS.items():
         items.append(
-            html.Div(
-                [
-                    html.Span("\u25cf ", style={"color": color, "fontSize": "14px"}),
-                    dmc.Tooltip(
-                        label=ACTION_FLAG_DESCRIPTIONS[flag],
-                        children=html.Span(ACTION_FLAG_LABELS[flag], style={"fontSize": "11px"}),
-                        position="left",
-                        withArrow=True,
-                        multiline=True,
-                        w=250,
-                    ),
-                ],
-                style={"marginBottom": "2px"},
+            dmc.Tooltip(
+                label=ACTION_FLAG_DESCRIPTIONS[flag],
+                children=html.Div(
+                    [
+                        html.Span(
+                            "\u25cf",
+                            style={"color": color, "fontSize": "12px", "marginRight": "3px"},
+                        ),
+                        html.Span(
+                            ACTION_FLAG_LABELS[flag],
+                            style={"fontSize": "10px", "color": "#ccc"},
+                        ),
+                    ],
+                    style={"display": "flex", "alignItems": "center", "cursor": "default"},
+                ),
+                position="bottom",
+                withArrow=True,
+                multiline=True,
+                w=250,
             )
         )
-    return dmc.Paper(
-        [
-            html.Div(
-                "ACTION FLAG LEGEND",
-                style={
-                    "fontSize": "10px",
-                    "fontWeight": "bold",
-                    "color": "#aaa",
-                    "marginBottom": "4px",
-                },
-            ),
-            *items,
-        ],
-        shadow="md",
-        p="xs",
+    return html.Div(
+        items,
         style={
-            "position": "absolute",
-            "top": "60px",
-            "right": "12px",
-            "zIndex": 1000,
-            "backgroundColor": "rgba(30,30,30,0.92)",
-            "backdropFilter": "blur(8px)",
+            "display": "flex",
+            "gap": "12px",
+            "alignItems": "center",
+            "marginLeft": "auto",
+            "padding": "4px 12px",
+            "border": "1px solid #555",
+            "borderRadius": "6px",
+            "backgroundColor": "rgba(40,40,40,0.8)",
         },
     )
 
@@ -461,27 +460,39 @@ def _build_table():
                 id="ranked-table",
                 columns=[{"name": v, "id": k} for k, v in TABLE_COLUMNS.items()],
                 sort_action="native",
-                filter_action="native",
-                page_size=25,
+                page_size=15,
                 export_format="csv",
+                style_table={"overflowX": "auto"},
                 style_cell={
                     "textAlign": "left",
-                    "padding": "6px",
-                    "fontSize": "12px",
-                    "backgroundColor": "#1a1a1a",
+                    "padding": "10px 12px",
+                    "fontSize": "13px",
+                    "backgroundColor": "transparent",
                     "color": "#e0e0e0",
-                    "border": "1px solid #333",
+                    "border": "none",
+                    "borderBottom": "1px solid #2a2a2a",
+                    "fontFamily": "-apple-system, BlinkMacSystemFont, sans-serif",
                 },
                 style_header={
-                    "fontWeight": "bold",
-                    "backgroundColor": "#2a2a2a",
-                    "color": "#fff",
-                    "border": "1px solid #444",
+                    "fontWeight": "600",
+                    "backgroundColor": "transparent",
+                    "color": "#999",
+                    "border": "none",
+                    "borderBottom": "1px solid #444",
+                    "fontSize": "11px",
+                    "textTransform": "uppercase",
+                    "letterSpacing": "0.5px",
                 },
                 style_data_conditional=[
                     {
-                        "if": {"filter_query": f'{{action_flag}} = "{flag}"'},
-                        "backgroundColor": _hex_to_rgba(color, 0.12),
+                        "if": {
+                            "filter_query": '{action_flag} contains "'
+                            + ACTION_FLAG_LABELS[flag]
+                            + '"',
+                            "column_id": "action_flag",
+                        },
+                        "color": color,
+                        "fontWeight": "600",
                     }
                     for flag, color in ACTION_FLAG_COLORS.items()
                 ],
@@ -573,7 +584,15 @@ def _build_bottom_drawer():
                             dmc.TabsTab("Flip Scenario", value="flip"),
                         ],
                     ),
-                    dmc.TabsPanel(_build_table(), value="table", style={"padding": "8px 0"}),
+                    dmc.TabsPanel(
+                        _build_table(),
+                        value="table",
+                        style={
+                            "height": "calc(40vh - 80px)",
+                            "overflowY": "auto",
+                            "padding": "8px 0",
+                        },
+                    ),
                     dmc.TabsPanel(
                         _build_quadrant(),
                         value="quadrant",
@@ -590,7 +609,7 @@ def _build_bottom_drawer():
                             style={"color": "#888", "padding": "24px", "textAlign": "center"},
                         ),
                         value="flip",
-                        style={"padding": "8px 0"},
+                        style={"height": "calc(40vh - 80px)", "padding": "8px 0"},
                     ),
                 ],
                 value="table",
@@ -674,6 +693,7 @@ def create_app() -> dash.Dash:
                             size="xs",
                             style={"marginLeft": "16px"},
                         ),
+                        _build_legend(),
                     ],
                     style={
                         "display": "flex",
@@ -692,7 +712,28 @@ def create_app() -> dash.Dash:
                 # Map (full-screen, behind everything)
                 html.Div(
                     [
-                        html.Div(id="map-container", style={"height": "100%", "width": "100%"}),
+                        dl.Map(
+                            id="leaflet-map",
+                            center=[MAP_CENTER["lat"], MAP_CENTER["lon"]],
+                            zoom=MAP_ZOOM,
+                            zoomControl=False,
+                            style={"height": "100%", "width": "100%", "backgroundColor": "#121212"},
+                            children=[
+                                dl.TileLayer(
+                                    url=(
+                                        "https://api.mapbox.com/styles/v1/mapbox/dark-v11"
+                                        "/tiles/{z}/{x}/{y}@2x"
+                                        f"?access_token={MAPBOX_TOKEN}"
+                                    ),
+                                    attribution=(
+                                        '&copy; <a href="https://www.mapbox.com/">Mapbox</a>'
+                                    ),
+                                    tileSize=512,
+                                    zoomOffset=-1,
+                                ),
+                                dl.ZoomControl(position="topright"),
+                            ],
+                        ),
                         # Back button (visible in zoomed KEK state)
                         dmc.Button(
                             "Back to National View",
@@ -710,7 +751,6 @@ def create_app() -> dash.Dash:
                             },
                         ),
                         _build_assumptions_card(),
-                        _build_legend(),
                     ],
                     style={
                         "position": "fixed",
@@ -749,7 +789,12 @@ def create_app() -> dash.Dash:
                 # Bottom drawer
                 _build_bottom_drawer(),
             ],
-            style={"backgroundColor": "#121212", "color": "#e0e0e0", "minHeight": "100vh"},
+            style={
+                "backgroundColor": "#121212",
+                "color": "#e0e0e0",
+                "height": "100vh",
+                "overflow": "hidden",
+            },
         ),
         theme={"colorScheme": "dark"},
     )
@@ -911,10 +956,11 @@ def _register_callbacks(app: dash.Dash):
         )
         return result.to_dict("records")
 
-    # Map (dash-leaflet)
+    # Map (dash-leaflet) — updates children + viewport on the persistent dl.Map
     @app.callback(
         [
-            Output("map-container", "children"),
+            Output("leaflet-map", "children"),
+            Output("leaflet-map", "viewport"),
             Output("back-to-national", "style"),
         ],
         [
@@ -934,13 +980,12 @@ def _register_callbacks(app: dash.Dash):
 
         map_layers = get_all_layers()
 
-        # Base tile layer (Mapbox dark)
-        tile_url = (
-            "https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x"
-            f"?access_token={MAPBOX_TOKEN}"
-        )
+        # Base tile layer stays in layout; only dynamic children here
         tile_layer = dl.TileLayer(
-            url=tile_url,
+            url=(
+                "https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}@2x"
+                f"?access_token={MAPBOX_TOKEN}"
+            ),
             attribution='&copy; <a href="https://www.mapbox.com/">Mapbox</a>',
             tileSize=512,
             zoomOffset=-1,
@@ -1008,6 +1053,64 @@ def _register_callbacks(app: dash.Dash):
                         checked=False,
                     )
                 )
+
+        # Peatland overlay
+        if map_layers.get("peatland") and not selected_kek:
+            overlay_children.append(
+                dl.Overlay(
+                    dl.GeoJSON(
+                        data=map_layers["peatland"],
+                        style={
+                            "color": "#8B4513",
+                            "weight": 1,
+                            "fillColor": "#8B4513",
+                            "fillOpacity": 0.3,
+                        },
+                    ),
+                    name="Peatland",
+                    checked=False,
+                )
+            )
+
+        # Protected forest (kawasan hutan) overlay
+        if map_layers.get("protected_forest") and not selected_kek:
+            overlay_children.append(
+                dl.Overlay(
+                    dl.GeoJSON(
+                        data=map_layers["protected_forest"],
+                        style={
+                            "color": "#2E7D32",
+                            "weight": 1,
+                            "fillColor": "#2E7D32",
+                            "fillOpacity": 0.25,
+                        },
+                    ),
+                    name="Protected Forest",
+                    checked=False,
+                )
+            )
+
+        # Industrial facilities overlay
+        if map_layers.get("industrial") and not selected_kek:
+            ind_markers = [
+                dl.CircleMarker(
+                    center=[f["lat"], f["lon"]],
+                    radius=2,
+                    color="#FF9800",
+                    fillColor="#FF9800",
+                    fillOpacity=0.7,
+                    weight=1,
+                    children=dl.Tooltip(f"{f['name']} | {f['district']}, {f['province']}"),
+                )
+                for f in map_layers["industrial"]
+            ]
+            overlay_children.append(
+                dl.Overlay(
+                    dl.LayerGroup(ind_markers),
+                    name="Industrial Facilities",
+                    checked=False,
+                )
+            )
 
         # --- KEK action flag markers (always visible) ---
         kek_markers = []
@@ -1131,12 +1234,12 @@ def _register_callbacks(app: dash.Dash):
                         )
                     )
 
-        # Build the map
+        # Build map children (tile layer + overlays + markers)
         map_children = [tile_layer]
 
         # Add LayersControl with overlays
         if overlay_children:
-            map_children.append(dl.LayersControl(overlay_children, position="bottomleft"))
+            map_children.append(dl.LayersControl(overlay_children, position="topright"))
 
         # Add KEK markers
         map_children.append(dl.LayerGroup(kek_markers))
@@ -1145,12 +1248,11 @@ def _register_callbacks(app: dash.Dash):
         if zoomed_layers:
             map_children.append(dl.LayerGroup(zoomed_layers))
 
-        leaflet_map = dl.MapContainer(
-            children=map_children,
+        # Viewport with flyTo transition
+        viewport = dict(
             center=map_center,
             zoom=map_zoom,
-            style={"height": "100%", "width": "100%", "backgroundColor": "#121212"},
-            id="leaflet-map",
+            transition="flyTo",
         )
 
         # Back button visibility
@@ -1163,7 +1265,7 @@ def _register_callbacks(app: dash.Dash):
             "display": "block" if selected_kek else "none",
         }
 
-        return leaflet_map, back_style
+        return map_children, viewport, back_style
 
     # Ranked table
     @app.callback(
@@ -1185,6 +1287,12 @@ def _register_callbacks(app: dash.Dash):
             df = df[df["action_flag"].isin(flag_filter)]
         display_cols = [c for c in TABLE_COLUMNS if c in df.columns]
         records = df[display_cols].round(2).to_dict("records")
+        # Replace raw action flag keys with "● Label" for colored dot display
+        for rec in records:
+            if "action_flag" in rec:
+                raw = rec["action_flag"]
+                label = ACTION_FLAG_LABELS.get(raw, raw)
+                rec["action_flag"] = f"\u25cf {label}"
         empty_style = {"display": "block"} if len(records) == 0 else {"display": "none"}
         return records, empty_style
 
@@ -1646,7 +1754,7 @@ def main():
     app = create_app()
     print("\n  KEK Power Competitiveness Dashboard")
     print("  http://127.0.0.1:8050/\n")
-    app.run(debug=True, port=8050)
+    app.run(debug=True, dev_tools_ui=False, port=8050)
 
 
 if __name__ == "__main__":

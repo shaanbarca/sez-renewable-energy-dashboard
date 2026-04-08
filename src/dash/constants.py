@@ -221,12 +221,7 @@ TABLE_COLUMNS = {
     "lcoe_mid_usd_mwh": "LCOE ($/MWh)",
     "solar_competitive_gap_pct": "Gap (%)",
     "best_re_technology": "Best RE",
-    "best_re_lcoe_mid_usd_mwh": "Best RE LCOE",
     "dashboard_rate_usd_mwh": "Grid Rate ($/MWh)",
-    "carbon_breakeven_usd_tco2": "Carbon BE ($/tCO2)",
-    "buildable_area_ha": "Buildable (ha)",
-    "max_captive_capacity_mwp": "Max Cap (MWp)",
-    "project_viable": "Viable",
 }
 
 # Indonesia map center
