@@ -35,28 +35,27 @@ export default function BottomPanel() {
       {/* Drag handle / collapse toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20
-                   flex items-center justify-center w-16 h-7 rounded-full cursor-pointer
-                   hover:bg-white/[0.15] transition-colors"
+        className="absolute -top-4 left-1/2 -translate-x-1/2 z-20
+                   flex items-center justify-center w-20 h-8 rounded-t-lg cursor-pointer
+                   hover:brightness-125 transition-all"
         style={{
-          background: 'rgba(30, 30, 34, 0.9)',
-          border: '1px solid rgba(255, 255, 255, 0.18)',
-          backdropFilter: 'var(--blur)',
-          WebkitBackdropFilter: 'var(--blur)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          background: 'rgba(50, 50, 55, 0.95)',
+          border: '1px solid rgba(255, 255, 255, 0.25)',
+          borderBottom: 'none',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)',
         }}
         title={collapsed ? 'Expand panel' : 'Collapse panel'}
       >
         <svg
-          width="18"
-          height="18"
+          width="20"
+          height="20"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.5"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`text-zinc-300 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+          className={`text-white transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
