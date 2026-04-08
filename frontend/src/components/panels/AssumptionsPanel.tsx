@@ -183,13 +183,15 @@ export default function AssumptionsPanel() {
 
   return (
     <div
-      className="absolute top-4 left-4 z-10 w-[310px] rounded-lg overflow-hidden"
+      className="absolute top-4 left-4 z-10 w-[310px] rounded-lg overflow-hidden flex flex-col"
+      data-panel="assumptions"
       style={{
         background: 'var(--glass-heavy)',
         backdropFilter: 'var(--blur-heavy)',
         WebkitBackdropFilter: 'var(--blur-heavy)',
         border: '1px solid var(--glass-border)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        maxHeight: 'calc(100vh - 140px)',
       }}
     >
       {/* Header */}
@@ -212,7 +214,7 @@ export default function AssumptionsPanel() {
 
       {/* Expandable body */}
       {!collapsed && (
-        <div className="px-3.5 pb-3">
+        <div className="px-3.5 pb-3 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent' }}>
           <SummaryBlock />
 
           {/* Tier 1: Core */}
