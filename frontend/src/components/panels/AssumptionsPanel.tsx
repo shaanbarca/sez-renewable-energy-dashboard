@@ -197,6 +197,7 @@ export default function AssumptionsPanel() {
     <div
       className="absolute top-[60px] left-4 z-10 w-[310px] rounded-lg overflow-hidden flex flex-col"
       data-panel="assumptions"
+      data-tour="assumptions"
       style={{
         background: 'var(--glass-heavy)',
         backdropFilter: 'var(--blur-heavy)',
