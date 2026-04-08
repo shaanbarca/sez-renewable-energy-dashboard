@@ -87,10 +87,18 @@ def _build_sidebar():
         label_text = f"{config['label']} ({config['unit']})" if config["unit"] else config["label"]
         children = [
             html.Label(
-                [label_text, html.Span(" ?", className="text-muted", style={"fontSize": "11px"})],
+                [
+                    label_text,
+                    " ",
+                    dbc.Badge(
+                        "?",
+                        color="secondary",
+                        pill=True,
+                        style={"fontSize": "9px", "cursor": "help", "verticalAlign": "middle"},
+                    ),
+                ],
                 id=label_id,
                 className="mb-1 small fw-bold",
-                style={"cursor": "help"},
             ),
             dbc.Tooltip(config.get("description", ""), target=label_id, placement="top"),
             dcc.Slider(
@@ -114,11 +122,20 @@ def _build_sidebar():
                     html.Label(
                         [
                             "WACC (%)",
-                            html.Span(" ?", className="text-muted", style={"fontSize": "11px"}),
+                            " ",
+                            dbc.Badge(
+                                "?",
+                                color="secondary",
+                                pill=True,
+                                style={
+                                    "fontSize": "9px",
+                                    "cursor": "help",
+                                    "verticalAlign": "middle",
+                                },
+                            ),
                         ],
                         id="label-slider-wacc",
                         className="mb-1 small fw-bold",
-                        style={"cursor": "help"},
                     ),
                     dbc.Tooltip(WACC_DESCRIPTION, target="label-slider-wacc", placement="top"),
                     dcc.Slider(
@@ -382,10 +399,18 @@ def _build_table():
                         style_data_conditional=[
                             {
                                 "if": {"filter_query": f'{{action_flag}} = "{flag}"'},
-                                "backgroundColor": f"{color}15",
+                                "backgroundColor": _hex_to_rgba(color, 0.08),
                             }
                             for flag, color in ACTION_FLAG_COLORS.items()
                         ],
+                    ),
+                    html.Div(
+                        id="table-empty-msg",
+                        children=html.P(
+                            "No KEKs match the current filter. Try adjusting the action flag selection.",
+                            className="text-muted text-center mt-3",
+                        ),
+                        style={"display": "none"},
                     ),
                 ]
             ),
@@ -473,6 +498,13 @@ def create_app() -> dash.Dash:
             dcc.Store(id="user-thresholds", data=get_default_thresholds().to_dict()),
             dcc.Store(id="selected-kek", data=None),
             dcc.Store(id="scorecard-live-data", data=None),
+            # Loading overlay for initial data computation
+            dcc.Loading(
+                id="loading-overlay",
+                type="default",
+                fullscreen=True,
+                children=html.Div(id="loading-trigger"),
+            ),
             # Header
             dbc.Navbar(
                 dbc.Container(
@@ -650,9 +682,13 @@ def _register_callbacks(app: dash.Dash):
     # Map
     @app.callback(
         Output("map-graph", "figure"),
-        [Input("scorecard-live-data", "data"), Input("map-layer-toggle", "value")],
+        [
+            Input("scorecard-live-data", "data"),
+            Input("map-layer-toggle", "value"),
+            Input("selected-kek", "data"),
+        ],
     )
-    def update_map(scorecard_data, active_layers):
+    def update_map(scorecard_data, active_layers, selected_kek):
         import plotly.graph_objects as go
 
         if not scorecard_data:
@@ -784,6 +820,33 @@ def _register_callbacks(app: dash.Dash):
                 )
             )
 
+        # Highlight selected KEK with a pulsing ring (outer halo + inner dot)
+        if selected_kek and "kek_id" in scorecard.columns:
+            sel = scorecard[scorecard["kek_id"] == selected_kek]
+            if not sel.empty:
+                # Outer halo
+                fig.add_trace(
+                    go.Scattermapbox(
+                        lat=sel["latitude"],
+                        lon=sel["longitude"],
+                        mode="markers",
+                        marker=dict(size=28, color="#FFD600", opacity=0.35),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
+                )
+                # Inner ring
+                fig.add_trace(
+                    go.Scattermapbox(
+                        lat=sel["latitude"],
+                        lon=sel["longitude"],
+                        mode="markers",
+                        marker=dict(size=20, color="#FFD600", opacity=0.6),
+                        hoverinfo="skip",
+                        showlegend=False,
+                    )
+                )
+
         fig.update_layout(
             mapbox=dict(
                 style="carto-positron",
@@ -799,7 +862,7 @@ def _register_callbacks(app: dash.Dash):
 
     # Ranked table
     @app.callback(
-        Output("ranked-table", "data"),
+        [Output("ranked-table", "data"), Output("table-empty-msg", "style")],
         [Input("scorecard-live-data", "data"), Input("filter-action-flag", "value")],
     )
     def update_table(scorecard_data, flag_filter):
@@ -819,7 +882,9 @@ def _register_callbacks(app: dash.Dash):
             df = df[df["action_flag"].isin(flag_filter)]
 
         display_cols = [c for c in TABLE_COLUMNS if c in df.columns]
-        return df[display_cols].round(2).to_dict("records")
+        records = df[display_cols].round(2).to_dict("records")
+        empty_style = {"display": "block"} if len(records) == 0 else {"display": "none"}
+        return records, empty_style
 
     # Quadrant chart
     @app.callback(
@@ -893,6 +958,43 @@ def _register_callbacks(app: dash.Dash):
             )
         )
 
+        # Zone shading: competitive (green), marginal (yellow), uncompetitive (red)
+        fig.add_shape(
+            type="rect",
+            x0=0,
+            y0=0,
+            x1=max_val,
+            y1=max_val,
+            fillcolor="rgba(46,125,50,0.06)",
+            line=dict(width=0),
+            layer="below",
+        )
+        fig.add_shape(
+            type="rect",
+            x0=0,
+            y0=0,
+            x1=max_val,
+            y1=0,
+            fillcolor="rgba(198,40,40,0.06)",
+            line=dict(width=0),
+            layer="below",
+        )
+        # Label the zones
+        fig.add_annotation(
+            x=max_val * 0.15,
+            y=max_val * 0.85,
+            text="Solar Competitive",
+            showarrow=False,
+            font=dict(size=11, color="rgba(46,125,50,0.5)"),
+        )
+        fig.add_annotation(
+            x=max_val * 0.85,
+            y=max_val * 0.15,
+            text="Grid Competitive",
+            showarrow=False,
+            font=dict(size=11, color="rgba(198,40,40,0.5)"),
+        )
+
         fig.update_layout(
             xaxis_title="Solar LCOE ($/MWh)",
             yaxis_title=y_label,
@@ -947,6 +1049,9 @@ def _register_callbacks(app: dash.Dash):
             "kek_id",
             "pvout_centroid",
             "pvout_best_50km",
+            "pvout_buildable_best_50km",
+            "cf_centroid",
+            "cf_best_50km",
             "buildable_area_ha",
             "max_captive_capacity_mwp",
         ]
@@ -954,6 +1059,25 @@ def _register_callbacks(app: dash.Dash):
         for col in available:
             if col != "kek_id" and col not in sc.columns:
                 sc = sc.merge(_RESOURCE_DF[["kek_id", col]], on="kek_id", how="left")
+
+        # Merge scorecard columns for display (resource_quality, demand, etc.)
+        precomputed = _DATA["fct_kek_scorecard"]
+        extra_cols = [
+            "resource_quality",
+            "demand_mwh_2030",
+            "dist_to_nearest_substation_km",
+            "nearest_substation_capacity_mva",
+            "siting_scenario",
+            "green_share_geas",
+            "ruptl_summary",
+            "grid_upgrade_pre2030",
+            "post2030_share",
+            "pre2030_solar_mw",
+            "grid_emission_factor_t_co2_mwh",
+        ]
+        for col in extra_cols:
+            if col not in sc.columns and col in precomputed.columns:
+                sc = sc.merge(precomputed[["kek_id", col]], on="kek_id", how="left")
 
         kek_row = sc[sc["kek_id"] == selected_kek]
         if kek_row.empty:
@@ -971,7 +1095,7 @@ def _register_callbacks(app: dash.Dash):
         # Build scorecard tabs
         def _val(col, fmt=".2f"):
             v = kek.get(col)
-            if v is None or (isinstance(v, float) and import_isnan(v)):
+            if v is None or (isinstance(v, float) and _is_nan_safe(v)):
                 return "---"
             return f"{v:{fmt}}"
 
@@ -981,8 +1105,16 @@ def _register_callbacks(app: dash.Dash):
                 [
                     _row("PVOUT centroid", _val("pvout_centroid", ".0f"), "kWh/kWp"),
                     _row("PVOUT best 50km", _val("pvout_best_50km", ".0f"), "kWh/kWp"),
+                    _row(
+                        "PVOUT buildable best 50km",
+                        _val("pvout_buildable_best_50km", ".0f"),
+                        "kWh/kWp",
+                    ),
+                    _row("CF centroid", _fmt_pct(kek.get("cf_centroid")), ""),
+                    _row("CF best 50km", _fmt_pct(kek.get("cf_best_50km")), ""),
                     _row("Buildable area", _val("buildable_area_ha", ".0f"), "ha"),
                     _row("Max captive capacity", _val("max_captive_capacity_mwp", ".0f"), "MWp"),
+                    _row("Resource quality", str(kek.get("resource_quality", "---")), ""),
                     _row("Project viable", str(kek.get("project_viable", "---")), ""),
                 ],
                 className="mt-2",
@@ -998,6 +1130,11 @@ def _register_callbacks(app: dash.Dash):
                         f"${_val('lcoe_low_usd_mwh')} / ${_val('lcoe_mid_usd_mwh')} / ${_val('lcoe_high_usd_mwh')}",
                         "/MWh",
                     ),
+                    _row(
+                        "Remote all-in (low/mid/high)",
+                        f"${_val('lcoe_remote_captive_allin_low_usd_mwh')} / ${_val('lcoe_remote_captive_allin_usd_mwh')} / ${_val('lcoe_remote_captive_allin_high_usd_mwh')}",
+                        "/MWh",
+                    ),
                     _row("Competitive gap", _val("solar_competitive_gap_pct", ".1f"), "%"),
                     _row("Solar Now", str(kek.get("solar_now", "---")), ""),
                     _row("Invest Resilience", str(kek.get("invest_resilience", "---")), ""),
@@ -1007,24 +1144,74 @@ def _register_callbacks(app: dash.Dash):
             ),
         )
 
+        demand_tab = dbc.Tab(
+            label="Demand",
+            children=html.Div(
+                [
+                    _row("Demand (2030)", _val("demand_mwh_2030", ",.0f"), "MWh"),
+                    _row("GEAS green share", _fmt_pct(kek.get("green_share_geas")), ""),
+                    _row("Nearest substation", _val("dist_to_nearest_substation_km", ".1f"), "km"),
+                    _row(
+                        "Substation capacity", _val("nearest_substation_capacity_mva", ".0f"), "MVA"
+                    ),
+                    _row("Siting scenario", str(kek.get("siting_scenario", "---")), ""),
+                ],
+                className="mt-2",
+            ),
+        )
+
+        pipeline_tab = dbc.Tab(
+            label="Pipeline",
+            children=html.Div(
+                [
+                    _row("Grid upgrade pre-2030", str(kek.get("grid_upgrade_pre2030", "---")), ""),
+                    _row("Pre-2030 solar (MW)", _val("pre2030_solar_mw", ".0f"), "MW"),
+                    _row("Post-2030 share", _fmt_pct(kek.get("post2030_share")), ""),
+                    _row("RUPTL summary", str(kek.get("ruptl_summary", "---")), ""),
+                    _row(
+                        "Grid emission factor",
+                        _val("grid_emission_factor_t_co2_mwh", ".3f"),
+                        "tCO2/MWh",
+                    ),
+                ],
+                className="mt-2",
+            ),
+        )
+
         flags_tab = dbc.Tab(
             label="Flags",
             children=html.Div(
                 [
+                    _row("Action Flag", str(kek.get("action_flag", "---")), ""),
+                    _row("Solar Now", str(kek.get("solar_now", "---")), ""),
                     _row("Grid First", str(kek.get("grid_first", "---")), ""),
                     _row("Firming Needed", str(kek.get("firming_needed", "---")), ""),
+                    _row("Invest Resilience", str(kek.get("invest_resilience", "---")), ""),
                     _row("Plan Late", str(kek.get("plan_late", "---")), ""),
-                    _row("Action Flag", str(kek.get("action_flag", "---")), ""),
                 ],
                 className="mt-2",
             ),
         )
 
         body = dbc.Tabs(
-            [resource_tab, lcoe_tab, flags_tab],
+            [resource_tab, lcoe_tab, demand_tab, pipeline_tab, flags_tab],
             active_tab="tab-0",
         )
         return body, kek_name
+
+
+def _hex_to_rgba(hex_color: str, alpha: float = 0.1) -> str:
+    """Convert hex color to rgba string."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def _fmt_pct(v):
+    """Format a decimal value as percentage, or '---' if missing."""
+    if v is None or _is_nan_safe(v):
+        return "---"
+    return f"{v:.1%}"
 
 
 def _row(label, value, unit):
@@ -1045,8 +1232,8 @@ def _pd_from_records(records):
     return pd.DataFrame(records)
 
 
-def import_isnan(v):
-    """Check if value is NaN."""
+def _is_nan_safe(v):
+    """Check if value is NaN (safe for any type)."""
     import math
 
     try:
