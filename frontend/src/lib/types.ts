@@ -39,6 +39,15 @@ export interface ScorecardRow {
   grid_cost_usd_mwh: number;
   bpp_usd_mwh: number | null;
   grid_region_id: string;
+
+  // Optional fields that may be present depending on pipeline data
+  pvout_centroid_kwh_kwp_yr?: number;
+  pvout_best_50km_kwh_kwp_yr?: number;
+  lcoe_remote_captive_allin_usd_mwh?: number;
+  demand_2030_gwh?: number;
+  green_share_geas?: number;
+  grid_upgrade_planned?: boolean;
+  ruptl_region_summary?: string;
 }
 
 export interface SliderConfig {

@@ -3,6 +3,8 @@ import { useDashboardStore } from './store/dashboard';
 import Header from './components/ui/Header';
 import MapView from './components/map/MapView';
 import BottomPanel from './components/ui/BottomPanel';
+import AssumptionsPanel from './components/panels/AssumptionsPanel';
+import ScoreDrawer from './components/panels/ScoreDrawer';
 
 function App() {
   const initialize = useDashboardStore((s) => s.initialize);
@@ -14,16 +16,18 @@ function App() {
   return (
     <div className="h-screen flex flex-col bg-[#121212]">
       <Header />
-      <div className="flex-1 relative">
-        {/* MAP - Lane C */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* MAP */}
         <MapView />
 
-        {/* ASSUMPTIONS slot - Lane E will fill this */}
+        {/* ASSUMPTIONS PANEL */}
+        <AssumptionsPanel />
 
-        {/* SCORE DRAWER slot - Lane E will fill this */}
+        {/* SCORE DRAWER */}
+        <ScoreDrawer />
       </div>
 
-      {/* BOTTOM PANEL - Lane D */}
+      {/* BOTTOM PANEL */}
       <BottomPanel />
     </div>
   );
