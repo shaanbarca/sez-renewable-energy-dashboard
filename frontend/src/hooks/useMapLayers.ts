@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useDashboardStore } from '../store/dashboard';
 import { fetchLayer } from '../lib/api';
+import { useDashboardStore } from '../store/dashboard';
 
 /**
  * Lazy-loads layer data when a layer is toggled visible for the first time.

@@ -1,6 +1,6 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import { useDashboardStore } from '../../store/dashboard';
 import type { EnergyMode } from '../../lib/types';
+import { useDashboardStore } from '../../store/dashboard';
 
 const options: { value: EnergyMode; label: string }[] = [
   { value: 'solar', label: 'Solar' },

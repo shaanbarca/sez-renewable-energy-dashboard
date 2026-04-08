@@ -1,17 +1,17 @@
 import { useMemo } from 'react';
 import {
+  Customized,
+  ReferenceLine,
   ResponsiveContainer,
-  ScatterChart,
   Scatter,
+  ScatterChart,
+  Tooltip,
   XAxis,
   YAxis,
-  ReferenceLine,
-  Tooltip,
-  Customized,
 } from 'recharts';
-import { useDashboardStore } from '../../store/dashboard';
 import { ACTION_FLAG_COLORS } from '../../lib/constants';
 import type { ScorecardRow } from '../../lib/types';
+import { useDashboardStore } from '../../store/dashboard';
 
 interface DotProps {
   cx?: number;
@@ -22,14 +22,7 @@ interface DotProps {
 function CustomDot(props: DotProps) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null || !payload) return null;
-  return (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={6}
-      fill={ACTION_FLAG_COLORS[payload.action_flag] ?? '#666'}
-    />
-  );
+  return <circle cx={cx} cy={cy} r={6} fill={ACTION_FLAG_COLORS[payload.action_flag] ?? '#666'} />;
 }
 
 interface TooltipPayload {
@@ -49,7 +42,10 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
       <div className="font-medium mb-1">{d.kek_name}</div>
       <div>LCOE: ${d.lcoe_mid_usd_mwh.toFixed(1)}/MWh</div>
       <div>Grid: ${d.dashboard_rate_usd_mwh.toFixed(1)}/MWh</div>
-      <div>Gap: {d.solar_competitive_gap_pct > 0 ? '+' : ''}{d.solar_competitive_gap_pct.toFixed(1)}%</div>
+      <div>
+        Gap: {d.solar_competitive_gap_pct > 0 ? '+' : ''}
+        {d.solar_competitive_gap_pct.toFixed(1)}%
+      </div>
     </div>
   );
 }
@@ -93,16 +89,16 @@ function ZoneShading(props: any) {
   const upperTopX = clamp(dMax / 1.25);
   const lowerBottomX = clamp(dMin / 0.833);
 
-  const zone1 = `${px(dMin)},${py(dMin)} ${px(dMin)},${py(clamp(1.25*dMin))} ${px(upperTopX)},${py(dMax)} ${px(dMin)},${py(dMax)}`;
+  const zone1 = `${px(dMin)},${py(dMin)} ${px(dMin)},${py(clamp(1.25 * dMin))} ${px(upperTopX)},${py(dMax)} ${px(dMin)},${py(dMax)}`;
 
   // Zone 2: Invest Resilience (amber) — between parity and upper line
-  const zone2 = `${px(dMin)},${py(clamp(1.25*dMin))} ${px(dMin)},${py(dMin)} ${px(dMax)},${py(dMax)} ${px(upperTopX)},${py(dMax)}`;
+  const zone2 = `${px(dMin)},${py(clamp(1.25 * dMin))} ${px(dMin)},${py(dMin)} ${px(dMax)},${py(dMax)} ${px(upperTopX)},${py(dMax)}`;
 
   // Zone 3: Grid First (blue) — between lower line and parity
-  const zone3 = `${px(dMin)},${py(dMin)} ${px(dMax)},${py(dMax)} ${px(dMax)},${py(clamp(0.833*dMax))} ${px(lowerBottomX)},${py(dMin)}`;
+  const zone3 = `${px(dMin)},${py(dMin)} ${px(dMax)},${py(dMax)} ${px(dMax)},${py(clamp(0.833 * dMax))} ${px(lowerBottomX)},${py(dMin)}`;
 
   // Zone 4: Not Competitive (red) — below lower line
-  const zone4 = `${px(lowerBottomX)},${py(dMin)} ${px(dMax)},${py(clamp(0.833*dMax))} ${px(dMax)},${py(dMin)}`;
+  const zone4 = `${px(lowerBottomX)},${py(dMin)} ${px(dMax)},${py(clamp(0.833 * dMax))} ${px(dMax)},${py(dMin)}`;
 
   // Label positions (placed in center of each zone)
   const lx1 = px(dMin + (dMax - dMin) * 0.15);
@@ -120,16 +116,44 @@ function ZoneShading(props: any) {
       <polygon points={zone2} fill="rgba(245, 124, 0, 0.08)" />
       <polygon points={zone3} fill="rgba(21, 101, 192, 0.08)" />
       <polygon points={zone4} fill="rgba(198, 40, 40, 0.1)" />
-      <text x={lx1} y={ly1} fill="rgba(46,125,50,0.4)" fontSize={10} fontWeight={500} textAnchor="middle">
+      <text
+        x={lx1}
+        y={ly1}
+        fill="rgba(46,125,50,0.4)"
+        fontSize={10}
+        fontWeight={500}
+        textAnchor="middle"
+      >
         Solar Now
       </text>
-      <text x={lx2} y={ly2} fill="rgba(245,124,0,0.35)" fontSize={10} fontWeight={500} textAnchor="middle">
+      <text
+        x={lx2}
+        y={ly2}
+        fill="rgba(245,124,0,0.35)"
+        fontSize={10}
+        fontWeight={500}
+        textAnchor="middle"
+      >
         Invest Resilience
       </text>
-      <text x={lx3} y={ly3} fill="rgba(21,101,192,0.35)" fontSize={10} fontWeight={500} textAnchor="middle">
+      <text
+        x={lx3}
+        y={ly3}
+        fill="rgba(21,101,192,0.35)"
+        fontSize={10}
+        fontWeight={500}
+        textAnchor="middle"
+      >
         Grid First
       </text>
-      <text x={lx4} y={ly4} fill="rgba(198,40,40,0.35)" fontSize={10} fontWeight={500} textAnchor="middle">
+      <text
+        x={lx4}
+        y={ly4}
+        fill="rgba(198,40,40,0.35)"
+        fontSize={10}
+        fontWeight={500}
+        textAnchor="middle"
+      >
         Not Competitive
       </text>
     </g>
@@ -160,11 +184,7 @@ export default function QuadrantChart() {
   }, [chartData]);
 
   if (!scorecard) {
-    return (
-      <div className="flex items-center justify-center h-full text-zinc-600">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center h-full text-zinc-600">Loading...</div>;
   }
 
   return (
@@ -234,10 +254,7 @@ export default function QuadrantChart() {
             strokeDasharray="3 6"
           />
           <Tooltip content={<CustomTooltip />} />
-          <Scatter
-            data={chartData}
-            shape={<CustomDot />}
-          />
+          <Scatter data={chartData} shape={<CustomDot />} />
         </ScatterChart>
       </ResponsiveContainer>
     </div>

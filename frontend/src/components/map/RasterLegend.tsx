@@ -1,5 +1,5 @@
-import { useDashboardStore } from '../../store/dashboard';
 import { useDraggable } from '../../hooks/useDraggable';
+import { useDashboardStore } from '../../store/dashboard';
 
 const RASTER_LEGENDS = [
   {
@@ -63,10 +63,7 @@ export default function RasterLegend() {
               <div className="text-[10px] text-zinc-400 mb-1">
                 {label} <span className="text-zinc-600">({unit})</span>
               </div>
-              <div
-                className="h-3 rounded-sm w-48"
-                style={{ background: gradient }}
-              />
+              <div className="h-3 rounded-sm w-48" style={{ background: gradient }} />
               <div className="flex justify-between mt-0.5">
                 <span className="text-[9px] text-zinc-500">{min}</span>
                 <span className="text-[9px] text-zinc-500">{max}</span>

@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
-import { useDashboardStore } from '../../store/dashboard';
+import { useEffect, useMemo, useState } from 'react';
+import { Layer, Source } from 'react-map-gl/maplibre';
 import { fetchInfrastructure, fetchKekSubstations } from '../../lib/api';
+import { useDashboardStore } from '../../store/dashboard';
 
 interface InfraMarker {
   kek_id: string;
@@ -97,18 +97,8 @@ export default function InfraMarkers() {
             id="substations-circles"
             type="circle"
             paint={{
-              'circle-radius': [
-                'case',
-                ['==', ['get', 'is_nearest'], true],
-                8,
-                5,
-              ],
-              'circle-color': [
-                'case',
-                ['==', ['get', 'is_nearest'], true],
-                '#FFD600',
-                '#42A5F5',
-              ],
+              'circle-radius': ['case', ['==', ['get', 'is_nearest'], true], 8, 5],
+              'circle-color': ['case', ['==', ['get', 'is_nearest'], true], '#FFD600', '#42A5F5'],
               'circle-stroke-color': '#ffffff',
               'circle-stroke-width': 1,
               'circle-opacity': 0.9,

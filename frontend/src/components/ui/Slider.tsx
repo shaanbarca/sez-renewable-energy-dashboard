@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import * as RadixSlider from '@radix-ui/react-slider';
+import { useState } from 'react';
 
 interface SliderProps {
   value: number;

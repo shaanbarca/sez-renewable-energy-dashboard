@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Map, { Source, Layer, NavigationControl } from 'react-map-gl/maplibre';
-import type { MapRef, MapLayerMouseEvent, ViewStateChangeEvent } from 'react-map-gl/maplibre';
+import type { MapLayerMouseEvent, MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
+import Map, { Layer, NavigationControl, Source } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import { useDashboardStore } from '../../store/dashboard';
-import { fetchKekPolygon } from '../../lib/api';
 import { useMapLayers } from '../../hooks/useMapLayers';
-import KekMarkers from './KekMarkers';
+import { fetchKekPolygon } from '../../lib/api';
+import { useDashboardStore } from '../../store/dashboard';
+import InfraMarkers from './InfraMarkers';
 import type { HoverInfo } from './KekMarkers';
+import KekMarkers from './KekMarkers';
 import LayerControl from './LayerControl';
 import RasterOverlay from './RasterOverlay';
 import VectorOverlay from './VectorOverlay';
-import InfraMarkers from './InfraMarkers';
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };
@@ -20,7 +20,12 @@ const KEK_ZOOM = 11;
 const RADIUS_KM = 50;
 
 /** Generate a GeoJSON Polygon circle around a center point. */
-function createCircleGeoJSON(lng: number, lat: number, radiusKm: number, points = 64): GeoJSON.FeatureCollection {
+function createCircleGeoJSON(
+  lng: number,
+  lat: number,
+  radiusKm: number,
+  points = 64,
+): GeoJSON.FeatureCollection {
   const coords: [number, number][] = [];
   const earthRadiusKm = 6371;
   for (let i = 0; i <= points; i++) {
@@ -31,11 +36,13 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number, points 
   }
   return {
     type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      geometry: { type: 'Polygon', coordinates: [coords] },
-      properties: { radius_km: radiusKm },
-    }],
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [coords] },
+        properties: { radius_km: radiusKm },
+      },
+    ],
   };
 }
 
@@ -104,7 +111,7 @@ export default function MapView() {
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
       const feature = e.features?.[0];
-      if (!feature || !feature.properties) return;
+      if (!feature?.properties) return;
       const kekId = feature.properties.kek_id as string;
       selectKek(kekId);
     },
@@ -113,7 +120,7 @@ export default function MapView() {
 
   const handleMouseEnter = useCallback((e: MapLayerMouseEvent) => {
     const feature = e.features?.[0];
-    if (!feature || !feature.properties) return;
+    if (!feature?.properties) return;
     const coords = (feature.geometry as GeoJSON.Point).coordinates;
     setHoverInfo({
       longitude: coords[0],

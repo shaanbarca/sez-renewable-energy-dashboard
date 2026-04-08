@@ -1,6 +1,6 @@
 import { createColumnHelper } from '@tanstack/react-table';
-import type { ScorecardRow } from '../../lib/types';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import type { ScorecardRow } from '../../lib/types';
 
 const col = createColumnHelper<ScorecardRow>();
 
@@ -57,7 +57,8 @@ export const columns = [
       const color = val < 0 ? '#4CAF50' : val > 0 ? '#EF5350' : '#e0e0e0';
       return (
         <span style={{ color }}>
-          {sign}{val.toFixed(1)}%
+          {sign}
+          {val.toFixed(1)}%
         </span>
       );
     },

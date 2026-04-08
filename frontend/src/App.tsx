@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { useDashboardStore } from './store/dashboard';
-import Header from './components/ui/Header';
 import MapView from './components/map/MapView';
-import BottomPanel from './components/ui/BottomPanel';
+import RasterLegend from './components/map/RasterLegend';
 import AssumptionsPanel from './components/panels/AssumptionsPanel';
 import ScoreDrawer from './components/panels/ScoreDrawer';
-import RasterLegend from './components/map/RasterLegend';
+import BottomPanel from './components/ui/BottomPanel';
+import Header from './components/ui/Header';
+import { useDashboardStore } from './store/dashboard';
 
 function App() {
   const initialize = useDashboardStore((s) => s.initialize);

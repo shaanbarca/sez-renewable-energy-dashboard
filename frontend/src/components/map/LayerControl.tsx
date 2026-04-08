@@ -1,5 +1,5 @@
-import { useDashboardStore } from '../../store/dashboard';
 import { useDraggable } from '../../hooks/useDraggable';
+import { useDashboardStore } from '../../store/dashboard';
 
 const LAYER_ITEMS = [
   { name: 'substations', label: 'Substations (PLN)' },
@@ -48,9 +48,7 @@ export default function LayerControl() {
         className="flex items-center justify-between mb-2 cursor-grab active:cursor-grabbing"
         onMouseDown={onDragStart}
       >
-        <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-          Layers
-        </div>
+        <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Layers</div>
         <div className="flex gap-2">
           <button
             onClick={selectAll}

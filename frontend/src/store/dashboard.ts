@@ -1,14 +1,14 @@
 import { create } from 'zustand';
+import { fetchDefaults, fetchScorecard } from '../lib/api';
 import type {
+  BenchmarkMode,
+  BottomTab,
+  DefaultsResponse,
+  EnergyMode,
+  ScorecardRow,
   UserAssumptions,
   UserThresholds,
-  ScorecardRow,
-  DefaultsResponse,
-  BottomTab,
-  EnergyMode,
-  BenchmarkMode,
 } from '../lib/types';
-import { fetchDefaults, fetchScorecard } from '../lib/api';
 
 interface DashboardStore {
   // Data
@@ -135,11 +135,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         sliderConfigs: defaults.slider_configs,
       });
 
-      const data = await fetchScorecard(
-        defaults.assumptions,
-        defaults.thresholds,
-        'bpp',
-      );
+      const data = await fetchScorecard(defaults.assumptions, defaults.thresholds, 'bpp');
       set({ scorecard: data.scorecard, loading: false });
     } catch (err) {
       console.error('Failed to initialize dashboard:', err);

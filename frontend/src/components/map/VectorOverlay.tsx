@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Source, Layer, Popup, useMap } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
+import { useEffect, useState } from 'react';
+import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre';
 import { useDashboardStore } from '../../store/dashboard';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,7 +109,9 @@ export default function VectorOverlay() {
     };
     const onMove = (e: maplibregl.MapLayerMouseEvent) => {
       if (gridHover) {
-        setGridHover((prev) => prev ? { ...prev, longitude: e.lngLat.lng, latitude: e.lngLat.lat } : null);
+        setGridHover((prev) =>
+          prev ? { ...prev, longitude: e.lngLat.lng, latitude: e.lngLat.lat } : null,
+        );
       }
     };
     const onLeave = () => {
@@ -139,42 +141,59 @@ export default function VectorOverlay() {
       addIcon();
     } else {
       map.on('style.load', addIcon);
-      return () => { map.off('style.load', addIcon); };
+      return () => {
+        map.off('style.load', addIcon);
+      };
     }
   }, [mapRef]);
 
   return (
     <>
       {/* Substations — point layer */}
-      {layerVisibility['substations'] && layers['substations'] && !(layers['substations'] as LayerData)._loading && (() => {
-        const points = layers['substations'].points ?? layers['substations'];
-        if (!Array.isArray(points) || !points.length) return null;
-        const geojson = {
-          type: 'FeatureCollection' as const,
-          features: points.map((p: { lat: number; lon: number; name?: string; voltage?: string; capacity_mva?: string | number }) => ({
-            type: 'Feature' as const,
-            geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
-            properties: { name: p.name ?? '', voltage: p.voltage ?? '', capacity_mva: p.capacity_mva ?? '' },
-          })),
-        };
-        return (
-          <Source id="overlay-substations" type="geojson" data={geojson}>
-            <Layer
-              id="overlay-substations-symbol"
-              type="symbol"
-              layout={{
-                'icon-image': 'bolt-icon',
-                'icon-size': 0.7,
-                'icon-allow-overlap': true,
-                'icon-ignore-placement': true,
-              }}
-              paint={{
-                'icon-opacity': 0.85,
-              }}
-            />
-          </Source>
-        );
-      })()}
+      {layerVisibility.substations &&
+        layers.substations &&
+        !(layers.substations as LayerData)._loading &&
+        (() => {
+          const points = layers.substations.points ?? layers.substations;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                name?: string;
+                voltage?: string;
+                capacity_mva?: string | number;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  name: p.name ?? '',
+                  voltage: p.voltage ?? '',
+                  capacity_mva: p.capacity_mva ?? '',
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-substations" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-substations-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': 'bolt-icon',
+                  'icon-size': 0.7,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{
+                  'icon-opacity': 0.85,
+                }}
+              />
+            </Source>
+          );
+        })()}
 
       {/* Substation hover popup */}
       {subHover && (
@@ -187,7 +206,16 @@ export default function VectorOverlay() {
           offset={12}
           className="substation-popup"
         >
-          <div style={{ background: '#1e1e1e', color: '#e0e0e0', padding: '6px 10px', borderRadius: 4, fontSize: 11, lineHeight: 1.5 }}>
+          <div
+            style={{
+              background: '#1e1e1e',
+              color: '#e0e0e0',
+              padding: '6px 10px',
+              borderRadius: 4,
+              fontSize: 11,
+              lineHeight: 1.5,
+            }}
+          >
             <div style={{ fontWeight: 600, marginBottom: 2 }}>{subHover.name}</div>
             {subHover.voltage && <div>{subHover.voltage}</div>}
             {subHover.capacity_mva && <div>{subHover.capacity_mva} MVA</div>}
@@ -206,110 +234,136 @@ export default function VectorOverlay() {
           offset={8}
           className="grid-line-popup"
         >
-          <div style={{ background: '#1e1e1e', color: '#e0e0e0', padding: '6px 10px', borderRadius: 4, fontSize: 11, lineHeight: 1.5 }}>
-            {gridHover.name && <div style={{ fontWeight: 600, marginBottom: 2 }}>{gridHover.name}</div>}
+          <div
+            style={{
+              background: '#1e1e1e',
+              color: '#e0e0e0',
+              padding: '6px 10px',
+              borderRadius: 4,
+              fontSize: 11,
+              lineHeight: 1.5,
+            }}
+          >
+            {gridHover.name && (
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>{gridHover.name}</div>
+            )}
             {gridHover.voltage && <div>{gridHover.voltage}</div>}
           </div>
         </Popup>
       )}
 
       {/* KEK Polygons */}
-      {layerVisibility['kek_polygons'] && layers['kek_polygons'] && !layers['kek_polygons']._loading && (() => {
-        const data = layers['kek_polygons'];
-        if (!data || !data.features) return null;
-        return (
-          <Source id="overlay-kek-polygons" type="geojson" data={data}>
-            <Layer
-              id="overlay-kek-polygons-fill"
-              type="fill"
-              paint={{ 'fill-color': '#42A5F5', 'fill-opacity': 0.08 }}
-            />
-            <Layer
-              id="overlay-kek-polygons-line"
-              type="line"
-              paint={{ 'line-color': '#42A5F5', 'line-width': 1.5, 'line-opacity': 0.6 }}
-            />
-          </Source>
-        );
-      })()}
+      {layerVisibility.kek_polygons &&
+        layers.kek_polygons &&
+        !layers.kek_polygons._loading &&
+        (() => {
+          const data = layers.kek_polygons;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-kek-polygons" type="geojson" data={data}>
+              <Layer
+                id="overlay-kek-polygons-fill"
+                type="fill"
+                paint={{ 'fill-color': '#42A5F5', 'fill-opacity': 0.08 }}
+              />
+              <Layer
+                id="overlay-kek-polygons-line"
+                type="line"
+                paint={{ 'line-color': '#42A5F5', 'line-width': 1.5, 'line-opacity': 0.6 }}
+              />
+            </Source>
+          );
+        })()}
 
       {/* Peatland */}
-      {layerVisibility['peatland'] && layers['peatland'] && !layers['peatland']._loading && (() => {
-        const data = layers['peatland'];
-        if (!data || !data.features) return null;
-        return (
-          <Source id="overlay-peatland" type="geojson" data={data}>
-            <Layer
-              id="overlay-peatland-fill"
-              type="fill"
-              paint={{ 'fill-color': '#8D6E63', 'fill-opacity': 0.3 }}
-            />
-          </Source>
-        );
-      })()}
+      {layerVisibility.peatland &&
+        layers.peatland &&
+        !layers.peatland._loading &&
+        (() => {
+          const data = layers.peatland;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-peatland" type="geojson" data={data}>
+              <Layer
+                id="overlay-peatland-fill"
+                type="fill"
+                paint={{ 'fill-color': '#8D6E63', 'fill-opacity': 0.3 }}
+              />
+            </Source>
+          );
+        })()}
 
       {/* Protected Forest */}
-      {layerVisibility['protected_forest'] && layers['protected_forest'] && !layers['protected_forest']._loading && (() => {
-        const data = layers['protected_forest'];
-        if (!data || !data.features) return null;
-        return (
-          <Source id="overlay-protected-forest" type="geojson" data={data}>
-            <Layer
-              id="overlay-protected-forest-fill"
-              type="fill"
-              paint={{ 'fill-color': '#2E7D32', 'fill-opacity': 0.25 }}
-            />
-          </Source>
-        );
-      })()}
+      {layerVisibility.protected_forest &&
+        layers.protected_forest &&
+        !layers.protected_forest._loading &&
+        (() => {
+          const data = layers.protected_forest;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-protected-forest" type="geojson" data={data}>
+              <Layer
+                id="overlay-protected-forest-fill"
+                type="fill"
+                paint={{ 'fill-color': '#2E7D32', 'fill-opacity': 0.25 }}
+              />
+            </Source>
+          );
+        })()}
 
       {/* PLN Grid Lines */}
-      {layerVisibility['grid_lines'] && layers['grid_lines'] && !layers['grid_lines']._loading && (() => {
-        const data = layers['grid_lines'];
-        if (!data || !data.features) return null;
-        return (
-          <Source id="overlay-grid-lines" type="geojson" data={data}>
-            <Layer
-              id="overlay-grid-lines-line"
-              type="line"
-              paint={{
-                'line-color': '#FFD600',
-                'line-width': 1.2,
-                'line-opacity': 0.5,
-              }}
-            />
-          </Source>
-        );
-      })()}
+      {layerVisibility.grid_lines &&
+        layers.grid_lines &&
+        !layers.grid_lines._loading &&
+        (() => {
+          const data = layers.grid_lines;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-grid-lines" type="geojson" data={data}>
+              <Layer
+                id="overlay-grid-lines-line"
+                type="line"
+                paint={{
+                  'line-color': '#FFD600',
+                  'line-width': 1.2,
+                  'line-opacity': 0.5,
+                }}
+              />
+            </Source>
+          );
+        })()}
 
       {/* Industrial Facilities */}
-      {layerVisibility['industrial'] && layers['industrial'] && !layers['industrial']._loading && (() => {
-        const points = layers['industrial'].points ?? layers['industrial'];
-        if (!Array.isArray(points) || !points.length) return null;
-        const geojson = {
-          type: 'FeatureCollection' as const,
-          features: points.map((p: { lat: number; lon: number; name?: string }) => ({
-            type: 'Feature' as const,
-            geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
-            properties: { name: p.name ?? '' },
-          })),
-        };
-        return (
-          <Source id="overlay-industrial" type="geojson" data={geojson}>
-            <Layer
-              id="overlay-industrial-circles"
-              type="circle"
-              paint={{
-                'circle-radius': 3,
-                'circle-color': '#F57C00',
-                'circle-stroke-color': '#ffffff',
-                'circle-stroke-width': 0.5,
-                'circle-opacity': 0.6,
-              }}
-            />
-          </Source>
-        );
-      })()}
+      {layerVisibility.industrial &&
+        layers.industrial &&
+        !layers.industrial._loading &&
+        (() => {
+          const points = layers.industrial.points ?? layers.industrial;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map((p: { lat: number; lon: number; name?: string }) => ({
+              type: 'Feature' as const,
+              geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+              properties: { name: p.name ?? '' },
+            })),
+          };
+          return (
+            <Source id="overlay-industrial" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-industrial-circles"
+                type="circle"
+                paint={{
+                  'circle-radius': 3,
+                  'circle-color': '#F57C00',
+                  'circle-stroke-color': '#ffffff',
+                  'circle-stroke-width': 0.5,
+                  'circle-opacity': 0.6,
+                }}
+              />
+            </Source>
+          );
+        })()}
     </>
   );
 }

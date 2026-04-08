@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { useDashboardStore } from '../../store/dashboard';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type { ScorecardRow } from '../../lib/types';
+import { useDashboardStore } from '../../store/dashboard';
 
 /* ---------- Types ---------- */
 
@@ -19,14 +19,31 @@ interface SubstationInfo {
 
 function CloseIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
 
-function StatRow({ label, value, unit }: { label: string; value: string | number | null | undefined; unit?: string }) {
+function StatRow({
+  label,
+  value,
+  unit,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  unit?: string;
+}) {
   const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
   return (
     <div className="flex items-center justify-between py-1.5">
@@ -36,7 +53,17 @@ function StatRow({ label, value, unit }: { label: string; value: string | number
   );
 }
 
-function StatRowWithTip({ label, value, unit, tip }: { label: string; value: string | number | null | undefined; unit?: string; tip: string }) {
+function StatRowWithTip({
+  label,
+  value,
+  unit,
+  tip,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  unit?: string;
+  tip: string;
+}) {
   const [showTip, setShowTip] = useState(false);
   const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
   return (
@@ -120,7 +147,15 @@ function InfoTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <StatRow label="Type" value={row.kek_type ?? null} />
         <StatRow label="Category" value={row.category ?? null} />
-        <StatRow label="Area" value={row.area_ha != null ? row.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 }) : null} unit="ha" />
+        <StatRow
+          label="Area"
+          value={
+            row.area_ha != null
+              ? row.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })
+              : null
+          }
+          unit="ha"
+        />
       </StatCard>
       <StatCard>
         <StatRow label="Province" value={row.province} />
@@ -144,27 +179,61 @@ function InfoTab({ row }: { row: ScorecardRow }) {
   );
 }
 
-function ResourceTab({ row, substations, loadingSubs }: { row: ScorecardRow; substations: SubstationInfo[]; loadingSubs: boolean }) {
+function ResourceTab({
+  row,
+  substations,
+  loadingSubs,
+}: {
+  row: ScorecardRow;
+  substations: SubstationInfo[];
+  loadingSubs: boolean;
+}) {
   const pvoutCentroid = row.pvout_centroid_kwh_kwp_yr;
   const pvoutBest = row.pvout_best_50km_kwh_kwp_yr;
-  const cf = pvoutBest != null ? (pvoutBest / 8760).toFixed(3) : pvoutCentroid != null ? (pvoutCentroid / 8760).toFixed(3) : null;
+  const cf =
+    pvoutBest != null
+      ? (pvoutBest / 8760).toFixed(3)
+      : pvoutCentroid != null
+        ? (pvoutCentroid / 8760).toFixed(3)
+        : null;
   const nearest = substations.find((s) => s.is_nearest);
 
   return (
     <>
       <StatCard>
-        <StatRow label="PVOUT Centroid" value={pvoutCentroid != null ? pvoutCentroid.toFixed(0) : null} unit="kWh/kWp/yr" />
-        <StatRow label="PVOUT Best 50km" value={pvoutBest != null ? pvoutBest.toFixed(0) : null} unit="kWh/kWp/yr" />
+        <StatRow
+          label="PVOUT Centroid"
+          value={pvoutCentroid != null ? pvoutCentroid.toFixed(0) : null}
+          unit="kWh/kWp/yr"
+        />
+        <StatRow
+          label="PVOUT Best 50km"
+          value={pvoutBest != null ? pvoutBest.toFixed(0) : null}
+          unit="kWh/kWp/yr"
+        />
         <StatRow label="Capacity Factor" value={cf} />
       </StatCard>
       <StatCard>
-        <StatRow label="Buildable Area" value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null} unit="ha" />
-        <StatRow label="Max Capacity" value={row.max_captive_capacity_mwp != null ? row.max_captive_capacity_mwp.toFixed(0) : null} unit="MWp" />
-        {row.buildable_area_ha != null && row.buildable_area_ha > 0 && row.buildable_area_ha < 2000 && (
-          <div className="text-[10px] text-amber-400/70 leading-tight mt-1">
-            Note: buildable area is the sum of suitable pixels within 50km at ~1km resolution. Actual contiguous land for a solar farm may be smaller.
-          </div>
-        )}
+        <StatRow
+          label="Buildable Area"
+          value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null}
+          unit="ha"
+        />
+        <StatRow
+          label="Max Capacity"
+          value={
+            row.max_captive_capacity_mwp != null ? row.max_captive_capacity_mwp.toFixed(0) : null
+          }
+          unit="MWp"
+        />
+        {row.buildable_area_ha != null &&
+          row.buildable_area_ha > 0 &&
+          row.buildable_area_ha < 2000 && (
+            <div className="text-[10px] text-amber-400/70 leading-tight mt-1">
+              Note: buildable area is the sum of suitable pixels within 50km at ~1km resolution.
+              Actual contiguous land for a solar farm may be smaller.
+            </div>
+          )}
       </StatCard>
       <StatCard>
         {loadingSubs ? (
@@ -199,7 +268,11 @@ function LCOETab({ row }: { row: ScorecardRow }) {
       )}
       <StatCard>
         <StatRow label="Grid Cost" value={row.grid_cost_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRow label="Gap vs Grid Cost" value={row.solar_competitive_gap_pct?.toFixed(1)} unit="%" />
+        <StatRow
+          label="Gap vs Grid Cost"
+          value={row.solar_competitive_gap_pct?.toFixed(1)}
+          unit="%"
+        />
       </StatCard>
       <StatCard>
         <StatRowWithTip
@@ -229,11 +302,25 @@ function DemandTab({ row }: { row: ScorecardRow }) {
   return (
     <>
       <StatCard>
-        <StatRow label="2030 Demand Estimate" value={demand2030 != null ? demand2030.toFixed(1) : null} unit="GWh" />
+        <StatRow
+          label="2030 Demand Estimate"
+          value={demand2030 != null ? demand2030.toFixed(1) : null}
+          unit="GWh"
+        />
       </StatCard>
       <StatCard>
-        <StatRow label="GEAS Green Share" value={geasShare != null ? `${(geasShare * 100).toFixed(1)}` : null} unit="%" />
-        <StatRow label="Carbon Breakeven" value={row.carbon_breakeven_usd_tco2 != null ? row.carbon_breakeven_usd_tco2.toFixed(1) : null} unit="$/tCO2" />
+        <StatRow
+          label="GEAS Green Share"
+          value={geasShare != null ? `${(geasShare * 100).toFixed(1)}` : null}
+          unit="%"
+        />
+        <StatRow
+          label="Carbon Breakeven"
+          value={
+            row.carbon_breakeven_usd_tco2 != null ? row.carbon_breakeven_usd_tco2.toFixed(1) : null
+          }
+          unit="$/tCO2"
+        />
       </StatCard>
     </>
   );
@@ -247,7 +334,10 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
     <>
       <StatCard>
         <StatRow label="Grid Region" value={row.grid_region_id} />
-        <StatRow label="Grid Upgrade Planned" value={gridUpgrade != null ? (gridUpgrade ? 'Yes' : 'No') : 'N/A'} />
+        <StatRow
+          label="Grid Upgrade Planned"
+          value={gridUpgrade != null ? (gridUpgrade ? 'Yes' : 'No') : 'N/A'}
+        />
       </StatCard>
       {ruptlSummary && (
         <StatCard>
@@ -260,7 +350,13 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
 }
 
 function FlagsTab({ row }: { row: ScorecardRow }) {
-  const flagKeys = ['solar_now', 'invest_resilience', 'grid_first', 'plan_late', 'not_competitive'] as const;
+  const flagKeys = [
+    'solar_now',
+    'invest_resilience',
+    'grid_first',
+    'plan_late',
+    'not_competitive',
+  ] as const;
   const activeFlag = row.action_flag;
 
   return (
@@ -277,7 +373,11 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
       </StatCard>
       <StatCard>
         <StatRow label="Grid Cost Proxy" value={row.grid_cost_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRow label="BPP" value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null} unit="$/MWh" />
+        <StatRow
+          label="BPP"
+          value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}
+          unit="$/MWh"
+        />
         <StatRow label="Project Viable" value={row.project_viable ? 'Yes' : 'No'} />
       </StatCard>
     </>
@@ -374,9 +474,7 @@ export default function ScoreDrawer() {
           <div className="px-4 pt-4 pb-2">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <h2 className="text-sm font-semibold text-white truncate">
-                  {row.kek_name}
-                </h2>
+                <h2 className="text-sm font-semibold text-white truncate">{row.kek_name}</h2>
                 <div className="text-[11px] text-zinc-500 mt-0.5">
                   {row.province} &middot; {row.grid_region_id}
                 </div>

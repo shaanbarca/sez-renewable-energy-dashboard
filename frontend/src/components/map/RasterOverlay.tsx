@@ -1,4 +1,4 @@
-import { Source, Layer } from 'react-map-gl/maplibre';
+import { Layer, Source } from 'react-map-gl/maplibre';
 import { useDashboardStore } from '../../store/dashboard';
 
 interface RasterLayerData {
@@ -23,7 +23,12 @@ export default function RasterOverlay() {
         // Convert [[lat_min, lon_min], [lat_max, lon_max]] to MapLibre 4-corner format
         // MapLibre expects: [top-left, top-right, bottom-right, bottom-left] as [lon, lat]
         const [[latMin, lonMin], [latMax, lonMax]] = data.bounds;
-        const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+        const coordinates: [
+          [number, number],
+          [number, number],
+          [number, number],
+          [number, number],
+        ] = [
           [lonMin, latMax], // top-left
           [lonMax, latMax], // top-right
           [lonMax, latMin], // bottom-right
@@ -38,11 +43,7 @@ export default function RasterOverlay() {
             url={data.image_url}
             coordinates={coordinates}
           >
-            <Layer
-              id={`${name}-raster-layer`}
-              type="raster"
-              paint={{ 'raster-opacity': 0.6 }}
-            />
+            <Layer id={`${name}-raster-layer`} type="raster" paint={{ 'raster-opacity': 0.6 }} />
           </Source>
         );
       })}

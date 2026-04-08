@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-} from 'recharts';
+import { Area, AreaChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fetchRuptlMetrics } from '../../lib/api';
 import { RUPTL_REGION_COLORS } from '../../lib/constants';
 
@@ -136,9 +128,7 @@ export default function RuptlChart() {
               fontSize: 12,
             }}
           />
-          <Legend
-            wrapperStyle={{ color: '#e0e0e0', fontSize: 11 }}
-          />
+          <Legend wrapperStyle={{ color: '#e0e0e0', fontSize: 11 }} />
           {regions.map((region) => (
             <Area
               key={region}

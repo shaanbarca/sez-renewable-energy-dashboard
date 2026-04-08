@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import { useState } from 'react';
+import type { BottomTab } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
-import DataTable from '../table/DataTable';
 import QuadrantChart from '../charts/QuadrantChart';
 import RuptlChart from '../charts/RuptlChart';
-import type { BottomTab } from '../../lib/types';
+import DataTable from '../table/DataTable';
 
 const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'table', label: 'Ranked Table' },

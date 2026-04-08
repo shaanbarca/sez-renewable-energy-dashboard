@@ -1,9 +1,9 @@
 import type {
+  BenchmarkMode,
   DefaultsResponse,
   ScorecardResponse,
   UserAssumptions,
   UserThresholds,
-  BenchmarkMode,
 } from './types';
 
 export async function fetchDefaults(): Promise<DefaultsResponse> {
@@ -42,10 +42,7 @@ export async function fetchKekPolygon(kekId: string): Promise<unknown> {
   return res.json();
 }
 
-export async function fetchKekSubstations(
-  kekId: string,
-  radiusKm?: number,
-): Promise<unknown> {
+export async function fetchKekSubstations(kekId: string, radiusKm?: number): Promise<unknown> {
   const params = radiusKm != null ? `?radius_km=${radiusKm}` : '';
   const res = await fetch(`/api/kek/${encodeURIComponent(kekId)}/substations${params}`);
   if (!res.ok) throw new Error(`GET /api/kek/${kekId}/substations failed: ${res.status}`);

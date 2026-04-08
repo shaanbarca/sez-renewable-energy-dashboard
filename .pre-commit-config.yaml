@@ -5,3 +5,11 @@ repos:
       - id: ruff            # lint + auto-fix (imports, unused vars, etc.)
         args: [--fix]
       - id: ruff-format     # format (black-compatible)
+  - repo: local
+    hooks:
+      - id: biome-check
+        name: biome (format + lint TypeScript)
+        language: system
+        entry: bash -c 'cd frontend && npx biome check --write --no-errors-on-unmatched "$@"' --
+        types_or: [javascript, jsx, ts, tsx]
+        pass_filenames: true

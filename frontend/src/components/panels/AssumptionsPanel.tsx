@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
 import * as Accordion from '@radix-ui/react-accordion';
-import { useDashboardStore } from '../../store/dashboard';
-import { useScorecard } from '../../hooks/useScorecard';
+import { useEffect, useRef, useState } from 'react';
 import { useDraggable } from '../../hooks/useDraggable';
-import Slider from '../ui/Slider';
+import { useScorecard } from '../../hooks/useScorecard';
 import type { SliderConfig, UserAssumptions, UserThresholds } from '../../lib/types';
+import { useDashboardStore } from '../../store/dashboard';
+import Slider from '../ui/Slider';
 
 /* ---------- sub-components ---------- */
 
@@ -44,12 +44,8 @@ function SummaryBlock() {
           className="flex-1 px-2 py-1.5 rounded text-center"
           style={{ background: 'rgba(255,255,255,0.04)' }}
         >
-          <div className="text-[9px] text-zinc-500 uppercase tracking-wider">
-            {item.label}
-          </div>
-          <div className="text-xs font-medium text-zinc-200 tabular-nums">
-            {item.value}
-          </div>
+          <div className="text-[9px] text-zinc-500 uppercase tracking-wider">{item.label}</div>
+          <div className="text-xs font-medium text-zinc-200 tabular-nums">{item.value}</div>
         </div>
       ))}
     </div>
@@ -124,7 +120,10 @@ function BenchmarkToggle() {
       <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
         Grid Cost Benchmark
       </div>
-      <div className="flex rounded overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+      <div
+        className="flex rounded overflow-hidden"
+        style={{ background: 'rgba(255,255,255,0.04)' }}
+      >
         {options.map((opt) => (
           <button
             key={opt.value}
@@ -145,11 +144,7 @@ function BenchmarkToggle() {
 
 /* ---------- accordion trigger ---------- */
 
-function AccordionTrigger({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function AccordionTrigger({ children }: { children: React.ReactNode }) {
   return (
     <Accordion.Trigger className="flex items-center justify-between w-full py-1.5 text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-400 transition-colors group">
       <span>{children}</span>
@@ -221,9 +216,7 @@ export default function AssumptionsPanel() {
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-zinc-200">Assumptions</span>
-          {loading && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#90CAF9] animate-pulse" />
-          )}
+          {loading && <span className="w-1.5 h-1.5 rounded-full bg-[#90CAF9] animate-pulse" />}
         </div>
         <ChevronDown
           className={`text-zinc-500 transition-transform duration-200 ${
@@ -240,7 +233,15 @@ export default function AssumptionsPanel() {
           opacity: collapsed ? 0 : 1,
         }}
       >
-        <div ref={bodyRef} className="px-3.5 pb-3 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent', maxHeight: 'calc(100vh - 150px)' }}>
+        <div
+          ref={bodyRef}
+          className="px-3.5 pb-3 overflow-y-auto"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255,255,255,0.15) transparent',
+            maxHeight: 'calc(100vh - 150px)',
+          }}
+        >
           <SummaryBlock />
 
           {/* Tier 1: Core */}

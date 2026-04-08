@@ -9,7 +9,6 @@ import { useDashboardStore } from '../store/dashboard';
 export function useScorecard() {
   const assumptions = useDashboardStore((s) => s.assumptions);
   const thresholds = useDashboardStore((s) => s.thresholds);
-  const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
   const recomputeScorecard = useDashboardStore((s) => s.recomputeScorecard);
 
   const [loading, setLoading] = useState(false);
@@ -56,7 +55,7 @@ export function useScorecard() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [assumptions, thresholds, benchmarkMode, recomputeScorecard]);
+  }, [assumptions, thresholds, recomputeScorecard]);
 
   return { loading };
 }
