@@ -26,6 +26,9 @@ interface DashboardStore {
   benchmarkMode: BenchmarkMode;
   energyMode: EnergyMode;
   loading: boolean;
+  walkthroughPersona: string | null;
+  walkthroughStep: number;
+  walkthroughDismissed: boolean;
 
   // Cached layer data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,6 +46,11 @@ interface DashboardStore {
   recomputeScorecard: () => Promise<void>;
   resetDefaults: () => void;
   initialize: () => Promise<void>;
+  setWalkthroughPersona: (p: string | null) => void;
+  nextWalkthroughStep: () => void;
+  prevWalkthroughStep: () => void;
+  dismissWalkthrough: () => void;
+  restartWalkthrough: () => void;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -65,6 +73,9 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   benchmarkMode: 'bpp',
   energyMode: 'solar',
   loading: true,
+  walkthroughPersona: null,
+  walkthroughStep: 0,
+  walkthroughDismissed: localStorage.getItem('walkthrough_dismissed') === 'true',
 
   // Cached layer data
   layers: {},
@@ -120,6 +131,20 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       });
     }
   },
+
+  setWalkthroughPersona: (p) => set({ walkthroughPersona: p, walkthroughStep: 0 }),
+
+  nextWalkthroughStep: () => set((s) => ({ walkthroughStep: s.walkthroughStep + 1 })),
+
+  prevWalkthroughStep: () => set((s) => ({ walkthroughStep: Math.max(0, s.walkthroughStep - 1) })),
+
+  dismissWalkthrough: () => {
+    localStorage.setItem('walkthrough_dismissed', 'true');
+    set({ walkthroughDismissed: true, walkthroughPersona: null, walkthroughStep: 0 });
+  },
+
+  restartWalkthrough: () =>
+    set({ walkthroughDismissed: false, walkthroughPersona: null, walkthroughStep: 0 }),
 
   initialize: async () => {
     set({ loading: true });

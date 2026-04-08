@@ -5,6 +5,7 @@ import AssumptionsPanel from './components/panels/AssumptionsPanel';
 import ScoreDrawer from './components/panels/ScoreDrawer';
 import BottomPanel from './components/ui/BottomPanel';
 import Header from './components/ui/Header';
+import WalkthroughModal from './components/ui/WalkthroughModal';
 import { useDashboardStore } from './store/dashboard';
 
 function App() {
@@ -17,10 +18,12 @@ function App() {
   return (
     <div className="h-screen relative bg-[#121212] overflow-hidden">
       {/* MAP — full screen behind everything */}
-      <MapView />
+      <div data-tour="map" className="absolute inset-0">
+        <MapView />
+      </div>
 
       {/* HEADER — liquid glass overlay on top of map */}
-      <div className="absolute top-0 left-0 right-0 z-30">
+      <div data-tour="header" className="absolute top-0 left-0 right-0 z-30">
         <Header />
       </div>
 
@@ -34,9 +37,12 @@ function App() {
       <RasterLegend />
 
       {/* BOTTOM PANEL */}
-      <div className="absolute bottom-0 left-0 right-0 z-10">
+      <div data-tour="bottom-panel" className="absolute bottom-0 left-0 right-0 z-10">
         <BottomPanel />
       </div>
+
+      {/* WALKTHROUGH TOUR */}
+      <WalkthroughModal />
     </div>
   );
 }

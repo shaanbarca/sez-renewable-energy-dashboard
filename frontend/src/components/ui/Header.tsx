@@ -4,6 +4,19 @@ import ActionFlagLegend from './ActionFlagLegend';
 import EnergyToggle from './EnergyToggle';
 import MethodologyModal from './MethodologyModal';
 
+function GuideButton() {
+  const restart = useDashboardStore((s) => s.restartWalkthrough);
+  return (
+    <button
+      type="button"
+      onClick={restart}
+      className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+    >
+      Guide
+    </button>
+  );
+}
+
 export default function Header() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const kekCount = scorecard?.length ?? 0;
@@ -29,6 +42,7 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
+          <GuideButton />
           <button
             type="button"
             onClick={() => setMethodologyOpen(true)}
