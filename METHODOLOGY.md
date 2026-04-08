@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
-**Version:** 0.2 (implemented)
-**Status:** ✅ Fully implemented in code — 9 pipeline steps, 25 KEKs, 171 tests passing
+**Version:** 0.3 (updated April 2026)
+**Status:** ✅ Fully implemented in code — 11 pipeline steps, 25 KEKs, 302 tests passing
 **Intended audience:** Energy economists, development bank analysts, peer reviewers
 
 This document specifies the analytical methodology used in the Indonesia KEK Power Competitiveness tool. It serves three purposes:
@@ -29,6 +29,12 @@ All formulas are stated with explicit units. All assumptions are documented with
   - [2A.3 Power Wheeling](#2a3-power-wheeling--legally-permitted-practically-blocked)
   - [2A.4 Two Siting Scenarios](#2a4-two-siting-scenarios)
   - [2A.5 Model Scope](#2a5-model-scope-phase-2-complete)
+- [2B. Wind Resource: Capacity Factor from Wind Speed](#2b-wind-resource-capacity-factor-from-wind-speed)
+  - [2B.1 Input data](#2b1-input-data)
+  - [2B.2 Wind speed extraction per KEK](#2b2-wind-speed-extraction-per-kek)
+  - [2B.3 Wind capacity factor](#2b3-wind-capacity-factor)
+  - [2B.4 Wind LCOE](#2b4-wind-lcoe)
+  - [2B.5 Best RE technology selection](#2b5-best-re-technology-selection)
 - [3. Levelized Cost of Energy (LCOE)](#3-levelized-cost-of-energy-lcoe)
   - [3.1 Formula](#31-formula)
   - [3.2 Technology parameters](#32-technology-parameters-tech006--utility-scale-solar-pv)
@@ -37,6 +43,7 @@ All formulas are stated with explicit units. All assumptions are documented with
 - [4. Grid Cost Reference](#4-grid-cost-reference)
   - [4.1 What is being compared](#41-what-is-being-compared)
   - [4.2 Coverage by PLN grid system](#42-coverage-by-pln-grid-system)
+  - [4.3 Benchmark mode](#43-benchmark-mode-user-selectable)
 - [5. Competitiveness Metrics and Action Flags](#5-competitiveness-metrics-and-action-flags)
   - [5.1 Solar competitive gap](#51-solar-competitive-gap)
   - [5.2 Action flags](#52-action-flags)
@@ -70,10 +77,17 @@ $$CRF = \frac{r \cdot (1+r)^n}{(1+r)^n - 1}$$
 
 $$LCOE = \frac{CAPEX \cdot CRF + FOM}{CF \times 8.76} \quad [\text{USD/MWh}]$$
 
+**Step 2b — Wind resource** (v0.3, implemented)
+
+$$CF_{\text{wind}} = f(\text{wind\_speed}_{100m})$$
+
+Piecewise-linear empirical mapping (see Section 2B.3). Wind LCOE computed with same CRF annuity method using wind-specific CAPEX/FOM/lifetime.
+
 **Step 3 — Grid cost reference** (Permen ESDM No.7/2024, Lampiran IV)
 - I-4/TT tariff = 996.74 Rp/kWh $\approx$ 63.1 USD/MWh (uniform nationwide)
 - I-3/TM tariff = 1,035.78 Rp/kWh $\approx$ 65.6 USD/MWh (uniform nationwide)
-- BPP Pembangkitan varies by PLN system (Kepmen ESDM 169/2021; I-4/TT used as primary comparator)
+- BPP Pembangkitan varies by PLN system (Kepmen ESDM 169/2021)
+- **Benchmark mode** (user-selectable): tariff (what tenants pay, default) or BPP (what electricity costs PLN to generate). Switches the grid cost comparator used in gap and action flag calculations.
 
 **Step 4 — Competitiveness gap**
 
@@ -92,31 +106,36 @@ Negative = solar already cheaper; Positive = solar more expensive
 | Input | Value / Range | Source |
 |-------|--------------|--------|
 | PVOUT | 1,296–1,730 kWh/kWp/yr (extracted) | Global Solar Atlas v2 GeoTIFF |
-| CF | 0.148–0.197 | Derived from PVOUT ÷ 8,760 |
-| CAPEX (central) | 960 USD/kW | ESDM Tech Catalogue 2023, TECH006, p.66 (0.96 MUSD/MWe) |
-| FOM | 7.5 USD/kW/yr | ESDM Tech Catalogue 2023, TECH006, p.66 (7,500 USD/MWe/yr) |
-| WACC | 4–20% (slider, 9 snap points); default 10% | User-adjustable |
-| Lifetime | 27 years | ESDM Tech Catalogue 2023, TECH006, p.66 |
-| Grid cost (primary) | 63.1 USD/MWh (I-4/TT) | Permen ESDM No.7/2024, uniform national |
-| Grid cost (secondary) | 65.6 USD/MWh (I-3/TM) | Permen ESDM No.7/2024, uniform national |
+| Solar CF | 0.148–0.197 | Derived from PVOUT ÷ 8,760 |
+| Wind speed (100m) | 2–8 m/s (Indonesia range) | Global Wind Atlas v3 GeoTIFF |
+| Wind CF | 0.00–0.27 | Piecewise-linear from wind speed (Section 2B.3) |
+| Solar CAPEX (central) | 960 USD/kW | ESDM Tech Catalogue 2023, TECH006, p.66 |
+| Solar FOM | 7.5 USD/kW/yr | ESDM Tech Catalogue 2023, TECH006, p.66 |
+| Wind CAPEX/FOM/Lifetime | from ESDM catalogue | TECH_WIND_ONSHORE |
+| WACC | 4–20% (slider, default 10%) | User-adjustable |
+| Solar lifetime | 27 years | ESDM Tech Catalogue 2023, TECH006, p.66 |
+| Grid cost (tariff mode) | 63.1 USD/MWh (I-4/TT) | Permen ESDM No.7/2024, uniform national |
+| Grid cost (BPP mode) | 57–133 USD/MWh by region | Kepmen ESDM 169/2021 |
+| Benchmark mode | Tariff (default) or BPP | User-selectable toggle |
 | GEAS allocation | Pro-rata by demand share | RUPTL 2025–2034 pre-2030 solar additions |
 
 ### Critical caveats
 
 - **PVOUT is filtered through all 4 buildability layers.** Kawasan Hutan (KLHK 66K-polygon forest estate, Sep 2017), peatland (KLHK vector boundaries), ESA WorldCover land cover, and DEM slope/elevation are all applied. With all files present, `resource_quality = "filtered"`. The pipeline falls back gracefully if any file is missing.
-- **I-4/TT tariff ≠ BPP.** The tariff is what KEK tenants pay. PLN BPP Pembangkitan (generation cost of supply, Kepmen ESDM 169/2021) varies by region: Java-Bali ~$57/MWh vs Papua ~$133/MWh. Both are now in the model — tariff as primary comparator, BPP as secondary reference for actual cost-of-supply analysis.
+- **I-4/TT tariff ≠ BPP.** The tariff is what KEK tenants pay. PLN BPP Pembangkitan (generation cost of supply, Kepmen ESDM 169/2021) varies by region: Java-Bali ~$57/MWh vs Papua ~$133/MWh. Both are in the model. Users can toggle between tariff and BPP as the grid cost comparator (see Section 4.3).
 - **CAPEX/FOM are verified.** TECH006 values are sourced from the ESDM Technology Catalogue 2023, datasheet p.66, and stored as `VERIFIED_TECH006_DATA` in `src/pipeline/pdf_extract_esdm_tech.py`.
-- **IDR/USD rate:** 15,800 IDR/USD (2024 reference). Tariff in IDR is subject to quarterly tariff adjustment (Pasal 6, Permen ESDM No.7/2024).
+- **Wind is included.** Onshore wind LCOE is computed per KEK using Global Wind Atlas v3 data and ESDM TECH_WIND_ONSHORE parameters. `best_re_technology` selects the cheaper of solar vs wind.
+- **IDR/USD rate:** 15,800 IDR/USD (default, user-adjustable via Tier 2 slider: 14,000–18,000). Tariff in IDR is subject to quarterly tariff adjustment (Pasal 6, Permen ESDM No.7/2024).
 
 ---
 
 ## 1. Scope and Core Question
 
-**Question:** For each of Indonesia's 24 Special Economic Zones (KEK), is utility-scale solar captive generation currently cheaper than buying power from the PLN grid — and if not, how close is it, and what would change that?
+**Question:** For each of Indonesia's 25 Special Economic Zones (KEK), is utility-scale renewable captive generation currently cheaper than buying power from the PLN grid — and if not, how close is it, and what would change that?
 
-**Unit of analysis:** KEK zone (24 zones). Results are at zone level, not tenant level or project level. A zone-level finding that "Kendal is 12% away from solar-competitive" means the representative economics for a utility-scale captive solar plant at that zone, not for any specific tenant's load profile.
+**Unit of analysis:** KEK zone (25 zones). Results are at zone level, not tenant level or project level. A zone-level finding that "Kendal is 12% away from solar-competitive" means the representative economics for a utility-scale captive renewable plant at that zone, not for any specific tenant's load profile.
 
-**Technology scope (MVP):** Utility-scale ground-mounted PV (TECH006 in the ESDM Technology Catalogue). No wind, geothermal, or storage in the base model; architecture supports extension.
+**Technology scope:** Utility-scale ground-mounted solar PV (TECH006) and onshore wind (TECH_WIND_ONSHORE) from the ESDM Technology Catalogue. The model computes LCOE for both technologies per KEK and selects the cheaper option as `best_re_technology`. No geothermal or storage in the base model; architecture supports extension.
 
 **Time horizon:** Current economics (2023–2025 cost vintage). No forward cost projections in MVP.
 
@@ -436,9 +455,9 @@ This model evaluates two distinct captive solar configurations per KEK:
 
 **Output:** `fct_lcoe.csv` — 450 rows (25 KEKs × 9 WACCs × 2 scenarios). See §3.3 for the full WACC range. Scorecard uses `within_boundary` at WACC=10% as the base-case dashboard comparator.
 
-**Deferred to Phase 3:**
-- Transmission lease fee parameterisation (currently excluded; adds ~5–15 USD/MWh at scale)
-- WACC sensitivity for gen-tie cost specifically (gen-tie often financed separately from plant)
+**Phase 3 status:**
+- ✅ Transmission lease fee — implemented as user-adjustable Tier 2 slider ($3–20/MWh, default $10). Exposed in `lcoe_allin_*` columns.
+- ⏳ WACC sensitivity for gen-tie cost specifically (gen-tie often financed separately from plant) — deferred
 
 **Regulatory sources:**
 - UU No. 30 Tahun 2009 (Ketenagalistrikan)
@@ -447,6 +466,70 @@ This model evaluates two distinct captive solar configurations per KEK:
 - Permen ESDM No. 1 Tahun 2017 (Persyaratan Teknik Penyambungan ke Sistem Tenaga Listrik)
 - Permen ESDM No. 27 Tahun 2017 (Tingkat Mutu Pelayanan dan Biaya yang Terkait dengan Penyaluran Tenaga Listrik)
 - Permen ESDM No. 11 Tahun 2021 (Pelaksanaan Kegiatan Usaha Penyediaan Tenaga Listrik)
+
+---
+
+## 2B. Wind Resource: Capacity Factor from Wind Speed
+
+### 2B.1 Input data
+
+**Source:** Global Wind Atlas v3 (DTU / World Bank), long-term average
+**Layer used:** Mean annual wind speed at 100m hub height
+**Native unit:** m/s
+
+### 2B.2 Wind speed extraction per KEK
+
+Same 50km radius methodology as solar PVOUT (Section 2.4). Two values per KEK:
+
+| Field | Definition | Use |
+|-------|-----------|-----|
+| `wind_speed_centroid_ms` | Wind speed at KEK centroid | Reference |
+| `wind_speed_best_50km_ms` | Maximum wind speed pixel within 50km | **Primary: used for wind LCOE** |
+
+**Implementation:** `src/pipeline/build_fct_kek_wind_resource.py`
+
+### 2B.3 Wind capacity factor
+
+Wind speed is converted to capacity factor using an empirical piecewise-linear approximation calibrated to Indonesian conditions:
+
+| Wind speed (m/s) | CF | Context |
+|---|---|---|
+| $\leq$ 3.0 | 0.00 | Below cut-in, no generation |
+| 4.0 | 0.08 | Marginal, near cut-in |
+| 5.0 | 0.15 | Low wind |
+| 6.0 | 0.22 | Moderate (ESDM lower range) |
+| 7.5 | 0.27 | ESDM catalogue central CF for best Indonesian sites |
+| 8.5 | 0.32 | IEC Class II/III boundary |
+| 10.0 | 0.38 | IEC Class I, excellent |
+| $\geq$ 12.0 | 0.42 | Plateau (turbine at rated power) |
+
+**Reference turbine:** Vestas V126/3.45 MW (IEC Class III, low-wind design). Calibrated to ESDM Technology Catalogue 2024, p.90.
+
+**Implementation:** `wind_speed_to_cf()` in `src/model/basic_model.py`; linear interpolation between breakpoints.
+
+### 2B.4 Wind LCOE
+
+Wind LCOE uses the same CRF annuity formula as solar (Section 3.1), with wind-specific technology parameters from `dim_tech_cost_wind`:
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| CAPEX | from ESDM TECH_WIND_ONSHORE | `src/pipeline/build_dim_tech_cost_wind.py` |
+| FOM | from ESDM TECH_WIND_ONSHORE | Same |
+| Lifetime | from ESDM TECH_WIND_ONSHORE | Same |
+
+**Implementation:** `src/pipeline/build_fct_lcoe_wind.py`
+
+### 2B.5 Best RE technology selection
+
+The scorecard compares solar LCOE and wind LCOE per KEK at the user's selected WACC. The cheaper technology is stored as `best_re_technology` (`"solar"` or `"wind"`) with corresponding `lcoe_best_re_usd_mwh`. This drives the dashboard's competitive gap and action flag calculations when `energyMode = "overall"`.
+
+**Energy mode** (user-selectable in dashboard):
+
+| Mode | Behavior |
+|------|----------|
+| `solar` | Show solar LCOE and flags only |
+| `wind` | Show wind LCOE and flags only |
+| `overall` | Use `best_re_technology` (cheaper of solar vs wind per KEK) |
 
 ---
 
@@ -542,7 +625,20 @@ The LCOE is compared against the **cost of grid-supplied electricity** to a KEK 
 - `dashboard_rate_usd_mwh` = I-4/TT tariff ($63.08/MWh) — the correct primary comparator for large industrial KEK tenants. Flagged `OFFICIAL` in `fct_grid_cost_proxy`.
 - I-3/TM ($65.57/MWh) is stored as `tariff_i3_usd_mwh` — available for smaller tenant analysis.
 - Both tariffs are **uniform nationwide** (Permen ESDM No. 7/2024, Lampiran IV). No regional variation.
-- BPP Pembangkitan is now populated from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` ranges from ~$57/MWh (Java-Bali) to ~$133/MWh (Papua). Used as secondary reference — I-4/TT remains primary comparator. BPP is generation cost only, not full cost-of-supply.
+- BPP Pembangkitan is now populated from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` ranges from ~$57/MWh (Java-Bali) to ~$133/MWh (Papua). BPP is generation cost only, not full cost-of-supply.
+
+### 4.3 Benchmark mode (user-selectable)
+
+The dashboard provides a toggle between two grid cost comparators:
+
+| Mode | Comparator | Use case |
+|------|-----------|----------|
+| **Tariff** (default) | I-4/TT ($63.08/MWh, uniform) | "Can a KEK tenant save money vs. their electricity bill?" |
+| **BPP** | Regional BPP Pembangkitan ($57–133/MWh) | "Is captive solar cheaper than what it actually costs PLN to generate?" |
+
+When benchmark mode is set to BPP, the competitive gap, action flags, and carbon breakeven are all recomputed using `bpp_usd_mwh` instead of the I-4 tariff. This dramatically changes results: at BPP, eastern Indonesia KEKs (Papua, NTB, Kalimantan) with high BPP become solar-competitive even at WACC=10%, while Java-Bali KEKs (low BPP ~$57/MWh) become harder to flip.
+
+**Implementation:** `POST /api/scorecard` accepts `benchmark_mode: "bpp" | "tariff"`. Backend conditionally substitutes `bpp_usd_mwh` for `dashboard_rate_usd_mwh` before recomputing.
 
 ### 4.2 Coverage by PLN grid system
 
@@ -680,7 +776,7 @@ The Operating Margin (OM) is the correct metric here: it represents the emission
 | MALUKU | Morotai | 0.60 | Daruba-Morotai | 12 | KESDM 2019 |
 | PAPUA | Sorong | 0.56 | Sorong | 11 | KESDM 2019 |
 
-Source: KESDM Tier 2 grid emission factor database, 2019 vintage (`data/grid_emission_factors.xlsx`, gatrik.esdm.go.id). File: `src/assumptions.py → GRID_EMISSION_FACTOR_T_CO2_MWH`. Refine when KESDM publishes updated Tier 2 factors (typically every 2–3 years).
+Source: KESDM Tier 2 grid emission factor database, 2019 vintage (`data/grid_emission_factors.xlsx`, gatrik.esdm.go.id). File: `src/assumptions.py → GRID_EMISSION_FACTOR_T_CO2_MWH`. **⚠️ These factors are now 7 years old (2019 vintage, as of April 2026).** Indonesia's grid mix has shifted since then (increased coal share in some regions, new gas and RE additions). Updated KESDM Tier 2 factors should be substituted when published.
 
 **Policy implications of corrected values:**
 - Kalimantan (OM=1.16) has the highest emission intensity — solar displaces the most carbon per MWh, bringing breakeven carbon prices down to ~$16–17/tCO2 even at 30%+ LCOE premium.
@@ -734,17 +830,17 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | Limitation | Impact | Mitigation |
 |-----------|--------|------------|
 | PVOUT from Global Solar Atlas, not site-specific measurement | ±5–10% LCOE uncertainty | Use `pvout_best_50km` not centroid; show LCOE band (low/mid/high) |
-| Buildability filter is partial (2/4 layers with automated data) | With DEM + ESA WorldCover present, slope/elevation and land cover exclusions are applied; `resource_quality = "partial_filter (2/4 layers)"`. Kawasan Hutan and peatland layers require manual download from KLHK geoportal. Without all 4 layers, `pvout_buildable_best_50km` may overstate buildable resource, especially on Java (agriculture/density) and Sulawesi (Kawasan Hutan + steep terrain); expected available area after all filters: 10–35% of 50km radius depending on island (see Section 2.5) | `resource_quality` flag in scorecard shows filter status; `buildable_area_ha` and `max_captive_capacity_mwp` are computed from whatever layers are present |
+| ~~Buildability filter is partial (2/4 layers with automated data)~~ | ~~`pvout_buildable_best_50km` may overstate buildable resource~~ | ✅ Resolved — all 4 buildability layers now active (Kawasan Hutan, peatland, ESA WorldCover, DEM slope/elevation). `resource_quality = "filtered"` when all files present. 7/25 KEKs show zero buildable area due to kawasan hutan overlap. Flood hazard (Layer 2d) and road proximity (Layer 3a) deferred to v1.2. |
 | Panel degradation not modeled | CRF annuity method assumes constant annual production. Solar panels degrade ~0.5%/yr; by year 27, output is ~87% of year 1. LCOE is understated by ~6–7% | Standard for screening-level models (IEA, IRENA use same simplification). For project-level analysis, apply degradation-adjusted CF = CF × (1 − 0.5% × n/2) |
 | Solar lifecycle emissions excluded from carbon breakeven | `carbon_breakeven_usd_tco2` assumes zero solar emissions. Actual lifecycle: ~40 gCO2/MWh (IPCC AR6 median). Breakeven prices are ~5–8% too optimistic | Add footnote to carbon breakeven output; corrected formula: `gap / (grid_EF − 0.040)` |
-| IDR/USD exchange rate hardcoded (15,800) | Rupiah volatility (14,500–16,500 range, 2023–2025) affects grid cost benchmark. A 5% FX move changes grid cost by ~$3/MWh, potentially flipping marginal KEKs | No FX sensitivity in MVP; note magnitude in dashboard tooltip |
+| ~~IDR/USD exchange rate hardcoded (15,800)~~ | ~~No FX sensitivity~~ | ✅ Resolved — IDR/USD rate is now a user-adjustable Tier 2 slider (range: 14,000–18,000, default: 15,800). Changes affect grid tariff conversion and all downstream comparisons. |
 | ~~Grid cost proxy may be BPP, not actual industrial tariff~~ | ~~LCOE gap overstated if BPP > tariff~~ | ✅ Resolved — I-4/TT tariff is primary comparator; BPP Pembangkitan (Kepmen ESDM 169/2021) now populated as secondary reference |
 | LCOE excludes firming costs (within_boundary) | On-site all-in cost understated by ~$6–16/MWh for intermittency backup | `lcoe_solar_with_firming()` in `basic_model.py`; not yet a dedicated scorecard column |
 | ~~LCOE excludes transmission lease (remote_captive)~~ | ~~All-in PPA cost understated for 23/25 KEKs~~ | ✅ Implemented — `lcoe_allin_*` in `fct_lcoe`; `lcoe_remote_captive_allin_*` in scorecard. Adder = $5–15/MWh ($10 mid). |
 | KEK demand figures not available (using RUPTL region-level data) | GEAS allocation is approximate | Label `green_share_geas` as indicative, not contractual |
 | RUPTL capacity additions are planned, not committed | `grid_upgrade_pre2030` and `plan_late` flags may change | Vintage-stamp RUPTL data; re-run on new RUPTL releases |
 | No reliability data (SAIDI/SAIFI) | Cannot quantify reliability premium for captive solar | Deferred to v2 when PLN data is available |
-| No wind or geothermal in base model | Understates clean power options for some zones (e.g., Sulawesi) | Architecture supports extension; add Wind CF as v1.1 |
+| ~~No wind or geothermal in base model~~ | ~~Understates clean power options~~ | ✅ Resolved — onshore wind fully implemented (Section 2B). Wind LCOE computed per KEK using Global Wind Atlas v3. `best_re_technology` selects cheaper of solar vs wind. Geothermal remains deferred. |
 | CAPEX from ESDM catalogue, not Indonesia-specific market data | Actual Indonesian solar CAPEX may vary ±15–20% from catalogue | Show CAPEX sensitivity (low/mid/high) in LCOE bands |
 
 ---
@@ -766,7 +862,43 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | Firming/wheeling adder | $6–16/MWh | Industry estimates; not empirically validated for Indonesia | Shown as range, labeled as approximate |
 | Panel degradation | Not modeled (constant CF assumed) | CRF annuity method assumes flat annual production. Actual ~0.5%/yr degradation understates LCOE by ~6–7% over 27 years. Standard for IEA/IRENA screening models | For project-level analysis, adjust CF downward |
 | Solar lifecycle emissions | Excluded from carbon breakeven | ~40 gCO2/MWh (IPCC AR6 median) not subtracted from grid displacement. Breakeven prices ~5–8% optimistic | Note in dashboard tooltip; use corrected formula for formal analysis |
-| IDR/USD exchange rate | 15,800 (2024 reference, hardcoded) | Rupiah volatility (14,500–16,500 range, 2023–2025) not modeled. ~$3/MWh grid cost change per 5% FX move | Fixed in MVP; note sensitivity in dashboard |
+| IDR/USD exchange rate | 15,800 (default) | 2024 reference. User-adjustable slider: 14,000–18,000 | Tier 2 slider; ~$3/MWh grid cost change per 5% FX move |
+
+### User-adjustable parameters (dashboard sliders)
+
+The dashboard exposes three tiers of adjustable parameters. All recompute the scorecard in real-time via `POST /api/scorecard`.
+
+**Tier 1 (primary):**
+
+| Slider | Default | Range | Effect |
+|--------|---------|-------|--------|
+| WACC | 10% | 4–20% (1% steps) | Changes LCOE via CRF; primary sensitivity lever |
+| CAPEX | 960 USD/kW | 500–1500 (10 steps) | Solar overnight capital cost |
+| Lifetime | 27 years | 20–35 (1 step) | Asset duration in CRF formula |
+
+**Tier 2 (cost structure):**
+
+| Slider | Default | Range | Effect |
+|--------|---------|-------|--------|
+| Fixed O&M | 7.5 $/kW-yr | 3–15 | Annual maintenance cost |
+| Gen-tie cost | 5 $/kW-km | 2–12 | Transmission line build cost |
+| Substation works | 150 $/kW | 80–250 | Interconnection cost |
+| Transmission lease | 10 $/MWh | 3–20 | Ongoing wheeling fee |
+| Firming adder | 11 $/MWh | 5–20 | Battery/backup cost |
+| IDR/USD rate | 15,800 | 14,000–18,000 | Exchange rate for tariff conversion |
+
+**Tier 3 (thresholds and flags):**
+
+| Slider | Default | Range | Effect |
+|--------|---------|-------|--------|
+| PVOUT threshold | 1,550 kWh/kWp | 1,200–1,800 | Minimum solar yield for `solar_attractive` |
+| Plan-late threshold | 0.60 | 0.30–1.00 | Post-2030 share cutoff for `plan_late` flag |
+| GEAS threshold | 0.30 | 0.05–0.50 | Minimum green share for `solar_now` flag |
+| Resilience gap | 20% | 5–50% | Max LCOE gap for `invest_resilience` flag |
+| Min viable capacity | 20 MWp | 5–50 | Minimum capacity for project viability |
+| Reliability threshold | 0.75 | 0.30–1.00 | Reliability req for `firming_needed` flag |
+
+**Implementation:** Slider configs defined in `src/dash/constants.py` (TIER1_SLIDERS, TIER2_SLIDERS, TIER3_SLIDERS). Served via `GET /api/defaults`. Frontend Zustand store tracks current values; changes trigger debounced `POST /api/scorecard` recomputation.
 
 ---
 
@@ -784,7 +916,7 @@ On-site captive plants may still need grid backup for intermittency. This is the
 
 5. ✅ **`grid_upgrade_pre2030`** — derived from RUPTL capacity addition table: `True if pre2030_solar_mw > 0` for the KEK's grid region. Uses `fct_ruptl_pipeline.csv` pre-2030 sum.
 
-6. ✅ **Buildability threshold** — `pvout_best_50km` labeled provisional (upper bound, no terrain filter). Deferred to v1.1. All resource values carry `data_completeness` flag.
+6. ✅ **Buildability threshold** — All 4 buildability layers implemented (v1.1). `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp` all populated. 7/25 KEKs show zero buildable area. Flood hazard and road proximity deferred to v1.2.
 
 7. ✅ **WACC expansion** — `WACC_VALUES` expanded to `[4, 6, 8, 10, 12, 14, 16, 18, 20]` (2% steps). `fct_lcoe` now 450 rows (was 150). Covers full concessional-to-equity spectrum: IFC/AIIB blended (4–6%), base case (10%), private equity ceiling (20%).
 
