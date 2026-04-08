@@ -98,16 +98,15 @@ const ICON_PATHS: Record<InfraType, string> = {
 
 const ICON_SIZE = 32; // canvas pixels (renders at 16px on map due to pixelRatio=2)
 
-function createIconImage(type: InfraType): ImageData {
+function createIconImage(pathData: string, color: string, size = ICON_SIZE): ImageData {
   const canvas = document.createElement('canvas');
-  canvas.width = ICON_SIZE;
-  canvas.height = ICON_SIZE;
+  canvas.width = size;
+  canvas.height = size;
   const ctx = canvas.getContext('2d')!;
-  const color = INFRA_TYPES[type].color;
 
   // Colored circle background
   ctx.beginPath();
-  ctx.arc(ICON_SIZE / 2, ICON_SIZE / 2, ICON_SIZE / 2 - 1, 0, Math.PI * 2);
+  ctx.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.8)';
@@ -115,28 +114,41 @@ function createIconImage(type: InfraType): ImageData {
   ctx.stroke();
 
   // White symbol via SVG path
-  const scale = (ICON_SIZE - 8) / 24; // fit 24x24 path inside circle with 4px padding
+  const scale = (size - 8) / 24; // fit 24x24 path inside circle with padding
   const offset = 4;
   ctx.fillStyle = '#ffffff';
   ctx.save();
   ctx.translate(offset, offset);
   ctx.scale(scale, scale);
-  const path = new Path2D(ICON_PATHS[type]);
+  const path = new Path2D(pathData);
   ctx.fill(path);
   ctx.restore();
 
-  return ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
+  return ctx.getImageData(0, 0, size, size);
 }
 
 let iconsRegistered = false;
 
 function registerIcons(map: maplibregl.Map) {
   if (iconsRegistered) return;
+  // Infrastructure type icons
   for (const type of Object.keys(INFRA_TYPES) as InfraType[]) {
     const id = `infra-${type}`;
     if (!map.hasImage(id)) {
-      map.addImage(id, createIconImage(type), { pixelRatio: 2 });
+      map.addImage(id, createIconImage(ICON_PATHS[type], INFRA_TYPES[type].color), {
+        pixelRatio: 2,
+      });
     }
+  }
+  // Substation icons — blue (nearby) and yellow (nearest), both use lightning bolt
+  const boltPath = ICON_PATHS.power;
+  if (!map.hasImage('substation-nearby')) {
+    map.addImage('substation-nearby', createIconImage(boltPath, '#42A5F5'), { pixelRatio: 2 });
+  }
+  if (!map.hasImage('substation-nearest')) {
+    map.addImage('substation-nearest', createIconImage(boltPath, '#FFD600', 40), {
+      pixelRatio: 2,
+    });
   }
   iconsRegistered = true;
 }
@@ -167,7 +179,10 @@ function substationsToGeojson(markers: SubstationMarker[]) {
     features: markers.map((m) => ({
       type: 'Feature' as const,
       geometry: { type: 'Point' as const, coordinates: [m.lon, m.lat] },
-      properties: { ...m },
+      properties: {
+        ...m,
+        icon_id: m.is_nearest ? 'substation-nearest' : 'substation-nearby',
+      },
     })),
   };
 }
@@ -181,6 +196,7 @@ interface HoverInfo {
   latitude: number;
   title: string;
   infraType: InfraType;
+  subtitle?: string;
 }
 
 export default function InfraMarkers() {
@@ -227,11 +243,34 @@ export default function InfraMarkers() {
       map.getCanvas().style.cursor = '';
     };
 
+    const onSubEnter = (
+      e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] },
+    ) => {
+      const feature = e.features?.[0];
+      if (!feature?.properties) return;
+      const coords = (feature.geometry as GeoJSON.Point).coordinates;
+      const isNearest = feature.properties.is_nearest;
+      const name = (feature.properties.name as string) || 'Substation';
+      const dist = feature.properties.dist_km as number;
+      setHoverInfo({
+        longitude: coords[0],
+        latitude: coords[1],
+        title: `${name}${dist ? ` (${dist.toFixed(1)} km)` : ''}`,
+        infraType: 'power',
+        subtitle: isNearest ? 'Nearest Substation' : 'Substation',
+      });
+      map.getCanvas().style.cursor = 'pointer';
+    };
+
     map.on('mouseenter', 'infra-symbols', onEnter);
     map.on('mouseleave', 'infra-symbols', onLeave);
+    map.on('mouseenter', 'substation-symbols', onSubEnter);
+    map.on('mouseleave', 'substation-symbols', onLeave);
     return () => {
       map.off('mouseenter', 'infra-symbols', onEnter);
       map.off('mouseleave', 'infra-symbols', onLeave);
+      map.off('mouseenter', 'substation-symbols', onSubEnter);
+      map.off('mouseleave', 'substation-symbols', onLeave);
     };
   }, [mapInstance]);
 
@@ -332,7 +371,7 @@ export default function InfraMarkers() {
                 letterSpacing: '0.05em',
               }}
             >
-              {INFRA_TYPES[hoverInfo.infraType].label}
+              {hoverInfo.subtitle ?? INFRA_TYPES[hoverInfo.infraType].label}
             </span>
           </div>
         </Popup>
@@ -341,14 +380,25 @@ export default function InfraMarkers() {
       {substationGeojson && (
         <Source id="substations-nearby" type="geojson" data={substationGeojson}>
           <Layer
-            id="substations-circles"
-            type="circle"
+            id="substation-symbols"
+            type="symbol"
+            layout={{
+              'icon-image': ['get', 'icon_id'],
+              'icon-size': 1,
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'text-field': ['get', 'name'],
+              'text-size': 10,
+              'text-offset': [0, 1.4],
+              'text-anchor': 'top',
+              'text-optional': true,
+              'text-max-width': 12,
+            }}
             paint={{
-              'circle-radius': ['case', ['==', ['get', 'is_nearest'], true], 8, 5],
-              'circle-color': ['case', ['==', ['get', 'is_nearest'], true], '#FFD600', '#42A5F5'],
-              'circle-stroke-color': '#ffffff',
-              'circle-stroke-width': 1,
-              'circle-opacity': 0.9,
+              'text-color': '#e0e0e0',
+              'text-halo-color': 'rgba(0,0,0,0.8)',
+              'text-halo-width': 1,
+              'text-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11, 1],
             }}
           />
         </Source>
