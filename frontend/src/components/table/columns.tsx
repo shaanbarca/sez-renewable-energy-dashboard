@@ -28,6 +28,13 @@ export const columns = [
       return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
     },
   }),
+  col.accessor('max_captive_capacity_mwp', {
+    header: 'Capacity (MWp)',
+    cell: (info) => {
+      const v = info.getValue();
+      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+    },
+  }),
   col.accessor('action_flag', {
     header: 'Action Flag',
     cell: (info) => {
