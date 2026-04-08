@@ -154,10 +154,11 @@ All callbacks use `prevent_initial_call=True` except startup data loaders.
 
 | State | Trigger | Display |
 |-------|---------|---------|
-| Loading | App startup while CSVs load into stores | Centered spinner (full page), replaced by app layout once data ready |
-| Empty | Ranked Table filters produce zero matching rows | "No KEKs match this filter. Try adjusting the WACC or action flag selection." in table body |
-| Error | CSV files not found at startup | Inline red banner: "Data files not found. Run `uv run python run_pipeline.py` first." App remains usable but shows no data. |
-| Partial data | Any cell value is null (e.g., `nearest_substation_capacity_mva` for 5 KEKs) | Em-dash "—" per cell. Never hide rows with partial data. Tooltip: "Data not available" |
+| Loading | App startup while CSVs load into stores | ✅ `dcc.Loading` fullscreen spinner, replaced by app layout once data ready |
+| Empty | Ranked Table filters produce zero matching rows | ✅ "No KEKs match the current filter. Try adjusting the action flag selection." below table |
+| Error | CSV files not found at startup | ✅ Inline red `dbc.Alert`: "Data not found. Run `uv run python run_pipeline.py`." |
+| Partial data | Any cell value is null (e.g., `nearest_substation_capacity_mva` for 5 KEKs) | ✅ Em-dash "---" per cell via `_val()` helper. Never hides rows with partial data. |
+| Selected KEK | User clicks a KEK on map or table | ✅ Yellow halo (28px outer + 20px inner) highlights selected marker on map |
 
 ### Input Validation
 
@@ -375,3 +376,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-07 | #29 | Extract callback logic to `src/dash/logic.py` | Testability: pure functions, no Dash dependency |
 | 2026-04-07 | #30 | Add startup CSV validation | 8 error paths unhandled; app crashed silently on missing data |
 | 2026-04-07 | #34 | Configurable assumptions: 3-tier slider controls + live LCOE recomputation | Hardcoded assumptions limited all 4 personas; 25 KEKs makes live computation trivial (~5ms) |
+| 2026-04-08 | — | Implement interaction states: loading spinner, empty table, selected KEK highlight | Design review found all 4 interaction states unimplemented |
+| 2026-04-08 | — | Expand scorecard: add Demand tab + Pipeline tab, complete Resource/LCOE fields | Scorecard was missing ~half of DESIGN.md §3 fields, 2 of 4 tabs |
+| 2026-04-08 | — | Add quadrant zone shading (green/red) with labels | Parity line alone didn't communicate competitive zones |
+| 2026-04-08 | — | Polish: rgba() table colors, Badge tooltips, consistent helper naming | Design review polish findings (hex hack, inconsistent "?" style) |
