@@ -60,6 +60,14 @@ Last updated: 2026-04-07.
 | ✅ | **Methodology expert review** | 2026-04-07 | 10 fixes applied to METHODOLOGY.md: stale WACC range, buildability caveats, slope threshold, degradation note, GSA temperature de-rating, carbon lifecycle emissions, FX sensitivity. |
 | ✅ | **Personas expert review** | 2026-04-07 | P3 solar-only caveat added, P4 custom CAPEX note added. `solar_now_at_wacc8` column verified in scorecard CSV. |
 | ✅ | **DESIGN.md configurable assumptions spec** | 2026-04-07 | Decision #34: 3-tier slider controls, hybrid precomputed/live architecture, callback diagram, component choices for 16 controls. |
+| ✅ | **React + Vite migration (Lanes A-E)** | 2026-04-08 | Full Dash → React migration. FastAPI backend (7 endpoints), Vite + React 18 SPA, MapLibre map, TanStack Table, Recharts, Zustand store. All features at parity. |
+| ✅ | **Raster layer color legends** | 2026-04-08 | Gradient legend strips for PVOUT (YlOrRd), Wind (Blues), Buildable (YlGn) when layers toggled on. Draggable, includes 50km radius legend. |
+| ✅ | **Methodology modal with KaTeX** | 2026-04-08 | METHODOLOGY.md rendered in-app via react-markdown + KaTeX. Anchor links scroll within modal. All formulas converted to LaTeX notation. |
+| ✅ | **Biome formatter** | 2026-04-08 | Biome added as pre-commit hook for TypeScript/React formatting and linting. `npm run lint` / `npm run format` scripts. |
+| ✅ | **Liquid glass UI** | 2026-04-08 | Header bar, Back to National View button use backdrop-filter glass styling. Map is full-screen with overlaying UI. |
+| ✅ | **Draggable panels** | 2026-04-08 | Assumptions, Layer Control, Raster Legends all movable via `useDraggable` hook. |
+| ✅ | **50km radius circle** | 2026-04-08 | GeoJSON circle renders on map when KEK selected. Stays visible when drawer closed (only clears on Back to National View). |
+| ✅ | **Buildable area fragmentation warning** | 2026-04-08 | Amber warning in ScoreDrawer Resource tab for KEKs with <2,000 ha buildable area. |
 
 ---
 

@@ -11,8 +11,8 @@ This repo is a Python modelling and analysis project for **Indonesia's KEK (Spec
 | File | Purpose |
 |------|---------|
 | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | Plain-language project overview — start here if you're new to the project |
-| [PLAN.md](PLAN.md) | Full implementation plan: architecture, phases, data pipeline, Dash app design (with design review decisions) |
-| [DESIGN.md](DESIGN.md) | Dashboard UX design spec: 6 views, component architecture, colour system, open decisions — read before writing any Dash code |
+| [PLAN.md](PLAN.md) | Full implementation plan: architecture, phases, data pipeline, dashboard design (with design review decisions) |
+| [DESIGN.md](DESIGN.md) | Dashboard UX design spec: 6 views, component architecture, colour system, open decisions |
 | [PERSONAS.md](PERSONAS.md) | User journeys for all four personas: Energy Economist, DFI Investor, Policy Maker, Energy Investor |
 | [METHODOLOGY.md](METHODOLOGY.md) | Analytical methodology spec: LCOE formulas, PVOUT conversion, GEAS allocation, geospatial buildability filters — `src/model/basic_model.py` must implement this exactly |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Data pipeline contract: every raw input column and every derived column we need to produce, with status (✅/⚠️/❌/🔒) |
@@ -36,9 +36,60 @@ S3_ACCESS_KEY=
 S3_SECRET_ACCESS_KEY=
 ```
 
-## Running code
+## Running the dashboard
 
-There is no build step. The primary entry points are Jupyter notebooks:
+The dashboard is a React + Vite frontend served by a FastAPI backend:
+
+```bash
+# Terminal 1: Start the API (loads pipeline data at startup)
+uv run uvicorn src.api.main:app --port 8000
+
+# Terminal 2: Start the frontend (Vite dev server, proxies /api to :8000)
+cd frontend && npm run dev
+```
+
+The frontend is at `http://localhost:5173`. The API is at `http://localhost:8000`.
+
+## Frontend
+
+`frontend/` is a Vite + React 18 + TypeScript SPA with Tailwind CSS.
+
+Key directories:
+- `frontend/src/store/dashboard.ts` — Zustand state management (assumptions, scorecard, UI state)
+- `frontend/src/lib/api.ts` — fetch wrappers for all 7 API endpoints
+- `frontend/src/lib/types.ts` — TypeScript interfaces matching API response shapes
+- `frontend/src/components/map/` — MapLibre GL JS map (via react-map-gl), KEK markers, raster/vector overlays, layer control
+- `frontend/src/components/panels/` — AssumptionsPanel (LCOE sliders), ScoreDrawer (KEK detail)
+- `frontend/src/components/table/` — TanStack Table v8 with sortable columns
+- `frontend/src/components/charts/` — Recharts (QuadrantChart, RuptlChart)
+- `frontend/src/components/ui/` — Header, BottomPanel, EnergyToggle, MethodologyModal
+
+Formatting and linting:
+```bash
+cd frontend
+npm run lint     # biome check (no auto-fix)
+npm run format   # biome check --write (auto-fix)
+npx tsc --noEmit # type-check
+```
+
+Biome is also wired into the pre-commit hook (`.pre-commit-config.yaml`).
+
+## API
+
+`src/api/` is a FastAPI backend that wraps the existing pipeline modules (`src/dash/logic.py`, `src/dash/data_loader.py`, `src/dash/map_layers.py`).
+
+Key endpoints:
+- `GET /api/defaults` — returns default assumptions, thresholds, and slider configs
+- `POST /api/scorecard` — recomputes scorecard with user-adjusted assumptions
+- `GET /api/layers/{name}` — lazy-loads geospatial layers (substations, peatland, etc.)
+- `GET /api/kek/{id}/polygon` — returns KEK boundary polygon GeoJSON
+- `GET /api/kek/{id}/substations` — substations within radius of a KEK
+- `GET /api/ruptl-metrics` — RUPTL pipeline metrics by region
+- `GET /api/methodology` — raw METHODOLOGY.md content for in-app rendering
+
+## Notebooks
+
+The data pipeline entry points are Jupyter notebooks:
 
 ```bash
 jupyter notebook notebooks/
@@ -55,7 +106,7 @@ Key notebooks:
 uv run pytest tests/
 ```
 
-Test files are in `tests/`. `tests/test_model.py` has 60 tests across all functions in `src/model/basic_model.py` — all should pass.
+Test files are in `tests/`. 302 tests across model, pipeline, and API modules — all should pass.
 
 ## Model module
 

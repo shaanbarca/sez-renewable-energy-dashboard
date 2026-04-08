@@ -54,7 +54,8 @@ flowchart TD
         O1["flat CSV tables\n(9 files)"]
     end
 
-    DASH["Dash App (Phase 3)\napp.py — reads CSVs at startup,\nno raster ops at runtime"]
+    API["FastAPI Backend\nsrc/api/main.py — loads CSVs at startup,\nserves JSON via 7 endpoints"]
+    FRONTEND["React + Vite SPA\nfrontend/src/ — MapLibre map,\nTanStack Table, Recharts"]
     BROWSER["End-user browser"]
 
     A1 --> P1
@@ -80,8 +81,9 @@ flowchart TD
     P4 --> P9
 
     P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 --> O1
-    O1 --> DASH
-    DASH --> BROWSER
+    O1 --> API
+    API --> FRONTEND
+    FRONTEND --> BROWSER
 ```
 
 ---
@@ -90,8 +92,18 @@ flowchart TD
 
 | Layer | Technology | Version | Purpose |
 |-------|-----------|---------|---------|
-| Runtime | Python | 3.11 | All pipeline + model code |
-| Package manager | uv | latest | Dependency resolution + venv |
+| Backend runtime | Python | 3.11 | Pipeline, model, and API code |
+| Backend API | FastAPI | latest | REST API serving scorecard and layer data |
+| Package manager | uv | latest | Python dependency resolution + venv |
+| Frontend | React + TypeScript | 18.x | SPA dashboard |
+| Frontend bundler | Vite | 5.x | Dev server + production build |
+| Map | MapLibre GL JS | 4.x | Interactive map via react-map-gl |
+| Table | TanStack Table | 8.x | Sortable, filterable data table |
+| Charts | Recharts | 2.x | Quadrant chart, RUPTL bar chart |
+| State | Zustand | 5.x | Client-side state management |
+| CSS | Tailwind CSS | 3.4 | Utility-first dark theme styling |
+| Formatting (Python) | ruff | latest | Python linting + formatting (pre-commit) |
+| Formatting (TS) | Biome | 2.x | TypeScript linting + formatting (pre-commit) |
 | Geospatial raster | rasterio | 1.3+ | GeoTIFF window reads, VRT operations |
 | Geospatial vector | geopandas | 0.14+ | KEK polygons, substation proximity |
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |

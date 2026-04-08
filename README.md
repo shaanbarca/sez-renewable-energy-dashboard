@@ -1,51 +1,79 @@
-# Python Modelling Template
+# Indonesia KEK Power Competitiveness Dashboard
 
-Template repository for Python modelling projects.
+Interactive dashboard that answers: **"Which of Indonesia's 25 Special Economic Zones (KEKs) can offer low-cost, low-carbon, reliable electricity, and what must change to get there?"**
 
-### Overview
+Combines satellite solar resource data (Global Solar Atlas), PLN grid costs, RUPTL pipeline plans, and geospatial buildability analysis into a single, transparent scorecard.
 
-This project provides a boilerplate template for setting up new Python models.
-
-### Folder Structure
-
-```
-├── .github/workflows # Github Actions workflows (ie. publishing Sphinx documentation)
-├── config/           # Project-level configurations
-├── data/             # Input data (not versioned)
-├── docs/             # Sphinx documentation
-├── notebooks/        # Jupyter notebooks for exploration or analysis
-├── outputs/          # Output incl. data and charts
-├── src/              # Core project modules (ie. primary model logic)
-├── tests/            # Unit tests
-├── utils/            # Reuseable, generic helper functions
-├── .env_template     # Environment variables (to be replaced be .env, if needed)
-├── README.md         # Project overview
-├── requirements.txt  # Python dependencies
-└── pyproject.toml    # (optional) project metadata
-```
-
-### Getting Started
-
-Create a project from the template using the GitHub UI, create a virtual environment, install dependencies:
+## Quick Start
 
 ```bash
-cd project
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+# Backend (Python)
+uv sync
+uv run uvicorn src.api.main:app --port 8000
+
+# Frontend (React)
+cd frontend
+npm install
+npm run dev
 ```
 
-### How We Write READMEs
+Open `http://localhost:5173`. The API loads pipeline data at startup (~10s), then the dashboard is ready.
 
-To ensure all projects are easy to navigate and reuse, we follow these guidelines:
+## What It Does
 
-- Start with a brief summary of what the project is and why it exists
-- Clearly describe folder layout and where key logic lives
-- Include setup instructions that work on any machine
-- Link or reference additional documentation as needed
-- Keep it concise and update when major changes occur
+For each KEK, the model computes:
 
-### Contact
+1. **Solar LCOE** from CRF annuity method (CAPEX, FOM, WACC, capacity factor from PVOUT)
+2. **Competitiveness gap** vs PLN grid cost (I-4 industrial tariff or BPP by region)
+3. **Action flags**: `solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late`
+4. **Buildable area** within 50km (filtered by forest, peat, slope, land cover)
+5. **Carbon breakeven price** (USD/tCO2 at which solar wins)
 
-Maintainer: [Your Name]  
-Email: your.email@systemiq.earth
+All assumptions are adjustable via sliders in the dashboard.
+
+## Architecture
+
+```
+Data Pipeline (Python)          API (FastAPI)           Frontend (React + Vite)
+--------------------           ----------------        ----------------------
+GeoTIFF + PDFs + CSVs          7 REST endpoints        MapLibre GL map
+  -> dim/fct tables              /api/defaults          TanStack Table
+  -> outputs/data/processed/     /api/scorecard         Recharts charts
+                                 /api/layers/{name}     Zustand state
+                                 /api/methodology       Tailwind CSS
+```
+
+## Project Structure
+
+```
+src/model/          Pure Python model (LCOE, action flags, GEAS allocation)
+src/pipeline/       Data pipeline builders (dim_kek, fct_lcoe, etc.)
+src/api/            FastAPI backend (routes, scorecard recomputation)
+src/dash/           Shared modules (data_loader, map_layers, logic, constants)
+frontend/src/       React SPA (components, store, hooks, lib)
+tests/              302 tests (model, pipeline, API)
+notebooks/          Jupyter notebooks for exploration
+data/               Input data (GeoTIFFs, GeoJSON, shapefiles)
+outputs/            Pipeline output CSVs
+docs/               Design mockups, reference PDFs
+```
+
+## Documentation
+
+| File | Purpose |
+|------|---------|
+| [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | Plain-language project overview |
+| [METHODOLOGY.md](METHODOLOGY.md) | LCOE formulas, PVOUT conversion, action flags, GEAS allocation |
+| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Every column in every pipeline table |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, pipeline dependency graph |
+| [DESIGN.md](DESIGN.md) | Dashboard UX spec, component architecture, color system |
+| [PERSONAS.md](PERSONAS.md) | User journeys (Energy Economist, DFI Investor, Policy Maker, Energy Investor) |
+| [TODOS.md](TODOS.md) | Deferred items with priority tiers |
+
+## Tests
+
+```bash
+uv run pytest tests/       # 302 tests
+uv run ruff check src/     # Python lint
+cd frontend && npm run lint # TypeScript lint (Biome)
+```

@@ -469,3 +469,13 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-08 | — | Scorecard drawer: title "KEK Scorecard", visible close X, closeOnClickOutside | Close button was invisible with empty title; clicking outside should also close |
 | 2026-04-08 | — | Dark theme CSS overrides for slider marks, tooltips, and Mantine Accordion | Slider mark text and tooltip values were illegible (dark text on dark background) |
 | 2026-04-08 | — | LayersControl positioned at bottom-left to avoid overlap with action flag legend | Default top-right position overlapped with the legend panel |
+| 2026-04-08 | — | Full migration from Dash to React + Vite + TypeScript SPA with FastAPI backend | Dash limitations (no lazy layer loading, no rich map interactions, bundle size). React + MapLibre gives native layer control, fly-to, polygon rendering. |
+| 2026-04-08 | — | Liquid glass header: translucent backdrop-filter overlay on map | Map is always full-screen, header floats above with blur(48px) glass effect |
+| 2026-04-08 | — | 50km radius circle renders on map when KEK is selected | Visualizes the captive solar siting radius used by the model |
+| 2026-04-08 | — | Raster layer legends (PVOUT, Wind, Buildable) with color gradient strips | User couldn't interpret heatmap colors without a legend |
+| 2026-04-08 | — | Draggable panels: Assumptions, Layer Control, and Raster Legends all movable | Panels can overlap map features; drag to reposition |
+| 2026-04-08 | — | Drawer close (X) separated from KEK deselection; radius stays visible | User wants to close the detail panel but keep the spatial context (radius, polygon) |
+| 2026-04-08 | — | Methodology modal: renders METHODOLOGY.md in-app with KaTeX math notation | Stakeholders can review analytical methodology without leaving the dashboard |
+| 2026-04-08 | — | Pulsing KEK markers on first load (~5s breathing animation) | Signals that markers are interactive/clickable |
+| 2026-04-08 | — | Biome formatter added to pre-commit hook for TypeScript/React | Consistent code style across all frontend files |
+| 2026-04-08 | — | Buildable area fragmentation warning in ScoreDrawer Resource tab | 1km PVOUT resolution makes contiguity filter a no-op; UI caveat for small buildable areas |
