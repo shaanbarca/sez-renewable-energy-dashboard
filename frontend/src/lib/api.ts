@@ -60,3 +60,9 @@ export async function fetchInfrastructure(): Promise<unknown> {
   if (!res.ok) throw new Error(`GET /api/layers/infrastructure failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchMethodology(): Promise<string> {
+  const res = await fetch('/api/methodology');
+  if (!res.ok) throw new Error(`GET /api/methodology failed: ${res.status}`);
+  return res.text();
+}

@@ -7,10 +7,12 @@ map_layers.py without modifying them.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from src.dash.data_loader import (
     compute_ruptl_region_metrics,
@@ -78,3 +80,14 @@ from src.api.routes.scorecard import router as scorecard_router  # noqa: E402
 
 app.include_router(scorecard_router, prefix="/api")
 app.include_router(layers_router, prefix="/api")
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+@app.get("/api/methodology", response_class=PlainTextResponse)
+async def get_methodology():
+    """Return the raw METHODOLOGY.md content for rendering in the frontend."""
+    md_path = PROJECT_ROOT / "METHODOLOGY.md"
+    if not md_path.exists():
+        return PlainTextResponse("Methodology document not found.", status_code=404)
+    return PlainTextResponse(md_path.read_text(encoding="utf-8"))
