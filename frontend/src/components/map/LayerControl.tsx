@@ -2,6 +2,7 @@ import { useDraggable } from '../../hooks/useDraggable';
 import { useDashboardStore } from '../../store/dashboard';
 
 const LAYER_ITEMS = [
+  { name: 'terrain', label: '3D Terrain' },
   { name: 'substations', label: 'Substations (PLN)' },
   { name: 'kek_polygons', label: 'KEK Boundaries' },
   { name: 'pvout', label: 'Solar Potential (PVOUT)' },

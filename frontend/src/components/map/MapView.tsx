@@ -62,6 +62,48 @@ export default function MapView() {
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const terrainOn = useDashboardStore((s) => s.layerVisibility.terrain);
+
+  // Add Mapbox terrain DEM source once map loads
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const token = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!token) return;
+
+    const addSource = () => {
+      if (!map.getSource('terrain-dem')) {
+        map.addSource('terrain-dem', {
+          type: 'raster-dem',
+          tiles: [`https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`],
+          tileSize: 256,
+          maxzoom: 14,
+        });
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      addSource();
+    } else {
+      map.once('style.load', addSource);
+    }
+  }, []);
+
+  // Auto-pitch when terrain toggles
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    if (terrainOn) {
+      if (map.getPitch() < 30) {
+        map.easeTo({ pitch: 50, duration: 800 });
+      }
+    } else {
+      if (map.getPitch() > 0) {
+        map.easeTo({ pitch: 0, duration: 800 });
+      }
+    }
+  }, [terrainOn]);
 
   const handleZoom = useCallback((e: ViewStateChangeEvent) => {
     setIsZoomedIn(e.viewState.zoom > INITIAL_ZOOM + 1);
@@ -169,6 +211,8 @@ export default function MapView() {
           zoom: INITIAL_ZOOM,
         }}
         mapStyle={MAP_STYLE}
+        // biome-ignore lint: terrain prop accepts the config object
+        {...(terrainOn ? { terrain: { source: 'terrain-dem', exaggeration: 1.5 } } : {})}
         style={{ width: '100%', height: '100%' }}
         interactiveLayerIds={['kek-circles']}
         onClick={handleClick}
@@ -177,6 +221,8 @@ export default function MapView() {
         onZoom={handleZoom}
       >
         <NavigationControl position="bottom-right" />
+
+
 
         <KekMarkers hoverInfo={hoverInfo} />
         <RasterOverlay />
