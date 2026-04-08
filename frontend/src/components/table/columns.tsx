@@ -1,4 +1,4 @@
-import { createColumnHelper, type FilterFn } from '@tanstack/react-table';
+import { type CellContext, createColumnHelper, type FilterFn } from '@tanstack/react-table';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type { ScorecardRow } from '../../lib/types';
 
@@ -8,27 +8,134 @@ declare module '@tanstack/react-table' {
   }
 }
 
+/* ---------- Column header tooltips ---------- */
+
+const COLUMN_TOOLTIPS: Record<string, string> = {
+  kek_name: 'Special Economic Zone (Kawasan Ekonomi Khusus) name',
+  province: 'Indonesian province where the KEK is located',
+  kek_type: 'KEK classification: Industrial, Tourism, or Mixed',
+  category: 'Development stage: Established, Proposed, or Under Construction',
+  area_ha: 'Total designated KEK area in hectares',
+  max_captive_capacity_mwp:
+    'Maximum buildable solar capacity (MWp) within 50km, based on buildability filters (slope, land cover, protected areas)',
+  action_flag:
+    'Recommended action based on solar economics, grid readiness, and RUPTL pipeline status',
+  lcoe_mid_usd_mwh:
+    'Levelized Cost of Energy for solar at mid-case WACC (USD per MWh). Lower = cheaper solar.',
+  solar_competitive_gap_pct:
+    'How far solar LCOE is from grid cost. Negative = solar is cheaper. Positive = grid is cheaper.',
+  best_re_technology: 'Best available renewable energy technology for this KEK',
+  dashboard_rate_usd_mwh:
+    'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
+};
+
+function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
+  const tip = COLUMN_TOOLTIPS[columnId];
+  if (!tip) return <span>{label}</span>;
+  return (
+    <span className="flex items-center gap-1">
+      <span>{label}</span>
+      <span className="relative group/tip">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-help flex-shrink-0"
+        >
+          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+          <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="600">
+            ?
+          </text>
+        </svg>
+        <span
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 px-2.5 py-2
+                     text-[10px] leading-relaxed text-zinc-300 font-normal whitespace-normal
+                     rounded-md shadow-lg z-50 pointer-events-none
+                     opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150"
+          style={{
+            background: 'rgba(30, 30, 30, 0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+          }}
+        >
+          {tip}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/* ---------- Action flag tooltip (explains WHY) ---------- */
+
+const ACTION_FLAG_EXPLANATIONS: Record<string, string> = {
+  solar_now:
+    'Solar LCOE is below grid cost, grid upgrade is planned before 2030, and GEAS allocation covers significant demand.',
+  grid_first:
+    'Solar is cost-competitive, but no grid upgrade is planned before 2030. Grid infrastructure must come first.',
+  invest_resilience:
+    'Solar is near grid parity (within 20%) and the KEK has high reliability requirements. Invest for resilience.',
+  plan_late:
+    '60%+ of RUPTL solar additions are scheduled post-2030. Planning is behind — accelerate the pipeline.',
+  not_competitive: 'Solar LCOE exceeds grid cost under current assumptions. Not yet economical.',
+};
+
+function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, string> }) {
+  const flag = info.getValue();
+  const color = ACTION_FLAG_COLORS[flag] ?? '#666';
+  const label = ACTION_FLAG_LABELS[flag] ?? flag;
+  const explanation = ACTION_FLAG_EXPLANATIONS[flag];
+
+  return (
+    <span className="relative group/flag flex items-center gap-2">
+      <span
+        className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+        style={{ backgroundColor: color }}
+      />
+      <span>{label}</span>
+      {explanation && (
+        <span
+          className="absolute left-0 top-full mt-1 w-56 px-2.5 py-2
+                     text-[10px] leading-relaxed text-zinc-300 font-normal whitespace-normal
+                     rounded-md shadow-lg z-50 pointer-events-none
+                     opacity-0 group-hover/flag:opacity-100 transition-opacity duration-150"
+          style={{
+            background: 'rgba(30, 30, 30, 0.95)',
+            border: `1px solid ${color}44`,
+          }}
+        >
+          <span className="font-medium" style={{ color }}>
+            {label}:
+          </span>{' '}
+          {explanation}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/* ---------- Column definitions ---------- */
+
 const col = createColumnHelper<ScorecardRow>();
 
 export const columns = [
   col.accessor('kek_name', {
-    header: 'KEK Name',
+    header: () => <HeaderWithTooltip label="KEK Name" columnId="kek_name" />,
     cell: (info) => info.getValue(),
   }),
   col.accessor('province', {
-    header: 'Province',
+    header: () => <HeaderWithTooltip label="Province" columnId="province" />,
     cell: (info) => info.getValue(),
   }),
   col.accessor('kek_type', {
-    header: 'Type',
+    header: () => <HeaderWithTooltip label="Type" columnId="kek_type" />,
     cell: (info) => info.getValue() ?? '—',
   }),
   col.accessor('category', {
-    header: 'Category',
+    header: () => <HeaderWithTooltip label="Category" columnId="category" />,
     cell: (info) => info.getValue() ?? '—',
   }),
   col.accessor('area_ha', {
-    header: 'Area (ha)',
+    header: () => <HeaderWithTooltip label="Area (ha)" columnId="area_ha" />,
     filterFn: 'inRange',
     cell: (info) => {
       const v = info.getValue();
@@ -36,7 +143,7 @@ export const columns = [
     },
   }),
   col.accessor('max_captive_capacity_mwp', {
-    header: 'Capacity (MWp)',
+    header: () => <HeaderWithTooltip label="Capacity (MWp)" columnId="max_captive_capacity_mwp" />,
     filterFn: 'inRange',
     cell: (info) => {
       const v = info.getValue();
@@ -44,29 +151,16 @@ export const columns = [
     },
   }),
   col.accessor('action_flag', {
-    header: 'Action Flag',
-    cell: (info) => {
-      const flag = info.getValue();
-      const color = ACTION_FLAG_COLORS[flag] ?? '#666';
-      const label = ACTION_FLAG_LABELS[flag] ?? flag;
-      return (
-        <span className="flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: color }}
-          />
-          <span>{label}</span>
-        </span>
-      );
-    },
+    header: () => <HeaderWithTooltip label="Action Flag" columnId="action_flag" />,
+    cell: (info) => <ActionFlagCell info={info} />,
   }),
   col.accessor('lcoe_mid_usd_mwh', {
-    header: 'LCOE ($/MWh)',
+    header: () => <HeaderWithTooltip label="LCOE ($/MWh)" columnId="lcoe_mid_usd_mwh" />,
     filterFn: 'inRange',
     cell: (info) => info.getValue().toFixed(1),
   }),
   col.accessor('solar_competitive_gap_pct', {
-    header: 'Gap (%)',
+    header: () => <HeaderWithTooltip label="Gap (%)" columnId="solar_competitive_gap_pct" />,
     filterFn: 'inRange',
     cell: (info) => {
       const val = info.getValue();
@@ -81,11 +175,11 @@ export const columns = [
     },
   }),
   col.accessor('best_re_technology', {
-    header: 'Best RE',
+    header: () => <HeaderWithTooltip label="Best RE" columnId="best_re_technology" />,
     cell: (info) => info.getValue(),
   }),
   col.accessor('dashboard_rate_usd_mwh', {
-    header: 'Grid Rate ($/MWh)',
+    header: () => <HeaderWithTooltip label="Grid Rate ($/MWh)" columnId="dashboard_rate_usd_mwh" />,
     filterFn: 'inRange',
     cell: (info) => info.getValue().toFixed(1),
   }),
