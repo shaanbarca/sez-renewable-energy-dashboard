@@ -35,6 +35,7 @@ interface DashboardStore {
   setAssumptions: (a: Partial<UserAssumptions>) => void;
   setThresholds: (t: Partial<UserThresholds>) => void;
   selectKek: (id: string | null) => void;
+  closeDrawer: () => void;
   setActiveTab: (tab: BottomTab) => void;
   setEnergyMode: (mode: EnergyMode) => void;
   setBenchmarkMode: (mode: BenchmarkMode) => void;
@@ -80,6 +81,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     })),
 
   selectKek: (id) => set({ selectedKek: id, drawerOpen: id !== null }),
+
+  closeDrawer: () => set({ drawerOpen: false }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 

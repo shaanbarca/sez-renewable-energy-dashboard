@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import { useEffect, useState } from 'react';
+import { Source, Layer, Popup, useMap } from 'react-map-gl/maplibre';
+import type maplibregl from 'maplibre-gl';
 import { useDashboardStore } from '../../store/dashboard';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,10 +39,92 @@ function createBoltIcon(size: number, color: string): ImageData {
  * Renders toggled vector layers: substations, kek_polygons, peatland,
  * protected_forest, industrial. Each has different styling.
  */
+interface SubHover {
+  longitude: number;
+  latitude: number;
+  name: string;
+  voltage: string;
+  capacity_mva: string | number;
+}
+
+interface GridLineHover {
+  longitude: number;
+  latitude: number;
+  name: string;
+  voltage: string;
+}
+
 export default function VectorOverlay() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const layers = useDashboardStore((s) => s.layers);
   const { current: mapRef } = useMap();
+  const [subHover, setSubHover] = useState<SubHover | null>(null);
+  const [gridHover, setGridHover] = useState<GridLineHover | null>(null);
+
+  // Substation hover handlers
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0];
+      if (feat) {
+        const coords = (feat.geometry as GeoJSON.Point).coordinates;
+        setSubHover({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: feat.properties?.name ?? '',
+          voltage: feat.properties?.voltage ?? '',
+          capacity_mva: feat.properties?.capacity_mva ?? '',
+        });
+      }
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      setSubHover(null);
+    };
+    map.on('mouseenter', 'overlay-substations-symbol', onEnter);
+    map.on('mouseleave', 'overlay-substations-symbol', onLeave);
+    return () => {
+      map.off('mouseenter', 'overlay-substations-symbol', onEnter);
+      map.off('mouseleave', 'overlay-substations-symbol', onLeave);
+    };
+  }, [mapRef]);
+
+  // Grid line hover handlers
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0];
+      if (feat) {
+        setGridHover({
+          longitude: e.lngLat.lng,
+          latitude: e.lngLat.lat,
+          name: feat.properties?.namobj ?? '',
+          voltage: feat.properties?.tegjar ?? '',
+        });
+      }
+    };
+    const onMove = (e: maplibregl.MapLayerMouseEvent) => {
+      if (gridHover) {
+        setGridHover((prev) => prev ? { ...prev, longitude: e.lngLat.lng, latitude: e.lngLat.lat } : null);
+      }
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      setGridHover(null);
+    };
+    map.on('mouseenter', 'overlay-grid-lines-line', onEnter);
+    map.on('mousemove', 'overlay-grid-lines-line', onMove);
+    map.on('mouseleave', 'overlay-grid-lines-line', onLeave);
+    return () => {
+      map.off('mouseenter', 'overlay-grid-lines-line', onEnter);
+      map.off('mousemove', 'overlay-grid-lines-line', onMove);
+      map.off('mouseleave', 'overlay-grid-lines-line', onLeave);
+    };
+  }, [mapRef, gridHover]);
 
   // Load custom bolt icon onto the map
   useEffect(() => {
@@ -68,10 +151,10 @@ export default function VectorOverlay() {
         if (!Array.isArray(points) || !points.length) return null;
         const geojson = {
           type: 'FeatureCollection' as const,
-          features: points.map((p: { lat: number; lon: number; name?: string }) => ({
+          features: points.map((p: { lat: number; lon: number; name?: string; voltage?: string; capacity_mva?: string | number }) => ({
             type: 'Feature' as const,
             geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
-            properties: { name: p.name ?? '' },
+            properties: { name: p.name ?? '', voltage: p.voltage ?? '', capacity_mva: p.capacity_mva ?? '' },
           })),
         };
         return (
@@ -92,6 +175,43 @@ export default function VectorOverlay() {
           </Source>
         );
       })()}
+
+      {/* Substation hover popup */}
+      {subHover && (
+        <Popup
+          longitude={subHover.longitude}
+          latitude={subHover.latitude}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={12}
+          className="substation-popup"
+        >
+          <div style={{ background: '#1e1e1e', color: '#e0e0e0', padding: '6px 10px', borderRadius: 4, fontSize: 11, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>{subHover.name}</div>
+            {subHover.voltage && <div>{subHover.voltage}</div>}
+            {subHover.capacity_mva && <div>{subHover.capacity_mva} MVA</div>}
+          </div>
+        </Popup>
+      )}
+
+      {/* Grid line hover popup */}
+      {gridHover && (
+        <Popup
+          longitude={gridHover.longitude}
+          latitude={gridHover.latitude}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={8}
+          className="grid-line-popup"
+        >
+          <div style={{ background: '#1e1e1e', color: '#e0e0e0', padding: '6px 10px', borderRadius: 4, fontSize: 11, lineHeight: 1.5 }}>
+            {gridHover.name && <div style={{ fontWeight: 600, marginBottom: 2 }}>{gridHover.name}</div>}
+            {gridHover.voltage && <div>{gridHover.voltage}</div>}
+          </div>
+        </Popup>
+      )}
 
       {/* KEK Polygons */}
       {layerVisibility['kek_polygons'] && layers['kek_polygons'] && !layers['kek_polygons']._loading && (() => {

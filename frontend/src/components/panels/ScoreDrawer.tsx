@@ -160,6 +160,11 @@ function ResourceTab({ row, substations, loadingSubs }: { row: ScorecardRow; sub
       <StatCard>
         <StatRow label="Buildable Area" value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null} unit="ha" />
         <StatRow label="Max Capacity" value={row.max_captive_capacity_mwp != null ? row.max_captive_capacity_mwp.toFixed(0) : null} unit="MWp" />
+        {row.buildable_area_ha != null && row.buildable_area_ha > 0 && row.buildable_area_ha < 2000 && (
+          <div className="text-[10px] text-amber-400/70 leading-tight mt-1">
+            Note: buildable area is the sum of suitable pixels within 50km at ~1km resolution. Actual contiguous land for a solar farm may be smaller.
+          </div>
+        )}
       </StatCard>
       <StatCard>
         {loadingSubs ? (
@@ -294,7 +299,7 @@ export default function ScoreDrawer() {
   const selectedKek = useDashboardStore((s) => s.selectedKek);
   const drawerOpen = useDashboardStore((s) => s.drawerOpen);
   const scorecard = useDashboardStore((s) => s.scorecard);
-  const selectKek = useDashboardStore((s) => s.selectKek);
+  const closeDrawer = useDashboardStore((s) => s.closeDrawer);
 
   const [substations, setSubstations] = useState<SubstationInfo[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
@@ -302,8 +307,8 @@ export default function ScoreDrawer() {
   const row = scorecard?.find((r) => r.kek_id === selectedKek) ?? null;
 
   const handleClose = useCallback(() => {
-    selectKek(null);
-  }, [selectKek]);
+    closeDrawer();
+  }, [closeDrawer]);
 
   // Fetch substations when selected KEK changes
   useEffect(() => {
@@ -351,7 +356,7 @@ export default function ScoreDrawer() {
 
   return (
     <div
-      className={`absolute top-0 right-0 z-20 h-full w-[380px] flex flex-col
+      className={`absolute top-0 right-0 z-30 h-full w-[380px] flex flex-col
                   transition-transform duration-300 ease-in-out ${
                     drawerOpen && row ? 'translate-x-0' : 'translate-x-full'
                   }`}

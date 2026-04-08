@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import * as Accordion from '@radix-ui/react-accordion';
 import { useDashboardStore } from '../../store/dashboard';
 import { useScorecard } from '../../hooks/useScorecard';
+import { useDraggable } from '../../hooks/useDraggable';
 import Slider from '../ui/Slider';
 import type { SliderConfig, UserAssumptions, UserThresholds } from '../../lib/types';
 
@@ -185,6 +186,7 @@ export default function AssumptionsPanel() {
   const resetDefaults = useDashboardStore((s) => s.resetDefaults);
 
   const { loading } = useScorecard();
+  const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
 
   if (!assumptions || !sliderConfigs) return null;
 
@@ -198,7 +200,7 @@ export default function AssumptionsPanel() {
 
   return (
     <div
-      className="absolute top-4 left-4 z-10 w-[310px] rounded-lg overflow-hidden flex flex-col"
+      className="absolute top-[60px] left-4 z-10 w-[310px] rounded-lg overflow-hidden flex flex-col"
       data-panel="assumptions"
       style={{
         background: 'var(--glass-heavy)',
@@ -207,12 +209,15 @@ export default function AssumptionsPanel() {
         border: '1px solid var(--glass-border)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
         maxHeight: 'calc(100vh - 100px)',
+        transform: `translate(${dragPos.x}px, ${dragPos.y}px)`,
       }}
     >
-      {/* Header */}
-      <button
+      {/* Drag handle + Header */}
+      <div
+        onMouseDown={onDragStart}
+        className="flex items-center justify-between w-full px-3.5 py-2.5 hover:bg-white/[0.03] transition-colors cursor-grab active:cursor-grabbing"
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center justify-between w-full px-3.5 py-2.5 hover:bg-white/[0.03] transition-colors"
+        role="button"
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-zinc-200">Assumptions</span>
@@ -225,7 +230,7 @@ export default function AssumptionsPanel() {
             collapsed ? '' : 'rotate-180'
           }`}
         />
-      </button>
+      </div>
 
       {/* Expandable body — smooth animated collapse */}
       <div

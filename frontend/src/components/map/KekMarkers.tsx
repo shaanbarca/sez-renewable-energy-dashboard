@@ -8,6 +8,10 @@ interface HoverInfo {
   latitude: number;
   kek_name: string;
   action_flag: string;
+  province: string;
+  kek_type: string;
+  category: string;
+  area_ha: number | null;
 }
 
 interface KekMarkersProps {
@@ -32,6 +36,10 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           kek_id: row.kek_id,
           kek_name: row.kek_name,
           action_flag: row.action_flag,
+          province: row.province,
+          kek_type: row.kek_type ?? '',
+          category: row.category ?? '',
+          area_ha: row.area_ha ?? null,
         },
       })),
     };
@@ -84,13 +92,22 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           offset={12}
           className="kek-tooltip"
         >
-          <div style={{ color: '#e0e0e0', fontSize: 12, lineHeight: 1.4 }}>
-            <strong>{hoverInfo.kek_name}</strong>
-            <br />
+          <div style={{ color: '#e0e0e0', fontSize: 11, lineHeight: 1.5 }}>
+            <strong style={{ fontSize: 12 }}>{hoverInfo.kek_name}</strong>
+            <div style={{ color: '#999', marginTop: 2 }}>
+              {hoverInfo.province}
+              {hoverInfo.kek_type ? ` · ${hoverInfo.kek_type}` : ''}
+            </div>
+            {hoverInfo.category && (
+              <div style={{ color: '#aaa' }}>{hoverInfo.category}</div>
+            )}
+            {hoverInfo.area_ha != null && (
+              <div style={{ color: '#aaa' }}>{hoverInfo.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })} ha</div>
+            )}
             <span
               style={{
-                color:
-                  ACTION_FLAG_COLORS[hoverInfo.action_flag] ?? '#999',
+                color: ACTION_FLAG_COLORS[hoverInfo.action_flag] ?? '#999',
+                fontWeight: 500,
               }}
             >
               {ACTION_FLAG_LABELS[hoverInfo.action_flag] ?? hoverInfo.action_flag}

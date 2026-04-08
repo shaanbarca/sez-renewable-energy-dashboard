@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef, MapLayerMouseEvent, ViewStateChangeEvent } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -17,6 +17,27 @@ const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.j
 const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };
 const INITIAL_ZOOM = 4;
 const KEK_ZOOM = 11;
+const RADIUS_KM = 50;
+
+/** Generate a GeoJSON Polygon circle around a center point. */
+function createCircleGeoJSON(lng: number, lat: number, radiusKm: number, points = 64): GeoJSON.FeatureCollection {
+  const coords: [number, number][] = [];
+  const earthRadiusKm = 6371;
+  for (let i = 0; i <= points; i++) {
+    const angle = (i / points) * 2 * Math.PI;
+    const dLat = (radiusKm / earthRadiusKm) * Math.cos(angle);
+    const dLng = (radiusKm / (earthRadiusKm * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle);
+    coords.push([lng + (dLng * 180) / Math.PI, lat + (dLat * 180) / Math.PI]);
+  }
+  return {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [coords] },
+      properties: { radius_km: radiusKm },
+    }],
+  };
+}
 
 interface PolygonData {
   type: string;
@@ -99,6 +120,10 @@ export default function MapView() {
       latitude: coords[1],
       kek_name: feature.properties.kek_name as string,
       action_flag: feature.properties.action_flag as string,
+      province: feature.properties.province as string,
+      kek_type: feature.properties.kek_type as string,
+      category: feature.properties.category as string,
+      area_ha: feature.properties.area_ha as number | null,
     });
     // Change cursor
     const map = mapRef.current?.getMap();
@@ -110,6 +135,14 @@ export default function MapView() {
     const map = mapRef.current?.getMap();
     if (map) map.getCanvas().style.cursor = '';
   }, []);
+
+  // 50km radius circle around selected KEK
+  const radiusCircle = useMemo(() => {
+    if (!selectedKek || !scorecard) return null;
+    const row = scorecard.find((r) => r.kek_id === selectedKek);
+    if (!row) return null;
+    return createCircleGeoJSON(row.longitude, row.latitude, RADIUS_KM);
+  }, [selectedKek, scorecard]);
 
   const resetView = useCallback(() => {
     selectKek(null);
@@ -143,6 +176,30 @@ export default function MapView() {
         <VectorOverlay />
         <InfraMarkers />
 
+        {/* 50km radius circle around selected KEK */}
+        {radiusCircle && (
+          <Source id="kek-radius-circle" type="geojson" data={radiusCircle}>
+            <Layer
+              id="kek-radius-fill"
+              type="fill"
+              paint={{
+                'fill-color': '#90CAF9',
+                'fill-opacity': 0.06,
+              }}
+            />
+            <Layer
+              id="kek-radius-outline"
+              type="line"
+              paint={{
+                'line-color': '#90CAF9',
+                'line-width': 1.5,
+                'line-opacity': 0.4,
+                'line-dasharray': [4, 3],
+              }}
+            />
+          </Source>
+        )}
+
         {/* Selected KEK polygon */}
         {polygon && (
           <Source id="kek-polygon" type="geojson" data={polygon as GeoJSON.FeatureCollection}>
@@ -173,13 +230,13 @@ export default function MapView() {
       {(selectedKek || isZoomedIn) && (
         <button
           onClick={resetView}
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded-lg px-5 py-2 text-sm font-medium text-zinc-200 hover:text-white transition-colors cursor-pointer"
+          className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 rounded-xl px-5 py-2 text-sm font-medium text-zinc-200 hover:text-white transition-all cursor-pointer hover:scale-[1.02]"
           style={{
-            backdropFilter: 'blur(24px) saturate(1.4)',
-            WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
-            background: 'rgba(20, 20, 24, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(40px) saturate(1.6)',
+            WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
+            background: 'rgba(20, 20, 24, 0.35)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 32px rgba(0,0,0,0.3)',
           }}
         >
           ‹ Back to National View

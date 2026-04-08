@@ -5,6 +5,7 @@ import MapView from './components/map/MapView';
 import BottomPanel from './components/ui/BottomPanel';
 import AssumptionsPanel from './components/panels/AssumptionsPanel';
 import ScoreDrawer from './components/panels/ScoreDrawer';
+import RasterLegend from './components/map/RasterLegend';
 
 function App() {
   const initialize = useDashboardStore((s) => s.initialize);
@@ -14,22 +15,27 @@ function App() {
   }, [initialize]);
 
   return (
-    <div className="h-screen flex flex-col bg-[#121212]">
-      <Header />
-      <div className="flex-1 relative overflow-hidden">
-        {/* MAP */}
-        <MapView />
+    <div className="h-screen relative bg-[#121212] overflow-hidden">
+      {/* MAP — full screen behind everything */}
+      <MapView />
 
-        {/* ASSUMPTIONS PANEL */}
-        <AssumptionsPanel />
+      {/* HEADER — liquid glass overlay on top of map */}
+      <div className="absolute top-0 left-0 right-0 z-30">
+        <Header />
+      </div>
 
-        {/* SCORE DRAWER */}
-        <ScoreDrawer />
+      {/* ASSUMPTIONS PANEL */}
+      <AssumptionsPanel />
 
-        {/* BOTTOM PANEL — inside map container so glass shows the map through */}
-        <div className="absolute bottom-0 left-0 right-0 z-10">
-          <BottomPanel />
-        </div>
+      {/* SCORE DRAWER */}
+      <ScoreDrawer />
+
+      {/* RASTER LEGENDS */}
+      <RasterLegend />
+
+      {/* BOTTOM PANEL */}
+      <div className="absolute bottom-0 left-0 right-0 z-10">
+        <BottomPanel />
       </div>
     </div>
   );

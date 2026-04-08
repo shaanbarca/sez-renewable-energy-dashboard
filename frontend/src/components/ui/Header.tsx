@@ -8,12 +8,13 @@ export default function Header() {
 
   return (
     <header
-      className="flex items-center justify-between px-5 py-3 border-b"
+      className="flex items-center justify-between px-5 py-3"
       style={{
-        background: 'var(--glass-heavy)',
-        backdropFilter: 'var(--blur-heavy)',
-        WebkitBackdropFilter: 'var(--blur-heavy)',
-        borderColor: 'var(--glass-border)',
+        background: 'rgba(255, 255, 255, 0.03)',
+        backdropFilter: 'blur(48px) saturate(1.8) brightness(1.15)',
+        WebkitBackdropFilter: 'blur(48px) saturate(1.8) brightness(1.15)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 16px rgba(0, 0, 0, 0.1)',
       }}
     >
       <div className="flex items-center gap-5">

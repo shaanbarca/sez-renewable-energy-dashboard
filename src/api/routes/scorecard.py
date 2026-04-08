@@ -124,9 +124,7 @@ def post_scorecard(req: ScorecardRequest):
     grid_cost_by_region = None
     if req.benchmark_mode == "bpp":
         grid_df = tables["fct_grid_cost_proxy"]
-        grid_cost_by_region = (
-            grid_df.groupby("grid_region_id")["dashboard_rate_usd_mwh"].first().to_dict()
-        )
+        grid_cost_by_region = grid_df.groupby("grid_region_id")["bpp_usd_mwh"].first().to_dict()
 
     scorecard_df = compute_scorecard_live(
         resource_df=resource_df,

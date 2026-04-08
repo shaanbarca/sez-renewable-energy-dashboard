@@ -30,6 +30,7 @@ Last updated: 2026-04-07.
 | M5 | **Custom CAPEX input for IPP** | PERSONAS.md P4 audit finding | P4 | IPP developers know their EPC costs better than the ESDM catalogue. Phase A provides CAPEX slider ($600–1,500); v1.2 adds free-text input for exact $/kW value. Workaround: export CSV with CF values and recompute in own model. |
 | M6 | **Configurable assumptions — Phase D (UX polish)** | DESIGN.md §3, decision #34 | All | URL state persistence (`?capex=840&wacc=8`), "scenario changed" badge, export-with-assumptions metadata, reset-to-defaults buttons per tier. |
 | M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets (e.g., "Optimistic", "Base", "Pessimistic") and compare side-by-side. Requires `dcc.Store` + local storage. |
+| M8 | **Floating solar modelling** | User observation (2026-04-08) | P2, P4 | Current model excludes water bodies (ESA WorldCover code 80) from buildable area. Floating PV on reservoirs, coastal lagoons, and nearshore waters could unlock viable capacity for land-constrained KEKs (e.g., Bali's Sanur/Kura Kura show ~1,000 ha buildable but fragmented). Floating solar CAPEX is ~20-30% higher than ground-mount ($1,100-1,400/kW vs $960/kW). Requires: (1) identify water bodies within 50km of each KEK, (2) add floating solar CAPEX assumption, (3) new `siting_scenario: floating` in `fct_lcoe`, (4) update buildability filters to include water surfaces as a separate category. |
 
 ---
 

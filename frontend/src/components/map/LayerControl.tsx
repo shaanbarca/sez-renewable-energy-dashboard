@@ -1,4 +1,5 @@
 import { useDashboardStore } from '../../store/dashboard';
+import { useDraggable } from '../../hooks/useDraggable';
 
 const LAYER_ITEMS = [
   { name: 'substations', label: 'Substations (PLN)' },
@@ -16,18 +17,56 @@ export default function LayerControl() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const toggleLayer = useDashboardStore((s) => s.toggleLayer);
 
+  const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
+
+  const allOn = LAYER_ITEMS.every(({ name }) => !!layerVisibility[name]);
+  const noneOn = LAYER_ITEMS.every(({ name }) => !layerVisibility[name]);
+
+  const selectAll = () => {
+    for (const { name } of LAYER_ITEMS) {
+      if (!layerVisibility[name]) toggleLayer(name);
+    }
+  };
+  const deselectAll = () => {
+    for (const { name } of LAYER_ITEMS) {
+      if (layerVisibility[name]) toggleLayer(name);
+    }
+  };
+
   return (
     <div
-      className="absolute top-3 right-3 z-10 rounded-lg px-3 py-2.5 max-h-[340px] overflow-y-auto"
+      className="absolute top-[60px] right-3 z-10 rounded-lg px-3 py-2.5 max-h-[340px] overflow-y-auto"
       style={{
         backdropFilter: 'var(--blur)',
         WebkitBackdropFilter: 'var(--blur)',
         background: 'var(--glass)',
         border: '1px solid var(--glass-border)',
+        transform: `translate(${dragPos.x}px, ${dragPos.y}px)`,
       }}
     >
-      <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-        Layers
+      <div
+        className="flex items-center justify-between mb-2 cursor-grab active:cursor-grabbing"
+        onMouseDown={onDragStart}
+      >
+        <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Layers
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={selectAll}
+            disabled={allOn}
+            className="text-[10px] text-[#90CAF9] hover:text-white disabled:text-zinc-600 transition-colors cursor-pointer disabled:cursor-default"
+          >
+            All
+          </button>
+          <button
+            onClick={deselectAll}
+            disabled={noneOn}
+            className="text-[10px] text-[#90CAF9] hover:text-white disabled:text-zinc-600 transition-colors cursor-pointer disabled:cursor-default"
+          >
+            None
+          </button>
+        </div>
       </div>
       <div className="space-y-1">
         {LAYER_ITEMS.map(({ name, label }) => (
