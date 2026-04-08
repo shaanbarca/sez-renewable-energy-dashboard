@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useDashboardStore } from './store/dashboard';
 import Header from './components/ui/Header';
+import BottomPanel from './components/ui/BottomPanel';
 
 function App() {
   const initialize = useDashboardStore((s) => s.initialize);
@@ -25,12 +26,8 @@ function App() {
         {/* SCORE DRAWER slot - Lane E will fill this */}
       </div>
 
-      {/* BOTTOM PANEL slot - Lane D will fill this */}
-      <div id="bottom-slot" className="h-64 border-t border-white/10">
-        <div className="flex items-center justify-center h-full text-zinc-600">
-          Bottom panel placeholder
-        </div>
-      </div>
+      {/* BOTTOM PANEL - Lane D */}
+      <BottomPanel />
     </div>
   );
 }
