@@ -305,6 +305,12 @@ def compute_scorecard_live(
 
     default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
 
+    # Index demand by kek_id for fast lookup
+    demand_by_kek: dict[str, float] = {}
+    if demand_df is not None and not demand_df.empty:
+        for _, d_row in demand_df.iterrows():
+            demand_by_kek[d_row["kek_id"]] = float(d_row["demand_mwh"])
+
     rows = []
     for _, kek in resource_df.iterrows():
         kek_id = kek["kek_id"]
@@ -490,6 +496,10 @@ def compute_scorecard_live(
             if flags["invest_battery"] and wb_cf and wb_cf > 0
             else _round(lcoe_mid),
             "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
+            "demand_2030_gwh": round(demand_by_kek[kek_id] / 1000, 1)
+            if kek_id in demand_by_kek
+            else None,
+            "green_share_geas": round(float(green_share), 4) if pd.notna(green_share) else None,
             "plan_late": flags["plan_late"],
             "invest_resilience": resilience,
             "carbon_breakeven_usd_tco2": carbon_be,
