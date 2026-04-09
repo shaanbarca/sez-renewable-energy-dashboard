@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
+# See LICENSE and NOTICE files in the project root.
 """
 build_dim_kek — master KEK dimension table.
 

@@ -80,6 +80,17 @@ uv run ruff check src/     # Python lint
 cd frontend && npm run lint # TypeScript lint (Biome)
 ```
 
+## License
+
+This project is licensed under the **MIT License** with the **Commons Clause** restriction.
+
+**In plain terms:**
+- **Free to use** — you can use, copy, modify, and redistribute this software freely
+- **Attribution required** — you must keep the copyright notice and credit the original author in all copies
+- **No selling** — you may not sell the software or any product/service whose value derives substantially from it
+
+See [LICENSE](LICENSE) and [NOTICE](NOTICE) for full terms.
+
 ## Author
 
 Shaan Barca (shaan.b1223@gmail.com)

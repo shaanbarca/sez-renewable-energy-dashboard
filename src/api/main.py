@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
+# See LICENSE and NOTICE files in the project root.
 """FastAPI backend for KEK Dashboard — thin API layer over existing modules.
 
 Phase 1 of Dash-to-React migration. Wraps logic.py, data_loader.py, and
