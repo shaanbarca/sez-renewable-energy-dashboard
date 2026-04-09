@@ -64,44 +64,59 @@ export default function MapView() {
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const terrainOn = useDashboardStore((s) => s.layerVisibility.terrain);
 
-  // Add Mapbox terrain DEM source once map loads
+  // 3D terrain: add DEM source + setTerrain in one atomic operation to avoid race conditions.
+  // Previous bug: source was added in one useEffect, terrain was set via <Map terrain={...}> prop
+  // in a separate render cycle — the prop fired before the source existed, silently failing.
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
-    const token = import.meta.env.VITE_MAPBOX_TOKEN;
-    if (!token) return;
 
-    const addSource = () => {
-      if (!map.getSource('terrain-dem')) {
-        map.addSource('terrain-dem', {
-          type: 'raster-dem',
-          tiles: [`https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`],
-          tileSize: 256,
-          maxzoom: 14,
-        });
+    const apply = () => {
+      if (terrainOn) {
+        // Add DEM source if not already present
+        if (!map.getSource('terrain-dem')) {
+          const token = import.meta.env.VITE_MAPBOX_TOKEN;
+          if (token) {
+            // Mapbox terrain-rgb: global coverage, requires token, mapbox encoding (default)
+            map.addSource('terrain-dem', {
+              type: 'raster-dem',
+              tiles: [
+                `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`,
+              ],
+              tileSize: 256,
+              maxzoom: 14,
+            });
+          } else {
+            // Fallback: Stadia Maps terrarium (free, global, CORS enabled, no key)
+            map.addSource('terrain-dem', {
+              type: 'raster-dem',
+              tiles: ['https://tiles.stadiamaps.com/data/terrarium/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              maxzoom: 15,
+              encoding: 'terrarium',
+            });
+          }
+        }
+        // Enable terrain — must happen AFTER source is added
+        map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+        if (map.getPitch() < 30) {
+          map.easeTo({ pitch: 50, duration: 800 });
+        }
+      } else {
+        // Disable terrain
+        if (map.getSource('terrain-dem')) {
+          map.setTerrain(null);
+        }
+        if (map.getPitch() > 0) {
+          map.easeTo({ pitch: 0, duration: 800 });
+        }
       }
     };
 
     if (map.isStyleLoaded()) {
-      addSource();
+      apply();
     } else {
-      map.once('style.load', addSource);
-    }
-  }, []);
-
-  // Auto-pitch when terrain toggles
-  useEffect(() => {
-    const map = mapRef.current?.getMap();
-    if (!map) return;
-
-    if (terrainOn) {
-      if (map.getPitch() < 30) {
-        map.easeTo({ pitch: 50, duration: 800 });
-      }
-    } else {
-      if (map.getPitch() > 0) {
-        map.easeTo({ pitch: 0, duration: 800 });
-      }
+      map.once('style.load', apply);
     }
   }, [terrainOn]);
 
@@ -211,8 +226,6 @@ export default function MapView() {
           zoom: INITIAL_ZOOM,
         }}
         mapStyle={MAP_STYLE}
-        // biome-ignore lint: terrain prop accepts the config object
-        {...(terrainOn ? { terrain: { source: 'terrain-dem', exaggeration: 1.5 } } : {})}
         style={{ width: '100%', height: '100%' }}
         interactiveLayerIds={['kek-circles']}
         onClick={handleClick}
@@ -221,8 +234,6 @@ export default function MapView() {
         onZoom={handleZoom}
       >
         <NavigationControl position="bottom-right" />
-
-
 
         <KekMarkers hoverInfo={hoverInfo} />
         <RasterOverlay />
