@@ -10,11 +10,14 @@ export function useScorecard() {
   const assumptions = useDashboardStore((s) => s.assumptions);
   const thresholds = useDashboardStore((s) => s.thresholds);
   const recomputeScorecard = useDashboardStore((s) => s.recomputeScorecard);
+  // benchmarkMode changes should trigger recomputation (grid cost benchmark affects action flags)
+  const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
 
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const initializedRef = useRef(false);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: benchmarkMode intentionally triggers recomputation even though it's not read inside the effect body
   useEffect(() => {
     // Skip the very first render (initial load is handled by initialize())
     if (!initializedRef.current) {
@@ -55,7 +58,7 @@ export function useScorecard() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [assumptions, thresholds, recomputeScorecard]);
+  }, [assumptions, thresholds, benchmarkMode, recomputeScorecard]);
 
   return { loading };
 }

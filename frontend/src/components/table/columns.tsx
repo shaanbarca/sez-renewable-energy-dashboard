@@ -1,6 +1,7 @@
 import { type CellContext, createColumnHelper, type FilterFn } from '@tanstack/react-table';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type { ScorecardRow } from '../../lib/types';
+import { useDashboardStore } from '../../store/dashboard';
 
 declare module '@tanstack/react-table' {
   interface FilterFns {
@@ -119,6 +120,21 @@ function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, string> }) {
   );
 }
 
+/* ---------- Grid Rate (benchmark-aware) ---------- */
+
+function GridRateHeader() {
+  const mode = useDashboardStore((s) => s.benchmarkMode);
+  const label = mode === 'bpp' ? 'BPP ($/MWh)' : 'Tariff ($/MWh)';
+  return <HeaderWithTooltip label={label} columnId="dashboard_rate_usd_mwh" />;
+}
+
+function GridRateCell({ info }: { info: CellContext<ScorecardRow, number> }) {
+  const mode = useDashboardStore((s) => s.benchmarkMode);
+  const row = info.row.original;
+  const value = mode === 'bpp' && row.bpp_usd_mwh != null ? row.bpp_usd_mwh : info.getValue();
+  return <>{value.toFixed(1)}</>;
+}
+
 /* ---------- Column definitions ---------- */
 
 const col = createColumnHelper<ScorecardRow>();
@@ -185,8 +201,8 @@ export const columns = [
     cell: (info) => info.getValue(),
   }),
   col.accessor('dashboard_rate_usd_mwh', {
-    header: () => <HeaderWithTooltip label="Grid Rate ($/MWh)" columnId="dashboard_rate_usd_mwh" />,
+    header: () => <GridRateHeader />,
     filterFn: 'inRange',
-    cell: (info) => info.getValue().toFixed(1),
+    cell: (info) => <GridRateCell info={info} />,
   }),
 ];
