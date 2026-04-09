@@ -19,10 +19,12 @@ Output columns: see DATA_DICTIONARY.md Section 2.8
 Key computed fields:
     solar_competitive_gap_pct   (lcoe_mid − dashboard_rate) / dashboard_rate × 100
                                 Negative = solar is already cheaper than grid.
-    action_flag                 One of: solar_now / grid_first / firming_needed / plan_late
+    action_flag                 One of: solar_now / invest_transmission / invest_substation / grid_first / invest_battery / plan_late
     solar_now                   solar_attractive AND grid pipeline adequate
+    invest_transmission         solar near substation but KEK far — build transmission (V3)
+    invest_substation           KEK near substation but solar far — build substation (V3)
     grid_first                  grid upgrade needed before solar makes sense
-    firming_needed              solar resource is good but intermittency is a barrier
+    invest_battery              solar resource is good but intermittency needs battery storage (V3)
     plan_late                   ≥60% of RUPTL additions are post-2030 (matches basic_model.PLAN_LATE_POST2030_SHARE_THRESHOLD)
     clean_power_advantage       −solar_competitive_gap_pct (higher = more competitive)
     data_completeness           "complete" / "partial" / "provisional"
@@ -103,7 +105,7 @@ def build_fct_kek_scorecard(
     fct_sub = pd.read_csv(fct_substation_proximity_csv)
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
-    # LCOE at base WACC, within_boundary scenario (on-site solar, no gen-tie cost)
+    # LCOE at base WACC, within_boundary scenario (on-site solar, no connection cost)
     lcoe = lcoe_all[
         (lcoe_all["wacc_pct"] == base_wacc) & (lcoe_all["scenario"] == "within_boundary")
     ].copy()
@@ -120,27 +122,34 @@ def build_fct_kek_scorecard(
         (lcoe_all["wacc_pct"] == 8.0) & (lcoe_all["scenario"] == "within_boundary")
     ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_mid_wacc8_usd_mwh"})
 
-    # Remote captive all-in LCOE at base WACC (includes gen-tie CAPEX + transmission lease)
-    # Surfaces the true all-in cost for the 23/25 remote_captive KEKs — kept as a separate
-    # column so the dashboard can display it alongside the within_boundary baseline.
-    lcoe_rc_allin = lcoe_all[
-        (lcoe_all["wacc_pct"] == BASE_WACC) & (lcoe_all["scenario"] == "remote_captive")
-    ][
-        [
-            "kek_id",
-            "lcoe_allin_usd_mwh",
-            "lcoe_allin_low_usd_mwh",
-            "lcoe_allin_high_usd_mwh",
-            "transmission_lease_adder_usd_mwh",
-        ]
-    ].rename(
-        columns={
-            "lcoe_allin_usd_mwh": "lcoe_remote_captive_allin_usd_mwh",
-            "lcoe_allin_low_usd_mwh": "lcoe_remote_captive_allin_low_usd_mwh",
-            "lcoe_allin_high_usd_mwh": "lcoe_remote_captive_allin_high_usd_mwh",
-            "transmission_lease_adder_usd_mwh": "transmission_lease_adder_usd_mwh",
-        }
+    # V2: Grid-connected solar LCOE at base WACC (includes connection cost to nearest substation)
+    _gc_scenario = (
+        "grid_connected_solar"
+        if "grid_connected_solar" in lcoe_all["scenario"].values
+        else "remote_captive"
     )
+    lcoe_gc = lcoe_all[
+        (lcoe_all["wacc_pct"] == BASE_WACC) & (lcoe_all["scenario"] == _gc_scenario)
+    ][
+        ["kek_id"]
+        + [
+            c
+            for c in [
+                "lcoe_usd_mwh",
+                "lcoe_low_usd_mwh",
+                "lcoe_high_usd_mwh",
+                "connection_cost_per_kw",
+            ]
+            if c in lcoe_all.columns
+        ]
+    ].copy()
+    # Rename to dashboard column names
+    _gc_renames = {"lcoe_usd_mwh": "lcoe_grid_connected_usd_mwh"}
+    if "lcoe_low_usd_mwh" in lcoe_gc.columns:
+        _gc_renames["lcoe_low_usd_mwh"] = "lcoe_grid_connected_low_usd_mwh"
+    if "lcoe_high_usd_mwh" in lcoe_gc.columns:
+        _gc_renames["lcoe_high_usd_mwh"] = "lcoe_grid_connected_high_usd_mwh"
+    lcoe_gc = lcoe_gc.rename(columns=_gc_renames)
 
     # Wind LCOE at base WACC, within_boundary
     lcoe_wind_wb = lcoe_wind_all[
@@ -180,15 +189,17 @@ def build_fct_kek_scorecard(
     # RUPTL: pre/post-2030 summary per region
     ruptl_summary = _ruptl_region_summary(ruptl)
 
-    # Substation proximity: distance + siting scenario per KEK
-    sub = fct_sub[
-        [
-            "kek_id",
-            "dist_to_nearest_substation_km",
-            "nearest_substation_capacity_mva",
-            "siting_scenario",
-        ]
-    ].copy()
+    # Substation proximity: distance + siting scenario + V2 grid integration per KEK
+    _sub_cols = [
+        "kek_id",
+        "dist_to_nearest_substation_km",
+        "nearest_substation_capacity_mva",
+        "siting_scenario",
+    ]
+    for _col in ["grid_integration_category", "dist_solar_to_nearest_substation_km"]:
+        if _col in fct_sub.columns:
+            _sub_cols.append(_col)
+    sub = fct_sub[_sub_cols].copy()
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     # Merge buildability columns when present in fct_kek_resource
@@ -225,7 +236,7 @@ def build_fct_kek_scorecard(
             how="left",
         )
         .merge(lcoe_wacc8, on="kek_id", how="left")
-        .merge(lcoe_rc_allin, on="kek_id", how="left")
+        .merge(lcoe_gc, on="kek_id", how="left")
         .merge(sub, on="kek_id", how="left")
         .merge(lcoe_wind_wb, on="kek_id", how="left")
         .merge(lcoe_wind_rc, on="kek_id", how="left")
@@ -361,18 +372,26 @@ def build_fct_kek_scorecard(
         if not has_grid_cost or not has_lcoe:
             flags = {
                 "solar_now": None,
+                "invest_transmission": None,
+                "invest_substation": None,
+                "invest_battery": None,
                 "grid_first": None,
-                "firming_needed": None,
                 "plan_late": None,
                 "invest_resilience": None,
             }
         else:
+            gi_cat = (
+                row.get("grid_integration_category")
+                if pd.notna(row.get("grid_integration_category"))
+                else None
+            )
             flags = action_flags(
                 solar_attractive=bool(row["solar_attractive"]),
                 grid_upgrade_pre2030=bool(row["grid_upgrade_pre2030"]),
                 reliability_req=reliability,
                 green_share_geas=float(row["green_share_geas"]),
                 post2030_share=float(row["post2030_share"]) if has_ruptl else 0.0,
+                grid_integration_cat=gi_cat,
             )
             flags["invest_resilience"] = invest_resilience(
                 solar_competitive_gap_pct=float(row["solar_competitive_gap_pct"])
@@ -392,10 +411,18 @@ def build_fct_kek_scorecard(
     # - otherwise: first True flag wins
     def _flag_label(row: pd.Series) -> str:
         if any(
-            row.get(f) is None for f in ["solar_now", "grid_first", "firming_needed", "plan_late"]
+            row.get(f) is None for f in ["solar_now", "grid_first", "invest_battery", "plan_late"]
         ):
             return "data_missing"
-        for flag in ["solar_now", "grid_first", "firming_needed", "invest_resilience", "plan_late"]:
+        for flag in [
+            "solar_now",
+            "invest_transmission",
+            "invest_substation",
+            "grid_first",
+            "invest_battery",
+            "invest_resilience",
+            "plan_late",
+        ]:
             if row.get(flag) is True:
                 return flag
         # Check if wind makes this KEK competitive even if solar isn't
@@ -409,15 +436,17 @@ def build_fct_kek_scorecard(
 
     # Carbon breakeven price: USD/tCO2 at which solar becomes cost-competitive
     df["carbon_breakeven_usd_tco2"] = df.apply(
-        lambda r: carbon_breakeven_price(
-            lcoe_mid_usd_mwh=float(r["lcoe_mid_usd_mwh"]),
-            grid_cost_usd_mwh=float(r["dashboard_rate_usd_mwh"]),
-            grid_emission_factor_t_co2_mwh=float(r["grid_emission_factor_t_co2_mwh"]),
-        )
-        if pd.notna(r["lcoe_mid_usd_mwh"])
-        and pd.notna(r["dashboard_rate_usd_mwh"])
-        and pd.notna(r["grid_emission_factor_t_co2_mwh"])
-        else None,
+        lambda r: (
+            carbon_breakeven_price(
+                lcoe_mid_usd_mwh=float(r["lcoe_mid_usd_mwh"]),
+                grid_cost_usd_mwh=float(r["dashboard_rate_usd_mwh"]),
+                grid_emission_factor_t_co2_mwh=float(r["grid_emission_factor_t_co2_mwh"]),
+            )
+            if pd.notna(r["lcoe_mid_usd_mwh"])
+            and pd.notna(r["dashboard_rate_usd_mwh"])
+            and pd.notna(r["grid_emission_factor_t_co2_mwh"])
+            else None
+        ),
         axis=1,
     )
 
@@ -468,15 +497,16 @@ def build_fct_kek_scorecard(
             "dist_to_nearest_substation_km",
             "nearest_substation_capacity_mva",
             "siting_scenario",
+            "grid_integration_category",
             "project_viable",
             "demand_mwh_2030",
             "lcoe_low_usd_mwh",
             "lcoe_mid_usd_mwh",
             "lcoe_high_usd_mwh",
-            "lcoe_remote_captive_allin_usd_mwh",
-            "lcoe_remote_captive_allin_low_usd_mwh",
-            "lcoe_remote_captive_allin_high_usd_mwh",
-            "transmission_lease_adder_usd_mwh",
+            "lcoe_grid_connected_usd_mwh",
+            "lcoe_grid_connected_low_usd_mwh",
+            "lcoe_grid_connected_high_usd_mwh",
+            "connection_cost_per_kw",
             "cf_used",
             "is_cf_provisional",
             "is_capex_provisional",
@@ -499,8 +529,10 @@ def build_fct_kek_scorecard(
             "solar_now_at_wacc8",
             "action_flag",
             "solar_now",
+            "invest_transmission",
+            "invest_substation",
+            "invest_battery",
             "grid_first",
-            "firming_needed",
             "invest_resilience",
             "plan_late",
             "green_share_geas",

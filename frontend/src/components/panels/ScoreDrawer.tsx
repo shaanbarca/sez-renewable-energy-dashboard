@@ -141,14 +141,18 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
     }
     case 'grid_first':
       return `Solar is cost-competitive here (LCOE $${row.lcoe_mid_usd_mwh?.toFixed(1)}/MWh vs grid $${row.grid_cost_usd_mwh?.toFixed(1)}/MWh), but ${row.grid_upgrade_planned === false ? 'no grid upgrade is planned before 2030' : 'grid infrastructure needs improvement'} — solar cannot connect until the grid catches up.`;
-    case 'firming_needed': {
-      const parts = ['Solar economics work, but this KEK has high reliability requirements.'];
-      if (row.firming_adder_usd_mwh)
+    case 'invest_transmission':
+      return `Solar can reach a nearby substation, but the KEK is far from grid infrastructure. Build transmission from substation to KEK${row.dist_to_nearest_substation_km ? ` (${row.dist_to_nearest_substation_km.toFixed(0)}km)` : ''}.`;
+    case 'invest_substation':
+      return `KEK is grid-connected, but the best solar site is far from any substation. Build a substation or connection point near the solar farm${row.dist_solar_to_nearest_substation_km ? ` (${row.dist_solar_to_nearest_substation_km.toFixed(0)}km)` : ''}.`;
+    case 'invest_battery': {
+      const parts = ['Solar economics work, but this KEK needs battery storage for reliability.'];
+      if (row.battery_adder_usd_mwh)
         parts.push(
-          `Firming adds +$${row.firming_adder_usd_mwh.toFixed(0)}/MWh (battery/backup) to ensure stable supply.`,
+          `Battery adds +$${row.battery_adder_usd_mwh.toFixed(0)}/MWh (4h Li-ion storage).`,
         );
-      if (row.lcoe_with_firming_usd_mwh)
-        parts.push(`All-in cost with firming: $${row.lcoe_with_firming_usd_mwh.toFixed(1)}/MWh.`);
+      if (row.lcoe_with_battery_usd_mwh)
+        parts.push(`Solar + battery: $${row.lcoe_with_battery_usd_mwh.toFixed(1)}/MWh.`);
       return parts.join(' ');
     }
     case 'plan_late':

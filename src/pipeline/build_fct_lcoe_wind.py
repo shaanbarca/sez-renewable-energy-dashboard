@@ -10,18 +10,14 @@ Sources:
 Output columns (one row per kek_id × wacc_pct × scenario):
     kek_id                      join key
     wacc_pct                    WACC assumption (4–20% in 2% steps)
-    scenario                    'within_boundary' or 'remote_captive'
+    scenario                    'within_boundary' or 'grid_connected_solar'
     cf_wind_used                wind capacity factor used
     wind_speed_ms               wind speed (m/s) for the scenario
-    gentie_cost_per_kw          0 for within_boundary; dist-based for remote_captive
-    effective_capex_usd_per_kw  capex + gentie_cost_per_kw
+    connection_cost_per_kw      0 for within_boundary; dist-based for grid_connected_solar
+    effective_capex_usd_per_kw  capex + connection_cost_per_kw
     lcoe_usd_mwh               LCOE at central CAPEX
     lcoe_low_usd_mwh            LCOE at lower CAPEX bound
     lcoe_high_usd_mwh           LCOE at upper CAPEX bound
-    transmission_lease_adder_usd_mwh  lease for remote scenario
-    lcoe_allin_usd_mwh          LCOE + transmission lease
-    lcoe_allin_low_usd_mwh      all-in at lower bound
-    lcoe_allin_high_usd_mwh     all-in at upper bound
     tech_id                     "TECH_WIND_ONSHORE"
     lifetime_yr                 lifetime used
 
@@ -29,8 +25,8 @@ Formula: same CRF annuity as solar (src/model/basic_model.py)
     lcoe = (effective_capex × crf + fixed_om) / (cf × 8.76)
 
 Siting scenarios (same as solar):
-    within_boundary — uses cf_wind_centroid, no gen-tie cost
-    remote_captive  — uses cf_wind_best_50km, gen-tie CAPEX adder
+    within_boundary       — uses cf_wind_centroid, no connection cost
+    grid_connected_solar  — uses cf_wind_best_50km, connection cost to nearest substation
 """
 
 from __future__ import annotations
@@ -40,13 +36,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.model.basic_model import gentie_cost_per_kw, lcoe_solar
-from src.pipeline.assumptions import (
-    TRANSMISSION_LEASE_HIGH_USD_MWH,
-    TRANSMISSION_LEASE_LOW_USD_MWH,
-    TRANSMISSION_LEASE_MID_USD_MWH,
-    WACC_VALUES,
-)
+from src.assumptions import LAND_COST_USD_PER_KW
+from src.model.basic_model import grid_connection_cost_per_kw, lcoe_solar
+from src.pipeline.assumptions import WACC_VALUES
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -82,9 +74,11 @@ def build_fct_lcoe_wind(
         ]
     ]
     tech = pd.read_csv(dim_tech_wind_csv).iloc[0]
-    proximity = pd.read_csv(fct_substation_proximity_csv)[
-        ["kek_id", "dist_to_nearest_substation_km"]
-    ]
+    _prox_raw = pd.read_csv(fct_substation_proximity_csv)
+    _prox_cols = ["kek_id", "dist_to_nearest_substation_km"]
+    if "dist_solar_to_nearest_substation_km" in _prox_raw.columns:
+        _prox_cols.append("dist_solar_to_nearest_substation_km")
+    proximity = _prox_raw[_prox_cols]
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
     capex_c = float(tech["capex_usd_per_kw"])
@@ -97,7 +91,7 @@ def build_fct_lcoe_wind(
 
     scenarios = [
         ("within_boundary", "cf_wind_centroid", "wind_speed_centroid_ms"),
-        ("remote_captive", "cf_wind_best_50km", "wind_speed_best_50km_ms"),
+        ("grid_connected_solar", "cf_wind_best_50km", "wind_speed_best_50km_ms"),
     ]
 
     df = dim_kek.merge(wind_resource, on="kek_id", how="left")
@@ -106,31 +100,32 @@ def build_fct_lcoe_wind(
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
     for _, kek_row in df.iterrows():
-        dist_km = (
-            float(kek_row["dist_to_nearest_substation_km"])
-            if pd.notna(kek_row.get("dist_to_nearest_substation_km"))
-            else 0.0
-        )
+        # V2: prefer solar-to-substation distance; fallback to KEK-to-substation
+        dist_solar = kek_row.get("dist_solar_to_nearest_substation_km")
+        dist_kek = kek_row.get("dist_to_nearest_substation_km")
+        if pd.isna(dist_solar):
+            dist_solar = None
+        if pd.isna(dist_kek):
+            dist_kek = 0.0
+        else:
+            dist_kek = float(dist_kek)
+        dist_km = float(dist_solar) if dist_solar is not None else dist_kek
 
         for scenario, cf_col, ws_col in scenarios:
             cf = float(kek_row[cf_col]) if pd.notna(kek_row.get(cf_col)) else None
             ws = float(kek_row[ws_col]) if pd.notna(kek_row.get(ws_col)) else np.nan
 
-            # Gen-tie cost: 0 for within_boundary, computed for remote_captive
+            # Connection + land cost: 0 for within_boundary, computed for grid_connected
             if scenario == "within_boundary":
-                gtie = 0.0
-                lease_mid = 0.0
-                lease_low = 0.0
-                lease_high = 0.0
+                conn_cost = 0.0
+                land_cost = 0.0
             else:
-                gtie = gentie_cost_per_kw(dist_km)
-                lease_mid = TRANSMISSION_LEASE_MID_USD_MWH
-                lease_low = TRANSMISSION_LEASE_LOW_USD_MWH
-                lease_high = TRANSMISSION_LEASE_HIGH_USD_MWH
+                conn_cost = grid_connection_cost_per_kw(dist_km)
+                land_cost = LAND_COST_USD_PER_KW
 
-            eff_capex_c = capex_c + gtie
-            eff_capex_l = capex_l + gtie
-            eff_capex_u = capex_u + gtie
+            eff_capex_c = capex_c + conn_cost + land_cost
+            eff_capex_l = capex_l + conn_cost + land_cost
+            eff_capex_u = capex_u + conn_cost + land_cost
 
             for wacc in wacc_values:
                 wacc_dec = wacc / 100.0
@@ -152,15 +147,11 @@ def build_fct_lcoe_wind(
                         "scenario": scenario,
                         "cf_wind_used": round(float(cf), 4) if cf is not None else np.nan,
                         "wind_speed_ms": round(ws, 2) if np.isfinite(ws) else np.nan,
-                        "gentie_cost_per_kw": round(gtie, 1),
+                        "connection_cost_per_kw": round(conn_cost, 1),
                         "effective_capex_usd_per_kw": round(eff_capex_c, 1),
                         "lcoe_usd_mwh": _r(lcoe_c),
                         "lcoe_low_usd_mwh": _r(lcoe_l),
                         "lcoe_high_usd_mwh": _r(lcoe_u),
-                        "transmission_lease_adder_usd_mwh": lease_mid,
-                        "lcoe_allin_usd_mwh": _r(lcoe_c, lease_mid),
-                        "lcoe_allin_low_usd_mwh": _r(lcoe_l, lease_low),
-                        "lcoe_allin_high_usd_mwh": _r(lcoe_u, lease_high),
                         "is_capex_provisional": is_capex_provisional,
                         "tech_id": tech_id,
                         "lifetime_yr": lifetime,

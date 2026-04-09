@@ -25,6 +25,11 @@ import pandas as pd
 
 from src.assumptions import (
     BASE_WACC_DECIMAL,
+    BESS_CAPEX_USD_PER_KWH,
+    BESS_DISCHARGE_HOURS,
+    BESS_FOM_USD_PER_KW_YR,
+    BESS_LIFETIME_YR,
+    BESS_SIZING_HOURS,
     CAPEX_USD_PER_KW_MAX,
     CAPEX_USD_PER_KW_MIN,
     CONNECTION_COST_PER_KW_KM,
@@ -271,7 +276,7 @@ def lcoe_solar_with_firming(
 ) -> float:
     """All-in captive solar cost: LCOE + firming/wheeling adder.
 
-    Used for 'firming_needed' KEKs where reliability requirements mean
+    Used for 'invest_battery' KEKs where reliability requirements mean
     LCOE alone understates the real investor cost. See METHODOLOGY.md Section 5.5.
 
     Parameters
@@ -291,6 +296,68 @@ def lcoe_solar_with_firming(
     }
     base = lcoe_solar(capex_usd_per_kw, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
     return base + adder_map[firming_adder]
+
+
+def bess_storage_adder(
+    bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
+    solar_cf: float = 0.18,
+    wacc: float = BASE_WACC_DECIMAL,
+    sizing_hours: float = BESS_SIZING_HOURS,
+    bess_lifetime_yr: int = BESS_LIFETIME_YR,
+    bess_fom_usd_per_kw_yr: float = BESS_FOM_USD_PER_KW_YR,
+    bess_discharge_hours: float = BESS_DISCHARGE_HOURS,
+) -> float:
+    """Battery storage cost adder per MWh of solar generation (USD/MWh).
+
+    Computes the incremental cost of adding battery storage to a solar plant,
+    expressed per MWh of total solar generation. Uses battery-specific CRF
+    (15yr lifetime) separate from the solar plant's 25yr lifetime.
+
+    Parameters
+    ----------
+    bess_capex_usd_per_kwh:
+        Installed battery cost per kWh of capacity (default $250).
+    solar_cf:
+        Solar capacity factor at the site (0-1).
+    wacc:
+        Weighted average cost of capital (decimal).
+    sizing_hours:
+        Hours of battery per kW of solar (default 2h for firming).
+    bess_lifetime_yr:
+        Battery calendar lifetime (default 15 years).
+    bess_fom_usd_per_kw_yr:
+        Battery fixed O&M per kW of battery power capacity per year.
+    bess_discharge_hours:
+        Battery system discharge duration (for FOM pro-rating).
+
+    Returns
+    -------
+    float
+        USD/MWh adder to solar LCOE.
+    """
+    crf = capital_recovery_factor(wacc, bess_lifetime_yr)
+    bess_capex_per_kw_solar = bess_capex_usd_per_kwh * sizing_hours
+    fom_adj = bess_fom_usd_per_kw_yr * (sizing_hours / bess_discharge_hours)
+    annual_cost_per_kw = bess_capex_per_kw_solar * crf + fom_adj
+    annual_solar_mwh = solar_cf * HOURS_PER_YEAR / 1000
+    return annual_cost_per_kw / annual_solar_mwh
+
+
+def lcoe_solar_with_battery(
+    capex_usd_per_kw: float,
+    fixed_om_usd_per_kw_yr: float,
+    wacc: float,
+    lifetime_yr: int,
+    cf: float,
+    bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
+) -> float:
+    """Solar + battery storage bundled LCOE (USD/MWh).
+
+    Adds the battery storage adder (2h firming) to the base solar LCOE.
+    """
+    base = lcoe_solar(capex_usd_per_kw, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
+    storage = bess_storage_adder(bess_capex_usd_per_kwh, solar_cf=cf, wacc=wacc)
+    return base + storage
 
 
 def grid_connection_cost_per_kw(
@@ -472,10 +539,15 @@ class ActionFlag(StrEnum):
     """Recommended action for a KEK based on solar economics and grid readiness."""
 
     SOLAR_NOW = "solar_now"
-    INVEST_GRID = "invest_grid"  # V2: solar exists but grid connection missing
+    INVEST_TRANSMISSION = (
+        "invest_transmission"  # solar near substation; KEK far — build transmission
+    )
+    INVEST_SUBSTATION = (
+        "invest_substation"  # KEK near substation; solar far — build substation near solar
+    )
+    INVEST_BATTERY = "invest_battery"  # high reliability req — add battery storage
     INVEST_RESILIENCE = "invest_resilience"
     GRID_FIRST = "grid_first"
-    FIRMING_NEEDED = "firming_needed"
     PLAN_LATE = "plan_late"
     NOT_COMPETITIVE = "not_competitive"
 
@@ -486,14 +558,17 @@ def action_flags(
     reliability_req: float,
     green_share_geas: float,
     post2030_share: float,
+    grid_integration_cat: str | None = None,
 ) -> dict[str, bool]:
-    """Compute the four binary action flags for a single KEK.
+    """Compute action flags for a single KEK.
 
     Flag logic (see METHODOLOGY.md Section 5.2):
-    - solar_now:      solar attractive AND grid ready AND sufficient GEAS allocation
-    - grid_first:     solar attractive AND grid upgrade NOT yet pre-2030
-    - firming_needed: solar attractive AND KEK reliability requirement >= 0.75
-    - plan_late:      >= 60 % of RUPTL solar additions slip to post-2030
+    - solar_now:            solar attractive AND grid ready AND sufficient GEAS allocation
+    - invest_transmission:  solar near substation but KEK far — build transmission to KEK
+    - invest_substation:    KEK near substation but solar far — build substation near solar
+    - invest_battery:       solar attractive AND KEK reliability requirement >= 0.75
+    - grid_first:           solar attractive AND grid upgrade NOT yet pre-2030
+    - plan_late:            >= 60% of RUPTL solar additions slip to post-2030
 
     Parameters
     ----------
@@ -507,23 +582,35 @@ def action_flags(
         Share of 2030 demand covered by GEAS-allocated solar (0–1).
     post2030_share:
         Share of RUPTL-planned solar additions scheduled after 2030 (0–1).
+    grid_integration_cat:
+        Grid integration category from grid_integration_category(). One of
+        'within_boundary', 'grid_ready', 'invest_transmission',
+        'invest_substation', 'grid_first', or None.
 
     Returns
     -------
-    dict with keys: solar_now, grid_first, firming_needed, plan_late
+    dict with keys: solar_now, invest_transmission, invest_substation,
+    invest_battery, grid_first, plan_late
     """
     plan_late = post2030_share >= PLAN_LATE_POST2030_SHARE_THRESHOLD
     grid_first = solar_attractive and not grid_upgrade_pre2030
-    firming_needed = solar_attractive and reliability_req >= FIRMING_RELIABILITY_REQ_THRESHOLD
+    invest_battery = solar_attractive and reliability_req >= FIRMING_RELIABILITY_REQ_THRESHOLD
+    invest_transmission = solar_attractive and grid_integration_cat == "invest_transmission"
+    invest_substation = solar_attractive and grid_integration_cat == "invest_substation"
+
     solar_now = (
         solar_attractive
         and not grid_first
+        and not invest_transmission
+        and not invest_substation
         and green_share_geas >= GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD
     )
     return {
         "solar_now": solar_now,
+        "invest_transmission": invest_transmission,
+        "invest_substation": invest_substation,
+        "invest_battery": invest_battery,
         "grid_first": grid_first,
-        "firming_needed": firming_needed,
         "plan_late": plan_late,
     }
 
@@ -612,11 +699,12 @@ def grid_integration_category(
 
     Three points: (A) best buildable solar site, (B) nearest PLN substation, (C) KEK centroid.
 
-    Categories (METHODOLOGY_V2.md §2):
-        within_boundary — substation inside KEK polygon; solar can connect directly
-        grid_ready      — substation near both solar AND KEK (short connection feasible)
-        invest_grid     — substation near one but not both; targeted investment unlocks solar
-        grid_first      — no substations near either; major grid investment needed
+    Categories (METHODOLOGY.md §2):
+        within_boundary      — substation inside KEK polygon; solar can connect directly
+        grid_ready           — substation near both solar AND KEK (short connection feasible)
+        invest_transmission  — solar near substation, KEK far — build transmission to KEK
+        invest_substation    — KEK near substation, solar far — build substation near solar
+        grid_first           — no substations near either; major grid investment needed
 
     Parameters
     ----------
@@ -641,7 +729,8 @@ def grid_integration_category(
     Returns
     -------
     str
-        One of: 'within_boundary', 'grid_ready', 'invest_grid', 'grid_first'.
+        One of: 'within_boundary', 'grid_ready', 'invest_transmission',
+        'invest_substation', 'grid_first'.
     """
     if has_internal_substation:
         return "within_boundary"
@@ -658,8 +747,10 @@ def grid_integration_category(
 
     if solar_near and kek_near:
         return "grid_ready"
-    elif solar_near or kek_near:
-        return "invest_grid"
+    elif solar_near and not kek_near:
+        return "invest_transmission"
+    elif kek_near and not solar_near:
+        return "invest_substation"
     else:
         return "grid_first"
 
@@ -1023,7 +1114,14 @@ def build_scorecard(
         )
         df = pd.concat([df, flags], axis=1)
     else:
-        for flag in ("solar_now", "grid_first", "firming_needed", "plan_late"):
+        for flag in (
+            "solar_now",
+            "invest_transmission",
+            "invest_substation",
+            "grid_first",
+            "invest_battery",
+            "plan_late",
+        ):
             df[flag] = None
 
     df["wacc"] = wacc

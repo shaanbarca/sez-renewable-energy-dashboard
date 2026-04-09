@@ -45,6 +45,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.assumptions import LAND_COST_USD_PER_KW
 from src.model.basic_model import grid_connection_cost_per_kw, lcoe_solar
 from src.pipeline.assumptions import (
     HOURS_PER_YEAR,
@@ -150,17 +151,19 @@ def build_fct_lcoe(
 
             cf = float(pvout_val) / HOURS_PER_YEAR if pd.notna(pvout_val) else None
 
-            # Connection cost: 0 for within_boundary, computed for grid_connected_solar
+            # Connection + land cost: 0 for within_boundary, computed for grid_connected_solar
             if scenario == "within_boundary":
                 conn_cost = 0.0
+                land_cost = 0.0
             else:
                 # V2: use solar-to-substation distance; fallback to KEK-to-substation
                 dist = dist_solar_to_sub if dist_solar_to_sub is not None else dist_kek_to_sub
                 conn_cost = grid_connection_cost_per_kw(dist)
+                land_cost = LAND_COST_USD_PER_KW
 
-            eff_capex_c = capex_c + conn_cost
-            eff_capex_l = capex_l + conn_cost
-            eff_capex_u = capex_u + conn_cost
+            eff_capex_c = capex_c + conn_cost + land_cost
+            eff_capex_l = capex_l + conn_cost + land_cost
+            eff_capex_u = capex_u + conn_cost + land_cost
 
             for wacc in wacc_values:
                 wacc_dec = wacc / 100.0

@@ -8,17 +8,18 @@ from src.model.basic_model import ActionFlag
 def test_action_flag_values():
     """ActionFlag members have expected string values."""
     assert ActionFlag.SOLAR_NOW == "solar_now"
-    assert ActionFlag.INVEST_GRID == "invest_grid"
+    assert ActionFlag.INVEST_TRANSMISSION == "invest_transmission"
+    assert ActionFlag.INVEST_SUBSTATION == "invest_substation"
+    assert ActionFlag.INVEST_BATTERY == "invest_battery"
     assert ActionFlag.INVEST_RESILIENCE == "invest_resilience"
     assert ActionFlag.GRID_FIRST == "grid_first"
-    assert ActionFlag.FIRMING_NEEDED == "firming_needed"
     assert ActionFlag.PLAN_LATE == "plan_late"
     assert ActionFlag.NOT_COMPETITIVE == "not_competitive"
 
 
 def test_action_flag_count():
-    """There are exactly 7 action flags."""
-    assert len(list(ActionFlag)) == 7
+    """There are exactly 8 action flags."""
+    assert len(list(ActionFlag)) == 8
 
 
 def test_action_flag_str_comparison():

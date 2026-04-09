@@ -7,12 +7,16 @@ const flags = Object.keys(ACTION_FLAG_COLORS) as ActionFlag[];
 const FLAG_DESCRIPTIONS: Record<string, string> = {
   solar_now:
     'Solar is cost-competitive today. Grid upgrades are planned and GEAS allocation is sufficient.',
+  invest_transmission:
+    'Solar can reach a substation, but the KEK is far from grid infrastructure. Build transmission to KEK.',
+  invest_substation:
+    'KEK is grid-connected, but the best solar site is far from any substation. Build a substation near solar.',
   invest_resilience:
     'Solar is within ~20% of grid parity. Investing now builds resilience against future grid cost increases.',
   grid_first:
     'Solar economics work, but no grid upgrade is planned before 2030 — solar cannot connect until the grid catches up.',
-  firming_needed:
-    'Solar economics work, but high reliability requirements mean firming (battery/backup) is needed, adding cost.',
+  invest_battery:
+    'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   plan_late:
     'Over 60% of planned solar additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
   not_competitive: 'Solar LCOE exceeds grid cost by too wide a margin under current assumptions.',

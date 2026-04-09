@@ -11,6 +11,9 @@ from __future__ import annotations
 
 ACTION_FLAG_COLORS: dict[str, str] = {
     "solar_now": "#2E7D32",
+    "invest_transmission": "#0277BD",
+    "invest_substation": "#00838F",
+    "invest_battery": "#FFA726",
     "invest_resilience": "#F57C00",
     "grid_first": "#1565C0",
     "plan_late": "#7B1FA2",
@@ -19,6 +22,9 @@ ACTION_FLAG_COLORS: dict[str, str] = {
 
 ACTION_FLAG_LABELS: dict[str, str] = {
     "solar_now": "Solar Now",
+    "invest_transmission": "Build Transmission",
+    "invest_substation": "Build Substation",
+    "invest_battery": "Add Battery Storage",
     "invest_resilience": "Invest Resilience",
     "grid_first": "Grid First",
     "plan_late": "Plan Late",
@@ -29,6 +35,18 @@ ACTION_FLAG_DESCRIPTIONS: dict[str, str] = {
     "solar_now": (
         "Solar LCOE is below grid cost AND PLN has grid infrastructure "
         "upgrades planned pre-2030 AND the KEK has sufficient GEAS green energy allocation"
+    ),
+    "invest_transmission": (
+        "Solar farm can reach a nearby substation, but the KEK is far from grid infrastructure. "
+        "Build transmission line from substation area to KEK to unlock solar."
+    ),
+    "invest_substation": (
+        "KEK is grid-connected, but the best solar site is far from any substation. "
+        "Build a new substation or connection point near the solar farm."
+    ),
+    "invest_battery": (
+        "Solar economics work, but this KEK has high reliability requirements (>75%). "
+        "Battery storage (2h Li-ion) is needed to firm intermittent solar output."
     ),
     "invest_resilience": (
         "Solar LCOE is within the resilience gap threshold of grid cost "
@@ -133,13 +151,21 @@ TIER2_SLIDERS = {
         "unit": "$/kW",
         "description": "Fixed grid connection cost (step-up transformer, switchgear, metering) per kW",
     },
-    "firming_adder_mid_usd_mwh": {
-        "min": 5,
-        "max": 20,
-        "step": 1,
-        "label": "Firming adder",
-        "unit": "$/MWh",
-        "description": "Cost of battery/backup to firm intermittent solar output",
+    "bess_capex_usd_per_kwh": {
+        "min": 100,
+        "max": 500,
+        "step": 10,
+        "label": "Battery CAPEX",
+        "unit": "$/kWh",
+        "description": "Battery storage installed cost per kWh (4h Li-ion system, 2h sizing for firming)",
+    },
+    "land_cost_usd_per_kw": {
+        "min": 0,
+        "max": 300,
+        "step": 5,
+        "label": "Land cost",
+        "unit": "$/kW",
+        "description": "Land acquisition cost for solar farm, applied to grid-connected scenario only",
     },
     "idr_usd_rate": {
         "min": 14000,

@@ -276,6 +276,43 @@ class TestLcoeSolarWithFirming:
 
 
 # ---------------------------------------------------------------------------
+# 5b. BESS LCOE
+# ---------------------------------------------------------------------------
+
+
+class TestBessStorageAdder:
+    def test_plausible_range(self):
+        """Battery adder at defaults (2h, $250/kWh, CF=0.18) should be $25-60/MWh."""
+        from src.model.basic_model import bess_storage_adder
+
+        result = bess_storage_adder()
+        assert 25.0 < result < 60.0, f"Battery adder = ${result:.1f}/MWh, expected $25-60"
+
+    def test_higher_capex_higher_adder(self):
+        from src.model.basic_model import bess_storage_adder
+
+        low = bess_storage_adder(bess_capex_usd_per_kwh=150.0)
+        high = bess_storage_adder(bess_capex_usd_per_kwh=400.0)
+        assert high > low
+
+    def test_higher_cf_lower_adder(self):
+        """Better solar sites spread battery cost over more MWh."""
+        from src.model.basic_model import bess_storage_adder
+
+        low_cf = bess_storage_adder(solar_cf=0.15)
+        high_cf = bess_storage_adder(solar_cf=0.22)
+        assert low_cf > high_cf
+
+    def test_solar_with_battery_greater_than_base(self):
+        from src.model.basic_model import lcoe_solar_with_battery
+
+        cf = capacity_factor_from_pvout(1600.0)
+        base = lcoe_solar(700, 12, 0.09, 25, cf)
+        bundled = lcoe_solar_with_battery(700, 12, 0.09, 25, cf)
+        assert bundled > base
+
+
+# ---------------------------------------------------------------------------
 # 6. Gen-tie cost and remote captive LCOE
 # ---------------------------------------------------------------------------
 
@@ -424,15 +461,15 @@ class TestGridIntegrationCategory:
 
         assert grid_integration_category(False, 5.0, 10.0) == "grid_ready"
 
-    def test_invest_grid_solar_near_kek_far(self):
+    def test_invest_transmission_solar_near_kek_far(self):
         from src.model.basic_model import grid_integration_category
 
-        assert grid_integration_category(False, 5.0, 20.0) == "invest_grid"
+        assert grid_integration_category(False, 5.0, 20.0) == "invest_transmission"
 
-    def test_invest_grid_kek_near_solar_far(self):
+    def test_invest_substation_kek_near_solar_far(self):
         from src.model.basic_model import grid_integration_category
 
-        assert grid_integration_category(False, 15.0, 10.0) == "invest_grid"
+        assert grid_integration_category(False, 15.0, 10.0) == "invest_substation"
 
     def test_grid_first(self):
         from src.model.basic_model import grid_integration_category
@@ -440,10 +477,10 @@ class TestGridIntegrationCategory:
         assert grid_integration_category(False, 15.0, 20.0) == "grid_first"
 
     def test_solar_coords_none_and_kek_near(self):
-        """Missing solar coords + KEK near substation → invest_grid (solar side unknown)."""
+        """Missing solar coords + KEK near substation → invest_substation (solar side unknown)."""
         from src.model.basic_model import grid_integration_category
 
-        assert grid_integration_category(False, None, 10.0) == "invest_grid"
+        assert grid_integration_category(False, None, 10.0) == "invest_substation"
 
     def test_solar_coords_none_and_kek_far(self):
         """Missing solar coords + KEK far from substation → grid_first."""
@@ -473,7 +510,8 @@ class TestGridIntegrationCategory:
     def test_custom_thresholds(self):
         from src.model.basic_model import grid_integration_category
 
-        # With tighter thresholds, a previously grid_ready site becomes invest_grid
+        # With tighter thresholds, a previously grid_ready site becomes invest_substation
+        # (solar at 8km > 5km threshold, KEK at 10km < 15km threshold)
         result = grid_integration_category(
             False,
             8.0,
@@ -481,7 +519,7 @@ class TestGridIntegrationCategory:
             solar_to_sub_threshold_km=5.0,
             kek_to_sub_threshold_km=15.0,
         )
-        assert result == "invest_grid"
+        assert result == "invest_substation"
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +579,7 @@ class TestActionFlags:
         )
         assert flags["solar_now"] is True
         assert flags["grid_first"] is False
-        assert flags["firming_needed"] is False
+        assert flags["invest_battery"] is False
         assert flags["plan_late"] is False
 
     def test_grid_first(self):
@@ -555,7 +593,7 @@ class TestActionFlags:
         assert flags["grid_first"] is True
         assert flags["solar_now"] is False  # blocked by grid_first
 
-    def test_firming_needed(self):
+    def test_invest_battery(self):
         flags = action_flags(
             solar_attractive=True,
             grid_upgrade_pre2030=True,
@@ -563,9 +601,9 @@ class TestActionFlags:
             green_share_geas=0.5,
             post2030_share=0.3,
         )
-        assert flags["firming_needed"] is True
+        assert flags["invest_battery"] is True
 
-    def test_firming_below_threshold(self):
+    def test_invest_battery_below_threshold(self):
         flags = action_flags(
             solar_attractive=True,
             grid_upgrade_pre2030=True,
@@ -573,7 +611,7 @@ class TestActionFlags:
             green_share_geas=0.5,
             post2030_share=0.3,
         )
-        assert flags["firming_needed"] is False
+        assert flags["invest_battery"] is False
 
     def test_plan_late(self):
         flags = action_flags(
@@ -595,7 +633,7 @@ class TestActionFlags:
         )
         assert flags["solar_now"] is False
         assert flags["grid_first"] is False
-        assert flags["firming_needed"] is False
+        assert flags["invest_battery"] is False
 
     def test_plan_late_independent_of_solar_attractive(self):
         flags_yes = action_flags(False, True, 0.4, 0.1, 0.65)
@@ -866,7 +904,7 @@ class TestBuildScorecard:
             fct_ruptl=sample_ruptl_df,
             grid_cost_usd_mwh=60.0,
         )
-        for flag in ("solar_now", "grid_first", "firming_needed", "plan_late"):
+        for flag in ("solar_now", "grid_first", "invest_battery", "plan_late"):
             assert flag in result.columns
             assert result[flag].notna().all()
 
@@ -880,7 +918,7 @@ class TestBuildScorecard:
             fct_ruptl=sample_ruptl_df,
             grid_cost_usd_mwh=None,
         )
-        for flag in ("solar_now", "grid_first", "firming_needed", "plan_late"):
+        for flag in ("solar_now", "grid_first", "invest_battery", "plan_late"):
             assert result[flag].isna().all()
 
     def test_wacc_column_matches_input(

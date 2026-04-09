@@ -214,7 +214,7 @@ TRANSMISSION_LEASE_MID_USD_MWH: float = (
 
 SOLAR_TO_SUBSTATION_THRESHOLD_KM: float = 10.0
 # Maximum distance (km) from best buildable solar site to nearest PLN substation
-# for the connection to be considered "short" (i.e., grid_ready or invest_grid).
+# for the connection to be considered "short" (i.e., grid_ready or invest_transmission/invest_substation).
 # Source: METHODOLOGY_V2.md §2 — no Indonesia-specific benchmark available;
 # 10 km reflects typical MV connection range for utility-scale solar globally.
 
@@ -273,6 +273,45 @@ FIRMING_ADDER_HIGH_USD_MWH: float = 16.0
 FIRMING_ADDER_MID_USD_MWH: float = (FIRMING_ADDER_LOW_USD_MWH + FIRMING_ADDER_HIGH_USD_MWH) / 2
 # Mid-point adder = $11/MWh.
 
+# ─── BESS (Battery Energy Storage System) ────────────────────────────────────
+
+BESS_CAPEX_USD_PER_KWH: float = 250.0
+# Battery pack + BOS installed cost (USD/kWh of usable capacity).
+# Source: BNEF 2024 Lithium-ion Battery Price Survey — utility-scale Asia benchmark.
+# Range: $150–400/kWh. $250 = mid-range for Indonesia 2025.
+
+BESS_DISCHARGE_HOURS: float = 4.0
+# Battery system duration (hours). 4-hour systems are the utility-scale standard.
+
+BESS_SIZING_HOURS: float = 2.0
+# Hours of battery per kW of solar for industrial firming applications.
+# 2h = enough to bridge cloud events and early evening ramp.
+# This determines battery kWh per kW-solar: 2h × $250/kWh = $500/kW-solar CAPEX.
+
+BESS_LIFETIME_YR: int = 15
+# Calendar lifetime of BESS (years). Li-ion NMC/LFP warranty period.
+
+BESS_DOD: float = 0.85
+# Usable depth of discharge (fraction). Operating range to preserve cycle life.
+
+BESS_DEGRADATION_ANNUAL_PCT: float = 1.5
+# Annual capacity degradation (%). 1–2% typical for utility Li-ion.
+
+BESS_FOM_USD_PER_KW_YR: float = 5.0
+# Annual fixed O&M for BESS (USD/kW-yr). Covers monitoring, HVAC, insurance.
+
+BESS_CYCLES_PER_YEAR: int = 365
+# Number of full discharge cycles per year (once per day = 365).
+
+# ─── LAND ACQUISITION ────────────────────────────────────────────────────────
+
+LAND_COST_USD_PER_KW: float = 45.0
+# Default land acquisition cost per kW of solar capacity.
+# Derivation: $3/m² (rural Indonesian land) × 15,000 m²/MW (1.5 ha/MW at utility scale)
+#            = $45,000/MW = $45/kW.
+# Range: $10–500/kW depending on location. Rural: $10–50, peri-urban: $50–200.
+# Only applied to grid_connected_solar scenario (within_boundary uses existing KEK land).
+
 # ─── ACTION FLAG THRESHOLDS ───────────────────────────────────────────────────
 
 FIRMING_PVOUT_THRESHOLD: float = 1_550.0
@@ -287,7 +326,7 @@ PLAN_LATE_POST2030_SHARE_THRESHOLD: float = 0.60
 # Rationale: ≥60% post-2030 means most grid upgrades won't be ready to support KEK solar by 2030.
 
 FIRMING_RELIABILITY_REQ_THRESHOLD: float = 0.75
-# Minimum reliability requirement (0–1) above which firming_needed is flagged.
+# Minimum reliability requirement (0–1) above which invest_battery is flagged.
 # Source: METHODOLOGY.md Section 5.2.
 # Rationale: Industrial zones with ≥75% reliability requirement need BESS or grid backup
 # to guarantee uptime — LCOE alone understates true cost.

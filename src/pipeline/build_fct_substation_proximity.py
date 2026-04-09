@@ -18,7 +18,7 @@ Output columns (one row per kek_id):
     siting_scenario                    'within_boundary' or 'remote_captive' (V1 compat)
     dist_solar_to_nearest_substation_km  haversine from best solar site to nearest substation (V2)
     nearest_substation_to_solar_name   name of nearest substation to solar site (V2)
-    grid_integration_category          'within_boundary'|'grid_ready'|'invest_grid'|'grid_first' (V2)
+    grid_integration_category          'within_boundary'|'grid_ready'|'invest_transmission'|'invest_substation'|'grid_first' (V3)
 
 Methodology:
     - Only operational substations (statopr == "Operasi") are considered.

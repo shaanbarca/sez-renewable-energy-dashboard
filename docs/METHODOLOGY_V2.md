@@ -164,13 +164,14 @@ Note: B_solar and B_kek may be different substations. The solar site's nearest s
 |---|---|---|---|
 | `within_boundary` | Has operational substation inside KEK polygon | Solar can be built on-site, no grid needed | Lowest — base LCOE only |
 | `grid_ready` | d(A, B_solar) < threshold AND d(C, B_kek) < threshold AND B_solar capacity ≥ minimum | Substation near both solar and KEK with sufficient capacity — grid can absorb and deliver | Low — short connection + existing grid |
-| `invest_grid` | One or more conditions fail, but solar resource is viable | Solar or KEK has partial grid access, or nearby substation lacks capacity — targeted investment unlocks the connection | Medium — needs specific infrastructure (new line segment, substation upgrade, or capacity expansion) |
+| `invest_transmission` | d(A, B_solar) < threshold AND d(C, B_kek) ≥ threshold | Solar site CAN reach a substation, but the KEK is far from grid infrastructure. Action: **build transmission line from substation area to KEK**. | Medium — transmission line construction |
+| `invest_substation` | d(C, B_kek) < threshold AND d(A, B_solar) ≥ threshold | KEK IS near a substation, but the best solar site is far from any substation. Action: **build a new substation or connection point near the solar farm**. | Medium — substation construction near solar |
 | `grid_first` | Both distances > thresholds AND no nearby substations with meaningful capacity | No grid infrastructure near solar or KEK — major grid expansion needed before solar is relevant | High — systemic grid investment required |
 
 **Substation capacity check:** Distance alone is insufficient. A substation 2 km from a solar site but rated at 20 MVA cannot absorb a 50 MWp solar farm's output. The grid integration category incorporates a capacity check:
 
 - `nearest_substation_to_solar_capacity_mva` is compared against `max_captive_capacity_mwp` (the buildable solar potential)
-- **Rule of thumb:** a substation can absorb solar injection up to roughly 70–80% of its rated capacity (to maintain voltage stability and reserve margin). If the solar potential exceeds this, the substation would require upgrade — pushing the category toward `invest_grid` even if distance is short.
+- **Rule of thumb:** a substation can absorb solar injection up to roughly 70–80% of its rated capacity (to maintain voltage stability and reserve margin). If the solar potential exceeds this, the substation would require upgrade — pushing the category toward `invest_transmission` or `invest_substation` even if distance is short.
 - Where substation capacity data is unavailable or unreliable (some entries in `substation.geojson` have normalized values from inconsistent source formats), the dashboard flags this as **"capacity unverified"** and relies on distance alone.
 
 ### Threshold values (user-adjustable)
@@ -209,7 +210,7 @@ Where:
 ### Grid-connected solar LCOE (replaces remote captive)
 
 ```
-LCOE_gc = (CAPEX_solar + C_connection) × CRF + FOM) / (CF × 8.76)
+LCOE_gc = (CAPEX_solar + C_connection + C_land) × CRF + FOM) / (CF × 8.76)
 ```
 
 Where:
@@ -218,6 +219,19 @@ Where:
 - `C_per_kw_km` = connection cost per kW per km (**user-adjustable**, see below)
 - `C_fixed` = grid interconnection fixed cost (**user-adjustable**, see below)
 - `dist_solar_to_substation` = distance from solar site to nearest PLN substation (km)
+- `C_land` = land acquisition cost in USD/kW (**user-adjustable**, default $45/kW)
+
+### Land acquisition cost (V3)
+
+For grid-connected solar, the IPP must acquire land for the solar farm. Within-boundary solar uses existing KEK land (zero land cost).
+
+| Parameter | Default | Range | Derivation |
+|---|---|---|---|
+| `LAND_COST_USD_PER_KW` | $45/kW | $0–300/kW | $3/m² × 15,000 m²/MW = $45,000/MW = $45/kW |
+
+Land costs in Indonesia vary enormously — from near-zero on government-owned or marginal land to $10+/m² on productive agricultural land near population centers. The default assumes $3/m² (reasonable for semi-rural Indonesia) and a land requirement of ~15,000 m²/MW (1.5 ha/MW, typical for fixed-tilt solar in tropical latitudes).
+
+Users should adjust upward for sites near Java's populated north coast or downward for remote eastern Indonesia locations.
 
 ### Connection cost parameters (user-adjustable)
 
@@ -269,40 +283,81 @@ The relevant comparison for the **IPP** is:
 
 ## Revised Action Flags
 
-V1 flags were designed around the captive solar decision: "should this KEK build captive solar?" V2 reframes flags around the grid-solar integration question: "what needs to happen for this KEK to benefit from cheap solar?"
+V1 flags were designed around the captive solar decision: "should this KEK build captive solar?" V2 reframes flags around the grid-solar integration question: "what needs to happen for this KEK to benefit from cheap solar?" V3 splits the generic `invest_grid` into actionable sub-flags and replaces the flat firming adder with a proper BESS storage model.
 
-### Flag definitions
+### Flag definitions (V3)
 
 | Flag | Condition | Meaning | Primary audience |
 |---|---|---|---|
-| **`solar_now`** | `grid_ready` category AND solar LCOE < regional BPP (or I-4 tariff if BPP unavailable) AND PVOUT ≥ threshold | Good solar resource, grid infrastructure in place, economics favorable. An IPP can build now and PLN should procure. When BPP is estimated, this flag is conservative — actual economics may be more favorable. | IPP, Policy Maker |
-| **`invest_grid`** | `invest_grid` category AND solar resource viable (PVOUT ≥ threshold) | Solar resource exists but grid connection is the bottleneck. Targeted transmission/substation investment unlocks solar for this KEK region. | Policy Maker, DFI |
+| **`solar_now`** | `grid_ready` category AND solar LCOE < regional BPP AND PVOUT ≥ threshold AND NOT invest_transmission AND NOT invest_substation | Good solar resource, grid infrastructure in place, economics favorable. An IPP can build now and PLN should procure. | IPP, Policy Maker |
+| **`invest_transmission`** | `invest_transmission` grid category AND solar_attractive | Solar site CAN reach a substation, but the KEK is far from grid infrastructure. Action: **build transmission line from substation to KEK**. | Policy Maker, DFI |
+| **`invest_substation`** | `invest_substation` grid category AND solar_attractive | KEK IS near a substation, but the best solar site is far from any substation. Action: **build a new substation or connection point near the solar farm**. | Policy Maker, DFI |
 | **`grid_first`** | `grid_first` category | No solar connectivity and no nearby grid infrastructure. Major grid expansion needed before solar is relevant. | Policy Maker |
-| **`firming_needed`** | `solar_now` or `invest_grid` AND reliability requirement ≥ 0.75 | Solar can contribute but the KEK's industrial processes require high reliability. Battery storage or gas backup needed alongside solar. | IPP, KEK Tenant |
+| **`invest_battery`** | solar_attractive AND reliability requirement ≥ 0.75 | Solar can contribute but the KEK's industrial processes require high reliability. Battery storage needed alongside solar. Cost computed from BESS LCOE model (see below). | IPP, KEK Tenant |
+| **`invest_resilience`** | solar_attractive AND LCOE within 0-20% of grid cost AND reliability_req ≥ 0.75 | Solar is near grid parity. Investing now builds resilience against future grid cost increases. | IPP, Policy Maker |
 | **`plan_late`** | RUPTL post-2030 share ≥ 60% | Most planned grid capacity additions in this region are post-2030. Grid infrastructure to support solar integration won't arrive on current timeline. | Policy Maker, DFI |
+| **`not_competitive`** | Solar LCOE > grid cost by wide margin | Solar is not economical under current assumptions. | All |
 
-### Priority ordering
+### Priority ordering (V3)
 
 When multiple flags apply, the dashboard displays the **primary** flag in this priority order:
 
 1. `solar_now` (highest — actionable now)
-2. `invest_grid` (actionable with targeted investment)
-3. `grid_first` (requires systemic investment)
-4. `plan_late` (timeline risk)
-5. `not_competitive` (solar LCOE > BPP even with grid access)
+2. `invest_transmission` (actionable: build transmission)
+3. `invest_substation` (actionable: build substation)
+4. `grid_first` (requires systemic investment)
+5. `invest_battery` (solar works, needs storage)
+6. `invest_resilience` (near parity, invest for resilience)
+7. `plan_late` (timeline risk)
+8. `not_competitive` (solar LCOE > BPP even with grid access)
 
-`firming_needed` is a **modifier** that can appear alongside any primary flag, not a standalone category.
+### Battery Energy Storage System (BESS) model (V3)
 
-### Comparison with V1 flags
+V2 used a flat firming adder ($6/$11/$16 per MWh low/mid/high) for KEKs with high reliability requirements. V3 replaces this with a proper **BESS storage cost model** derived from battery economics.
 
-| V1 Flag | V2 Equivalent | Change |
+**Formula:**
+
+```
+bess_storage_adder = (BESS_CAPEX_per_kWh × sizing_hours × CRF_bess + FOM_bess_adj) / (CF_solar × 8760 / 1000)
+```
+
+Where:
+- `BESS_CAPEX_per_kWh` = battery installed cost (default $250/kWh, **user-adjustable** $100-500/kWh)
+- `sizing_hours` = hours of battery per kW of solar capacity (default 2h)
+- `CRF_bess` = capital recovery factor at WACC over battery lifetime (default 15 years)
+- `FOM_bess_adj` = battery fixed O&M, adjusted for sizing ratio ($5/kW-yr × sizing/discharge ratio)
+- `CF_solar` = solar capacity factor for this KEK
+
+**Default parameters:**
+
+| Parameter | Default | Range | Source |
+|---|---|---|---|
+| `BESS_CAPEX_USD_PER_KWH` | $250/kWh | $100–500/kWh | BNEF 2024 Asia utility-scale Li-ion |
+| `BESS_DISCHARGE_HOURS` | 4.0h | — | Standard 4-hour system |
+| `BESS_SIZING_HOURS` | 2.0h | — | Hours of battery per kW-solar for firming |
+| `BESS_LIFETIME_YR` | 15 years | — | Li-ion warranty period |
+| `BESS_FOM_USD_PER_KW_YR` | $5/kW-yr | — | Monitoring, HVAC, insurance |
+
+**Result at defaults ($250/kWh, 2h sizing, 10% WACC, CF=0.18):** ~$43/MWh battery adder.
+
+This is higher than the old flat $11/MWh adder because the old value was unrealistically low. Real battery storage for industrial reliability adds meaningful cost. The user-adjustable BESS CAPEX slider ($100-500/kWh) produces a range of ~$17-86/MWh, allowing users to explore how battery cost trajectories affect the economics.
+
+**Solar + battery bundled LCOE:**
+```
+LCOE_with_battery = LCOE_solar + bess_storage_adder
+```
+
+### Comparison with V1/V2 flags
+
+| V1/V2 Flag | V3 Equivalent | Change |
 |---|---|---|
-| `solar_now` | `solar_now` | Condition now includes `grid_ready` category (was: `solar_attractive AND NOT grid_first AND green_share ≥ 30%`) |
-| `grid_first` | `grid_first` | Narrowed: now specifically means no substations near solar or KEK (was: `solar_attractive AND NOT grid_upgrade_pre2030`) |
-| `firming_needed` | `firming_needed` | Unchanged in logic, reframed as modifier |
-| `invest_resilience` | Removed | Absorbed into `invest_grid` — the "resilience" investment is grid infrastructure, not captive solar |
+| `solar_now` | `solar_now` | Now excludes `invest_transmission` and `invest_substation` (must have full grid access) |
+| `invest_grid` | `invest_transmission` + `invest_substation` | Split into two actionable sub-flags specifying WHAT to build |
+| `grid_first` | `grid_first` | Unchanged |
+| `firming_needed` | `invest_battery` | Renamed. Flat $11/MWh adder replaced with BESS LCOE model (~$43/MWh at defaults) |
+| `invest_resilience` | `invest_resilience` | Unchanged |
 | `plan_late` | `plan_late` | Unchanged |
-| — | `invest_grid` (NEW) | The key new flag: identifies where targeted grid investment unlocks solar |
+| `not_competitive` | `not_competitive` | Unchanged |
 
 ---
 
@@ -360,14 +415,14 @@ Development Finance Institutions (ADB, World Bank, IFC, AIIB, JICA) regularly fi
 
 | Instrument | How it works | Dashboard relevance |
 |---|---|---|
-| **Concessional loan to PLN** | DFI lends to PLN at below-market rates for transmission/substation construction | `invest_grid` KEKs show where PLN needs grid investment |
+| **Concessional loan to PLN** | DFI lends to PLN at below-market rates for transmission/substation construction | `invest_transmission` / `invest_substation` KEKs show where PLN needs grid investment |
 | **Viability gap funding** | DFI covers the gap between infrastructure cost and what PLN can recover through tariffs | `grid_investment_needed_usd` estimates the gap |
-| **Blended finance** | DFI funds the grid, private IPP funds the solar farm, PLN operates the connection | `solar_now` + `invest_grid` KEKs are the co-investment opportunities |
-| **Green bonds** | PLN issues bonds for renewable-enabling grid investment, DFI provides credit enhancement | Regional aggregation of `invest_grid` KEKs sizes the bond |
+| **Blended finance** | DFI funds the grid, private IPP funds the solar farm, PLN operates the connection | `solar_now` + `invest_transmission`/`invest_substation` KEKs are the co-investment opportunities |
+| **Green bonds** | PLN issues bonds for renewable-enabling grid investment, DFI provides credit enhancement | Regional aggregation of grid-investment KEKs sizes the bond |
 
 ### Grid investment estimation
 
-For each KEK in the `invest_grid` category, the dashboard provides a rough order-of-magnitude grid investment estimate:
+For each KEK in the `invest_transmission` or `invest_substation` category, the dashboard provides a rough order-of-magnitude grid investment estimate:
 
 ```
 I_grid = d_gap × C_transmission_per_km + N_substations × C_substation
@@ -419,31 +474,35 @@ The following V1 components are **unchanged** and carry over directly:
 
 ## What Changes from V1
 
-| Change | V1 | V2 | Affected files |
+| Change | V1 | V2/V3 | Affected files |
 |---|---|---|---|
 | Siting scenario | `remote_captive` (50km private gen-tie) | `grid_connected_solar` (solar→nearest substation) | `assumptions.py`, `build_fct_lcoe.py`, `basic_model.py`, `logic.py` |
-| Gen-tie cost model | $5/kW-km + $150/kW fixed | $3/kW-km + $50/kW fixed (short connection) | `assumptions.py`, `basic_model.py` |
+| Gen-tie cost model | $5/kW-km + $150/kW fixed | $5/kW-km + $80/kW fixed (short connection) | `assumptions.py`, `basic_model.py` |
 | Distance used | KEK-to-substation (for gen-tie length) | Solar-to-substation (for connection length) | `build_fct_substation_proximity.py` |
 | Proximity analysis | 1-point (KEK→substation) | 3-point (solar→substation→KEK) | `build_fct_substation_proximity.py`, `build_fct_kek_resource.py` |
 | Transmission lease | $5–15/MWh operating adder | Removed (PLN's system cost, in BPP) | `assumptions.py`, `build_fct_lcoe.py`, `logic.py` |
-| Action flags | `solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late` | `solar_now`, `invest_grid` (NEW), `grid_first`, `firming_needed`, `plan_late` | `basic_model.py`, `logic.py` |
+| Action flags | `solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late` | V3: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive` (8 flags) | `basic_model.py`, `logic.py` |
+| Grid integration category | Not present | V3: `within_boundary` / `grid_ready` / `invest_transmission` / `invest_substation` / `grid_first` | `build_fct_substation_proximity.py` |
+| Firming/battery model | Flat $6/$11/$16 adder | V3: BESS LCOE model from battery CAPEX ($250/kWh default, user-adjustable) → ~$43/MWh | `basic_model.py`, `logic.py`, `assumptions.py` |
+| Land acquisition cost | Not modeled | V3: $45/kW default (grid-connected only), user-adjustable $0-300/kW | `assumptions.py`, `build_fct_lcoe.py`, `logic.py` |
 | Competitive gap | Captive LCOE vs. tariff/BPP | Split: IPP gap (LCOE vs BPP) + tenant gap (within-boundary only) | `basic_model.py`, `logic.py` |
-| Grid integration category | Not present | `within_boundary` / `grid_ready` / `invest_grid` / `grid_first` | New in `build_fct_substation_proximity.py` |
 | Solar site coordinates | Not stored | `best_solar_site_lat`, `best_solar_site_lon` | `build_fct_kek_resource.py` |
 | Within-boundary capacity | Not modeled (used 50km buildable area for all scenarios) | `within_boundary_capacity_mwp` from KEK polygon area | `build_fct_kek_resource.py` |
 | Viability threshold | Single 20 MWp for all scenarios | 0.5 MWp for within-boundary, 20 MWp for grid-connected (both adjustable) | `assumptions.py`, `logic.py` |
 
 ### Constants deprecated or renamed
 
-| V1 constant | V2 replacement | Old default | New default | New range |
+| V1 constant | V2/V3 replacement | Old default | New default | New range |
 |---|---|---|---|---|
 | `GENTIE_COST_PER_KW_KM` | `CONNECTION_COST_PER_KW_KM` | $5.0 | $5.0 | $2–15/kW-km |
 | `SUBSTATION_WORKS_PER_KW` | `GRID_CONNECTION_FIXED_PER_KW` | $150.0 | $80.0 | $30–200/kW |
-| `TRANSMISSION_LEASE_LOW_USD_MWH` | Deprecated | $5.0 | — |
-| `TRANSMISSION_LEASE_MID_USD_MWH` | Deprecated | $10.0 | — |
-| `TRANSMISSION_LEASE_HIGH_USD_MWH` | Deprecated | $15.0 | — |
-| — | `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM` (NEW) | — | 10.0 |
-| — | `KEK_TO_SUBSTATION_LOW_THRESHOLD_KM` (NEW) | — | 15.0 |
+| `TRANSMISSION_LEASE_LOW_USD_MWH` | Deprecated | $5.0 | — | — |
+| `TRANSMISSION_LEASE_MID_USD_MWH` | Deprecated | $10.0 | — | — |
+| `TRANSMISSION_LEASE_HIGH_USD_MWH` | Deprecated | $15.0 | — | — |
+| `FIRMING_ADDER_MID_USD_MWH` | `BESS_CAPEX_USD_PER_KWH` (V3) | $11.0 flat | $250/kWh (→~$43/MWh) | $100–500/kWh |
+| — | `LAND_COST_USD_PER_KW` (V3 NEW) | — | $45.0 | $0–300/kW |
+| — | `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM` (NEW) | — | 10.0 | — |
+| — | `KEK_TO_SUBSTATION_LOW_THRESHOLD_KM` (NEW) | — | 15.0 | — |
 
 ---
 
@@ -485,7 +544,7 @@ V2 reframes the DFI as an **infrastructure investor** — someone investing in t
 **New user journey:**
 
 1. Open dashboard → map color-coded by `grid_integration_category`
-2. Filter to `invest_grid` category — these are the DFI opportunity set
+2. Filter to `invest_transmission` / `invest_substation` categories — these are the DFI opportunity set
 3. Sort by `solar_capacity_unlocked_mwp / grid_investment_needed_usd` — highest solar ROI per infrastructure dollar
 4. Drill into top candidates: check solar resource quality, KEK demand, RUPTL alignment
 5. Export ranked list for internal investment committee review
@@ -504,7 +563,7 @@ V1 treated the policy maker as a secondary user interested in action flags and R
 
 | Metric | V1 | V2 | Change |
 |---|---|---|---|
-| Action flags | `solar_now`, `grid_first`, etc. | + `invest_grid` (NEW) | More actionable |
+| Action flags | `solar_now`, `grid_first`, etc. | V3: `invest_transmission`, `invest_substation`, `invest_battery` (specific) | More actionable |
 | `grid_integration_category` | Not present | Primary decision variable | NEW |
 | RUPTL context | Secondary context | Directly tied to `plan_late` flag | Elevated |
 | Three-point proximity | Not present | Map visualization of solar-grid-KEK gaps | NEW |
@@ -513,7 +572,7 @@ V1 treated the policy maker as a secondary user interested in action flags and R
 **New user journey:**
 
 1. Open dashboard → map shows grid integration categories (color-coded)
-2. Identify `invest_grid` KEKs — where targeted infrastructure investment unlocks solar
+2. Identify `invest_transmission` / `invest_substation` KEKs — where targeted infrastructure investment unlocks solar
 3. Cross-reference with RUPTL pipeline — are grid upgrades already planned? (`plan_late` flag shows timeline risk)
 4. Prioritize: KEKs where solar resource is strong + demand is high + grid gap is small (cheapest to fix)
 5. Use `grid_investment_needed_usd` for budget planning discussions with PLN

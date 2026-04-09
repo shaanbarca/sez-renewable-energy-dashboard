@@ -265,7 +265,7 @@ class TestComputeScorecardLive:
             "solar_competitive_gap_pct",
             "solar_now",
             "grid_first",
-            "firming_needed",
+            "invest_battery",
             "plan_late",
             "invest_resilience",
             "carbon_breakeven_usd_tco2",
@@ -431,10 +431,10 @@ class TestInfrastructureCosts:
         # Grid cost in USD should decrease when rupiah weakens
         assert result.iloc[0]["grid_cost_usd_mwh"] < default.iloc[0]["grid_cost_usd_mwh"]
 
-    def test_firming_adder_applied_when_firming_needed(
+    def test_battery_adder_applied_when_invest_battery(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):
-        """KEKs with firming_needed=True should have non-zero firming adder."""
+        """KEKs with invest_battery=True should have non-zero battery adder."""
         result = compute_scorecard_live(
             sample_resource_df,
             get_default_assumptions(),
@@ -443,17 +443,17 @@ class TestInfrastructureCosts:
             sample_demand_df,
             sample_grid_df,
         )
-        firming_rows = result[result["firming_needed"]]
-        if len(firming_rows) > 0:
-            assert (firming_rows["firming_adder_usd_mwh"] > 0).all()
-            for _, row in firming_rows.iterrows():
+        battery_rows = result[result["invest_battery"]]
+        if len(battery_rows) > 0:
+            assert (battery_rows["battery_adder_usd_mwh"] > 0).all()
+            for _, row in battery_rows.iterrows():
                 if pd.notna(row["lcoe_mid_usd_mwh"]):
-                    assert row["lcoe_with_firming_usd_mwh"] > row["lcoe_mid_usd_mwh"]
+                    assert row["lcoe_with_battery_usd_mwh"] > row["lcoe_mid_usd_mwh"]
 
-    def test_firming_adder_zero_when_not_needed(
+    def test_battery_adder_zero_when_not_needed(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):
-        """KEKs with firming_needed=False should have zero firming adder."""
+        """KEKs with invest_battery=False should have zero battery adder."""
         result = compute_scorecard_live(
             sample_resource_df,
             get_default_assumptions(),
@@ -462,13 +462,13 @@ class TestInfrastructureCosts:
             sample_demand_df,
             sample_grid_df,
         )
-        no_firming = result[~result["firming_needed"]]
-        assert (no_firming["firming_adder_usd_mwh"] == 0.0).all()
+        no_battery = result[~result["invest_battery"]]
+        assert (no_battery["battery_adder_usd_mwh"] == 0.0).all()
 
-    def test_scorecard_has_firming_columns(
+    def test_scorecard_has_battery_columns(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):
-        """Scorecard output should include firming adder columns."""
+        """Scorecard output should include battery adder columns."""
         result = compute_scorecard_live(
             sample_resource_df,
             get_default_assumptions(),
@@ -477,8 +477,8 @@ class TestInfrastructureCosts:
             sample_demand_df,
             sample_grid_df,
         )
-        assert "firming_adder_usd_mwh" in result.columns
-        assert "lcoe_with_firming_usd_mwh" in result.columns
+        assert "battery_adder_usd_mwh" in result.columns
+        assert "lcoe_with_battery_usd_mwh" in result.columns
 
 
 # ---------------------------------------------------------------------------
@@ -515,10 +515,10 @@ class TestThresholdWiring:
         # Lenient threshold should produce >= solar_now count
         assert lenient_result["solar_now"].sum() >= strict_result["solar_now"].sum()
 
-    def test_reliability_threshold_affects_firming_needed(
+    def test_reliability_threshold_affects_invest_battery(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):
-        """Lowering reliability threshold should flag more KEKs as firming_needed."""
+        """Lowering reliability threshold should flag more KEKs as invest_battery."""
         low_capex = UserAssumptions(capex_usd_per_kw=600.0)
         strict = UserThresholds(reliability_threshold=0.90)
         lenient = UserThresholds(reliability_threshold=0.30)
@@ -539,8 +539,8 @@ class TestThresholdWiring:
             sample_demand_df,
             sample_grid_df,
         )
-        # Lower threshold means more KEKs meet it, so more firming_needed
-        assert lenient_result["firming_needed"].sum() >= strict_result["firming_needed"].sum()
+        # Lower threshold means more KEKs meet it, so more invest_battery
+        assert lenient_result["invest_battery"].sum() >= strict_result["invest_battery"].sum()
 
     def test_extreme_thresholds_no_crash(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df

@@ -24,12 +24,13 @@ import pandas as pd
 
 from src.assumptions import (
     BASE_WACC,
+    BESS_CAPEX_USD_PER_KWH,
     CONNECTION_COST_PER_KW_KM,
-    FIRMING_ADDER_MID_USD_MWH,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
     GRID_CONNECTION_FIXED_PER_KW,
     IDR_USD_RATE,
+    LAND_COST_USD_PER_KW,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PROJECT_VIABLE_MIN_MWP,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
@@ -40,6 +41,7 @@ from src.assumptions import (
 from src.model.basic_model import (
     ActionFlag,
     action_flags,
+    bess_storage_adder,
     capacity_factor_from_pvout,
     carbon_breakeven_price,
     grid_connection_cost_per_kw,
@@ -73,7 +75,8 @@ class UserAssumptions:
     fom_usd_per_kw_yr: float = TECH006_FOM_USD_PER_KW_YR
     connection_cost_per_kw_km: float = CONNECTION_COST_PER_KW_KM
     grid_connection_fixed_per_kw: float = GRID_CONNECTION_FIXED_PER_KW
-    firming_adder_mid_usd_mwh: float = FIRMING_ADDER_MID_USD_MWH
+    bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH
+    land_cost_usd_per_kw: float = LAND_COST_USD_PER_KW
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
 
@@ -100,7 +103,8 @@ class UserAssumptions:
             "fom_usd_per_kw_yr": self.fom_usd_per_kw_yr,
             "connection_cost_per_kw_km": self.connection_cost_per_kw_km,
             "grid_connection_fixed_per_kw": self.grid_connection_fixed_per_kw,
-            "firming_adder_mid_usd_mwh": self.firming_adder_mid_usd_mwh,
+            "bess_capex_usd_per_kwh": self.bess_capex_usd_per_kwh,
+            "land_cost_usd_per_kw": self.land_cost_usd_per_kw,
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
         }
@@ -231,9 +235,10 @@ def compute_lcoe_live(
                 assumptions.connection_cost_per_kw_km,
                 assumptions.grid_connection_fixed_per_kw,
             )
-            eff_c = capex_c + conn_cost
-            eff_l = capex_l + conn_cost
-            eff_h = capex_h + conn_cost
+            land_cost = assumptions.land_cost_usd_per_kw
+            eff_c = capex_c + conn_cost + land_cost
+            eff_l = capex_l + conn_cost + land_cost
+            eff_h = capex_h + conn_cost + land_cost
             lcoe_c_gc = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc)
             lcoe_l_gc = lcoe_solar(eff_l, fom, wacc, lifetime, cf_gc)
             lcoe_h_gc = lcoe_solar(eff_h, fom, wacc, lifetime, cf_gc)
@@ -313,6 +318,11 @@ def compute_scorecard_live(
 
         # LCOE from within_boundary (primary)
         lcoe_mid = wb.loc[kek_id, "lcoe_mid_usd_mwh"] if kek_id in wb.index else np.nan
+        wb_cf = (
+            float(wb.loc[kek_id, "cf"])
+            if kek_id in wb.index and pd.notna(wb.loc[kek_id, "cf"])
+            else 0.0
+        )
 
         # Competitive gap (benchmark-dependent — uses grid_cost which may be BPP or tariff)
         if pd.notna(lcoe_mid) and grid_cost > 0:
@@ -369,20 +379,29 @@ def compute_scorecard_live(
             reliability_req = 0.6
 
         # Action flags with user thresholds
+        gi_cat = kek.get("grid_integration_category")
+        gi_cat = gi_cat if pd.notna(gi_cat) else None
         flags = action_flags(
             solar_attractive=attractive,
             grid_upgrade_pre2030=grid_upgrade_pre2030,
             reliability_req=reliability_req,
             green_share_geas=green_share,
             post2030_share=post2030_share,
+            grid_integration_cat=gi_cat,
         )
 
         # Override thresholds: use user values instead of hardcoded defaults
         flags["plan_late"] = post2030_share >= thresholds.plan_late_threshold
+        flags["invest_transmission"] = attractive and gi_cat == "invest_transmission"
+        flags["invest_substation"] = attractive and gi_cat == "invest_substation"
         flags["solar_now"] = (
-            attractive and not flags["grid_first"] and green_share >= thresholds.geas_threshold
+            attractive
+            and not flags["grid_first"]
+            and not flags["invest_transmission"]
+            and not flags["invest_substation"]
+            and green_share >= thresholds.geas_threshold
         )
-        flags["firming_needed"] = attractive and reliability_req >= thresholds.reliability_threshold
+        flags["invest_battery"] = attractive and reliability_req >= thresholds.reliability_threshold
         resilience = invest_resilience_fn(
             solar_competitive_gap_pct=gap_pct if pd.notna(gap_pct) else 0.0,
             reliability_req=reliability_req,
@@ -414,8 +433,10 @@ def compute_scorecard_live(
         action_flag = ActionFlag.NOT_COMPETITIVE
         for flag_name in [
             ActionFlag.SOLAR_NOW,
+            ActionFlag.INVEST_TRANSMISSION,
+            ActionFlag.INVEST_SUBSTATION,
             ActionFlag.GRID_FIRST,
-            ActionFlag.FIRMING_NEEDED,
+            ActionFlag.INVEST_BATTERY,
             ActionFlag.INVEST_RESILIENCE,
             ActionFlag.PLAN_LATE,
         ]:
@@ -443,14 +464,32 @@ def compute_scorecard_live(
             "gap_vs_bpp_pct": _round(gap_vs_bpp_pct),
             "solar_attractive": attractive,
             "solar_now": flags["solar_now"],
+            "invest_transmission": flags["invest_transmission"],
+            "invest_substation": flags["invest_substation"],
+            "invest_battery": flags["invest_battery"],
             "grid_first": flags["grid_first"],
-            "firming_needed": flags["firming_needed"],
-            "firming_adder_usd_mwh": assumptions.firming_adder_mid_usd_mwh
-            if flags["firming_needed"]
+            "battery_adder_usd_mwh": round(
+                bess_storage_adder(
+                    assumptions.bess_capex_usd_per_kwh,
+                    solar_cf=wb_cf,
+                    wacc=assumptions.wacc_decimal,
+                ),
+                2,
+            )
+            if flags["invest_battery"] and wb_cf and wb_cf > 0
             else 0.0,
-            "lcoe_with_firming_usd_mwh": _round_add(lcoe_mid, assumptions.firming_adder_mid_usd_mwh)
-            if flags["firming_needed"]
+            "lcoe_with_battery_usd_mwh": round(
+                lcoe_mid
+                + bess_storage_adder(
+                    assumptions.bess_capex_usd_per_kwh,
+                    solar_cf=wb_cf,
+                    wacc=assumptions.wacc_decimal,
+                ),
+                2,
+            )
+            if flags["invest_battery"] and wb_cf and wb_cf > 0
             else _round(lcoe_mid),
+            "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
             "plan_late": flags["plan_late"],
             "invest_resilience": resilience,
             "carbon_breakeven_usd_tco2": carbon_be,

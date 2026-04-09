@@ -28,6 +28,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   best_re_technology: 'Best available renewable energy technology for this KEK',
   dashboard_rate_usd_mwh:
     'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
+  grid_integration_category:
+    'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -74,12 +76,16 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 const ACTION_FLAG_EXPLANATIONS: Record<string, string> = {
   solar_now:
     'Solar LCOE is below grid cost, grid upgrade is planned before 2030, and GEAS allocation covers significant demand.',
+  invest_transmission:
+    'Solar can reach a substation, but the KEK is far from grid. Build transmission from substation to KEK.',
+  invest_substation:
+    'KEK is grid-connected, but solar is far from any substation. Build a new substation near the solar farm.',
   grid_first:
     'Solar is cost-competitive, but no grid upgrade is planned before 2030. Grid infrastructure must come first.',
   invest_resilience:
     'Solar is near grid parity (within 20%) and the KEK has high reliability requirements. Invest for resilience.',
-  firming_needed:
-    'Solar economics work, but high reliability requirements mean firming (battery/backup) is needed, adding cost.',
+  invest_battery:
+    'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   plan_late:
     '60%+ of RUPTL solar additions are scheduled post-2030. Planning is behind — accelerate the pipeline.',
   not_competitive: 'Solar LCOE exceeds grid cost under current assumptions. Not yet economical.',
@@ -177,6 +183,15 @@ export const columns = [
   col.accessor('action_flag', {
     header: () => <HeaderWithTooltip label="Action Flag" columnId="action_flag" />,
     cell: (info) => <ActionFlagCell info={info} />,
+  }),
+  col.accessor('grid_integration_category', {
+    header: () => (
+      <HeaderWithTooltip label="Grid Integration" columnId="grid_integration_category" />
+    ),
+    cell: (info) => {
+      const val = info.getValue();
+      return val ? val.replace(/_/g, ' ') : '—';
+    },
   }),
   col.accessor('lcoe_mid_usd_mwh', {
     header: () => <HeaderWithTooltip label="LCOE ($/MWh)" columnId="lcoe_mid_usd_mwh" />,

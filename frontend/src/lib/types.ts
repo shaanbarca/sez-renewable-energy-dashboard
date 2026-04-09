@@ -5,7 +5,8 @@ export interface UserAssumptions {
   fom_usd_per_kw_yr: number;
   connection_cost_per_kw_km: number;
   grid_connection_fixed_per_kw: number;
-  firming_adder_mid_usd_mwh: number;
+  bess_capex_usd_per_kwh: number;
+  land_cost_usd_per_kw: number;
   idr_usd_rate: number;
 }
 
@@ -20,10 +21,11 @@ export interface UserThresholds {
 
 export type ActionFlag =
   | 'solar_now'
-  | 'invest_grid'
+  | 'invest_transmission'
+  | 'invest_substation'
   | 'invest_resilience'
   | 'grid_first'
-  | 'firming_needed'
+  | 'invest_battery'
   | 'plan_late'
   | 'not_competitive';
 
@@ -73,9 +75,14 @@ export interface ScorecardRow {
   // Action flag detail fields (backend always sends these)
   solar_attractive?: boolean;
   grid_first?: boolean;
-  firming_needed?: boolean;
-  firming_adder_usd_mwh?: number;
-  lcoe_with_firming_usd_mwh?: number;
+  invest_transmission?: boolean;
+  invest_substation?: boolean;
+  invest_battery?: boolean;
+  battery_adder_usd_mwh?: number;
+  lcoe_with_battery_usd_mwh?: number;
+  land_cost_usd_per_kw?: number;
+  dist_to_nearest_substation_km?: number;
+  dist_solar_to_nearest_substation_km?: number;
 }
 
 export interface SliderConfig {

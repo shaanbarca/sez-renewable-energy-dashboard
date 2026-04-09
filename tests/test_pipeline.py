@@ -705,11 +705,11 @@ class TestFctLcoeWind:
         }
 
     def test_two_scenarios(self, wind_lcoe):
-        assert set(wind_lcoe["scenario"].unique()) == {"within_boundary", "remote_captive"}
+        assert set(wind_lcoe["scenario"].unique()) == {"within_boundary", "grid_connected_solar"}
 
-    def test_within_boundary_gentie_zero(self, wind_lcoe):
+    def test_within_boundary_connection_cost_zero(self, wind_lcoe):
         wb = wind_lcoe[wind_lcoe["scenario"] == "within_boundary"]
-        assert (wb["gentie_cost_per_kw"] == 0).all()
+        assert (wb["connection_cost_per_kw"] == 0).all()
 
     def test_higher_wacc_higher_lcoe(self, wind_lcoe):
         pivot = wind_lcoe.pivot(
@@ -726,19 +726,22 @@ class TestFctLcoeWind:
     def test_tech_id_is_wind(self, wind_lcoe):
         assert (wind_lcoe["tech_id"] == "TECH_WIND_ONSHORE").all()
 
-    def test_transmission_lease_zero_for_within_boundary(self, wind_lcoe):
+    def test_connection_cost_zero_for_within_boundary(self, wind_lcoe):
         wb = wind_lcoe[wind_lcoe["scenario"] == "within_boundary"]
-        assert (wb["transmission_lease_adder_usd_mwh"] == 0.0).all()
+        assert (wb["connection_cost_per_kw"] == 0.0).all()
 
-    def test_transmission_lease_positive_for_remote_captive(self, wind_lcoe):
-        rc = wind_lcoe[wind_lcoe["scenario"] == "remote_captive"]
-        assert (rc["transmission_lease_adder_usd_mwh"] > 0).all()
+    def test_connection_cost_positive_for_grid_connected(self, wind_lcoe):
+        gc = wind_lcoe[wind_lcoe["scenario"] == "grid_connected_solar"]
+        assert (gc["connection_cost_per_kw"] > 0).all()
 
-    def test_lcoe_allin_gt_base_for_remote_captive(self, wind_lcoe):
-        rc = wind_lcoe[wind_lcoe["scenario"] == "remote_captive"].dropna(
-            subset=["lcoe_usd_mwh", "lcoe_allin_usd_mwh"]
-        )
-        assert (rc["lcoe_allin_usd_mwh"] > rc["lcoe_usd_mwh"]).all()
+    def test_effective_capex_gt_base_for_grid_connected(self, wind_lcoe):
+        """Grid-connected scenario should have higher effective CAPEX due to connection cost."""
+        gc = wind_lcoe[wind_lcoe["scenario"] == "grid_connected_solar"]
+        wb = wind_lcoe[wind_lcoe["scenario"] == "within_boundary"]
+        # effective_capex for grid_connected should be >= within_boundary (which has 0 connection cost)
+        assert (
+            gc["effective_capex_usd_per_kw"].values >= wb["effective_capex_usd_per_kw"].min()
+        ).all()
 
     def test_wind_lcoe_plausible_range(self, wind_lcoe):
         """Wind LCOE at WACC=10% should be in $50–600 range (wide due to low-wind sites)."""
@@ -825,7 +828,13 @@ class TestFctSubstationProximity:
         from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
 
         df = build_fct_substation_proximity()
-        valid = {"within_boundary", "grid_ready", "invest_grid", "grid_first"}
+        valid = {
+            "within_boundary",
+            "grid_ready",
+            "invest_transmission",
+            "invest_substation",
+            "grid_first",
+        }
         assert set(df["grid_integration_category"].unique()).issubset(valid)
 
     def test_internal_substation_implies_within_boundary_category(self):
@@ -996,8 +1005,10 @@ class TestFctKekScorecard:
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
         valid_flags = {
             "solar_now",
+            "invest_transmission",
+            "invest_substation",
+            "invest_battery",
             "grid_first",
-            "firming_needed",
             "invest_resilience",
             "plan_late",
             "data_missing",

@@ -43,7 +43,8 @@ class AssumptionsInput(BaseModel):
     fom_usd_per_kw_yr: float = Field(ge=0)
     connection_cost_per_kw_km: float = Field(ge=0)
     grid_connection_fixed_per_kw: float = Field(ge=0)
-    firming_adder_mid_usd_mwh: float = Field(ge=0)
+    bess_capex_usd_per_kwh: float = Field(gt=0)
+    land_cost_usd_per_kw: float = Field(ge=0)
     idr_usd_rate: float = Field(gt=0)
     grid_benchmark_usd_mwh: float = Field(ge=0)
 
