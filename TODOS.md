@@ -7,7 +7,73 @@ Last updated: 2026-04-09.
 
 ---
 
-## High Priority (v1.1)
+## Critical Priority — Methodology V2 Pivot (v2.0)
+
+The remote captive solar thesis (50km private gen-tie) has no global precedent and is unrealistic. V2 replaces it with a grid-connected solar model (IPP sells to PLN, PLN delivers to KEK). See [METHODOLOGY_V2.md](docs/METHODOLOGY_V2.md) for full rationale.
+
+### Backend — Pipeline & Model
+
+| # | Item | Files | Depends on | Notes |
+|---|------|-------|-----------|-------|
+| V2-B1 | **Best solar site coordinates** | `build_fct_kek_resource.py` | — | Record lat/lon of the pixel where `pvout_buildable_best_50km` was found. Add columns `best_solar_site_lat`, `best_solar_site_lon`. Unblocks V2-B2. |
+| V2-B2 | **Three-point proximity pipeline** | `build_fct_substation_proximity.py` | V2-B1 | Compute `dist_solar_to_nearest_substation_km` (reuse `_nearest_substation()` helper). Add substation capacity check. Derive `grid_integration_category`: `within_boundary` / `grid_ready` / `invest_grid` / `grid_first`. |
+| V2-B3 | **Within-boundary capacity** | `build_fct_kek_resource.py` | — | Estimate `within_boundary_capacity_mwp` from KEK polygon area (discounted for built-up land). Parallel to V2-B1. |
+| V2-B4 | **Assumptions update** | `assumptions.py` | — | Rename `GENTIE_COST_PER_KW_KM` → `CONNECTION_COST_PER_KW_KM` (default $5, range $2–15). Replace `SUBSTATION_WORKS_PER_KW` → `GRID_CONNECTION_FIXED_PER_KW` (default $80, range $30–200). Deprecate `TRANSMISSION_LEASE_*`. Add threshold constants: `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM=10`, `KEK_TO_SUBSTATION_LOW_THRESHOLD_KM=15`, `SUBSTATION_MIN_CAPACITY_MVA=30`. Split viability: `PROJECT_VIABLE_MIN_MWP_WB=0.5`, `PROJECT_VIABLE_MIN_MWP_GC=20`. |
+| V2-B5 | **Model function renames** | `basic_model.py` | V2-B4 | Rename `lcoe_solar_remote_captive()` → `lcoe_solar_grid_connected()`. Rename `gentie_cost_per_kw()` → `grid_connection_cost_per_kw()`. Add `grid_integration_category()` function. Revise `action_flags()` — add `invest_grid`, remove `invest_resilience`. Update `ActionFlag` enum. |
+| V2-B6 | **LCOE pipeline update** | `build_fct_lcoe.py` | V2-B2, V2-B4, V2-B5 | Replace `remote_captive` scenario with `grid_connected_solar`. Use `dist_solar_to_nearest_substation_km`. Remove transmission lease columns. |
+| V2-B7 | **Dashboard logic + API** | `logic.py`, `scorecard.py` | V2-B5, V2-B6 | Rename fields in `UserAssumptions`. Replace remote_captive computation. Add `grid_integration_category`, `solar_vs_bpp_gap_pct`, `bpp_status` to scorecard output. |
+| V2-B8 | **Tests** | `tests/test_model.py`, `tests/test_pipeline.py`, `tests/test_dash_logic.py` | V2-B5, V2-B6, V2-B7 | Rename tests referencing `remote_captive`/`gentie`. Update expected values. Add tests for `grid_integration_category()`, three-point proximity, split viability thresholds. |
+
+### Frontend
+
+| # | Item | Files | Depends on | Notes |
+|---|------|-------|-----------|-------|
+| V2-F1 | **TypeScript interfaces** | `types.ts` | V2-B7 | Update `ScorecardRow`: replace `lcoe_remote_captive_allin_usd_mwh` → `lcoe_grid_connected_usd_mwh`. Add `grid_integration_category`, `dist_solar_to_nearest_substation_km`, `solar_vs_bpp_gap_pct`, `bpp_status`. Add `invest_grid` to `ActionFlag` type. |
+| V2-F2 | **Assumptions panel** | `AssumptionsPanel.tsx` | V2-F1 | Replace gen-tie slider → grid connection cost slider ($2–15/kW-km). Replace substation works slider → grid connection fixed ($30–200/kW). Remove transmission lease slider. Add threshold sliders for solar-to-substation and KEK-to-substation distances. |
+| V2-F3 | **Score drawer** | `ScoreDrawer.tsx` | V2-F1 | Replace "All-in Remote LCOE" → "Grid-Connected Solar LCOE". Add grid integration category badge. Show `dist_solar_to_nearest_substation_km`. Show `bpp_status` indicator (verified vs estimated). |
+| V2-F4 | **Table columns** | `RankedTable` or similar | V2-F1 | Add `grid_integration_category` column (filterable). Add `bpp_status` indicator. Update column tooltips. |
+| V2-F5 | **Map markers** | Map components | V2-F1 | Color-code markers by `grid_integration_category` (in addition to existing action flag coloring). |
+| V2-F6 | **Walkthrough + methodology modal** | Walkthrough, MethodologyModal | V2-F3 | Update all text references: "remote captive" → "grid-connected solar", "gen-tie" → "grid connection". Update persona walkthrough steps. Point methodology modal to V2 content. |
+
+### Documentation
+
+| # | Item | Files | Depends on | Notes |
+|---|------|-------|-----------|-------|
+| V2-D1 | **Update PERSONAS.md** | `PERSONAS.md` | — | Reframe DFI Investor → DFI Infrastructure Investor. Reframe IPP journey (pre-positioning + advocacy, not free site selection). Add Persona 5: Industrial Investor / KEK Tenant. Update readiness scores. Can start immediately. |
+| V2-D2 | **Merge METHODOLOGY_V2.md** | `METHODOLOGY.md` | V2-B6 | Merge V2 content into main methodology doc after code changes are implemented and verified. |
+| V2-D3 | **Update DATA_DICTIONARY.md** | `DATA_DICTIONARY.md` | V2-B6 | Add new columns, rename changed columns, update statuses. |
+| V2-D4 | **Update DESIGN.md changelog** | `DESIGN.md` | V2-F6 | Add 4 changelog entries (thesis pivot, DFI reframe, new persona, new action flag). |
+| V2-D5 | **Update CLAUDE.md** | `CLAUDE.md` | V2-B6 | Update fact table descriptions, siting scenario references, architecture notes. |
+
+### Implementation order
+
+```
+Phase A (parallel, no code deps):
+  V2-D1 (personas)     — can start now
+  V2-B1 (solar coords) — unblocks B2
+  V2-B3 (WB capacity)  — independent
+  V2-B4 (assumptions)  — independent
+
+Phase B (after Phase A):
+  V2-B2 (3-point proximity) — needs B1
+  V2-B5 (model renames)     — needs B4
+
+Phase C (after Phase B):
+  V2-B6 (LCOE pipeline) — needs B2, B4, B5
+  V2-B8 (tests)         — needs B5, B6
+
+Phase D (after Phase C):
+  V2-B7 (logic + API)   — needs B5, B6
+  V2-F1 (types)         — needs B7
+
+Phase E (after Phase D):
+  V2-F2–F6 (all frontend) — needs F1
+  V2-D2–D5 (doc merge)    — needs B6, F6
+```
+
+---
+
+## High Priority (v1.1) — All Complete
 
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|

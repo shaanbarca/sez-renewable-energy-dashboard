@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
+# See LICENSE and NOTICE files in the project root.
 """
 assumptions.py — single source of truth for all model constants and assumptions.
 
@@ -166,48 +168,96 @@ WIND_SOURCE: str = "GlobalWindAtlas-v3"
 # Name tag for wind speed raster provenance.
 # Source: https://globalwindatlas.info — DTU / World Bank, mean wind speed at 100m.
 
-# ─── GEN-TIE LINE COST (remote captive scenario) ──────────────────────────────
+# ─── GRID CONNECTION COST (V2: grid-connected solar scenario) ────────────────
+# V2 replaces "gen-tie" model with "grid connection" model. Solar farm connects to
+# nearest PLN substation via short MV/HV line; PLN operates the wider transmission.
+# See METHODOLOGY_V2.md §3 for full rationale.
 
+CONNECTION_COST_PER_KW_KM: float = 5.0
+# Grid connection line cost per kW of solar capacity per km of line length.
+# Covers MV/HV cable from solar farm to nearest PLN substation.
+# Source: METHODOLOGY_V2.md §3 — industry benchmark range $2–15/kW-km.
+# Default $5/kW-km: mid-range for Indonesian conditions (terrain, permitting).
+# User-adjustable in dashboard with range $2–15/kW-km.
+# Note: Does not include land/ROW acquisition (developer-negotiated, site-specific).
+
+GRID_CONNECTION_FIXED_PER_KW: float = 80.0
+# Fixed grid connection cost per kW: step-up transformer, switchgear, protection,
+# metering at the solar farm end. PLN substation end assumed existing infrastructure.
+# Source: METHODOLOGY_V2.md §3 — range $30–200/kW.
+# Default $80/kW: lower than V1's $150/kW because V2 assumes only solar-side works
+# (no new substation at KEK end — KEK already connected to PLN grid).
+# User-adjustable in dashboard with range $30–200/kW.
+
+# V1 aliases — kept at V1 values for backward compatibility until downstream code
+# is updated in V2-B5/B6/B7. These will be removed once all consumers are migrated.
+# TODO(V2): Remove these aliases after completing V2-B5 (model renames).
 GENTIE_COST_PER_KW_KM: float = 5.0
-# Gen-tie transmission line construction cost per kW of capacity per km of line length.
-# Source: METHODOLOGY.md Section 2A.2 — industry benchmark range $3–10/kW-km.
-# Rationale: Central estimate used for base-case remote captive LCOE; presented as an
-# assumption in the dashboard. Sensitivity (low=$3, high=$10) deferred to Phase 3.
-# Note: Applies to MV/HV transmission lines to nearest PLN substation; does not include
-# land/ROW acquisition costs (typically developer-negotiated, not capitalized at $/kW-km).
-
 SUBSTATION_WORKS_PER_KW: float = 150.0
-# Capital cost of substation works (step-up transformer, protection systems, metering)
-# at both the generator and PLN substation ends, per kW of generating capacity.
-# Source: METHODOLOGY.md Section 2A.2 — industry benchmark range $100–200/kW.
-# Rationale: Central estimate. PLN typically takes ownership of the gen-tie and substation
-# works post-commissioning (Permen ESDM No. 27 Tahun 2017).
 
-# ─── TRANSMISSION LEASE ADDER (remote captive scenario) ───────────────────────
+# ─── TRANSMISSION LEASE ADDER (V2: DEPRECATED) ──────────────────────────────
+# V2 removes the transmission lease adder. In the grid-connected model, transmission
+# cost is PLN's system cost reflected in BPP/tariff — not a separate line item for
+# the solar developer. V1 values retained until downstream code is updated.
+# TODO(V2): Remove these constants after completing V2-B6 (LCOE pipeline update).
 
 TRANSMISSION_LEASE_LOW_USD_MWH: float = 5.0
-# Operating cost of transmitting energy from a remote captive solar plant to the KEK
-# via the PLN grid — optimistic case.
-# Components: PLN wheeling tariff + grid backup reserve charge.
-# Source: METHODOLOGY.md Section 5.5 — industry estimate range $5–15/MWh.
-# Applies only to remote_captive siting scenario (within_boundary has no transmission lease).
-
 TRANSMISSION_LEASE_HIGH_USD_MWH: float = 15.0
-# Transmission lease adder — conservative case. Source: METHODOLOGY.md Section 5.5.
-
 TRANSMISSION_LEASE_MID_USD_MWH: float = (
     TRANSMISSION_LEASE_LOW_USD_MWH + TRANSMISSION_LEASE_HIGH_USD_MWH
 ) / 2
-# Mid-point transmission lease adder = $10/MWh.
 
-# ─── PROJECT VIABILITY THRESHOLD ──────────────────────────────────────────────
+# ─── GRID INTEGRATION THRESHOLDS (V2: three-point proximity) ────────────────
+# Used by build_fct_substation_proximity.py to classify grid_integration_category.
+# All thresholds are user-adjustable in the dashboard.
+# Source: METHODOLOGY_V2.md §2.
 
-PROJECT_VIABLE_MIN_MWP: float = 20.0
-# Minimum max_captive_capacity_mwp for a project to be considered commercially viable.
-# Below 20 MWp, fixed development costs (permitting, legal, engineering) typically make
-# projects marginal for an IPP developer. DFI investors typically screen at ≥ 33 MWp
-# (≥ 50 ha at 1.5 ha/MWp). 20 MWp is the conservative lower bound.
-# Source: METHODOLOGY.md Section 2.5 (minimum contiguous area discussion).
+SOLAR_TO_SUBSTATION_THRESHOLD_KM: float = 10.0
+# Maximum distance (km) from best buildable solar site to nearest PLN substation
+# for the connection to be considered "short" (i.e., grid_ready or invest_grid).
+# Source: METHODOLOGY_V2.md §2 — no Indonesia-specific benchmark available;
+# 10 km reflects typical MV connection range for utility-scale solar globally.
+
+KEK_TO_SUBSTATION_THRESHOLD_KM: float = 15.0
+# Maximum distance (km) from KEK centroid to nearest PLN substation for the KEK
+# to be considered "well-connected" to the grid.
+# Source: METHODOLOGY_V2.md §2 — reflects that KEKs are typically sited near
+# existing infrastructure; 15 km is generous for a connected industrial zone.
+
+SUBSTATION_MIN_CAPACITY_MVA: float = 30.0
+# Minimum substation rated capacity (MVA) to be considered viable for absorbing
+# new solar generation. Below this, grid reinforcement may be needed.
+# Source: METHODOLOGY_V2.md §2 — rule of thumb: 70-80% of rated MVA is the
+# practical absorption limit; 30 MVA allows ~21-24 MW injection.
+
+# ─── PROJECT VIABILITY THRESHOLDS ────────────────────────────────────────────
+# V2 splits the viability threshold by siting scenario.
+# Source: METHODOLOGY_V2.md §1.1.
+
+PROJECT_VIABLE_MIN_MWP_WB: float = 0.5
+# Minimum capacity (MWp) for within-boundary solar to be viable.
+# Source: Indonesian IUPTLS regulatory threshold is 500 kW (Permen ESDM).
+# Below this, the licensing and development overhead is disproportionate.
+
+PROJECT_VIABLE_MIN_MWP_GC: float = 20.0
+# Minimum capacity (MWp) for grid-connected solar to be viable.
+# Same rationale as V1: below 20 MWp, fixed development costs make projects
+# marginal for an IPP developer.
+# Source: METHODOLOGY_V2.md §1.1 (minimum contiguous area discussion).
+
+# V1 alias — kept for backward compatibility until downstream code is updated.
+# TODO(V2): Remove this alias after completing V2-B7 (dashboard logic update).
+PROJECT_VIABLE_MIN_MWP: float = PROJECT_VIABLE_MIN_MWP_GC
+
+# ─── WITHIN-BOUNDARY SOLAR CAPACITY ─────────────────────────────────────────
+
+WB_SOLAR_FRACTION: float = 0.10
+# Fraction of total KEK area (Luas_ha) assumed available for within-boundary solar.
+# Source: METHODOLOGY_V2.md §1.1 — typical industrial zones allocate 50-60% to buildings,
+# 20-25% to roads/utilities, 10-20% to green space/buffer. Solar can be installed on
+# rooftops, parking canopies, and buffer zones. 10% is a conservative floor.
+# User-adjustable in dashboard. Range: 0.05–0.25 (5–25% of KEK area).
+# Note: At 10%, a 500 ha KEK yields 50 ha × (1 MWp / 1.5 ha) ≈ 33 MWp.
 
 # ─── FIRMING / WHEELING ADDER ─────────────────────────────────────────────────
 

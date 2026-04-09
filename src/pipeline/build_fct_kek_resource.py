@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
+# See LICENSE and NOTICE files in the project root.
 """
 build_fct_kek_resource — PVOUT at centroid and best-within-50km for each KEK.
 
@@ -27,8 +29,16 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
     buildability_constraint    dominant binding constraint:
                                "kawasan_hutan"|"slope"|"peat"|"agriculture"|
                                "area_too_small"|"unconstrained"|"data_unavailable"
+    best_solar_site_lat        latitude of the best buildable PVOUT pixel (V2)
+                               NaN if buildability data not present
+    best_solar_site_lon        longitude of the best buildable PVOUT pixel (V2)
+                               NaN if buildability data not present
+    within_boundary_area_ha    area available for solar within KEK boundary (V2)
+                               = area_ha × WB_SOLAR_FRACTION (default 10%)
+    within_boundary_capacity_mwp  max solar capacity within boundary (V2)
+                               = within_boundary_area_ha / 1.5 ha/MWp
 
-Methodology reference: METHODOLOGY.md Sections 2.4 and 2.5
+Methodology reference: METHODOLOGY.md Sections 2.4 and 2.5, METHODOLOGY_V2.md §2
 50km buffer formula: lat_buf = 50/111.32, lon_buf = 50/(111.32×cos(lat_rad))
 """
 
@@ -50,6 +60,7 @@ from src.pipeline.assumptions import (
     KM_PER_DEGREE_LAT,
     PVOUT_BUFFER_KM,
     PVOUT_SOURCE,
+    WB_SOLAR_FRACTION,
 )
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
@@ -250,7 +261,7 @@ def _compute_buildable_pvout(
     lon: float,
     lat: float,
     data_dir: Path = BUILDABILITY_DIR,
-) -> tuple[float, float, float, str]:
+) -> tuple[float, float, float, str, float, float]:
     """Apply the 4-layer land suitability filter to a PVOUT patch.
 
     Applies whatever data files are present in data_dir — layers with missing
@@ -265,8 +276,9 @@ def _compute_buildable_pvout(
         data_dir:      Directory containing buildability data files.
 
     Returns:
-        (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str)
-        Returns (NaN, NaN, NaN, "data_unavailable") only when no files are present at all.
+        (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str,
+         best_solar_site_lat, best_solar_site_lon)
+        Returns (NaN, NaN, NaN, "data_unavailable", NaN, NaN) when no files are present.
 
     Note on resolution:
         PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
@@ -277,7 +289,7 @@ def _compute_buildable_pvout(
 
     available = _available_build_files(data_dir)
     if not available:
-        return np.nan, np.nan, np.nan, "data_unavailable"
+        return np.nan, np.nan, np.nan, "data_unavailable", np.nan, np.nan
 
     win_transform = rasterio.windows.transform(window, src_transform)
     height, width = pvout_patch.shape
@@ -296,7 +308,7 @@ def _compute_buildable_pvout(
     n_raw = int(valid.sum())
 
     if n_raw == 0:
-        return np.nan, 0.0, 0.0, "unconstrained"
+        return np.nan, 0.0, 0.0, "unconstrained", np.nan, np.nan
 
     pvout_working = np.where(valid, pvout_patch, 0.0).astype(float)
 
@@ -375,10 +387,21 @@ def _compute_buildable_pvout(
     buildable_area_ha = round(n_after_4 * pix_ha, 1)
     max_mwp = round(buildable_area_ha / HA_PER_MWP, 1)
 
-    pvout_in_buildable = pvout_patch[filtered_mask & np.isfinite(pvout_patch)]
-    pvout_buildable_daily = (
-        float(pvout_in_buildable.max()) if len(pvout_in_buildable) > 0 else np.nan
-    )
+    # Find best buildable pixel and its geographic coordinates
+    buildable_pvout = np.where(filtered_mask & np.isfinite(pvout_patch), pvout_patch, -np.inf)
+    if buildable_pvout.max() > -np.inf:
+        best_idx = np.unravel_index(buildable_pvout.argmax(), buildable_pvout.shape)
+        pvout_buildable_daily = float(pvout_patch[best_idx])
+        # Convert pixel row/col to geographic coordinates using the window transform
+        best_lon, best_lat = rasterio.transform.xy(
+            win_transform, best_idx[0], best_idx[1], offset="center"
+        )
+        best_solar_lat = round(float(best_lat), 5)
+        best_solar_lon = round(float(best_lon), 5)
+    else:
+        pvout_buildable_daily = np.nan
+        best_solar_lat = np.nan
+        best_solar_lon = np.nan
 
     constraint = compute_buildability_constraint(
         n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_2, n_after_4
@@ -397,7 +420,14 @@ def _compute_buildable_pvout(
         f"  buildable={n_after_4}  constraint={constraint}"
     )
 
-    return pvout_buildable_daily, buildable_area_ha, max_mwp, constraint
+    return (
+        pvout_buildable_daily,
+        buildable_area_ha,
+        max_mwp,
+        constraint,
+        best_solar_lat,
+        best_solar_lon,
+    )
 
 
 # ─── Builder ──────────────────────────────────────────────────────────────────
@@ -445,6 +475,7 @@ def build_fct_kek_resource(
         for _, row in kek_df.iterrows():
             lat = float(row["latitude"])
             lon = float(row["longitude"])
+            area_ha = float(row["area_ha"]) if pd.notna(row.get("area_ha")) else np.nan
 
             pvout_daily_c = _sample_centroid(src, arr, lon, lat)
             pvout_daily_b = _sample_best_50km(src, lon, lat)
@@ -482,10 +513,15 @@ def build_fct_kek_resource(
                 pvout_b = np.nan
 
             # Buildability filter (graceful degradation when data absent)
-            pvout_buildable_daily, buildable_area_ha, max_mwp, constraint = (
-                _compute_buildable_pvout(
-                    pvout_patch, window_50km, src.transform, lon, lat, buildability_dir
-                )
+            (
+                pvout_buildable_daily,
+                buildable_area_ha,
+                max_mwp,
+                constraint,
+                best_solar_lat,
+                best_solar_lon,
+            ) = _compute_buildable_pvout(
+                pvout_patch, window_50km, src.transform, lon, lat, buildability_dir
             )
             try:
                 pvout_buildable = (
@@ -527,6 +563,22 @@ def build_fct_kek_resource(
                     else np.nan,
                     "max_captive_capacity_mwp": max_mwp if np.isfinite(max_mwp) else np.nan,
                     "buildability_constraint": constraint,
+                    # V2: coordinates of the best buildable solar site (for three-point proximity)
+                    "best_solar_site_lat": best_solar_lat
+                    if np.isfinite(best_solar_lat)
+                    else np.nan,
+                    "best_solar_site_lon": best_solar_lon
+                    if np.isfinite(best_solar_lon)
+                    else np.nan,
+                    # V2: within-boundary solar capacity from KEK polygon area
+                    "within_boundary_area_ha": round(area_ha * WB_SOLAR_FRACTION, 1)
+                    if np.isfinite(area_ha)
+                    else np.nan,
+                    "within_boundary_capacity_mwp": round(
+                        area_ha * WB_SOLAR_FRACTION / HA_PER_MWP, 1
+                    )
+                    if np.isfinite(area_ha)
+                    else np.nan,
                 }
             )
 
