@@ -24,28 +24,27 @@ import pandas as pd
 
 from src.assumptions import (
     BASE_WACC,
+    CONNECTION_COST_PER_KW_KM,
     FIRMING_ADDER_MID_USD_MWH,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
-    GENTIE_COST_PER_KW_KM,
+    GRID_CONNECTION_FIXED_PER_KW,
     IDR_USD_RATE,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PROJECT_VIABLE_MIN_MWP,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
-    SUBSTATION_WORKS_PER_KW,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
-    TRANSMISSION_LEASE_MID_USD_MWH,
 )
 from src.model.basic_model import (
     ActionFlag,
     action_flags,
     capacity_factor_from_pvout,
     carbon_breakeven_price,
+    grid_connection_cost_per_kw,
     is_solar_attractive,
     lcoe_solar,
-    lcoe_solar_remote_captive,
     solar_competitive_gap,
 )
 from src.model.basic_model import (
@@ -72,9 +71,8 @@ class UserAssumptions:
 
     # Tier 2: Advanced panel
     fom_usd_per_kw_yr: float = TECH006_FOM_USD_PER_KW_YR
-    gentie_cost_per_kw_km: float = GENTIE_COST_PER_KW_KM
-    substation_works_per_kw: float = SUBSTATION_WORKS_PER_KW
-    transmission_lease_mid_usd_mwh: float = TRANSMISSION_LEASE_MID_USD_MWH
+    connection_cost_per_kw_km: float = CONNECTION_COST_PER_KW_KM
+    grid_connection_fixed_per_kw: float = GRID_CONNECTION_FIXED_PER_KW
     firming_adder_mid_usd_mwh: float = FIRMING_ADDER_MID_USD_MWH
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
@@ -93,14 +91,6 @@ class UserAssumptions:
         """Upper bound: +12.5% of central CAPEX (matches ESDM band)."""
         return self.capex_usd_per_kw * 1.125
 
-    @property
-    def transmission_lease_low(self) -> float:
-        return self.transmission_lease_mid_usd_mwh - 5.0
-
-    @property
-    def transmission_lease_high(self) -> float:
-        return self.transmission_lease_mid_usd_mwh + 5.0
-
     def to_dict(self) -> dict:
         """Serialise for dcc.Store."""
         return {
@@ -108,9 +98,8 @@ class UserAssumptions:
             "lifetime_yr": self.lifetime_yr,
             "wacc_pct": self.wacc_pct,
             "fom_usd_per_kw_yr": self.fom_usd_per_kw_yr,
-            "gentie_cost_per_kw_km": self.gentie_cost_per_kw_km,
-            "substation_works_per_kw": self.substation_works_per_kw,
-            "transmission_lease_mid_usd_mwh": self.transmission_lease_mid_usd_mwh,
+            "connection_cost_per_kw_km": self.connection_cost_per_kw_km,
+            "grid_connection_fixed_per_kw": self.grid_connection_fixed_per_kw,
             "firming_adder_mid_usd_mwh": self.firming_adder_mid_usd_mwh,
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
@@ -158,23 +147,24 @@ def compute_lcoe_live(
 ) -> pd.DataFrame:
     """Compute LCOE for all KEKs at user-specified assumptions.
 
-    Produces 2 rows per KEK (within_boundary + remote_captive) with low/mid/high
-    LCOE bands and all-in columns for remote captive.
+    V2: Produces 2 rows per KEK (within_boundary + grid_connected_solar).
+    Grid-connected uses dist_solar_to_nearest_substation_km (solar→substation)
+    instead of dist_to_nearest_substation_km (KEK→substation).
 
     Parameters
     ----------
     resource_df:
         Must have columns: kek_id, pvout_centroid, pvout_best_50km (or
-        pvout_buildable_best_50km), dist_to_nearest_substation_km.
+        pvout_buildable_best_50km). Optional: dist_solar_to_nearest_substation_km,
+        dist_to_nearest_substation_km (fallback).
     assumptions:
         User-adjustable model assumptions from dashboard sliders.
 
     Returns
     -------
     pd.DataFrame
-        Columns: kek_id, scenario, lcoe_low, lcoe_mid, lcoe_high,
-        lcoe_allin_low, lcoe_allin_mid, lcoe_allin_high,
-        transmission_lease_adder_usd_mwh, cf, pvout_used.
+        Columns: kek_id, scenario, lcoe_low/mid/high_usd_mwh,
+        connection_cost_per_kw, cf, pvout_used.
     """
     wacc = assumptions.wacc_decimal
     lifetime = assumptions.lifetime_yr
@@ -184,7 +174,7 @@ def compute_lcoe_live(
     fom = assumptions.fom_usd_per_kw_yr
 
     # Choose the best available remote PVOUT column
-    remote_pvout_col = (
+    gc_pvout_col = (
         "pvout_buildable_best_50km"
         if "pvout_buildable_best_50km" in resource_df.columns
         and resource_df["pvout_buildable_best_50km"].notna().any()
@@ -194,11 +184,17 @@ def compute_lcoe_live(
     rows = []
     for _, kek in resource_df.iterrows():
         kek_id = kek["kek_id"]
-        dist_km = kek.get("dist_to_nearest_substation_km", 0.0)
-        if pd.isna(dist_km):
-            dist_km = 0.0
 
-        # Within-boundary scenario: use centroid PVOUT, no gen-tie
+        # V2: prefer solar-to-substation distance; fallback to KEK-to-substation
+        dist_solar = kek.get("dist_solar_to_nearest_substation_km")
+        dist_kek = kek.get("dist_to_nearest_substation_km", 0.0)
+        if pd.isna(dist_solar):
+            dist_solar = None
+        if pd.isna(dist_kek):
+            dist_kek = 0.0
+        dist_km = dist_solar if dist_solar is not None else dist_kek
+
+        # Within-boundary scenario: use centroid PVOUT, no connection cost
         pvout_wb = kek.get("pvout_centroid")
         if pd.notna(pvout_wb) and pvout_wb > 0:
             cf_wb = capacity_factor_from_pvout(pvout_wb)
@@ -215,74 +211,46 @@ def compute_lcoe_live(
                 "lcoe_low_usd_mwh": _round(lcoe_l_wb),
                 "lcoe_mid_usd_mwh": _round(lcoe_c_wb),
                 "lcoe_high_usd_mwh": _round(lcoe_h_wb),
-                "lcoe_allin_low_usd_mwh": _round(lcoe_l_wb),  # no lease for within_boundary
-                "lcoe_allin_mid_usd_mwh": _round(lcoe_c_wb),
-                "lcoe_allin_high_usd_mwh": _round(lcoe_h_wb),
-                "transmission_lease_adder_usd_mwh": 0.0,
+                "connection_cost_per_kw": 0.0,
                 "cf": _round(cf_wb, 4),
                 "pvout_used": pvout_wb,
             }
         )
 
-        # Remote captive scenario: use best PVOUT + gen-tie + lease
-        pvout_rc = kek.get(remote_pvout_col)
-        if pd.isna(pvout_rc) or pvout_rc <= 0:
-            pvout_rc = kek.get("pvout_best_50km")
-        if pd.isna(pvout_rc) or pvout_rc <= 0:
-            pvout_rc = pvout_wb  # fallback to centroid
+        # Grid-connected solar: use best PVOUT + connection cost (solar→substation)
+        pvout_gc = kek.get(gc_pvout_col)
+        if pd.isna(pvout_gc) or pvout_gc <= 0:
+            pvout_gc = kek.get("pvout_best_50km")
+        if pd.isna(pvout_gc) or pvout_gc <= 0:
+            pvout_gc = pvout_wb  # fallback to centroid
 
-        if pd.notna(pvout_rc) and pvout_rc > 0:
-            cf_rc = capacity_factor_from_pvout(pvout_rc)
-            lcoe_c_rc = lcoe_solar_remote_captive(
-                capex_c,
-                fom,
-                wacc,
-                lifetime,
-                cf_rc,
+        if pd.notna(pvout_gc) and pvout_gc > 0:
+            cf_gc = capacity_factor_from_pvout(pvout_gc)
+            conn_cost = grid_connection_cost_per_kw(
                 dist_km,
-                assumptions.gentie_cost_per_kw_km,
-                assumptions.substation_works_per_kw,
+                assumptions.connection_cost_per_kw_km,
+                assumptions.grid_connection_fixed_per_kw,
             )
-            lcoe_l_rc = lcoe_solar_remote_captive(
-                capex_l,
-                fom,
-                wacc,
-                lifetime,
-                cf_rc,
-                dist_km,
-                assumptions.gentie_cost_per_kw_km,
-                assumptions.substation_works_per_kw,
-            )
-            lcoe_h_rc = lcoe_solar_remote_captive(
-                capex_h,
-                fom,
-                wacc,
-                lifetime,
-                cf_rc,
-                dist_km,
-                assumptions.gentie_cost_per_kw_km,
-                assumptions.substation_works_per_kw,
-            )
-            lease_mid = assumptions.transmission_lease_mid_usd_mwh
-            lease_low = assumptions.transmission_lease_low
-            lease_high = assumptions.transmission_lease_high
+            eff_c = capex_c + conn_cost
+            eff_l = capex_l + conn_cost
+            eff_h = capex_h + conn_cost
+            lcoe_c_gc = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc)
+            lcoe_l_gc = lcoe_solar(eff_l, fom, wacc, lifetime, cf_gc)
+            lcoe_h_gc = lcoe_solar(eff_h, fom, wacc, lifetime, cf_gc)
         else:
-            cf_rc = lcoe_c_rc = lcoe_l_rc = lcoe_h_rc = np.nan
-            lease_mid = lease_low = lease_high = 0.0
+            cf_gc = lcoe_c_gc = lcoe_l_gc = lcoe_h_gc = np.nan
+            conn_cost = 0.0
 
         rows.append(
             {
                 "kek_id": kek_id,
-                "scenario": "remote_captive",
-                "lcoe_low_usd_mwh": _round(lcoe_l_rc),
-                "lcoe_mid_usd_mwh": _round(lcoe_c_rc),
-                "lcoe_high_usd_mwh": _round(lcoe_h_rc),
-                "lcoe_allin_low_usd_mwh": _round_add(lcoe_l_rc, lease_low),
-                "lcoe_allin_mid_usd_mwh": _round_add(lcoe_c_rc, lease_mid),
-                "lcoe_allin_high_usd_mwh": _round_add(lcoe_h_rc, lease_high),
-                "transmission_lease_adder_usd_mwh": lease_mid,
-                "cf": _round(cf_rc, 4),
-                "pvout_used": pvout_rc,
+                "scenario": "grid_connected_solar",
+                "lcoe_low_usd_mwh": _round(lcoe_l_gc),
+                "lcoe_mid_usd_mwh": _round(lcoe_c_gc),
+                "lcoe_high_usd_mwh": _round(lcoe_h_gc),
+                "connection_cost_per_kw": _round(conn_cost, 1),
+                "cf": _round(cf_gc, 4),
+                "pvout_used": pvout_gc,
             }
         )
 
@@ -328,7 +296,7 @@ def compute_scorecard_live(
 
     # Extract within_boundary rows for primary comparison
     wb = lcoe_df[lcoe_df["scenario"] == "within_boundary"].set_index("kek_id")
-    rc = lcoe_df[lcoe_df["scenario"] == "remote_captive"].set_index("kek_id")
+    gc = lcoe_df[lcoe_df["scenario"] == "grid_connected_solar"].set_index("kek_id")
 
     default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
 
@@ -492,21 +460,20 @@ def compute_scorecard_live(
             "capex_usd_per_kw": assumptions.capex_usd_per_kw,
         }
 
-        # Add remote captive all-in columns
-        if kek_id in rc.index:
-            row["lcoe_remote_captive_allin_usd_mwh"] = _round(
-                rc.loc[kek_id, "lcoe_allin_mid_usd_mwh"]
-            )
-            row["lcoe_remote_captive_allin_low_usd_mwh"] = _round(
-                rc.loc[kek_id, "lcoe_allin_low_usd_mwh"]
-            )
-            row["lcoe_remote_captive_allin_high_usd_mwh"] = _round(
-                rc.loc[kek_id, "lcoe_allin_high_usd_mwh"]
-            )
+        # V2: Add grid-connected solar LCOE columns
+        if kek_id in gc.index:
+            row["lcoe_grid_connected_usd_mwh"] = _round(gc.loc[kek_id, "lcoe_mid_usd_mwh"])
+            row["lcoe_grid_connected_low_usd_mwh"] = _round(gc.loc[kek_id, "lcoe_low_usd_mwh"])
+            row["lcoe_grid_connected_high_usd_mwh"] = _round(gc.loc[kek_id, "lcoe_high_usd_mwh"])
+            row["connection_cost_per_kw"] = gc.loc[kek_id, "connection_cost_per_kw"]
         else:
-            row["lcoe_remote_captive_allin_usd_mwh"] = np.nan
-            row["lcoe_remote_captive_allin_low_usd_mwh"] = np.nan
-            row["lcoe_remote_captive_allin_high_usd_mwh"] = np.nan
+            row["lcoe_grid_connected_usd_mwh"] = np.nan
+            row["lcoe_grid_connected_low_usd_mwh"] = np.nan
+            row["lcoe_grid_connected_high_usd_mwh"] = np.nan
+            row["connection_cost_per_kw"] = 0.0
+
+        # V2: Pass through grid_integration_category from resource_df
+        row["grid_integration_category"] = kek.get("grid_integration_category", None)
 
         rows.append(row)
 

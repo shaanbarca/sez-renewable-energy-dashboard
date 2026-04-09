@@ -335,6 +335,156 @@ class TestLcoeSolarRemoteCaptive:
 
 
 # ---------------------------------------------------------------------------
+# 6b. V2 grid connection cost + grid-connected LCOE
+# ---------------------------------------------------------------------------
+
+
+class TestGridConnectionCost:
+    def test_zero_distance_equals_fixed_only(self):
+        """dist=0 → only fixed connection cost (no line construction)."""
+        from src.assumptions import GRID_CONNECTION_FIXED_PER_KW
+        from src.model.basic_model import grid_connection_cost_per_kw
+
+        result = grid_connection_cost_per_kw(0.0)
+        assert result == pytest.approx(GRID_CONNECTION_FIXED_PER_KW)
+
+    def test_10km_scales_linearly(self):
+        """10km × $5/kW-km + $80/kW = $130/kW."""
+        from src.assumptions import CONNECTION_COST_PER_KW_KM, GRID_CONNECTION_FIXED_PER_KW
+        from src.model.basic_model import grid_connection_cost_per_kw
+
+        result = grid_connection_cost_per_kw(10.0)
+        assert result == pytest.approx(
+            10.0 * CONNECTION_COST_PER_KW_KM + GRID_CONNECTION_FIXED_PER_KW
+        )
+
+    def test_custom_params(self):
+        from src.model.basic_model import grid_connection_cost_per_kw
+
+        result = grid_connection_cost_per_kw(20.0, cost_per_kw_km=3.0, connection_fixed_per_kw=50.0)
+        assert result == pytest.approx(20.0 * 3.0 + 50.0)
+
+    def test_negative_distance_raises(self):
+        from src.model.basic_model import grid_connection_cost_per_kw
+
+        with pytest.raises(ValueError):
+            grid_connection_cost_per_kw(-1.0)
+
+
+class TestLcoeSolarGridConnected:
+    def _base_args(self):
+        return dict(
+            capex_usd_per_kw=960.0, fixed_om_usd_per_kw_yr=7.5, wacc=0.10, lifetime_yr=27, cf=0.18
+        )
+
+    def test_zero_dist_with_zero_fixed_equals_base(self):
+        from src.model.basic_model import lcoe_solar_grid_connected
+
+        args = self._base_args()
+        base = lcoe_solar(**args)
+        gc = lcoe_solar_grid_connected(**args, dist_km=0.0, connection_fixed_per_kw=0.0)
+        assert gc == pytest.approx(base)
+
+    def test_positive_dist_increases_lcoe(self):
+        from src.model.basic_model import lcoe_solar_grid_connected
+
+        args = self._base_args()
+        base = lcoe_solar(**args)
+        gc = lcoe_solar_grid_connected(**args, dist_km=10.0)
+        assert gc > base
+
+    def test_longer_distance_higher_lcoe(self):
+        from src.model.basic_model import lcoe_solar_grid_connected
+
+        args = self._base_args()
+        lcoe_5 = lcoe_solar_grid_connected(**args, dist_km=5.0)
+        lcoe_20 = lcoe_solar_grid_connected(**args, dist_km=20.0)
+        assert lcoe_20 > lcoe_5
+
+
+# ---------------------------------------------------------------------------
+# 6c. V2 grid integration category
+# ---------------------------------------------------------------------------
+
+
+class TestGridIntegrationCategory:
+    def test_within_boundary(self):
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(True, None, 5.0) == "within_boundary"
+
+    def test_within_boundary_overrides_distances(self):
+        """Internal substation always returns within_boundary regardless of distances."""
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(True, 50.0, 50.0) == "within_boundary"
+
+    def test_grid_ready(self):
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(False, 5.0, 10.0) == "grid_ready"
+
+    def test_invest_grid_solar_near_kek_far(self):
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(False, 5.0, 20.0) == "invest_grid"
+
+    def test_invest_grid_kek_near_solar_far(self):
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(False, 15.0, 10.0) == "invest_grid"
+
+    def test_grid_first(self):
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(False, 15.0, 20.0) == "grid_first"
+
+    def test_solar_coords_none_and_kek_near(self):
+        """Missing solar coords + KEK near substation → invest_grid (solar side unknown)."""
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(False, None, 10.0) == "invest_grid"
+
+    def test_solar_coords_none_and_kek_far(self):
+        """Missing solar coords + KEK far from substation → grid_first."""
+        from src.model.basic_model import grid_integration_category
+
+        assert grid_integration_category(False, None, 20.0) == "grid_first"
+
+    def test_low_capacity_substation_downgrades(self):
+        """Substation below min capacity → treated as if not near."""
+        from src.model.basic_model import grid_integration_category
+
+        # Both distances within threshold, but capacity too low
+        assert (
+            grid_integration_category(False, 5.0, 10.0, substation_capacity_mva=10.0)
+            == "grid_first"
+        )
+
+    def test_capacity_none_is_ok(self):
+        """Unknown capacity (None) doesn't downgrade — benefit of the doubt."""
+        from src.model.basic_model import grid_integration_category
+
+        assert (
+            grid_integration_category(False, 5.0, 10.0, substation_capacity_mva=None)
+            == "grid_ready"
+        )
+
+    def test_custom_thresholds(self):
+        from src.model.basic_model import grid_integration_category
+
+        # With tighter thresholds, a previously grid_ready site becomes invest_grid
+        result = grid_integration_category(
+            False,
+            8.0,
+            10.0,
+            solar_to_sub_threshold_km=5.0,
+            kek_to_sub_threshold_km=15.0,
+        )
+        assert result == "invest_grid"
+
+
+# ---------------------------------------------------------------------------
 # 7. Solar competitive gap
 # ---------------------------------------------------------------------------
 

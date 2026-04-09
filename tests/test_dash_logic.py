@@ -85,8 +85,8 @@ class TestUserAssumptions:
         assert a.lifetime_yr == 27
         assert a.wacc_pct == 10.0
         assert a.fom_usd_per_kw_yr == 7.5
-        assert a.gentie_cost_per_kw_km == 5.0
-        assert a.substation_works_per_kw == 150.0
+        assert a.connection_cost_per_kw_km == 5.0
+        assert a.grid_connection_fixed_per_kw == 80.0
 
     def test_wacc_decimal(self):
         a = UserAssumptions(wacc_pct=8.0)
@@ -132,26 +132,26 @@ class TestUserThresholds:
 
 class TestComputeLcoeLive:
     def test_output_shape(self, sample_resource_df):
-        """Should produce 2 rows per KEK (within_boundary + remote_captive)."""
+        """Should produce 2 rows per KEK (within_boundary + grid_connected_solar)."""
         result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
         assert len(result) == 6  # 3 KEKs × 2 scenarios
 
     def test_scenarios_present(self, sample_resource_df):
         result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
         scenarios = set(result["scenario"])
-        assert scenarios == {"within_boundary", "remote_captive"}
+        assert scenarios == {"within_boundary", "grid_connected_solar"}
 
-    def test_within_boundary_no_lease(self, sample_resource_df):
-        """Within-boundary should have zero transmission lease."""
+    def test_within_boundary_no_connection_cost(self, sample_resource_df):
+        """Within-boundary should have zero connection cost."""
         result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
         wb = result[result["scenario"] == "within_boundary"]
-        assert (wb["transmission_lease_adder_usd_mwh"] == 0.0).all()
+        assert (wb["connection_cost_per_kw"] == 0.0).all()
 
-    def test_remote_captive_has_lease(self, sample_resource_df):
-        """Remote captive should include transmission lease."""
+    def test_grid_connected_has_connection_cost(self, sample_resource_df):
+        """Grid-connected solar should include connection cost."""
         result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
-        rc = result[result["scenario"] == "remote_captive"]
-        assert (rc["transmission_lease_adder_usd_mwh"] == 10.0).all()
+        gc = result[result["scenario"] == "grid_connected_solar"]
+        assert (gc["connection_cost_per_kw"] > 0.0).all()
 
     def test_lcoe_matches_basic_model(self, sample_resource_df):
         """Live LCOE at defaults should match direct basic_model.lcoe_solar() call."""
@@ -215,17 +215,17 @@ class TestComputeLcoeLive:
                 assert row["lcoe_low_usd_mwh"] < row["lcoe_mid_usd_mwh"]
                 assert row["lcoe_mid_usd_mwh"] < row["lcoe_high_usd_mwh"]
 
-    def test_remote_captive_higher_than_within_boundary(self, sample_resource_df):
-        """Remote captive all-in LCOE should be >= within-boundary LCOE."""
+    def test_grid_connected_higher_than_within_boundary(self, sample_resource_df):
+        """Grid-connected LCOE should be >= within-boundary LCOE (connection cost adds cost)."""
         result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
         wb = result[result["scenario"] == "within_boundary"].set_index("kek_id")
-        rc = result[result["scenario"] == "remote_captive"].set_index("kek_id")
+        gc = result[result["scenario"] == "grid_connected_solar"].set_index("kek_id")
 
         for kek_id in sample_resource_df["kek_id"]:
             wb_lcoe = wb.loc[kek_id, "lcoe_mid_usd_mwh"]
-            rc_allin = rc.loc[kek_id, "lcoe_allin_mid_usd_mwh"]
-            if pd.notna(wb_lcoe) and pd.notna(rc_allin):
-                assert rc_allin >= wb_lcoe, f"Remote all-in should be >= within for {kek_id}"
+            gc_lcoe = gc.loc[kek_id, "lcoe_mid_usd_mwh"]
+            if pd.notna(wb_lcoe) and pd.notna(gc_lcoe):
+                assert gc_lcoe >= wb_lcoe, f"Grid-connected should be >= within for {kek_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -365,11 +365,11 @@ class TestInfrastructureCosts:
             h = wb_high[wb_high["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
             assert h > d, f"LCOE should increase with higher FOM for {kek_id}"
 
-    def test_higher_gentie_raises_remote_only(self, sample_resource_df):
-        """Higher gen-tie cost should raise remote_captive LCOE but not within_boundary."""
+    def test_higher_connection_cost_raises_grid_connected_only(self, sample_resource_df):
+        """Higher connection cost should raise grid_connected_solar LCOE but not within_boundary."""
         default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
-        high_gt = UserAssumptions(gentie_cost_per_kw_km=12.0)
-        high_result = compute_lcoe_live(sample_resource_df, high_gt)
+        high_cc = UserAssumptions(connection_cost_per_kw_km=12.0)
+        high_result = compute_lcoe_live(sample_resource_df, high_cc)
 
         # Within-boundary should be unchanged
         wb_d = default_result[default_result["scenario"] == "within_boundary"]
@@ -380,42 +380,32 @@ class TestInfrastructureCosts:
                 == wb_h[wb_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
             )
 
-        # Remote captive should increase
-        rc_d = default_result[default_result["scenario"] == "remote_captive"]
-        rc_h = high_result[high_result["scenario"] == "remote_captive"]
+        # Grid-connected should increase
+        gc_d = default_result[default_result["scenario"] == "grid_connected_solar"]
+        gc_h = high_result[high_result["scenario"] == "grid_connected_solar"]
         for kek_id in sample_resource_df["kek_id"]:
-            d = rc_d[rc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            h = rc_h[rc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            d = gc_d[gc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = gc_h[gc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
             if pd.notna(d) and pd.notna(h):
-                assert h > d, f"Remote LCOE should increase with higher gen-tie for {kek_id}"
+                assert h > d, (
+                    f"Grid-connected LCOE should increase with higher connection cost for {kek_id}"
+                )
 
-    def test_higher_substation_raises_remote_only(self, sample_resource_df):
-        """Higher substation works should raise remote_captive LCOE only."""
+    def test_higher_fixed_connection_raises_grid_connected_only(self, sample_resource_df):
+        """Higher fixed connection cost should raise grid_connected_solar LCOE only."""
         default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
-        high_sub = UserAssumptions(substation_works_per_kw=250.0)
-        high_result = compute_lcoe_live(sample_resource_df, high_sub)
+        high_fixed = UserAssumptions(grid_connection_fixed_per_kw=200.0)
+        high_result = compute_lcoe_live(sample_resource_df, high_fixed)
 
-        rc_d = default_result[default_result["scenario"] == "remote_captive"]
-        rc_h = high_result[high_result["scenario"] == "remote_captive"]
+        gc_d = default_result[default_result["scenario"] == "grid_connected_solar"]
+        gc_h = high_result[high_result["scenario"] == "grid_connected_solar"]
         for kek_id in sample_resource_df["kek_id"]:
-            d = rc_d[rc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            h = rc_h[rc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            d = gc_d[gc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = gc_h[gc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
             if pd.notna(d) and pd.notna(h):
-                assert h > d, f"Remote LCOE should increase with higher substation for {kek_id}"
-
-    def test_higher_lease_raises_allin_only(self, sample_resource_df):
-        """Higher transmission lease should raise all-in LCOE for remote_captive."""
-        default_result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
-        high_lease = UserAssumptions(transmission_lease_mid_usd_mwh=20.0)
-        high_result = compute_lcoe_live(sample_resource_df, high_lease)
-
-        rc_d = default_result[default_result["scenario"] == "remote_captive"]
-        rc_h = high_result[high_result["scenario"] == "remote_captive"]
-        for kek_id in sample_resource_df["kek_id"]:
-            d = rc_d[rc_d["kek_id"] == kek_id]["lcoe_allin_mid_usd_mwh"].iloc[0]
-            h = rc_h[rc_h["kek_id"] == kek_id]["lcoe_allin_mid_usd_mwh"].iloc[0]
-            if pd.notna(d) and pd.notna(h):
-                assert h > d, f"All-in LCOE should increase with higher lease for {kek_id}"
+                assert h > d, (
+                    f"Grid-connected LCOE should increase with higher fixed cost for {kek_id}"
+                )
 
     def test_idr_usd_rate_affects_grid_benchmark(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df

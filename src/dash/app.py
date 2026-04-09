@@ -1659,8 +1659,8 @@ def _register_callbacks(app: dash.Dash):
                         "/MWh",
                     ),
                     _row(
-                        "Remote all-in",
-                        f"${_val('lcoe_remote_captive_allin_low_usd_mwh')} / ${_val('lcoe_remote_captive_allin_usd_mwh')} / ${_val('lcoe_remote_captive_allin_high_usd_mwh')}",
+                        "Grid-connected",
+                        f"${_val('lcoe_grid_connected_low_usd_mwh')} / ${_val('lcoe_grid_connected_usd_mwh')} / ${_val('lcoe_grid_connected_high_usd_mwh')}",
                         "/MWh",
                     ),
                     _row("Competitive gap", _val("solar_competitive_gap_pct", ".1f"), "%"),

@@ -117,29 +117,21 @@ TIER2_SLIDERS = {
         "unit": "$/kW-yr",
         "description": "Annual fixed operations & maintenance cost",
     },
-    "gentie_cost_per_kw_km": {
+    "connection_cost_per_kw_km": {
         "min": 2,
-        "max": 12,
+        "max": 15,
         "step": 0.5,
-        "label": "Gen-tie cost",
+        "label": "Grid connection cost",
         "unit": "$/kW-km",
-        "description": "Cost to build gen-tie line from solar plant to substation, per kW per km",
+        "description": "Cost of MV/HV line from solar farm to nearest PLN substation, per kW per km",
     },
-    "substation_works_per_kw": {
-        "min": 80,
-        "max": 250,
+    "grid_connection_fixed_per_kw": {
+        "min": 30,
+        "max": 200,
         "step": 10,
-        "label": "Substation works",
+        "label": "Connection fixed cost",
         "unit": "$/kW",
-        "description": "Cost of substation upgrades/connection works per kW",
-    },
-    "transmission_lease_mid_usd_mwh": {
-        "min": 3,
-        "max": 20,
-        "step": 1,
-        "label": "Transmission lease",
-        "unit": "$/MWh",
-        "description": "Ongoing transmission access fee added to LCOE",
+        "description": "Fixed grid connection cost (step-up transformer, switchgear, metering) per kW",
     },
     "firming_adder_mid_usd_mwh": {
         "min": 5,

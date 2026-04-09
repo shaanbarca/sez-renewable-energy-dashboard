@@ -20,6 +20,7 @@ _REQUIRED_FILES = {
     "fct_kek_scorecard": ["kek_id", "kek_name", "action_flag", "lcoe_mid_usd_mwh"],
     "fct_kek_resource": ["kek_id", "pvout_centroid", "pvout_best_50km"],
     "fct_lcoe": ["kek_id", "scenario", "lcoe_usd_mwh"],
+    "fct_substation_proximity": ["kek_id", "dist_to_nearest_substation_km"],
     "fct_ruptl_pipeline": ["grid_region_id", "year"],
     "fct_grid_cost_proxy": ["grid_region_id", "dashboard_rate_usd_mwh"],
     "fct_kek_demand": ["kek_id", "demand_mwh"],
@@ -84,6 +85,17 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     # Add grid_region_id if missing
     if "grid_region_id" not in resource.columns and "grid_region_id" in dim_kek.columns:
         resource = resource.merge(dim_kek[["kek_id", "grid_region_id"]], on="kek_id", how="left")
+
+    # V2: Add substation proximity columns for grid-connected solar LCOE
+    if "fct_substation_proximity" in tables:
+        prox = tables["fct_substation_proximity"]
+        prox_cols = ["kek_id", "dist_to_nearest_substation_km"]
+        for col in ["dist_solar_to_nearest_substation_km", "grid_integration_category"]:
+            if col in prox.columns:
+                prox_cols.append(col)
+        merge_cols = [c for c in prox_cols if c not in resource.columns or c == "kek_id"]
+        if len(merge_cols) > 1:
+            resource = resource.merge(prox[merge_cols], on="kek_id", how="left")
 
     return resource
 

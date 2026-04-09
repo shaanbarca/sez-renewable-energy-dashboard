@@ -27,19 +27,25 @@ from src.assumptions import (
     BASE_WACC_DECIMAL,
     CAPEX_USD_PER_KW_MAX,
     CAPEX_USD_PER_KW_MIN,
+    CONNECTION_COST_PER_KW_KM,
     FIRMING_ADDER_HIGH_USD_MWH,
     FIRMING_ADDER_LOW_USD_MWH,
     FIRMING_ADDER_MID_USD_MWH,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
+    # V1 aliases — kept for backward compatibility
     GENTIE_COST_PER_KW_KM,
+    GRID_CONNECTION_FIXED_PER_KW,
     HOURS_PER_YEAR,
+    KEK_TO_SUBSTATION_THRESHOLD_KM,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PVOUT_ANNUAL_MAX,
     PVOUT_ANNUAL_MIN,
     REGION_CF_DEFAULT,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
     RUPTL_PRE2030_END,
+    SOLAR_TO_SUBSTATION_THRESHOLD_KM,
+    SUBSTATION_MIN_CAPACITY_MVA,
     SUBSTATION_WORKS_PER_KW,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
@@ -287,39 +293,90 @@ def lcoe_solar_with_firming(
     return base + adder_map[firming_adder]
 
 
+def grid_connection_cost_per_kw(
+    dist_km: float,
+    cost_per_kw_km: float = CONNECTION_COST_PER_KW_KM,
+    connection_fixed_per_kw: float = GRID_CONNECTION_FIXED_PER_KW,
+) -> float:
+    """Capital cost of grid connection line + switchgear for grid-connected solar.
+
+    V2: replaces gentie_cost_per_kw(). Solar farm connects to nearest PLN
+    substation via short MV/HV line. No private gen-tie to KEK.
+
+    connection_capex [USD/kW] = dist_km × cost_per_kw_km + connection_fixed_per_kw
+
+    Parameters
+    ----------
+    dist_km:
+        Distance from solar farm to nearest PLN substation (km). Use
+        dist_solar_to_nearest_substation_km from fct_substation_proximity.csv.
+    cost_per_kw_km:
+        Connection line cost (USD/kW-km). Default $5/kW-km, range $2–15.
+        See METHODOLOGY_V2.md §3.
+    connection_fixed_per_kw:
+        Fixed connection cost — step-up transformer, switchgear, protection,
+        metering at solar farm end (USD/kW). Default $80/kW, range $30–200.
+
+    Returns
+    -------
+    float
+        One-time grid connection capital cost per kW of solar capacity (USD/kW).
+        Pass 0 for within-boundary solar (no connection needed).
+    """
+    if dist_km < 0:
+        raise ValueError(f"dist_km must be >= 0, got {dist_km}")
+    return dist_km * cost_per_kw_km + connection_fixed_per_kw
+
+
+# V1 alias — kept for backward compatibility until all consumers migrated.
 def gentie_cost_per_kw(
     dist_km: float,
     cost_per_kw_km: float = GENTIE_COST_PER_KW_KM,
     substation_works_per_kw: float = SUBSTATION_WORKS_PER_KW,
 ) -> float:
-    """Capital cost of gen-tie line + substation works for remote captive solar.
+    """Deprecated V1 alias for grid_connection_cost_per_kw()."""
+    return grid_connection_cost_per_kw(dist_km, cost_per_kw_km, substation_works_per_kw)
 
-    gen_tie_capex [USD/kW] = dist_km × cost_per_kw_km + substation_works_per_kw
+
+def lcoe_solar_grid_connected(
+    capex_usd_per_kw: float,
+    fixed_om_usd_per_kw_yr: float,
+    wacc: float,
+    lifetime_yr: int,
+    cf: float,
+    dist_km: float,
+    cost_per_kw_km: float = CONNECTION_COST_PER_KW_KM,
+    connection_fixed_per_kw: float = GRID_CONNECTION_FIXED_PER_KW,
+) -> float:
+    """LCOE for grid-connected solar including connection cost to nearest substation.
+
+    V2: replaces lcoe_solar_remote_captive(). Connection cost is for a short
+    MV/HV line from solar farm to nearest PLN substation (typically <10km),
+    not a private 50km gen-tie.
+
+    effective_capex = capex + grid_connection_cost_per_kw(dist_km, ...)
+    LCOE = lcoe_solar(effective_capex, ...)
 
     Parameters
     ----------
+    capex_usd_per_kw:
+        Solar plant overnight CAPEX only (USD/kW) — not including connection.
     dist_km:
-        Distance from solar plant to nearest PLN substation (km). Use
-        dist_to_nearest_substation_km from fct_substation_proximity.csv.
-    cost_per_kw_km:
-        Transmission line construction cost (USD/kW-km). Default: central estimate
-        from METHODOLOGY.md §2A.2 (range $3–10/kW-km).
-    substation_works_per_kw:
-        Substation works at both ends — step-up/step-down transformer, protection,
-        metering (USD/kW). Default: central estimate from METHODOLOGY.md §2A.2
-        (range $100–200/kW).
+        Distance from solar farm to nearest PLN substation (km).
+    cost_per_kw_km, connection_fixed_per_kw:
+        Connection cost parameters — see grid_connection_cost_per_kw().
 
     Returns
     -------
     float
-        One-time gen-tie capital cost per kW of plant capacity (USD/kW).
-        Pass 0 for within-boundary captive (no gen-tie needed).
+        All-in LCOE including grid connection cost (USD/MWh).
     """
-    if dist_km < 0:
-        raise ValueError(f"dist_km must be >= 0, got {dist_km}")
-    return dist_km * cost_per_kw_km + substation_works_per_kw
+    conn = grid_connection_cost_per_kw(dist_km, cost_per_kw_km, connection_fixed_per_kw)
+    effective_capex = capex_usd_per_kw + conn
+    return lcoe_solar(effective_capex, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
 
 
+# V1 alias — kept for backward compatibility until all consumers migrated.
 def lcoe_solar_remote_captive(
     capex_usd_per_kw: float,
     fixed_om_usd_per_kw_yr: float,
@@ -330,34 +387,17 @@ def lcoe_solar_remote_captive(
     cost_per_kw_km: float = GENTIE_COST_PER_KW_KM,
     substation_works_per_kw: float = SUBSTATION_WORKS_PER_KW,
 ) -> float:
-    """LCOE for remote captive solar including gen-tie capital cost.
-
-    Treats gen-tie line + substation works as additional overnight CAPEX,
-    annualized via the same CRF as the solar plant. This is consistent with
-    how CAPEX is handled in lcoe_solar() — all capital costs are annualized
-    together, which is correct when the gen-tie is sized and financed with
-    the plant.
-
-    effective_capex = capex + gentie_cost_per_kw(dist_km, ...)
-    LCOE = lcoe_solar(effective_capex, ...)
-
-    Parameters
-    ----------
-    capex_usd_per_kw:
-        Solar plant overnight CAPEX only (USD/kW) — not including gen-tie.
-    dist_km:
-        Distance to nearest PLN substation (km) from fct_substation_proximity.csv.
-    cost_per_kw_km, substation_works_per_kw:
-        Gen-tie cost parameters — see gentie_cost_per_kw().
-
-    Returns
-    -------
-    float
-        All-in LCOE including gen-tie cost (USD/MWh).
-    """
-    gen_tie = gentie_cost_per_kw(dist_km, cost_per_kw_km, substation_works_per_kw)
-    effective_capex = capex_usd_per_kw + gen_tie
-    return lcoe_solar(effective_capex, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
+    """Deprecated V1 alias for lcoe_solar_grid_connected()."""
+    return lcoe_solar_grid_connected(
+        capex_usd_per_kw,
+        fixed_om_usd_per_kw_yr,
+        wacc,
+        lifetime_yr,
+        cf,
+        dist_km,
+        cost_per_kw_km,
+        substation_works_per_kw,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +472,7 @@ class ActionFlag(StrEnum):
     """Recommended action for a KEK based on solar economics and grid readiness."""
 
     SOLAR_NOW = "solar_now"
+    INVEST_GRID = "invest_grid"  # V2: solar exists but grid connection missing
     INVEST_RESILIENCE = "invest_resilience"
     GRID_FIRST = "grid_first"
     FIRMING_NEEDED = "firming_needed"
@@ -551,6 +592,76 @@ def carbon_breakeven_price(
     if lcoe_gap <= 0:
         return 0.0
     return round(lcoe_gap / grid_emission_factor_t_co2_mwh, 1)
+
+
+# ---------------------------------------------------------------------------
+# 5b. Grid integration category (V2: three-point proximity)
+# ---------------------------------------------------------------------------
+
+
+def grid_integration_category(
+    has_internal_substation: bool,
+    dist_solar_to_substation_km: float | None,
+    dist_kek_to_substation_km: float,
+    substation_capacity_mva: float | None = None,
+    solar_to_sub_threshold_km: float = SOLAR_TO_SUBSTATION_THRESHOLD_KM,
+    kek_to_sub_threshold_km: float = KEK_TO_SUBSTATION_THRESHOLD_KM,
+    min_capacity_mva: float = SUBSTATION_MIN_CAPACITY_MVA,
+) -> str:
+    """Classify a KEK's grid integration readiness using three-point proximity.
+
+    Three points: (A) best buildable solar site, (B) nearest PLN substation, (C) KEK centroid.
+
+    Categories (METHODOLOGY_V2.md §2):
+        within_boundary — substation inside KEK polygon; solar can connect directly
+        grid_ready      — substation near both solar AND KEK (short connection feasible)
+        invest_grid     — substation near one but not both; targeted investment unlocks solar
+        grid_first      — no substations near either; major grid investment needed
+
+    Parameters
+    ----------
+    has_internal_substation:
+        True if any operational PLN substation is inside the KEK boundary.
+    dist_solar_to_substation_km:
+        Distance from best buildable solar site to nearest substation (km).
+        None if solar site coordinates are unavailable.
+    dist_kek_to_substation_km:
+        Distance from KEK centroid to nearest substation (km).
+    substation_capacity_mva:
+        Rated capacity of nearest substation (MVA). None if unknown.
+        If below min_capacity_mva, treated as if substation is not near
+        (grid reinforcement needed).
+    solar_to_sub_threshold_km:
+        Max distance for solar-to-substation to be "near" (default 10 km).
+    kek_to_sub_threshold_km:
+        Max distance for KEK-to-substation to be "well-connected" (default 15 km).
+    min_capacity_mva:
+        Min substation capacity to absorb solar generation (default 30 MVA).
+
+    Returns
+    -------
+    str
+        One of: 'within_boundary', 'grid_ready', 'invest_grid', 'grid_first'.
+    """
+    if has_internal_substation:
+        return "within_boundary"
+
+    # Check substation capacity — if too small, treat as if grid is not ready
+    capacity_ok = substation_capacity_mva is None or substation_capacity_mva >= min_capacity_mva
+
+    kek_near = dist_kek_to_substation_km <= kek_to_sub_threshold_km and capacity_ok
+    solar_near = (
+        dist_solar_to_substation_km is not None
+        and dist_solar_to_substation_km <= solar_to_sub_threshold_km
+        and capacity_ok
+    )
+
+    if solar_near and kek_near:
+        return "grid_ready"
+    elif solar_near or kek_near:
+        return "invest_grid"
+    else:
+        return "grid_first"
 
 
 # ---------------------------------------------------------------------------

@@ -1,30 +1,33 @@
 """
-build_fct_substation_proximity — nearest PLN substation per KEK + siting scenario.
+build_fct_substation_proximity — nearest PLN substation per KEK + grid integration category.
 
 Sources:
-    data/substation.geojson             2,913 PLN substations (WGS84 point features)
-    outputs/data/processed/dim_kek.csv  KEK centroids (lat, lon)
-    outputs/data/raw/kek_polygons.geojson  KEK boundary polygons (MultiPolygon)
+    data/substation.geojson                      2,913 PLN substations (WGS84 point features)
+    outputs/data/processed/dim_kek.csv           KEK centroids (lat, lon)
+    outputs/data/processed/fct_kek_resource.csv  best solar site coordinates (V2)
+    outputs/data/raw/kek_polygons.geojson        KEK boundary polygons (MultiPolygon)
 
 Output columns (one row per kek_id):
-    kek_id                        join key
-    kek_name                      display name
-    nearest_substation_name       namobj of nearest operational PLN substation
-    nearest_substation_voltage_kv teggi field (e.g. "150 kV")
-    nearest_substation_capacity_mva kapgi field (MVA)
-    dist_to_nearest_substation_km haversine distance from KEK centroid, 2 decimals
-    has_internal_substation       True if any operational substation is inside KEK polygon
-    siting_scenario               'within_boundary' or 'remote_captive'
+    kek_id                             join key
+    kek_name                           display name
+    nearest_substation_name            namobj of nearest operational PLN substation (to KEK)
+    nearest_substation_voltage_kv      teggi field (e.g. "150 kV")
+    nearest_substation_capacity_mva    kapgi field (MVA)
+    dist_to_nearest_substation_km      haversine distance from KEK centroid, 2 decimals
+    has_internal_substation            True if any operational substation is inside KEK polygon
+    siting_scenario                    'within_boundary' or 'remote_captive' (V1 compat)
+    dist_solar_to_nearest_substation_km  haversine from best solar site to nearest substation (V2)
+    nearest_substation_to_solar_name   name of nearest substation to solar site (V2)
+    grid_integration_category          'within_boundary'|'grid_ready'|'invest_grid'|'grid_first' (V2)
 
 Methodology:
     - Only operational substations (statopr == "Operasi") are considered.
     - Nearest substation is found by haversine distance from KEK centroid.
     - has_internal_substation uses shapely point-in-polygon against KEK MultiPolygon.
-    - siting_scenario = 'within_boundary' if has_internal_substation else 'remote_captive'.
-    - 'within_boundary' KEKs use pvout_centroid + no gen-tie cost in LCOE.
-    - 'remote_captive' KEKs use pvout_best_50km + gen-tie CAPEX adder in LCOE.
+    - V2 three-point proximity: (A) best solar site → (B) nearest substation → (C) KEK centroid.
+    - grid_integration_category derived from thresholds (see METHODOLOGY_V2.md §2).
 
-See METHODOLOGY.md Section 2A for legal framework and cost assumptions.
+See METHODOLOGY_V2.md §2 for three-point proximity analysis.
 """
 
 from __future__ import annotations
@@ -33,8 +36,11 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from shapely.geometry import Point, shape
+
+from src.model.basic_model import grid_integration_category
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -42,6 +48,7 @@ RAW = REPO_ROOT / "outputs" / "data" / "raw"
 
 SUBSTATION_GEOJSON = REPO_ROOT / "data" / "substation.geojson"
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+FKT_KEK_RESOURCE_CSV = PROCESSED / "fct_kek_resource.csv"
 KEK_POLYGONS_GEOJSON = RAW / "kek_polygons.geojson"
 
 _OPERATIONAL_STATUS = "Operasi"
@@ -166,13 +173,38 @@ def build_fct_substation_proximity(
     substation_geojson: Path = SUBSTATION_GEOJSON,
     dim_kek_csv: Path = DIM_KEK_CSV,
     kek_polygons_geojson: Path = KEK_POLYGONS_GEOJSON,
+    fct_kek_resource_csv: Path = FKT_KEK_RESOURCE_CSV,
 ) -> pd.DataFrame:
-    """Compute nearest PLN substation distance and siting scenario per KEK."""
+    """Compute nearest PLN substation distance, siting scenario, and grid integration category.
+
+    V2 adds three-point proximity analysis: solar site → substation → KEK centroid.
+    Reads best_solar_site_lat/lon from fct_kek_resource.csv (produced by V2-B1).
+    """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
     substations = _load_substations(substation_geojson)
     kek_polygons = _load_kek_polygons(kek_polygons_geojson)
     dim_kek = pd.read_csv(dim_kek_csv)[["kek_id", "kek_name", "latitude", "longitude"]]
+
+    # V2: Load best solar site coordinates from fct_kek_resource
+    solar_coords: dict[str, tuple[float, float]] = {}
+    if fct_kek_resource_csv.exists():
+        resource_df = pd.read_csv(fct_kek_resource_csv)
+        if "best_solar_site_lat" in resource_df.columns:
+            for _, r in resource_df.iterrows():
+                lat = r.get("best_solar_site_lat")
+                lon = r.get("best_solar_site_lon")
+                if pd.notna(lat) and pd.notna(lon):
+                    solar_coords[r["kek_id"]] = (float(lat), float(lon))
+            print(
+                f"  V2: Loaded solar site coordinates for {len(solar_coords)}/{len(resource_df)} KEKs"
+            )
+        else:
+            print(
+                "  V2: fct_kek_resource.csv exists but missing best_solar_site_lat — skipping solar proximity"
+            )
+    else:
+        print(f"  V2: {fct_kek_resource_csv.name} not found — solar proximity columns will be NaN")
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
@@ -181,19 +213,47 @@ def build_fct_substation_proximity(
         kek_lat = float(row["latitude"])
         kek_lon = float(row["longitude"])
 
-        nearest, dist_km = _nearest_substation(kek_lat, kek_lon, substations)
+        nearest_to_kek, dist_km = _nearest_substation(kek_lat, kek_lon, substations)
         internal = _has_internal_substation(kek_id, kek_polygons, substations)
+
+        # V2: Compute solar-to-substation distance
+        dist_solar_to_sub = np.nan
+        nearest_to_solar_name = None
+        if kek_id in solar_coords:
+            solar_lat, solar_lon = solar_coords[kek_id]
+            nearest_to_solar, dist_solar = _nearest_substation(solar_lat, solar_lon, substations)
+            if nearest_to_solar:
+                dist_solar_to_sub = round(dist_solar, 2)
+                nearest_to_solar_name = nearest_to_solar["name"]
+
+        # V2: Derive grid integration category
+        category = grid_integration_category(
+            has_internal_substation=internal,
+            dist_solar_to_substation_km=dist_solar_to_sub
+            if np.isfinite(dist_solar_to_sub)
+            else None,
+            dist_kek_to_substation_km=dist_km,
+            substation_capacity_mva=nearest_to_kek["capacity_mva"] if nearest_to_kek else None,
+        )
 
         records.append(
             {
                 "kek_id": kek_id,
                 "kek_name": row["kek_name"],
-                "nearest_substation_name": nearest["name"] if nearest else None,
-                "nearest_substation_voltage_kv": nearest["voltage_kv"] if nearest else None,
-                "nearest_substation_capacity_mva": nearest["capacity_mva"] if nearest else None,
+                "nearest_substation_name": nearest_to_kek["name"] if nearest_to_kek else None,
+                "nearest_substation_voltage_kv": nearest_to_kek["voltage_kv"]
+                if nearest_to_kek
+                else None,
+                "nearest_substation_capacity_mva": nearest_to_kek["capacity_mva"]
+                if nearest_to_kek
+                else None,
                 "dist_to_nearest_substation_km": round(dist_km, 2),
                 "has_internal_substation": internal,
                 "siting_scenario": "within_boundary" if internal else "remote_captive",
+                # V2: three-point proximity
+                "dist_solar_to_nearest_substation_km": dist_solar_to_sub,
+                "nearest_substation_to_solar_name": nearest_to_solar_name,
+                "grid_integration_category": category,
             }
         )
 
@@ -208,8 +268,14 @@ def main() -> None:
     print(f"fct_substation_proximity: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
     print(f"\nSiting scenarios: {df['siting_scenario'].value_counts().to_dict()}")
     print(f"Has internal substation: {df['has_internal_substation'].sum()} KEKs")
-    print("\nDistance summary (km):")
+    print("\nGrid integration categories (V2):")
+    print(df["grid_integration_category"].value_counts().to_dict())
+    print("\nDistance KEK→substation (km):")
     print(df["dist_to_nearest_substation_km"].describe().round(2).to_string())
+    solar_dists = df["dist_solar_to_nearest_substation_km"].dropna()
+    if len(solar_dists) > 0:
+        print(f"\nDistance solar→substation (km) [{len(solar_dists)} KEKs with solar coords]:")
+        print(solar_dists.describe().round(2).to_string())
     print("\nSample:")
     print(
         df[
@@ -217,7 +283,7 @@ def main() -> None:
                 "kek_id",
                 "nearest_substation_name",
                 "dist_to_nearest_substation_km",
-                "siting_scenario",
+                "grid_integration_category",
             ]
         ].to_string(index=False)
     )
