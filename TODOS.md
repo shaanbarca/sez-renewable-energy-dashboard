@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), Phase 3 autoplan review, and methodology/persona audit.
-Last updated: 2026-04-07.
+Last updated: 2026-04-09.
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
 
@@ -11,11 +11,11 @@ Last updated: 2026-04-07.
 
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
-| H1 | **Wind CF pipeline integration** | PLAN.md decision #19 (user accepted) | P3 (Policy Maker) | Global Wind Atlas GeoTIFF → same rasterio pipeline as solar. New columns: `cf_wind`, `pvout_wind_equivalent` in `fct_kek_resource`. Fixes misleading `not_competitive` at Sulawesi KEKs (kek-palu, kek-bitung, kek-morotai). See [DESIGN.md §7](DESIGN.md#7-wind-cf-integration). |
+| ~~H1~~ | ~~**Wind CF pipeline integration**~~ | ~~PLAN.md decision #19~~ | ~~P3~~ | ✅ Complete — see Completed table below |
 | ~~H2~~ | ~~**BPP data sourcing**~~ | ~~PERSONAS.md gap priority 4~~ | ~~P1~~ | ✅ Complete — see Completed table below |
 | ~~H3~~ | ~~**Land cover buildability refinement**~~ | ~~PLAN.md Phase 2 deferred~~ | ~~P2, P4~~ | ✅ Complete — see Completed table below |
-| H4 | **Configurable assumptions — Phase B (infrastructure costs)** | DESIGN.md §3, decision #34 | P2, P4 | Add collapsible "Advanced Assumptions" panel: FOM ($3–15), gen-tie ($2–12/kW-km), substation ($80–250/kW), transmission lease ($3–20/MWh), firming adder ($5–20/MWh), IDR/USD rate. Extends Phase A live computation in `src/dash/logic.py`. |
-| H5 | **Configurable assumptions — Phase C (flag thresholds)** | DESIGN.md §3, decision #34 | P3 | Add collapsible "Flag Thresholds" panel: PVOUT threshold, plan-late %, GEAS %, resilience gap %, min viable MWp, reliability threshold. All wire to `compute_scorecard_live()`. |
+| ~~H4~~ | ~~**Configurable assumptions — Phase B (infrastructure costs)**~~ | ~~DESIGN.md §3, decision #34~~ | ~~P2, P4~~ | ✅ Complete — see Completed table below |
+| ~~H5~~ | ~~**Configurable assumptions — Phase C (flag thresholds)**~~ | ~~DESIGN.md §3, decision #34~~ | ~~P3~~ | ✅ Complete — see Completed table below |
 
 ---
 
@@ -27,9 +27,9 @@ Last updated: 2026-04-07.
 | M2 | **Road proximity layer (Layer 3a)** | PERSONAS.md gap priority 8 | P2, P4 | OSM PBF processing → `dist_to_nearest_road_km`. Construction access cost proxy for remote captive sites. |
 | M3 | **CAPEX market comparables** | PERSONAS.md P1 data gaps | P1 | 2023–2024 Indonesia solar EPC tender data. ESDM catalogue value ($960/kW) may be ±15–20% from market reality. |
 | M4 | **KEK operational status enrichment** | PERSONAS.md gap priority 7 | P4 | Distinguish operating (tenants present) vs. greenfield KEKs. Requires BKPM/KEK management data sourcing. |
-| M5 | **Custom CAPEX input for IPP** | PERSONAS.md P4 audit finding | P4 | IPP developers know their EPC costs better than the ESDM catalogue. Phase A provides CAPEX slider ($600–1,500); v1.2 adds free-text input for exact $/kW value. Workaround: export CSV with CF values and recompute in own model. |
-| M6 | **Configurable assumptions — Phase D (UX polish)** | DESIGN.md §3, decision #34 | All | URL state persistence (`?capex=840&wacc=8`), "scenario changed" badge, export-with-assumptions metadata, reset-to-defaults buttons per tier. |
-| M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets (e.g., "Optimistic", "Base", "Pessimistic") and compare side-by-side. Requires `dcc.Store` + local storage. |
+| M5 | **Custom CAPEX input for IPP** | PERSONAS.md P4 audit finding | P4 | Slider exists ($600–1,500/kW). Still needs free-text input for exact $/kW. Workaround: export CSV with CF values and recompute in own model. |
+| M6 | **Configurable assumptions — Phase D (UX polish)** | DESIGN.md §3, decision #34 | All | Reset-to-defaults ✅ done. Still TODO: URL state persistence (`?capex=840&wacc=8`), "scenario changed" badge, export-with-assumptions metadata. |
+| M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets and compare side-by-side. Requires Zustand persist + local storage. |
 | M8 | **Floating solar modelling** | User observation (2026-04-08) | P2, P4 | Current model excludes water bodies (ESA WorldCover code 80) from buildable area. Floating PV on reservoirs, coastal lagoons, and nearshore waters could unlock viable capacity for land-constrained KEKs (e.g., Bali's Sanur/Kura Kura show ~1,000 ha buildable but fragmented). Floating solar CAPEX is ~20-30% higher than ground-mount ($1,100-1,400/kW vs $960/kW). Requires: (1) identify water bodies within 50km of each KEK, (2) add floating solar CAPEX assumption, (3) new `siting_scenario: floating` in `fct_lcoe`, (4) update buildability filters to include water surfaces as a separate category. |
 
 ---
@@ -43,14 +43,14 @@ Last updated: 2026-04-07.
 | L3 | **Flood hazard layer (Layer 2d)** | PERSONAS.md gap priority 9 | P2 | BNPB portal inaccessible. Low incremental value over existing slope exclusion layer. Blocked on data access. |
 | L4 | **Excel/PDF export pipeline** | Autoplan CEO subagent | All | Beyond CSV + GeoJSON: formatted Excel workbook with embedded charts and PDF scorecard per KEK. Distribution format for analysts who won't bookmark a Dash URL. |
 | L5 | **Multilingual (EN/ID)** | — | P3 | Indonesian language option for BKPM/KESDM officials. Adds i18n complexity. |
-| L6 | **Mapbox upgrade from Carto** | DESIGN.md §6 Q2 | All | Prettier tiles. Requires `MAPBOX_TOKEN` in `.env`. Deferred from MVP. |
+| L6 | **Mapbox basemap upgrade from Carto** | DESIGN.md §6 Q2 | All | Currently using Carto dark-matter tiles. Mapbox token exists (used for 3D terrain DEM) but basemap still Carto. Prettier tiles but adds dependency. |
 | L7 | **Mobile responsive layout** | DESIGN.md §6 Q3 | All | Primary users are analysts with laptops. Mobile adds CSS complexity. Deferred from MVP. |
 | L8 | **KEK Management persona (P5)** | Methodology/persona audit | — | Zone administrators (BKPM-appointed) who use the tool to attract tenants. Distinct journey from P1–P4. Good v2.0 addition. |
 | L9 | **Carbon price trajectory modelling** | PERSONAS.md P3 data gaps | P3 | Link `carbon_breakeven_usd_tco2` to Indonesia's ETS trajectory (Article 6 commitments, IDR carbon market). Policy makers need: "at projected carbon price path, when does solar win?" |
 
 ---
 
-## Completed (this session)
+## Completed
 
 | # | Item | Date | Notes |
 |---|------|------|-------|
@@ -68,6 +68,16 @@ Last updated: 2026-04-07.
 | ✅ | **Draggable panels** | 2026-04-08 | Assumptions, Layer Control, Raster Legends all movable via `useDraggable` hook. |
 | ✅ | **50km radius circle** | 2026-04-08 | GeoJSON circle renders on map when KEK selected. Stays visible when drawer closed (only clears on Back to National View). |
 | ✅ | **Buildable area fragmentation warning** | 2026-04-08 | Amber warning in ScoreDrawer Resource tab for KEKs with <2,000 ha buildable area. |
+| ✅ H1 | **Wind CF pipeline integration** | 2026-04-08 | Full wind pipeline: `build_fct_kek_wind_resource.py` → `cf_wind_centroid`, `cf_wind_best_50km`, `wind_class`. EnergyToggle (Solar/Wind/Overall) in frontend. Wind speed raster layer with legend. `best_re_technology` column shows wind where applicable. |
+| ✅ H4 | **Configurable assumptions — Phase B (infrastructure costs)** | 2026-04-08 | All 6 sliders in tier2 accordion: FOM, gen-tie, substation, transmission lease, firming adder, IDR/USD rate. Live recomputation via `compute_scorecard_live()`. |
+| ✅ H5 | **Configurable assumptions — Phase C (flag thresholds)** | 2026-04-08 | All 6 thresholds in tier3 accordion: PVOUT threshold, plan-late %, GEAS %, resilience gap %, min viable MWp, reliability threshold. Action flags recompute live. |
+| ✅ | **Infrastructure typed icons** | 2026-04-09 | Replaced generic green circles with 9 typed SVG icons (airport, port, road, railway, power, water, telecom, facility, other). Substations use lightning bolt icons (blue=nearby, yellow=nearest). |
+| ✅ | **Persona-based walkthrough tour** | 2026-04-09 | 4 persona cards on first load, 8-step spotlight tour per persona. Steps drive UI (switch tabs, select KEK). Guide button in header to re-launch. |
+| ✅ | **3D terrain rendering** | 2026-04-09 | Mapbox terrain-rgb DEM tiles via MapLibre `setTerrain()`. Toggle in layer control. Auto-pitches to 50° when enabled. |
+| ✅ | **Capacity (MWp) column** | 2026-04-09 | `max_captive_capacity_mwp` column in ranked table, sortable. |
+| ✅ | **Column filters (dropdown + range)** | 2026-04-09 | Dropdown filters for categorical columns, min/max range filters for numeric columns. Filter toggle with count badge and clear-all. |
+| ✅ | **Column header tooltips** | 2026-04-09 | Info icon (?) on every column header with hover tooltip explaining the column. Action flag cells show contextual explanation of why that flag was assigned. |
+| ✅ | **Benchmark-aware grid rate column** | 2026-04-09 | Grid Rate column switches between BPP and Tariff based on benchmarkMode toggle. Scorecard recomputes on toggle. |
 
 ---
 
