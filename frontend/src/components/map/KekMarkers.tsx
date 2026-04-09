@@ -185,15 +185,17 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           offset={12}
           className="kek-tooltip"
         >
-          <div style={{ color: '#e0e0e0', fontSize: 11, lineHeight: 1.5 }}>
+          <div style={{ color: 'var(--text-primary)', fontSize: 11, lineHeight: 1.5 }}>
             <strong style={{ fontSize: 12 }}>{hoverInfo.kek_name}</strong>
-            <div style={{ color: '#999', marginTop: 2 }}>
+            <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
               {hoverInfo.province}
               {hoverInfo.kek_type ? ` · ${hoverInfo.kek_type}` : ''}
             </div>
-            {hoverInfo.category && <div style={{ color: '#aaa' }}>{hoverInfo.category}</div>}
+            {hoverInfo.category && (
+              <div style={{ color: 'var(--text-secondary)' }}>{hoverInfo.category}</div>
+            )}
             {hoverInfo.area_ha != null && (
-              <div style={{ color: '#aaa' }}>
+              <div style={{ color: 'var(--text-secondary)' }}>
                 {hoverInfo.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })} ha
               </div>
             )}

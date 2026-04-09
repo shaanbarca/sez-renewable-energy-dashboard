@@ -495,8 +495,13 @@ export default function ScoreDrawer() {
           <div className="px-4 pt-4 pb-2">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <h2 className="text-sm font-semibold text-white truncate">{row.kek_name}</h2>
-                <div className="text-[11px] text-zinc-500 mt-0.5">
+                <h2
+                  className="text-sm font-semibold truncate"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {row.kek_name}
+                </h2>
+                <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                   {row.province} &middot; {row.grid_region_id}
                 </div>
               </div>

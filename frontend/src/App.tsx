@@ -10,10 +10,16 @@ import { useDashboardStore } from './store/dashboard';
 
 function App() {
   const initialize = useDashboardStore((s) => s.initialize);
+  const mapStyle = useDashboardStore((s) => s.mapStyle);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Sync CSS theme variables with the active map style
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', mapStyle);
+  }, [mapStyle]);
 
   return (
     <div className="h-screen relative bg-[#121212] overflow-hidden">

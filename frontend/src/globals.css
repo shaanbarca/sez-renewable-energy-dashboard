@@ -10,6 +10,19 @@
   --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 50%);
   --blur: blur(24px) saturate(1.4);
   --blur-heavy: blur(32px) saturate(1.5);
+  --text-primary: #e0e0e0;
+  --text-secondary: #999;
+  --text-muted: #666;
+  --panel-bg: rgba(20, 20, 24, 0.45);
+  --panel-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  --header-bg: rgba(255, 255, 255, 0.03);
+  --header-border: rgba(255, 255, 255, 0.08);
+  --header-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 16px rgba(0, 0, 0, 0.1);
+  --tab-active-bg: rgba(255, 255, 255, 0.08);
+  --tab-border: rgba(255, 255, 255, 0.1);
+  --popup-bg: rgba(20, 20, 24, 0.9);
+  --popup-border: rgba(255, 255, 255, 0.1);
+  --popup-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 
   /* Action flag colors */
   --flag-solar-now: #2e7d32;
@@ -24,22 +37,51 @@
   --nearest-substation: #ffd600;
 }
 
+/* Light map styles */
+[data-theme="light"],
+[data-theme="voyager"] {
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-heavy: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-border-bright: rgba(0, 0, 0, 0.15);
+  --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%);
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-muted: #888;
+  --panel-bg: rgba(255, 255, 255, 0.65);
+  --panel-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+  --header-bg: rgba(255, 255, 255, 0.6);
+  --header-border: rgba(0, 0, 0, 0.08);
+  --header-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 2px 16px rgba(0, 0, 0, 0.06);
+  --tab-active-bg: rgba(0, 0, 0, 0.06);
+  --tab-border: rgba(0, 0, 0, 0.1);
+  --popup-bg: rgba(255, 255, 255, 0.95);
+  --popup-border: rgba(0, 0, 0, 0.1);
+  --popup-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Satellite uses dark panels for contrast against imagery */
+[data-theme="satellite"] {
+  --glass: rgba(20, 20, 24, 0.7);
+  --glass-heavy: rgba(20, 20, 24, 0.8);
+}
+
 body {
   background-color: #121212;
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   margin: 0;
 }
 
-/* MapLibre popup styling for dark theme */
+/* MapLibre popup styling */
 .maplibregl-popup-content {
-  background: rgba(20, 20, 24, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--popup-bg);
+  border: 1px solid var(--popup-border);
   border-radius: 6px;
   padding: 6px 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--popup-shadow);
 }
 
 .maplibregl-popup-tip {
-  border-top-color: rgba(20, 20, 24, 0.9);
+  border-top-color: var(--popup-bg);
 }

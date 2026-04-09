@@ -188,7 +188,10 @@ export default function DataTable() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-3 py-1">
-        <div className="flex items-center gap-1.5 flex-1 max-w-xs px-2 py-1 rounded border border-white/10 bg-white/[0.03]">
+        <div
+          className="flex items-center gap-1.5 flex-1 max-w-xs px-2 py-1 rounded"
+          style={{ border: '1px solid var(--glass-border)', background: 'var(--tab-active-bg)' }}
+        >
           <svg
             width="12"
             height="12"
@@ -206,7 +209,8 @@ export default function DataTable() {
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
             placeholder="Search KEK or province..."
-            className="bg-transparent text-xs text-zinc-200 placeholder-zinc-500 outline-none w-full"
+            className="bg-transparent text-xs outline-none w-full"
+            style={{ color: 'var(--text-primary)' }}
           />
           {globalFilter && (
             <button
@@ -255,7 +259,11 @@ export default function DataTable() {
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="text-left px-3 py-2 text-[#999] font-medium cursor-pointer select-none border-b border-white/5 overflow-visible"
+                    className="text-left px-3 py-2 font-medium cursor-pointer select-none overflow-visible"
+                    style={{
+                      color: 'var(--text-secondary)',
+                      borderBottom: '1px solid var(--tab-border)',
+                    }}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     <span className="flex items-center gap-1">
@@ -294,7 +302,14 @@ export default function DataTable() {
                 onClick={() => selectKek(row.original.kek_id)}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-2 text-[#e0e0e0] border-b border-white/5">
+                  <td
+                    key={cell.id}
+                    className="px-3 py-2"
+                    style={{
+                      color: 'var(--text-primary)',
+                      borderBottom: '1px solid var(--tab-border)',
+                    }}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

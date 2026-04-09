@@ -4,7 +4,6 @@ import type { MapStyleKey } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 const LAYER_ITEMS = [
-  { name: 'terrain', label: '3D Terrain' },
   { name: 'substations', label: 'Substations (PLN)' },
   { name: 'kek_polygons', label: 'KEK Boundaries' },
   { name: 'pvout', label: 'Solar Potential (PVOUT)' },
@@ -55,7 +54,12 @@ export default function LayerControl() {
         className="flex items-center justify-between mb-2 cursor-grab active:cursor-grabbing"
         onMouseDown={onDragStart}
       >
-        <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Layers</div>
+        <div
+          className="text-xs font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          Layers
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
@@ -79,7 +83,8 @@ export default function LayerControl() {
         {LAYER_ITEMS.map(({ name, label }) => (
           <label
             key={name}
-            className="flex items-center gap-2 cursor-pointer text-xs text-zinc-300 hover:text-white transition-colors py-0.5"
+            className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
+            style={{ color: 'var(--text-primary)' }}
           >
             <input
               type="checkbox"
@@ -93,8 +98,11 @@ export default function LayerControl() {
       </div>
 
       {/* Map style switcher */}
-      <div className="mt-3 pt-2 pb-3 border-t border-white/10">
-        <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+      <div className="mt-3 pt-2 pb-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
+        <div
+          className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
+          style={{ color: 'var(--text-muted)' }}
+        >
           Map Style
         </div>
         <div className="flex gap-1">
@@ -103,11 +111,16 @@ export default function LayerControl() {
               key={key}
               type="button"
               onClick={() => setMapStyle(key)}
-              className={`px-2 py-1 text-[10px] rounded transition-colors cursor-pointer ${
+              className="px-2 py-1 text-[10px] rounded transition-colors cursor-pointer"
+              style={
                 mapStyle === key
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                  : 'text-zinc-400 hover:text-zinc-200 border border-transparent hover:border-white/10'
-              }`}
+                  ? {
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      color: '#3b82f6',
+                      border: '1px solid rgba(59, 130, 246, 0.4)',
+                    }
+                  : { color: 'var(--text-secondary)', border: '1px solid transparent' }
+              }
             >
               {MAP_STYLES[key].label}
             </button>

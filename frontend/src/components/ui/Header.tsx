@@ -27,15 +27,18 @@ export default function Header() {
       <header
         className="flex items-center justify-between px-5 py-3"
         style={{
-          background: 'rgba(255, 255, 255, 0.03)',
+          background: 'var(--header-bg)',
           backdropFilter: 'blur(48px) saturate(1.8) brightness(1.15)',
           WebkitBackdropFilter: 'blur(48px) saturate(1.8) brightness(1.15)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 16px rgba(0, 0, 0, 0.1)',
+          borderBottom: `1px solid var(--header-border)`,
+          boxShadow: 'var(--header-shadow)',
         }}
       >
         <div className="flex items-center gap-5">
-          <h1 className="text-sm font-semibold text-white tracking-wide">
+          <h1
+            className="text-sm font-semibold tracking-wide"
+            style={{ color: 'var(--text-primary)' }}
+          >
             KEK Power Competitiveness Dashboard
           </h1>
           <ActionFlagLegend />

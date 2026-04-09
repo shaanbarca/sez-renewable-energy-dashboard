@@ -19,10 +19,6 @@ const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };
 const INITIAL_ZOOM = 4;
 const KEK_ZOOM = 11;
 const RADIUS_KM = 50;
-const TERRAIN_SOURCE_ID = 'terrain-dem';
-const TERRAIN_EXAGGERATION = 1.5;
-const TERRAIN_PITCH = 50;
-const TERRAIN_AUTO_PITCH_MIN_ZOOM = 7;
 
 /** Generate a GeoJSON Polygon circle around a center point. */
 function createCircleGeoJSON(
@@ -67,86 +63,13 @@ export default function MapView() {
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
-  const terrainOn = useDashboardStore((s) => s.layerVisibility.terrain);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
 
-  const mapStyleUrl = (MAP_STYLES[mapStyleKey] ?? MAP_STYLES.dark).url;
-
-  const syncTerrainPitch = useCallback(
-    (zoom: number) => {
-      const map = mapRef.current?.getMap();
-      if (!map) return;
-
-      if (terrainOn && zoom >= TERRAIN_AUTO_PITCH_MIN_ZOOM) {
-        if (map.getPitch() < TERRAIN_PITCH - 5) {
-          map.easeTo({ pitch: TERRAIN_PITCH, duration: 800 });
-        }
-        return;
-      }
-
-      if (map.getPitch() > 1) {
-        map.easeTo({ pitch: 0, duration: 800 });
-      }
-    },
-    [terrainOn],
-  );
-
-  // 3D terrain: add DEM source + setTerrain imperatively.
-  // Must re-apply after style changes (changing basemap wipes all sources).
-  useEffect(() => {
-    const map = mapRef.current?.getMap();
-    if (!map) return;
-
-    const apply = () => {
-      if (terrainOn) {
-        if (!map.getSource(TERRAIN_SOURCE_ID)) {
-          const token = import.meta.env.VITE_MAPBOX_TOKEN;
-          if (token) {
-            map.addSource(TERRAIN_SOURCE_ID, {
-              type: 'raster-dem',
-              tiles: [
-                `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`,
-              ],
-              tileSize: 256,
-              maxzoom: 14,
-            });
-          } else {
-            map.addSource(TERRAIN_SOURCE_ID, {
-              type: 'raster-dem',
-              tiles: ['https://tiles.stadiamaps.com/data/terrarium/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              maxzoom: 15,
-              encoding: 'terrarium',
-            });
-          }
-        }
-        map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: TERRAIN_EXAGGERATION });
-      } else {
-        if (map.getTerrain()) {
-          map.setTerrain(null);
-        }
-      }
-
-      syncTerrainPitch(map.getZoom());
-    };
-
-    if (map.isStyleLoaded()) {
-      apply();
-    } else {
-      map.once('style.load', apply);
-    }
-
-    // Re-apply terrain after style changes (basemap switch wipes sources)
-    map.on('style.load', apply);
-    return () => {
-      map.off('style.load', apply);
-    };
-  }, [terrainOn, mapStyleUrl, syncTerrainPitch]);
+  const mapStyle = (MAP_STYLES[mapStyleKey] ?? MAP_STYLES.dark).style;
 
   const handleZoom = useCallback((e: ViewStateChangeEvent) => {
     setIsZoomedIn(e.viewState.zoom > INITIAL_ZOOM + 1);
-    syncTerrainPitch(e.viewState.zoom);
-  }, [syncTerrainPitch]);
+  }, []);
 
   // Activate lazy layer loading
   useMapLayers();
@@ -249,8 +172,7 @@ export default function MapView() {
           ...INITIAL_CENTER,
           zoom: INITIAL_ZOOM,
         }}
-        mapStyle={mapStyleUrl}
-        maxPitch={85}
+        mapStyle={mapStyle as string}
         style={{ width: '100%', height: '100%' }}
         interactiveLayerIds={['kek-circles']}
         onClick={handleClick}
@@ -319,13 +241,14 @@ export default function MapView() {
       {(selectedKek || isZoomedIn) && (
         <button
           onClick={resetView}
-          className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 rounded-xl px-5 py-2 text-sm font-medium text-zinc-200 hover:text-white transition-all cursor-pointer hover:scale-[1.02]"
+          className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 rounded-xl px-5 py-2 text-sm font-medium transition-all cursor-pointer hover:scale-[1.02]"
           style={{
-            backdropFilter: 'blur(40px) saturate(1.6)',
-            WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
-            background: 'rgba(20, 20, 24, 0.35)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 32px rgba(0,0,0,0.3)',
+            backdropFilter: 'var(--blur)',
+            WebkitBackdropFilter: 'var(--blur)',
+            background: 'var(--glass)',
+            border: '1px solid var(--glass-border-bright)',
+            boxShadow: 'var(--panel-shadow)',
+            color: 'var(--text-primary)',
           }}
         >
           ‹ Back to National View

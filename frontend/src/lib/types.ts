@@ -108,4 +108,4 @@ export interface ScorecardResponse {
 export type EnergyMode = 'solar' | 'wind' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
 export type BottomTab = 'table' | 'quadrant' | 'ruptl';
-export type MapStyleKey = 'dark' | 'light' | 'voyager';
+export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';

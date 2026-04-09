@@ -216,7 +216,9 @@ export default function AssumptionsPanel() {
         role="button"
       >
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-200">Assumptions</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+            Assumptions
+          </span>
           {loading && <span className="w-1.5 h-1.5 rounded-full bg-[#90CAF9] animate-pulse" />}
         </div>
         <ChevronDown

@@ -24,11 +24,11 @@ export default function BottomPanel() {
       className="relative transition-[height] duration-300 ease-in-out"
       style={{
         height: collapsed ? 34 : PANEL_HEIGHT,
-        backdropFilter: 'blur(32px) saturate(1.5)',
-        WebkitBackdropFilter: 'blur(32px) saturate(1.5)',
-        background: 'rgba(20, 20, 24, 0.45)',
+        backdropFilter: 'var(--blur-heavy)',
+        WebkitBackdropFilter: 'var(--blur-heavy)',
+        background: 'var(--panel-bg)',
         borderColor: 'var(--glass-border)',
-        boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
+        boxShadow: 'var(--panel-shadow)',
         overflow: 'hidden',
       }}
     >
@@ -65,16 +65,25 @@ export default function BottomPanel() {
           </svg>
         </button>
 
-        <Tabs.List className="flex gap-1 px-3 pt-2 pb-0 shrink-0 border-b border-white/10">
+        <Tabs.List
+          className="flex gap-1 px-3 pt-2 pb-0 shrink-0"
+          style={{ borderBottom: `1px solid var(--tab-border)` }}
+        >
           {TAB_ITEMS.map(({ value, label }) => (
             <Tabs.Trigger
               key={value}
               value={value}
-              className={`px-4 py-1.5 text-xs rounded-t transition-colors ${
+              className="px-4 py-1.5 text-xs rounded-t transition-colors border border-transparent"
+              style={
                 activeTab === value
-                  ? 'text-[#e0e0e0] bg-white/[0.08] border border-white/10 border-b-transparent'
-                  : 'text-[#999] hover:text-[#ccc] bg-transparent border border-transparent'
-              }`}
+                  ? {
+                      color: 'var(--text-primary)',
+                      background: 'var(--tab-active-bg)',
+                      borderColor: 'var(--tab-border)',
+                      borderBottomColor: 'transparent',
+                    }
+                  : { color: 'var(--text-secondary)' }
+              }
             >
               {label}
             </Tabs.Trigger>
