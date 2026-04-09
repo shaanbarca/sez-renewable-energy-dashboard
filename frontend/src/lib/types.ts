@@ -3,9 +3,8 @@ export interface UserAssumptions {
   lifetime_yr: number;
   wacc_pct: number;
   fom_usd_per_kw_yr: number;
-  gentie_cost_per_kw_km: number;
-  substation_works_per_kw: number;
-  transmission_lease_mid_usd_mwh: number;
+  connection_cost_per_kw_km: number;
+  grid_connection_fixed_per_kw: number;
   firming_adder_mid_usd_mwh: number;
   idr_usd_rate: number;
 }
@@ -21,6 +20,7 @@ export interface UserThresholds {
 
 export type ActionFlag =
   | 'solar_now'
+  | 'invest_grid'
   | 'invest_resilience'
   | 'grid_first'
   | 'firming_needed'
@@ -60,7 +60,11 @@ export interface ScorecardRow {
   // Optional fields that may be present depending on pipeline data
   pvout_centroid_kwh_kwp_yr?: number;
   pvout_best_50km_kwh_kwp_yr?: number;
-  lcoe_remote_captive_allin_usd_mwh?: number;
+  lcoe_grid_connected_usd_mwh?: number;
+  lcoe_grid_connected_low_usd_mwh?: number;
+  lcoe_grid_connected_high_usd_mwh?: number;
+  connection_cost_per_kw?: number;
+  grid_integration_category?: string;
   demand_2030_gwh?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;

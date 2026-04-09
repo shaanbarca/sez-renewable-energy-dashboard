@@ -273,7 +273,7 @@ function ResourceTab({
 }
 
 function LCOETab({ row }: { row: ScorecardRow }) {
-  const remoteAllin = row.lcoe_remote_captive_allin_usd_mwh;
+  const gcLcoe = row.lcoe_grid_connected_usd_mwh;
 
   return (
     <>
@@ -282,9 +282,16 @@ function LCOETab({ row }: { row: ScorecardRow }) {
         <StatRow label="LCOE Mid" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
         <StatRow label="LCOE High" value={row.lcoe_high_usd_mwh?.toFixed(1)} unit="$/MWh" />
       </StatCard>
-      {remoteAllin != null && (
+      {gcLcoe != null && (
         <StatCard>
-          <StatRow label="All-in Remote LCOE" value={remoteAllin.toFixed(1)} unit="$/MWh" />
+          <StatRow label="Grid-Connected LCOE" value={gcLcoe.toFixed(1)} unit="$/MWh" />
+          {row.connection_cost_per_kw != null && (
+            <StatRow
+              label="Connection Cost"
+              value={row.connection_cost_per_kw.toFixed(0)}
+              unit="$/kW"
+            />
+          )}
         </StatCard>
       )}
       <StatCard>

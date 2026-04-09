@@ -2,6 +2,7 @@ import type { ActionFlag, MapStyleKey } from './types';
 
 export const ACTION_FLAG_COLORS: Record<ActionFlag, string> = {
   solar_now: '#2E7D32',
+  invest_grid: '#0277BD',
   invest_resilience: '#F57C00',
   grid_first: '#1565C0',
   firming_needed: '#FFA726',
@@ -11,6 +12,7 @@ export const ACTION_FLAG_COLORS: Record<ActionFlag, string> = {
 
 export const ACTION_FLAG_LABELS: Record<ActionFlag, string> = {
   solar_now: 'Solar Now',
+  invest_grid: 'Invest Grid',
   invest_resilience: 'Invest Resilience',
   grid_first: 'Grid First',
   firming_needed: 'Firming Needed',

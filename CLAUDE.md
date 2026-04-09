@@ -120,7 +120,10 @@ Test files are in `tests/`. 302 tests across model, pipeline, and API modules �
 - `capacity_factor_from_pvout(pvout_annual)` — divides by 8760
 - `lcoe_solar(capex_usd_per_kw, fom, wacc, lifetime_yr, cf)` — CRF annuity LCOE formula; expects CAPEX in USD/kW
 - `lcoe_solar_with_firming(...)` — adds firming adder (low/mid/high = +6/11/16 USD/MWh)
-- `action_flags(...)` — returns `{solar_now, grid_first, firming_needed, plan_late}` boolean dict
+- `action_flags(...)` — returns `{solar_now, invest_grid, grid_first, firming_needed, plan_late}` boolean dict
+- `grid_integration_category(...)` — returns `within_boundary`/`grid_ready`/`invest_grid`/`grid_first` from three-point proximity
+- `grid_connection_cost_per_kw(dist_km)` — V2: connection cost = dist × $5/kW-km + $80/kW fixed
+- `lcoe_solar_grid_connected(...)` — V2: LCOE with grid connection cost included in effective CAPEX
 - `geas_baseline_allocation(kek_df, ruptl_df)` — pro-rata GEAS allocation by demand share
 - `geas_policy_allocation(kek_df, ruptl_df)` — priority-weighted by demand × PVOUT
 - `build_scorecard(dim_kek, fct_demand, fct_pvout, fct_ruptl, ...)` — end-to-end pipeline
@@ -144,15 +147,15 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 **Fact tables** (`fct_*`):
 - `fct_kek_resource` — PVOUT at centroid + best within 50km (from GeoTIFF); v1.1: adds `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` (NaN until `data/buildability/` populated — run `scripts/download_buildability_data.py`)
 - `fct_kek_demand` — per-KEK demand estimates
-- `fct_substation_proximity` — nearest PLN substation per KEK; haversine distance + point-in-polygon → `siting_scenario`
-- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (450 rows: 25 × 9 × 2); `within_boundary` uses centroid PVOUT + no gen-tie; `remote_captive` uses `pvout_buildable_best_50km` when available, else `pvout_best_50km`, + gen-tie CAPEX adder
+- `fct_substation_proximity` — nearest PLN substation per KEK; V2: three-point proximity (solar→substation→KEK) + `grid_integration_category` (`within_boundary`/`grid_ready`/`invest_grid`/`grid_first`)
+- `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (450 rows: 25 × 9 × 2); `within_boundary` uses centroid PVOUT + no connection cost; `grid_connected_solar` uses best PVOUT + connection cost from solar-to-substation distance
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
 
 **Key computed outputs** (see `sample_end_to_end_policy_planning.ipynb`):
 - `lcoe_usd_mwh` — solar LCOE from `lcoe_solar(capex, fom, wacc, lifetime, cf)`
 - `cf` derived from PVOUT via `capacity_factor_from_pvout(pvout) = pvout / 8760`
-- Action flags: `solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late` — boolean tags per KEK; `invest_resilience` fires when LCOE is 0–20% above grid cost AND reliability_req ≥ 0.75
+- Action flags: `solar_now`, `invest_grid`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late`, `not_competitive` — 7 flags per KEK via `ActionFlag` enum; `invest_grid` fires when solar exists but grid connection is missing; `invest_resilience` fires when LCOE is 0–20% above grid cost AND reliability_req ≥ 0.75
 - `green_share_geas` — share of 2030 demand met by GEAS-allocated solar (GEAS and captive solar are substitutes — see METHODOLOGY.md §5.3)
 - `carbon_breakeven_usd_tco2` — carbon price (USD/tCO2) at which solar becomes cost-competitive; derived from LCOE gap ÷ grid emission factor (KESDM 2019 OM)
 
