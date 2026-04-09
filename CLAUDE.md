@@ -36,6 +36,8 @@ S3_ACCESS_KEY=
 S3_SECRET_ACCESS_KEY=
 ```
 
+The React frontend reads the same token for 3D terrain via `frontend/vite.config.ts`, so a root-level `MAPBOX_TOKEN` is sufficient. If you prefer a frontend-local env file, `frontend/.env` can also define `VITE_MAPBOX_TOKEN=...`.
+
 ## Running the dashboard
 
 The dashboard is a React + Vite frontend served by a FastAPI backend:

@@ -1,4 +1,6 @@
 import { useDraggable } from '../../hooks/useDraggable';
+import { MAP_STYLES } from '../../lib/constants';
+import type { MapStyleKey } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 const LAYER_ITEMS = [
@@ -14,9 +16,13 @@ const LAYER_ITEMS = [
   { name: 'grid_lines', label: 'PLN Grid Lines' },
 ] as const;
 
+const STYLE_KEYS = Object.keys(MAP_STYLES) as MapStyleKey[];
+
 export default function LayerControl() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const toggleLayer = useDashboardStore((s) => s.toggleLayer);
+  const mapStyle = useDashboardStore((s) => s.mapStyle);
+  const setMapStyle = useDashboardStore((s) => s.setMapStyle);
 
   const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
 
@@ -36,7 +42,7 @@ export default function LayerControl() {
 
   return (
     <div
-      className="absolute top-[60px] right-3 z-10 rounded-lg px-3 py-2.5 max-h-[340px] overflow-y-auto"
+      className="absolute top-[60px] right-3 z-10 rounded-lg px-3 py-2.5 max-h-[420px] overflow-y-auto"
       style={{
         backdropFilter: 'var(--blur)',
         WebkitBackdropFilter: 'var(--blur)',
@@ -52,6 +58,7 @@ export default function LayerControl() {
         <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Layers</div>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={selectAll}
             disabled={allOn}
             className="text-[10px] text-[#90CAF9] hover:text-white disabled:text-zinc-600 transition-colors cursor-pointer disabled:cursor-default"
@@ -59,6 +66,7 @@ export default function LayerControl() {
             All
           </button>
           <button
+            type="button"
             onClick={deselectAll}
             disabled={noneOn}
             className="text-[10px] text-[#90CAF9] hover:text-white disabled:text-zinc-600 transition-colors cursor-pointer disabled:cursor-default"
@@ -82,6 +90,29 @@ export default function LayerControl() {
             {label}
           </label>
         ))}
+      </div>
+
+      {/* Map style switcher */}
+      <div className="mt-3 pt-2 pb-3 border-t border-white/10">
+        <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+          Map Style
+        </div>
+        <div className="flex gap-1">
+          {STYLE_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMapStyle(key)}
+              className={`px-2 py-1 text-[10px] rounded transition-colors cursor-pointer ${
+                mapStyle === key
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                  : 'text-zinc-400 hover:text-zinc-200 border border-transparent hover:border-white/10'
+              }`}
+            >
+              {MAP_STYLES[key].label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -160,7 +160,13 @@ def post_scorecard(req: ScorecardRequest):
     for source_name, source_cols in [
         (
             "fct_kek_resource",
-            ["buildable_area_ha", "max_captive_capacity_mwp", "best_re_technology"],
+            [
+                "buildable_area_ha",
+                "max_captive_capacity_mwp",
+                "best_re_technology",
+                "pvout_centroid",
+                "pvout_best_50km",
+            ],
         ),
         ("fct_grid_cost_proxy", ["dashboard_rate_usd_mwh", "bpp_usd_mwh"]),
     ]:
@@ -184,5 +190,14 @@ def post_scorecard(req: ScorecardRequest):
                     on="grid_region_id",
                     how="left",
                 )
+
+    # Rename columns to match frontend type names
+    rename_map = {
+        "pvout_centroid": "pvout_centroid_kwh_kwp_yr",
+        "pvout_best_50km": "pvout_best_50km_kwh_kwp_yr",
+    }
+    scorecard_df = scorecard_df.rename(
+        columns={k: v for k, v in rename_map.items() if k in scorecard_df.columns}
+    )
 
     return {"scorecard": _df_to_clean_records(scorecard_df)}

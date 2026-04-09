@@ -9,6 +9,8 @@ Combines satellite solar resource data (Global Solar Atlas), PLN grid costs, RUP
 ```bash
 # Backend (Python)
 uv sync
+
+# Copy .env_template to .env and set MAPBOX_TOKEN if you want 3D terrain.
 uv run uvicorn src.api.main:app --port 8000
 
 # Frontend (React)

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import type { ActionFlag } from '../../lib/types';
 
-const flags = Object.keys(ACTION_FLAG_COLORS);
+const flags = Object.keys(ACTION_FLAG_COLORS) as ActionFlag[];
 
 const FLAG_DESCRIPTIONS: Record<string, string> = {
   solar_now:
@@ -18,7 +19,7 @@ const FLAG_DESCRIPTIONS: Record<string, string> = {
 };
 
 export default function ActionFlagLegend() {
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<ActionFlag | null>(null);
 
   return (
     <div className="flex items-center gap-4 relative">

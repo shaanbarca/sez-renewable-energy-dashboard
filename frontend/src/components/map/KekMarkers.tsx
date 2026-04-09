@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import type { ActionFlag } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 interface HoverInfo {
   longitude: number;
   latitude: number;
   kek_name: string;
-  action_flag: string;
+  action_flag: ActionFlag;
   province: string;
   kek_type: string;
   category: string;
@@ -26,46 +27,91 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
   const selectedKek = useDashboardStore((s) => s.selectedKek);
   const { current: mapInstance } = useMap();
   const hasPulsed = useRef(false);
+  const prevFlagsRef = useRef<Record<string, string>>({});
+  const animIdRef = useRef<number>(0);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Pulse animation on first scorecard load
+  // Pulse animation — runs on first load (all markers) and on flag changes (affected markers only)
   useEffect(() => {
-    if (!scorecard || hasPulsed.current || !mapInstance) return;
-    hasPulsed.current = true;
+    if (!scorecard || !mapInstance) return;
 
     const map = mapInstance.getMap();
+
+    // Build current flag map
+    const currentFlags: Record<string, string> = {};
+    for (const row of scorecard) {
+      currentFlags[row.kek_id] = row.action_flag;
+    }
+
+    // Determine which KEKs to pulse
+    let changedKekIds: string[];
+    if (!hasPulsed.current) {
+      // First load: pulse all
+      hasPulsed.current = true;
+      changedKekIds = scorecard.map((r) => r.kek_id);
+    } else {
+      // Subsequent updates: only pulse KEKs whose action_flag changed
+      const prev = prevFlagsRef.current;
+      changedKekIds = [];
+      for (const row of scorecard) {
+        if (prev[row.kek_id] != null && prev[row.kek_id] !== row.action_flag) {
+          changedKekIds.push(row.kek_id);
+        }
+      }
+    }
+
+    prevFlagsRef.current = currentFlags;
+
+    if (changedKekIds.length === 0) return;
+
+    // Set filter on pulse layer to only show changed markers
+    const isInitial = changedKekIds.length === scorecard.length;
+    const duration = PULSE_DURATION_MS;
+
+    if (map.getLayer('kek-pulse')) {
+      if (isInitial) {
+        map.setFilter('kek-pulse', null);
+      } else {
+        map.setFilter('kek-pulse', ['in', ['get', 'kek_id'], ['literal', changedKekIds]]);
+      }
+    }
+
+    // Cancel any running animation and pending timeout
+    cancelAnimationFrame(animIdRef.current);
+    if (timeoutIdRef.current != null) clearTimeout(timeoutIdRef.current);
+
     const start = performance.now();
-    let animId: number;
 
     const animate = (now: number) => {
       const elapsed = now - start;
-      if (elapsed > PULSE_DURATION_MS) {
-        // Animation done, hide pulse layer
+      if (elapsed > duration) {
         if (map.getLayer('kek-pulse')) {
           map.setPaintProperty('kek-pulse', 'circle-opacity', 0);
           map.setPaintProperty('kek-pulse', 'circle-radius', 0);
         }
         return;
       }
-      const t = elapsed / PULSE_DURATION_MS;
-      // Sine wave pulse: 3 full cycles over the duration, fading out
+      const t = elapsed / duration;
       const wave = Math.sin(t * PULSE_CYCLES * 2 * Math.PI);
-      const fadeOut = 1 - t; // linear fade from 1 to 0
-      const radius = 6 + wave * 6; // 0 to 12
+      const fadeOut = 1 - t;
+      const radius = 6 + wave * 6;
       const opacity = Math.max(0, 0.35 * fadeOut * ((wave + 1) / 2));
 
       if (map.getLayer('kek-pulse')) {
         map.setPaintProperty('kek-pulse', 'circle-radius', radius);
         map.setPaintProperty('kek-pulse', 'circle-opacity', opacity);
       }
-      animId = requestAnimationFrame(animate);
+      animIdRef.current = requestAnimationFrame(animate);
     };
 
-    // Small delay to let the layer render first
-    setTimeout(() => {
-      animId = requestAnimationFrame(animate);
-    }, 500);
+    timeoutIdRef.current = setTimeout(() => {
+      animIdRef.current = requestAnimationFrame(animate);
+    }, 200);
 
-    return () => cancelAnimationFrame(animId);
+    return () => {
+      cancelAnimationFrame(animIdRef.current);
+      if (timeoutIdRef.current != null) clearTimeout(timeoutIdRef.current);
+    };
   }, [scorecard, mapInstance]);
 
   const geojson = useMemo(() => {

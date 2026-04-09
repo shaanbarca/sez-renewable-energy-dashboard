@@ -19,17 +19,27 @@ export interface UserThresholds {
   reliability_threshold: number;
 }
 
+export type ActionFlag =
+  | 'solar_now'
+  | 'invest_resilience'
+  | 'grid_first'
+  | 'firming_needed'
+  | 'plan_late'
+  | 'not_competitive';
+
 export interface ScorecardRow {
   kek_id: string;
   kek_name: string;
   province: string;
   latitude: number;
   longitude: number;
-  action_flag: string;
+  action_flag: ActionFlag;
   lcoe_mid_usd_mwh: number;
   lcoe_low_usd_mwh: number;
   lcoe_high_usd_mwh: number;
   solar_competitive_gap_pct: number;
+  gap_vs_tariff_pct?: number;
+  gap_vs_bpp_pct?: number;
   dashboard_rate_usd_mwh: number;
   carbon_breakeven_usd_tco2: number | null;
   buildable_area_ha: number;
@@ -98,3 +108,4 @@ export interface ScorecardResponse {
 export type EnergyMode = 'solar' | 'wind' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
 export type BottomTab = 'table' | 'quadrant' | 'ruptl';
+export type MapStyleKey = 'dark' | 'light' | 'voyager';

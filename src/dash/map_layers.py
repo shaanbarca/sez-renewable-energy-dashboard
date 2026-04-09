@@ -202,18 +202,35 @@ def _raster_to_base64_png(
     vmax: float | None = None,
     alpha: float = 0.6,
     max_width: int = 800,
+    pad_degrees: float = 5.0,
 ) -> tuple[str, list[list[float]]]:
     """Convert a 2D numpy array to a base64 PNG with transparency.
 
     Returns (base64_png_string, coordinates) where coordinates is the
     Mapbox image layer format: [[lon_min, lat_max], [lon_max, lat_max],
     [lon_max, lat_min], [lon_min, lat_min]].
+
+    pad_degrees: extend bounds by this many degrees on each side with
+    transparent pixels. Prevents hard cutoff when the map is pitched (3D).
     """
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.colors import Normalize
+
+    # Pad the raster with transparent (NaN) pixels to extend geographic bounds.
+    # This prevents a hard visible edge when the map is tilted for 3D terrain.
+    if pad_degrees > 0:
+        left, bottom, right, top = bounds
+        lat_span = top - bottom
+        lon_span = right - left
+        h, w = data.shape
+        # Compute how many pixels the padding corresponds to
+        pad_rows = max(1, int(h * pad_degrees / lat_span))
+        pad_cols = max(1, int(w * pad_degrees / lon_span))
+        data = np.pad(data, ((pad_rows, pad_rows), (pad_cols, pad_cols)), constant_values=np.nan)
+        bounds = (left - pad_degrees, bottom - pad_degrees, right + pad_degrees, top + pad_degrees)
 
     # Downsample if too wide
     h, w = data.shape

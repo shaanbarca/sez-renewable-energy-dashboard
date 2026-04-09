@@ -37,6 +37,7 @@ from src.assumptions import (
     TRANSMISSION_LEASE_MID_USD_MWH,
 )
 from src.model.basic_model import (
+    ActionFlag,
     action_flags,
     capacity_factor_from_pvout,
     carbon_breakeven_price,
@@ -343,7 +344,7 @@ def compute_scorecard_live(
         # LCOE from within_boundary (primary)
         lcoe_mid = wb.loc[kek_id, "lcoe_mid_usd_mwh"] if kek_id in wb.index else np.nan
 
-        # Competitive gap
+        # Competitive gap (benchmark-dependent — uses grid_cost which may be BPP or tariff)
         if pd.notna(lcoe_mid) and grid_cost > 0:
             gap_pct = solar_competitive_gap(lcoe_mid, grid_cost)
             attractive = is_solar_attractive(
@@ -355,6 +356,27 @@ def compute_scorecard_live(
         else:
             gap_pct = np.nan
             attractive = False
+
+        # Always compute both tariff and BPP gaps (independent of benchmark mode)
+        tariff_rate = default_grid_cost  # PLN I-4/TT industrial tariff
+        gap_vs_tariff_pct = (
+            solar_competitive_gap(lcoe_mid, tariff_rate)
+            if pd.notna(lcoe_mid) and tariff_rate > 0
+            else np.nan
+        )
+
+        bpp_rate = np.nan
+        if grid_df is not None and grid_region_id:
+            bpp_rows = grid_df[grid_df["grid_region_id"] == grid_region_id]
+            if len(bpp_rows):
+                bpp_val = bpp_rows.iloc[0].get("bpp_usd_mwh")
+                if pd.notna(bpp_val):
+                    bpp_rate = float(bpp_val)
+        gap_vs_bpp_pct = (
+            solar_competitive_gap(lcoe_mid, bpp_rate)
+            if pd.notna(lcoe_mid) and pd.notna(bpp_rate) and bpp_rate > 0
+            else np.nan
+        )
 
         # RUPTL metrics
         ruptl_row = (
@@ -419,16 +441,18 @@ def compute_scorecard_live(
         project_viable = max_mwp >= thresholds.min_viable_mwp
 
         # Derive action_flag: first True flag wins (priority order)
-        action_flag = "not_competitive"
+        action_flag = ActionFlag.NOT_COMPETITIVE
         for flag_name in [
-            "solar_now",
-            "grid_first",
-            "firming_needed",
-            "invest_resilience",
-            "plan_late",
+            ActionFlag.SOLAR_NOW,
+            ActionFlag.GRID_FIRST,
+            ActionFlag.FIRMING_NEEDED,
+            ActionFlag.INVEST_RESILIENCE,
+            ActionFlag.PLAN_LATE,
         ]:
             flag_val = (
-                resilience if flag_name == "invest_resilience" else flags.get(flag_name, False)
+                resilience
+                if flag_name == ActionFlag.INVEST_RESILIENCE
+                else flags.get(flag_name, False)
             )
             if flag_val is True:
                 action_flag = flag_name
@@ -445,6 +469,8 @@ def compute_scorecard_live(
             if kek_id in wb.index
             else np.nan,
             "solar_competitive_gap_pct": _round(gap_pct),
+            "gap_vs_tariff_pct": _round(gap_vs_tariff_pct),
+            "gap_vs_bpp_pct": _round(gap_vs_bpp_pct),
             "solar_attractive": attractive,
             "solar_now": flags["solar_now"],
             "grid_first": flags["grid_first"],

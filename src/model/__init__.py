@@ -15,6 +15,7 @@ from src.model.basic_model import (
     PVOUT_ANNUAL_MAX,
     PVOUT_ANNUAL_MIN,
     # Action flags
+    ActionFlag,
     action_flags,
     # End-to-end pipeline
     build_scorecard,
@@ -51,6 +52,7 @@ __all__ = [
     "lcoe_solar_with_firming",
     "solar_competitive_gap",
     "is_solar_attractive",
+    "ActionFlag",
     "action_flags",
     "geas_baseline_allocation",
     "geas_policy_allocation",

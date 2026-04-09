@@ -151,3 +151,36 @@ def test_kek_substations_valid(client):
         # Exactly one should be nearest
         nearest_count = sum(1 for s in data["substations"] if s.get("is_nearest"))
         assert nearest_count == 1
+
+
+def test_scorecard_gap_columns(client):
+    """11. POST /api/scorecard returns gap_vs_tariff_pct and gap_vs_bpp_pct."""
+    body = _default_body(client)
+    resp = client.post("/api/scorecard", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    first = data["scorecard"][0]
+    assert "gap_vs_tariff_pct" in first
+    assert "gap_vs_bpp_pct" in first
+
+
+def test_scorecard_action_flag_values(client):
+    """12. All action_flag values are valid ActionFlag enum members."""
+    from src.model.basic_model import ActionFlag
+
+    body = _default_body(client)
+    resp = client.post("/api/scorecard", json=body)
+    data = resp.json()
+    valid_flags = {f.value for f in ActionFlag}
+    for row in data["scorecard"]:
+        assert row["action_flag"] in valid_flags, f"Invalid flag: {row['action_flag']}"
+
+
+def test_scorecard_bpp_mode(client):
+    """13. POST /api/scorecard with benchmark_mode='bpp' returns 200 with 25 rows."""
+    body = _default_body(client)
+    body["benchmark_mode"] = "bpp"
+    resp = client.post("/api/scorecard", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["scorecard"]) == 25

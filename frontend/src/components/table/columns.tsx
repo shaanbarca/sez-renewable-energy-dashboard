@@ -1,6 +1,6 @@
 import { type CellContext, createColumnHelper, type FilterFn } from '@tanstack/react-table';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
-import type { ScorecardRow } from '../../lib/types';
+import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 declare module '@tanstack/react-table' {
@@ -78,12 +78,14 @@ const ACTION_FLAG_EXPLANATIONS: Record<string, string> = {
     'Solar is cost-competitive, but no grid upgrade is planned before 2030. Grid infrastructure must come first.',
   invest_resilience:
     'Solar is near grid parity (within 20%) and the KEK has high reliability requirements. Invest for resilience.',
+  firming_needed:
+    'Solar economics work, but high reliability requirements mean firming (battery/backup) is needed, adding cost.',
   plan_late:
     '60%+ of RUPTL solar additions are scheduled post-2030. Planning is behind — accelerate the pipeline.',
   not_competitive: 'Solar LCOE exceeds grid cost under current assumptions. Not yet economical.',
 };
 
-function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, string> }) {
+function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> }) {
   const flag = info.getValue();
   const color = ACTION_FLAG_COLORS[flag] ?? '#666';
   const label = ACTION_FLAG_LABELS[flag] ?? flag;

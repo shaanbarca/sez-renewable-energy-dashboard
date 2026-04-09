@@ -5,6 +5,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useMapLayers } from '../../hooks/useMapLayers';
 import { fetchKekPolygon } from '../../lib/api';
+import { MAP_STYLES } from '../../lib/constants';
+import type { ActionFlag } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
 import type { HoverInfo } from './KekMarkers';
@@ -13,11 +15,14 @@ import LayerControl from './LayerControl';
 import RasterOverlay from './RasterOverlay';
 import VectorOverlay from './VectorOverlay';
 
-const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };
 const INITIAL_ZOOM = 4;
 const KEK_ZOOM = 11;
 const RADIUS_KM = 50;
+const TERRAIN_SOURCE_ID = 'terrain-dem';
+const TERRAIN_EXAGGERATION = 1.5;
+const TERRAIN_PITCH = 50;
+const TERRAIN_AUTO_PITCH_MIN_ZOOM = 7;
 
 /** Generate a GeoJSON Polygon circle around a center point. */
 function createCircleGeoJSON(
@@ -63,22 +68,41 @@ export default function MapView() {
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const terrainOn = useDashboardStore((s) => s.layerVisibility.terrain);
+  const mapStyleKey = useDashboardStore((s) => s.mapStyle);
 
-  // 3D terrain: add DEM source + setTerrain in one atomic operation to avoid race conditions.
-  // Previous bug: source was added in one useEffect, terrain was set via <Map terrain={...}> prop
-  // in a separate render cycle — the prop fired before the source existed, silently failing.
+  const mapStyleUrl = (MAP_STYLES[mapStyleKey] ?? MAP_STYLES.dark).url;
+
+  const syncTerrainPitch = useCallback(
+    (zoom: number) => {
+      const map = mapRef.current?.getMap();
+      if (!map) return;
+
+      if (terrainOn && zoom >= TERRAIN_AUTO_PITCH_MIN_ZOOM) {
+        if (map.getPitch() < TERRAIN_PITCH - 5) {
+          map.easeTo({ pitch: TERRAIN_PITCH, duration: 800 });
+        }
+        return;
+      }
+
+      if (map.getPitch() > 1) {
+        map.easeTo({ pitch: 0, duration: 800 });
+      }
+    },
+    [terrainOn],
+  );
+
+  // 3D terrain: add DEM source + setTerrain imperatively.
+  // Must re-apply after style changes (changing basemap wipes all sources).
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
 
     const apply = () => {
       if (terrainOn) {
-        // Add DEM source if not already present
-        if (!map.getSource('terrain-dem')) {
+        if (!map.getSource(TERRAIN_SOURCE_ID)) {
           const token = import.meta.env.VITE_MAPBOX_TOKEN;
           if (token) {
-            // Mapbox terrain-rgb: global coverage, requires token, mapbox encoding (default)
-            map.addSource('terrain-dem', {
+            map.addSource(TERRAIN_SOURCE_ID, {
               type: 'raster-dem',
               tiles: [
                 `https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`,
@@ -87,8 +111,7 @@ export default function MapView() {
               maxzoom: 14,
             });
           } else {
-            // Fallback: Stadia Maps terrarium (free, global, CORS enabled, no key)
-            map.addSource('terrain-dem', {
+            map.addSource(TERRAIN_SOURCE_ID, {
               type: 'raster-dem',
               tiles: ['https://tiles.stadiamaps.com/data/terrarium/{z}/{x}/{y}.png'],
               tileSize: 256,
@@ -97,20 +120,14 @@ export default function MapView() {
             });
           }
         }
-        // Enable terrain — must happen AFTER source is added
-        map.setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
-        if (map.getPitch() < 30) {
-          map.easeTo({ pitch: 50, duration: 800 });
-        }
+        map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: TERRAIN_EXAGGERATION });
       } else {
-        // Disable terrain
-        if (map.getSource('terrain-dem')) {
+        if (map.getTerrain()) {
           map.setTerrain(null);
         }
-        if (map.getPitch() > 0) {
-          map.easeTo({ pitch: 0, duration: 800 });
-        }
       }
+
+      syncTerrainPitch(map.getZoom());
     };
 
     if (map.isStyleLoaded()) {
@@ -118,11 +135,18 @@ export default function MapView() {
     } else {
       map.once('style.load', apply);
     }
-  }, [terrainOn]);
+
+    // Re-apply terrain after style changes (basemap switch wipes sources)
+    map.on('style.load', apply);
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [terrainOn, mapStyleUrl, syncTerrainPitch]);
 
   const handleZoom = useCallback((e: ViewStateChangeEvent) => {
     setIsZoomedIn(e.viewState.zoom > INITIAL_ZOOM + 1);
-  }, []);
+    syncTerrainPitch(e.viewState.zoom);
+  }, [syncTerrainPitch]);
 
   // Activate lazy layer loading
   useMapLayers();
@@ -183,7 +207,7 @@ export default function MapView() {
       longitude: coords[0],
       latitude: coords[1],
       kek_name: feature.properties.kek_name as string,
-      action_flag: feature.properties.action_flag as string,
+      action_flag: feature.properties.action_flag as ActionFlag,
       province: feature.properties.province as string,
       kek_type: feature.properties.kek_type as string,
       category: feature.properties.category as string,
@@ -225,7 +249,8 @@ export default function MapView() {
           ...INITIAL_CENTER,
           zoom: INITIAL_ZOOM,
         }}
-        mapStyle={MAP_STYLE}
+        mapStyle={mapStyleUrl}
+        maxPitch={85}
         style={{ width: '100%', height: '100%' }}
         interactiveLayerIds={['kek-circles']}
         onClick={handleClick}

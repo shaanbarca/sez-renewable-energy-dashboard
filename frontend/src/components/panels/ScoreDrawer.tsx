@@ -2,7 +2,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
-import type { ScorecardRow } from '../../lib/types';
+import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 /* ---------- Types ---------- */
@@ -131,7 +131,7 @@ function FlagBadge({ active, label, color }: { active: boolean; label: string; c
   );
 }
 
-function getFlagExplanation(flag: string, row: ScorecardRow): string {
+function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
   switch (flag) {
     case 'solar_now':
       return 'Solar is cost-competitive with the grid today. Grid upgrades are planned and sufficient GEAS allocation exists.';
@@ -288,12 +288,13 @@ function LCOETab({ row }: { row: ScorecardRow }) {
         </StatCard>
       )}
       <StatCard>
-        <StatRow label="Grid Cost" value={row.grid_cost_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRow
-          label="Gap vs Grid Cost"
-          value={row.solar_competitive_gap_pct?.toFixed(1)}
-          unit="%"
+        <StatRowWithTip
+          label="Tariff Cost"
+          value={row.dashboard_rate_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="PLN I-4/TT industrial tariff rate. This is the subsidized rate paid by KEK tenants, not the true cost of supply (BPP)."
         />
+        <StatRow label="Gap vs Tariff" value={row.gap_vs_tariff_pct?.toFixed(1)} unit="%" />
       </StatCard>
       <StatCard>
         <StatRowWithTip
@@ -302,15 +303,7 @@ function LCOETab({ row }: { row: ScorecardRow }) {
           unit="$/MWh"
           tip="Biaya Pokok Penyediaan — PLN's unsubsidized cost of electricity supply for this grid region. Unlike the industrial tariff, BPP reflects the true generation + transmission cost."
         />
-        <StatRow
-          label="Gap vs BPP"
-          value={
-            row.bpp_usd_mwh != null && row.lcoe_mid_usd_mwh != null && row.bpp_usd_mwh > 0
-              ? (((row.lcoe_mid_usd_mwh - row.bpp_usd_mwh) / row.bpp_usd_mwh) * 100).toFixed(1)
-              : null
-          }
-          unit="%"
-        />
+        <StatRow label="Gap vs BPP" value={row.gap_vs_bpp_pct?.toFixed(1)} unit="%" />
       </StatCard>
     </>
   );

@@ -5,6 +5,7 @@ import type {
   BottomTab,
   DefaultsResponse,
   EnergyMode,
+  MapStyleKey,
   ScorecardRow,
   UserAssumptions,
   UserThresholds,
@@ -25,6 +26,7 @@ interface DashboardStore {
   layerVisibility: Record<string, boolean>;
   benchmarkMode: BenchmarkMode;
   energyMode: EnergyMode;
+  mapStyle: MapStyleKey;
   loading: boolean;
   walkthroughPersona: string | null;
   walkthroughStep: number;
@@ -42,6 +44,7 @@ interface DashboardStore {
   setActiveTab: (tab: BottomTab) => void;
   setEnergyMode: (mode: EnergyMode) => void;
   setBenchmarkMode: (mode: BenchmarkMode) => void;
+  setMapStyle: (style: MapStyleKey) => void;
   toggleLayer: (name: string) => void;
   recomputeScorecard: () => Promise<void>;
   resetDefaults: () => void;
@@ -72,6 +75,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   layerVisibility: {},
   benchmarkMode: 'bpp',
   energyMode: 'solar',
+  mapStyle: 'dark',
   loading: true,
   walkthroughPersona: null,
   walkthroughStep: 0,
@@ -100,6 +104,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   setEnergyMode: (mode) => set({ energyMode: mode }),
 
   setBenchmarkMode: (mode) => set({ benchmarkMode: mode }),
+
+  setMapStyle: (style) => set({ mapStyle: style }),
 
   toggleLayer: (name) =>
     set((state) => ({

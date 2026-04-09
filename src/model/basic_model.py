@@ -15,6 +15,7 @@ have historically produced ~10–100x errors.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Literal
 
 import numpy as np
@@ -423,6 +424,17 @@ def is_solar_attractive(
 # ---------------------------------------------------------------------------
 # 4. Action flags
 # ---------------------------------------------------------------------------
+
+
+class ActionFlag(StrEnum):
+    """Recommended action for a KEK based on solar economics and grid readiness."""
+
+    SOLAR_NOW = "solar_now"
+    INVEST_RESILIENCE = "invest_resilience"
+    GRID_FIRST = "grid_first"
+    FIRMING_NEEDED = "firming_needed"
+    PLAN_LATE = "plan_late"
+    NOT_COMPETITIVE = "not_competitive"
 
 
 def action_flags(
