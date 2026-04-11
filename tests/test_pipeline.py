@@ -864,6 +864,49 @@ class TestFctSubstationProximity:
         has_dist = df["dist_solar_to_nearest_substation_km"].notna()
         assert df.loc[has_dist, "nearest_substation_to_solar_name"].notna().all()
 
+    # V3.1: Connectivity and capacity columns
+    def test_v31_columns_present(self):
+        """V3.1 columns must be present in output."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+
+        df = build_fct_substation_proximity()
+        for col in [
+            "nearest_substation_regpln",
+            "nearest_substation_to_solar_regpln",
+            "same_grid_region",
+            "line_connected",
+            "inter_substation_connected",
+            "inter_substation_dist_km",
+            "available_capacity_mva",
+            "capacity_assessment",
+        ]:
+            assert col in df.columns, f"Missing column: {col}"
+
+    def test_capacity_assessment_values(self):
+        """capacity_assessment must be one of green/yellow/red/unknown."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+
+        df = build_fct_substation_proximity()
+        valid = {"green", "yellow", "red", "unknown"}
+        assert set(df["capacity_assessment"].unique()).issubset(valid)
+
+    def test_line_connected_is_bool_where_present(self):
+        """line_connected must be boolean where not null (None for same-substation rows)."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+
+        df = build_fct_substation_proximity()
+        non_null = df["line_connected"].dropna()
+        assert all(isinstance(v, (bool, np.bool_)) for v in non_null)
+
+    def test_inter_substation_dist_positive_when_present(self):
+        """inter_substation_dist_km must be >= 0 where not NaN."""
+        from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+
+        df = build_fct_substation_proximity()
+        dists = df["inter_substation_dist_km"].dropna()
+        if len(dists) > 0:
+            assert (dists >= 0).all()
+
 
 # ── fct_grid_cost_proxy ───────────────────────────────────────────────────────
 
@@ -1102,26 +1145,43 @@ class TestFctKekScorecard:
             "LCOE at WACC=8% should never exceed LCOE at WACC=10%"
         )
 
-    def test_transmission_lease_adder_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
-        assert "transmission_lease_adder_usd_mwh" in sc.columns
-
-    def test_remote_captive_allin_columns_present(self):
+    def test_v2_grid_connected_columns_present(self):
+        """V2: grid-connected solar columns replace V1 remote captive columns."""
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
         for col in [
+            "lcoe_grid_connected_usd_mwh",
+            "lcoe_grid_connected_low_usd_mwh",
+            "lcoe_grid_connected_high_usd_mwh",
+            "connection_cost_per_kw",
+        ]:
+            assert col in sc.columns, f"Missing V2 column: {col}"
+
+    def test_v1_columns_removed_from_scorecard(self):
+        """V2: deprecated V1 columns should no longer appear in scorecard."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        for col in [
+            "transmission_lease_adder_usd_mwh",
             "lcoe_remote_captive_allin_usd_mwh",
             "lcoe_remote_captive_allin_low_usd_mwh",
             "lcoe_remote_captive_allin_high_usd_mwh",
         ]:
-            assert col in sc.columns, f"Missing column: {col}"
+            assert col not in sc.columns, f"V1 column should be removed: {col}"
 
-    def test_remote_captive_allin_exceeds_within_boundary_lcoe(self):
-        """Remote captive all-in LCOE must exceed within_boundary LCOE for all KEKs with data."""
+    def test_grid_connected_exceeds_within_boundary_lcoe(self):
+        """Grid-connected LCOE must exceed within_boundary LCOE (connection + land cost)."""
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
-        valid = sc.dropna(subset=["lcoe_mid_usd_mwh", "lcoe_remote_captive_allin_usd_mwh"])
-        assert (valid["lcoe_remote_captive_allin_usd_mwh"] > valid["lcoe_mid_usd_mwh"]).all(), (
-            "lcoe_remote_captive_allin must always exceed within_boundary lcoe_mid (gen-tie + lease)"
+        valid = sc.dropna(subset=["lcoe_mid_usd_mwh", "lcoe_grid_connected_usd_mwh"])
+        assert (valid["lcoe_grid_connected_usd_mwh"] > valid["lcoe_mid_usd_mwh"]).all(), (
+            "lcoe_grid_connected must always exceed within_boundary lcoe_mid (connection + land cost)"
         )
+
+    def test_grid_investment_needed_usd_column(self):
+        """grid_investment_needed_usd = (connection + transmission) cost × capacity."""
+        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        assert "grid_investment_needed_usd" in sc.columns
+        valid = sc.dropna(subset=["grid_investment_needed_usd"])
+        assert len(valid) > 0, "Expected at least some KEKs with grid investment estimate"
+        assert (valid["grid_investment_needed_usd"] >= 0).all(), "Investment must be non-negative"
 
     def test_project_viable_column_present(self):
         sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")

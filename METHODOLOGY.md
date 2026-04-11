@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
-**Version:** 0.3 (updated April 2026)
-**Status:** ✅ Fully implemented in code — 11 pipeline steps, 25 KEKs, 302 tests passing
+**Version:** 0.4 (updated April 2026) — V2 grid-connected solar thesis
+**Status:** ✅ Fully implemented in code — 11 pipeline steps, 25 KEKs, 327 tests passing
 **Intended audience:** Energy economists, development bank analysts, peer reviewers
 
 This document specifies the analytical methodology used in the Indonesia KEK Power Competitiveness tool. It serves three purposes:
@@ -28,7 +28,8 @@ All formulas are stated with explicit units. All assumptions are documented with
   - [2A.2 PLN Substation Connection](#2a2-pln-substation-connection--legality-and-fees)
   - [2A.3 Power Wheeling](#2a3-power-wheeling--legally-permitted-practically-blocked)
   - [2A.4 Two Siting Scenarios](#2a4-two-siting-scenarios)
-  - [2A.5 Model Scope](#2a5-model-scope-phase-2-complete)
+  - [2A.5 Model Scope](#2a5-model-scope)
+  - [2A.6 Three-Point Proximity Analysis](#2a6-three-point-proximity-analysis)
 - [2B. Wind Resource: Capacity Factor from Wind Speed](#2b-wind-resource-capacity-factor-from-wind-speed)
   - [2B.1 Input data](#2b1-input-data)
   - [2B.2 Wind speed extraction per KEK](#2b2-wind-speed-extraction-per-kek)
@@ -51,7 +52,8 @@ All formulas are stated with explicit units. All assumptions are documented with
   - [5.3 GEAS green share](#53-geas-green-share)
   - [5.3b Carbon breakeven price](#53b-carbon-breakeven-price)
   - [5.4 Flip scenario](#54-flip-scenario)
-  - [5.5 All-in captive solar cost](#55-all-in-captive-solar-cost-investment-screen)
+  - [5.5 Grid-connected solar cost model](#55-grid-connected-solar-cost-model)
+  - [5.6 DFI Grid Infrastructure Investment Model](#56-dfi-grid-infrastructure-investment-model)
 - [6. Known Limitations and Caveats](#6-known-limitations-and-caveats)
 - [7. Assumptions Summary](#7-assumptions-summary)
 - [8. Open Methodological Questions](#8-open-methodological-questions)
@@ -61,7 +63,7 @@ All formulas are stated with explicit units. All assumptions are documented with
 
 ## Workflow Summary
 
-The model answers one question per KEK: **is captive solar cheaper than buying grid power, and if not, how close is it?**
+The model answers one question per KEK: **where do good solar sites, grid infrastructure, and industrial demand overlap — and what grid investment is needed to connect them?**
 
 ### Data flow (5 steps)
 
@@ -96,8 +98,9 @@ $$\text{gap} = \frac{LCOE - C_{\text{grid}}}{C_{\text{grid}}} \times 100\%$$
 Negative = solar already cheaper; Positive = solar more expensive
 
 **Step 5 — Action flags** (per KEK)
-- `solar_now`: solar attractive AND grid ready AND GEAS $\geq$ 30%
-- `grid_first`: solar attractive BUT grid upgrade not yet pre-2030
+- `solar_now`: `grid_ready` category AND solar LCOE < grid cost AND PVOUT $\geq$ threshold
+- `invest_grid`: `invest_grid` category AND solar resource viable — targeted grid investment unlocks solar
+- `grid_first`: `grid_first` category — major grid expansion needed
 - `firming_needed`: solar attractive AND industrial reliability req $\geq$ 0.75
 - `plan_late`: $\geq$ 60% of RUPTL solar additions slip to post-2030
 
@@ -185,6 +188,8 @@ Two PVOUT values are computed per KEK:
 $$\Delta\phi = \frac{50}{111.32} \qquad \Delta\lambda = \frac{50}{111.32 \cdot \cos\phi}$$
 
 where $\phi$ is the KEK centroid latitude in radians. Do not use a fixed 0.45° buffer for both axes.
+
+**Circular mask:** The raster extraction uses a rectangular bounding box (computationally necessary for `rasterio.windows.from_bounds`). After extraction, a per-pixel haversine distance mask is applied to exclude corner pixels beyond the true 50km radius. Without this mask, corners of the bounding box would extend to ~70.7km (diagonal of 50x50 km square). The `best_solar_site_dist_km` column in `fct_kek_resource` verifies that the best buildable pixel is always within 50km.
 
 ### 2.5 Geospatial Buildability Constraints
 
@@ -304,12 +309,15 @@ These factors do not exclude sites but affect the economic feasibility of wheeli
 
 **3b. Distance to substation / transmission line:**
 
-For **captive solar** (power consumed on-site by KEK tenants), this filter is different from grid-injection solar:
-- If the solar plant is **inside the KEK boundary** or connected via a private dedicated line: no PLN substation proximity required — the plant connects directly to the KEK internal 20kV distribution network
-- If the solar plant is **outside the KEK boundary** (the common case for `pvout_best_50km` siting): a gen-tie line (private dedicated transmission line) must be built to wheel power to the KEK. Typical wheeling cost: **$3–10/kW-km** of line length plus ~$100–200/kW for substation works
-- PLN's 70kV/150kV substation proximity matters only for grid-injection projects or for hybrid captive-grid arrangements
+> **V2 update:** In the grid-connected solar model, substation proximity is critical for the **solar site** (not just the KEK). The IPP connects to the nearest PLN substation; PLN delivers to the KEK through its grid.
 
-**Practical threshold for the model:** If `pvout_best_50km` site is > 30km from the KEK boundary, flag as `wheeling_required = True` and apply the all-in cost adder range to account for gen-tie capex. The current model's $6–16/MWh firming/wheeling adder already covers this implicitly for near-site options; distant options may exceed this range.
+Two distance measures are relevant:
+- **Solar-to-substation** (`dist_solar_to_nearest_substation_km`): determines the grid connection cost for the IPP. Shorter = cheaper connection. This drives `grid_integration_category`.
+- **KEK-to-substation** (`dist_to_nearest_substation_km`): determines how well the KEK is served by PLN's existing grid. Shorter = more reliable delivery.
+
+For **within-boundary captive solar** (plant inside KEK): no PLN substation proximity required — the plant connects directly to the KEK internal 20kV distribution network.
+
+**Practical threshold:** See §2A.6 (Three-Point Proximity Analysis) for `grid_integration_category` thresholds. Connection cost is: `dist_solar_to_nearest_substation_km × $5/kW-km + $80/kW` (user-adjustable).
 
 **3c. Distance to nearest water source:**
 
@@ -359,7 +367,7 @@ Based on the West Kalimantan GIS study (Wijaya et al.) and Indonesia-wide land c
 `fct_kek_resource` now outputs `pvout_buildable_best_50km`, `buildable_area_ha`,
 `max_captive_capacity_mwp`, and `buildability_constraint`. When `data/buildability/` files
 are present, `fct_lcoe` and `fct_kek_scorecard` automatically use `pvout_buildable_best_50km`
-in the `remote_captive` scenario; `resource_quality` is set to `"filtered"`.
+in the `grid_connected_solar` scenario; `resource_quality` is set to `"filtered"`.
 
 **Current state (data acquisition):**
 - ✅ `dem_indonesia.tif` — Copernicus DEM GLO-30, automated via `scripts/download_buildability_data.py`
@@ -438,26 +446,34 @@ A private captive solar generator **may and in practice must** connect to the ne
 
 ### 2A.4 Two Siting Scenarios
 
-This model evaluates two distinct captive solar configurations per KEK:
+> **V2 update (April 2026):** The `remote_captive` scenario (private 50km gen-tie) has been replaced with `grid_connected_solar`. Research found no global precedent for a 50km private gen-tie for captive solar — the realistic model is IPP → PLN PPA → grid delivery. See `docs/METHODOLOGY_V2.md` for the full rationale.
 
-| Scenario | PVOUT input | Gen-tie needed? | PLN fees | LCOE treatment |
-|---|---|---|---|---|
-| **Within-boundary captive** | `pvout_centroid` | None — plant on KEK land, connects to KEK's own 20kV distribution | None (if purely internal) | Base LCOE only |
-| **Remote captive (≤50km)** | `pvout_best_50km` | Yes, if plant is outside KEK boundary | Parallel operation charge + transmission lease | Base LCOE + gen-tie adder (`gentie_cost_per_kw(dist_km)`) |
+This model evaluates two distinct solar configurations per KEK:
 
-**Gen-tie adder (Phase 2, implemented):** `dist_to_nearest_substation_km` from `fct_substation_proximity.csv` drives the gen-tie cost adder. Formula: `dist_km × GENTIE_COST_PER_KW_KM + SUBSTATION_WORKS_PER_KW` (USD/kW) — see `src/assumptions.py` for central values. Gen-tie is treated as additional overnight CAPEX, annualized via the same CRF as the solar plant.
+| Aspect | `within_boundary` | `grid_connected_solar` |
+|---|---|---|
+| **Description** | Solar plant inside KEK boundary, behind-the-meter captive | Solar farm connects to nearest PLN substation, sells to PLN via PPA |
+| **PVOUT source** | `pvout_centroid` | `pvout_buildable_best_50km` |
+| **Who builds it** | KEK tenant or on-site IPP | Independent IPP |
+| **Who buys the power** | KEK tenant directly (no PLN) | PLN (via PPA), then PLN delivers to KEK |
+| **Grid infrastructure needed** | None — internal distribution only | Solar-to-substation connection (typically <10 km) |
+| **Cost to model** | Base LCOE only | Base LCOE + grid connection cost (`grid_connection_cost_per_kw(dist_km)`) |
+| **PLN involvement** | None | Central — PLN is the offtaker and deliverer |
 
-### 2A.5 Model Scope (Phase 2 complete)
+**Grid connection cost:** `dist_solar_to_nearest_substation_km` from `fct_substation_proximity.csv` drives the connection cost. Formula: `dist_km × CONNECTION_COST_PER_KW_KM + GRID_CONNECTION_FIXED_PER_KW` (USD/kW) — see `src/assumptions.py`. Connection cost is treated as additional overnight CAPEX, annualized via the same CRF as the solar plant. No transmission lease fee applies — in V2, PLN absorbs delivery cost in BPP/tariff.
+
+**Key insight — separation of producer and consumer economics:**
+1. **IPP economics**: "Can I build solar here and sell profitably to PLN?" → solar LCOE vs. regional BPP
+2. **KEK tenant economics**: "What will my electricity cost from PLN?" → I-4 tariff, grid reliability, future rate trajectory
+3. **Policy economics**: "Where should grid investment go to enable cheap solar?" → three-point proximity analysis
+
+### 2A.5 Model Scope
 
 **Current implementation computes:**
-- Within-boundary LCOE using `pvout_centroid`, `gentie = 0`
-- Remote captive LCOE using `pvout_best_50km` + `gentie_cost_per_kw(dist_to_nearest_substation_km)`
+- Within-boundary LCOE using `pvout_centroid`, connection cost = 0
+- Grid-connected solar LCOE using `pvout_buildable_best_50km` + `grid_connection_cost_per_kw(dist_solar_to_nearest_substation_km)`
 
 **Output:** `fct_lcoe.csv` — 450 rows (25 KEKs × 9 WACCs × 2 scenarios). See §3.3 for the full WACC range. Scorecard uses `within_boundary` at WACC=10% as the base-case dashboard comparator.
-
-**Phase 3 status:**
-- ✅ Transmission lease fee — implemented as user-adjustable Tier 2 slider ($3–20/MWh, default $10). Exposed in `lcoe_allin_*` columns.
-- ⏳ WACC sensitivity for gen-tie cost specifically (gen-tie often financed separately from plant) — deferred
 
 **Regulatory sources:**
 - UU No. 30 Tahun 2009 (Ketenagalistrikan)
@@ -466,6 +482,39 @@ This model evaluates two distinct captive solar configurations per KEK:
 - Permen ESDM No. 1 Tahun 2017 (Persyaratan Teknik Penyambungan ke Sistem Tenaga Listrik)
 - Permen ESDM No. 27 Tahun 2017 (Tingkat Mutu Pelayanan dan Biaya yang Terkait dengan Penyaluran Tenaga Listrik)
 - Permen ESDM No. 11 Tahun 2021 (Pelaksanaan Kegiatan Usaha Penyediaan Tenaga Listrik)
+
+### 2A.6 Three-Point Proximity Analysis
+
+V1 measured one distance: KEK centroid to nearest PLN substation. V2 introduces a **three-point proximity model** that captures the full solar-to-grid-to-KEK chain.
+
+**Three geographic points:**
+
+| Point | Source | Description |
+|---|---|---|
+| **A** — Best solar site | `fct_kek_resource` (`best_solar_site_lat`, `best_solar_site_lon`) | Location of the highest-PVOUT buildable pixel within 50 km of the KEK |
+| **B** — Nearest PLN substation | `data/substation.geojson` | Nearest operational PLN substation to point A or C (may differ) |
+| **C** — KEK centroid | `dim_kek` | Geographic center of the KEK polygon |
+
+**Distance matrix:** For each KEK, compute:
+- **d(A, B_solar)**: distance from best solar site to the nearest substation (`dist_solar_to_nearest_substation_km`)
+- **d(C, B_kek)**: distance from KEK centroid to the nearest substation (`dist_to_nearest_substation_km`)
+
+**Grid integration categories:**
+
+| Category | Condition | Meaning |
+|---|---|---|
+| `within_boundary` | Has operational substation inside KEK polygon | Solar can be built on-site, no grid needed |
+| `grid_ready` | d(A, B_solar) < 10 km AND d(C, B_kek) < 15 km | Substation near both solar and KEK — grid can absorb and deliver |
+| `invest_grid` | One or more distance conditions fail, but solar resource is viable | Targeted infrastructure investment (line segment, substation upgrade) unlocks solar |
+| `grid_first` | Both distances > thresholds AND no nearby substations | Major grid expansion needed before solar is relevant |
+
+**Threshold values** (user-adjustable via `src/assumptions.py`):
+- `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM` = 10.0 km (range: 5–20 km)
+- `KEK_TO_SUBSTATION_LOW_THRESHOLD_KM` = 15.0 km (range: 5–30 km)
+
+**Resolution limitation:** Solar site coordinates are from the ~1 km resolution Global Solar Atlas GeoTIFF, accurate to approximately ±500 m. Sufficient for screening-level substation proximity analysis.
+
+**Implementation:** `grid_integration_category()` in `src/model/basic_model.py`; proximity pipeline in `src/pipeline/build_fct_substation_proximity.py`.
 
 ---
 
@@ -667,17 +716,21 @@ Where $C_{\text{grid}}$ = `dashboard_rate_usd_mwh` from `fct_grid_cost_proxy`.
 
 ### 5.2 Action flags
 
-Five mutually-ordered boolean flags. A KEK receives the first flag for which its conditions are satisfied:
+> **V2 update:** Flags reframed around grid-solar integration. `invest_grid` added. `invest_resilience` retained. Priority order updated.
+
+Seven mutually-ordered flags. A KEK receives the first flag for which its conditions are satisfied:
 
 | Flag | Conditions | Interpretation |
 |------|-----------|----------------|
-| `solar_now` | `solar_attractive AND NOT grid_first AND green_share_geas ≥ 0.30` | Go solar — economics work, grid supports it, GEAS allocation available |
-| `grid_first` | `solar_attractive AND NOT grid_upgrade_pre2030` | Solar economics work but grid upgrade not planned before 2030 — wait for grid |
+| `solar_now` | `grid_ready` category AND solar LCOE < grid cost AND PVOUT ≥ threshold | Grid infrastructure in place, solar economics favorable — IPP can build now |
+| `invest_grid` | `invest_grid` category AND solar resource viable (PVOUT ≥ threshold) | Solar resource exists but grid connection is the bottleneck — targeted infrastructure investment unlocks solar |
+| `grid_first` | `grid_first` category | No grid infrastructure near solar or KEK — major grid expansion needed |
+| `invest_resilience` | `0 < solar_competitive_gap_pct ≤ 20 AND reliability_req ≥ 0.75` | Solar near grid parity + high reliability needs — investment case rests on energy security |
 | `firming_needed` | `solar_attractive AND reliability_req ≥ 0.75` | Solar economics work but zone needs high reliability — add storage/firming |
-| `invest_resilience` | `0 < solar_competitive_gap_pct ≤ 20 AND reliability_req ≥ 0.75` | Solar slightly above grid parity, but manufacturing uptime avoidance justifies the premium |
 | `plan_late` | `post2030_share ≥ 0.60` | >60% of RUPTL additions for this region are planned post-2030 — pipeline is late |
+| `not_competitive` | None of the above | Solar LCOE exceeds grid cost under current assumptions |
 
-**`not_competitive` fallback:** If all data is present but no flag fires, the KEK is labelled `not_competitive`. This is distinct from `data_missing` (missing inputs). At WACC=10%, with correct TECH006 CAPEX ($960/kW), most Indonesian KEKs fall here — the model correctly reports that solar is not yet at grid parity for the average KEK under these assumptions.
+**`not_competitive` fallback:** If all data is present but no flag fires, the KEK is labelled `not_competitive`. At WACC=10%, with correct TECH006 CAPEX ($960/kW), most Indonesian KEKs fall here — the model correctly reports that solar is not yet at grid parity for the average KEK under these assumptions.
 
 ### 5.2b Resilience layer (`invest_resilience`)
 
@@ -793,35 +846,50 @@ $$\text{flip\_candidates} = \bigl\{k \;\big|\; 0 < \text{gap}_k \leq \tau_{\text
 
 Where $\tau_{\text{flip}}$ is user-adjustable (default 20%). These are zones where solar is not yet competitive but is within $\tau_{\text{flip}}\%$, meaning a modest policy intervention (CAPEX reduction via GBT program, lower WACC, or tariff adjustment) could make it competitive.
 
-### 5.5 All-in captive solar cost (investment screen)
+### 5.5 Grid-connected solar cost model
 
-The LCOE formula captures generation cost only. A KEK tenant choosing captive solar also incurs operating costs that depend on the siting scenario.
+> **V2 update:** Replaces §5.5 "All-in captive solar cost." The transmission lease fee is removed — in the V2 model, PLN delivers power through its grid at system cost (reflected in BPP/tariff). The only cost adder is the grid connection from the solar site to the nearest PLN substation.
 
-**Two distinct cost layers:**
+**Grid connection cost (grid_connected_solar scenario):**
 
-**Layer A — Transmission lease (remote_captive only, ✅ implemented):**
-For the 23/25 KEKs that are `remote_captive` (solar plant off-site, energy wheeled via PLN grid), a transmission lease fee applies:
+$$C_{\text{connection}} = d_{\text{solar→sub}} \times C_{\text{per\_kw\_km}} + C_{\text{fixed}}$$
 
-| Cost component | Range | Source |
-|---------------|-------|--------|
-| PLN wheeling tariff | ~$2–5/MWh | PLN Peraturan |
-| Grid backup / standby charge | ~$3–8/MWh effective | Industry estimates |
-| PLN connection/permitting (amortized) | ~$1–3/MWh | Industry estimates |
-| **Transmission lease total** | **$5–15/MWh (mid: $10)** | `src/assumptions.py` |
+| Parameter | Default | Range | What it covers |
+|---|---|---|---|
+| `CONNECTION_COST_PER_KW_KM` | $5/kW-km | $2–15/kW-km | Line from solar plant to PLN substation |
+| `GRID_CONNECTION_FIXED_PER_KW` | $80/kW | $30–200/kW | Switchgear, protection, metering at the PLN substation |
 
-Implemented columns (`fct_lcoe` and `fct_kek_scorecard`):
-```
-transmission_lease_adder_usd_mwh  = 10.0  (mid) for remote_captive; 0 for within_boundary
-lcoe_allin_usd_mwh                = lcoe_usd_mwh + transmission_lease_adder_usd_mwh
-lcoe_allin_low_usd_mwh            = lcoe_low_usd_mwh + 5.0   (low lease bound)
-lcoe_allin_high_usd_mwh           = lcoe_high_usd_mwh + 15.0  (high lease bound)
-```
-Scorecard exposes: `lcoe_remote_captive_allin_usd_mwh` (+low/high) at `BASE_WACC = 10%`.
+**Grid-connected solar LCOE:**
 
-**Layer B — Firming adder (within_boundary, partially modelled):**
-On-site captive plants may still need grid backup for intermittency. This is the `lcoe_solar_with_firming()` function in `basic_model.py` (adder: +$6/+$11/+$16/MWh low/mid/high). Not currently surfaced as a dedicated scorecard column — shown only in the firming sensitivity model.
+$$LCOE_{\text{gc}} = \frac{(CAPEX + C_{\text{connection}}) \times CRF + FOM}{CF \times 8.76}$$
 
-**Primary metric:** The competitive gap calculation uses `lcoe_mid_usd_mwh` (`within_boundary`, generation cost only) as the primary comparator. `lcoe_remote_captive_allin_usd_mwh` is the true all-in cost for the 23 KEKs where solar must be built off-site.
+Where CF uses `pvout_buildable_best_50km` and distance uses `dist_solar_to_nearest_substation_km`.
+
+Implemented columns (`fct_lcoe` and scorecard): `lcoe_grid_connected_usd_mwh` (+low/high), `connection_cost_per_kw`.
+
+**Firming adder (within_boundary, partially modelled):**
+On-site captive plants may still need grid backup for intermittency. This is the `lcoe_solar_with_firming()` function in `basic_model.py` (adder: +$6/+$11/+$16/MWh low/mid/high). Not currently surfaced as a dedicated scorecard column.
+
+**Primary metric:** The competitive gap uses `lcoe_mid_usd_mwh` (`within_boundary`) as the primary comparator. `lcoe_grid_connected_usd_mwh` shows the IPP's grid-connected solar economics.
+
+### 5.6 DFI Grid Infrastructure Investment Model
+
+Development Finance Institutions (ADB, World Bank, IFC, AIIB) regularly finance grid infrastructure in developing countries. The dashboard identifies WHERE grid investment unlocks the most solar potential — the `invest_grid` category is the DFI opportunity set.
+
+**Investment instruments:**
+
+| Instrument | How it works | Dashboard relevance |
+|---|---|---|
+| **Concessional loan to PLN** | DFI lends at below-market rates for transmission/substation | `invest_grid` KEKs show where PLN needs grid investment |
+| **Viability gap funding** | DFI covers gap between infrastructure cost and recoverable tariff | Grid investment estimate sizes the gap |
+| **Blended finance** | DFI funds grid, private IPP funds solar, PLN operates | `solar_now` + `invest_grid` KEKs are co-investment opportunities |
+| **Green bonds** | PLN issues bonds for grid investment, DFI provides credit enhancement | Regional aggregation of `invest_grid` KEKs sizes the bond |
+
+**Grid investment estimation** (screening-level, for `invest_grid` KEKs):
+
+$$I_{\text{grid}} = d_{\text{gap}} \times C_{\text{transmission/km}} + N_{\text{substations}} \times C_{\text{substation}}$$
+
+Where $C_{\text{transmission/km}} \approx$ $500K–1M/km for 150 kV in Indonesia, and $C_{\text{substation}} \approx$ $5–15M per 150/20 kV step-down. This is a screening estimate to help DFIs identify cost-effective grid investment opportunities relative to solar potential unlocked.
 
 ---
 
@@ -836,7 +904,9 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | ~~IDR/USD exchange rate hardcoded (15,800)~~ | ~~No FX sensitivity~~ | ✅ Resolved — IDR/USD rate is now a user-adjustable Tier 2 slider (range: 14,000–18,000, default: 15,800). Changes affect grid tariff conversion and all downstream comparisons. |
 | ~~Grid cost proxy may be BPP, not actual industrial tariff~~ | ~~LCOE gap overstated if BPP > tariff~~ | ✅ Resolved — I-4/TT tariff is primary comparator; BPP Pembangkitan (Kepmen ESDM 169/2021) now populated as secondary reference |
 | LCOE excludes firming costs (within_boundary) | On-site all-in cost understated by ~$6–16/MWh for intermittency backup | `lcoe_solar_with_firming()` in `basic_model.py`; not yet a dedicated scorecard column |
-| ~~LCOE excludes transmission lease (remote_captive)~~ | ~~All-in PPA cost understated for 23/25 KEKs~~ | ✅ Implemented — `lcoe_allin_*` in `fct_lcoe`; `lcoe_remote_captive_allin_*` in scorecard. Adder = $5–15/MWh ($10 mid). |
+| ~~LCOE excludes transmission lease (remote_captive)~~ | ~~All-in PPA cost understated for 23/25 KEKs~~ | ✅ Resolved (V2) — transmission lease removed. Grid-connected solar uses connection cost only; PLN delivers at system cost (in BPP/tariff). |
+| Grid-connected solar requires PLN partnership | PLN controls procurement; scenario assumes PLN is willing to procure solar | Dashboard reads as "if solar procurement is enabled, here are the economics." Within-boundary remains PLN-independent. |
+| Connection costs are highly site-specific | Terrain, land acquisition, permitting vary enormously across 25 KEKs | Connection cost parameters are user-adjustable with wide ranges ($2–15/kW-km, $30–200/kW fixed) |
 | KEK demand figures not available (using RUPTL region-level data) | GEAS allocation is approximate | Label `green_share_geas` as indicative, not contractual |
 | RUPTL capacity additions are planned, not committed | `grid_upgrade_pre2030` and `plan_late` flags may change | Vintage-stamp RUPTL data; re-run on new RUPTL releases |
 | No reliability data (SAIDI/SAIFI) | Cannot quantify reliability premium for captive solar | Deferred to v2 when PLN data is available |
@@ -850,7 +920,7 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | Assumption | Value | Rationale | Sensitivity |
 |-----------|-------|-----------|-------------|
 | Default WACC | 10% | ADB benchmark for SEA renewable energy | Precomputed snaps: 4–20% (2% steps); dashboard slider: 4–20% |
-| Transmission lease adder | $10/MWh mid ($5–15 range) | PLN wheeling + backup charge for remote captive plants | Low/mid/high range shown in `lcoe_allin_*` columns; 0 for within_boundary |
+| Grid connection cost | $5/kW-km + $80/kW fixed | Solar-to-substation connection (V2 model) | User-adjustable: $2–15/kW-km, $30–200/kW fixed |
 | PVOUT siting radius | 50 km | Typical captive power siting radius in Indonesia | Fixed in MVP |
 | Regional solar CF (GEAS) | 20% | Representative for RUPTL-planned utility solar in Indonesia | Low sensitivity |
 | RUPTL GEAS baseline allocation | Pro-rata to demand | Simplest defensible allocation; no preferential treatment | Policy scenario uses demand × PVOUT |
@@ -859,7 +929,7 @@ On-site captive plants may still need grid backup for intermittency. This is the
 | PVOUT plausibility bounds | 1,000–2,500 kWh/kWp/yr | Indonesia solar range from Global Solar Atlas | Used for data validation, not analysis |
 | Buildable land (≥ 10 ha contiguous, slope ≤ 8°, outside Kawasan Hutan / peat / flood zones) assumed to exist within 50km radius | MVP simplification — risk is highest for Java KEKs (dense agriculture) and Sulawesi KEKs (Kawasan Hutan + steep terrain); outer Sumatra KEKs are generally lower risk | `pvout_best_50km` labeled `provisional`; v1.1 applies 4-layer filter (Section 2.5) to compute `pvout_buildable_best_50km` and `buildable_area_ha` |
 | Land use for captive solar assumed compliant with RTRW spatial plan | Local spatial plans (RTRW kabupaten/provinsi) may designate specific zones for industrial vs. agricultural use; solar on APL land is generally permissible but RTRW compliance must be verified per KEK by the developer | Not modeled; flagged as due diligence item for any KEK showing as `solar_now` |
-| Firming/wheeling adder | $6–16/MWh | Industry estimates; not empirically validated for Indonesia | Shown as range, labeled as approximate |
+| Firming adder | $6–16/MWh | Industry estimates; not empirically validated for Indonesia | Shown as range, labeled as approximate |
 | Panel degradation | Not modeled (constant CF assumed) | CRF annuity method assumes flat annual production. Actual ~0.5%/yr degradation understates LCOE by ~6–7% over 27 years. Standard for IEA/IRENA screening models | For project-level analysis, adjust CF downward |
 | Solar lifecycle emissions | Excluded from carbon breakeven | ~40 gCO2/MWh (IPCC AR6 median) not subtracted from grid displacement. Breakeven prices ~5–8% optimistic | Note in dashboard tooltip; use corrected formula for formal analysis |
 | IDR/USD exchange rate | 15,800 (default) | 2024 reference. User-adjustable slider: 14,000–18,000 | Tier 2 slider; ~$3/MWh grid cost change per 5% FX move |
@@ -881,9 +951,8 @@ The dashboard exposes three tiers of adjustable parameters. All recompute the sc
 | Slider | Default | Range | Effect |
 |--------|---------|-------|--------|
 | Fixed O&M | 7.5 $/kW-yr | 3–15 | Annual maintenance cost |
-| Gen-tie cost | 5 $/kW-km | 2–12 | Transmission line build cost |
-| Substation works | 150 $/kW | 80–250 | Interconnection cost |
-| Transmission lease | 10 $/MWh | 3–20 | Ongoing wheeling fee |
+| Connection cost | 5 $/kW-km | 2–15 | Solar-to-substation line cost |
+| Grid connection fixed | 80 $/kW | 30–200 | Substation interconnection works |
 | Firming adder | 11 $/MWh | 5–20 | Battery/backup cost |
 | IDR/USD rate | 15,800 | 14,000–18,000 | Exchange rate for tariff conversion |
 
@@ -920,7 +989,7 @@ The dashboard exposes three tiers of adjustable parameters. All recompute the sc
 
 7. ✅ **WACC expansion** — `WACC_VALUES` expanded to `[4, 6, 8, 10, 12, 14, 16, 18, 20]` (2% steps). `fct_lcoe` now 450 rows (was 150). Covers full concessional-to-equity spectrum: IFC/AIIB blended (4–6%), base case (10%), private equity ceiling (20%).
 
-8. ✅ **Transmission lease fee** — `lcoe_allin_*` columns added to `fct_lcoe`; `lcoe_remote_captive_allin_*` and `transmission_lease_adder_usd_mwh` added to `fct_kek_scorecard`. Adder = $5–15/MWh ($10 mid) for `remote_captive` only; 0 for `within_boundary`.
+8. ✅ **Transmission lease fee** — V2 update: transmission lease removed entirely. In the grid-connected solar model, PLN absorbs delivery cost in BPP/tariff. Connection cost (solar→substation) replaces the gen-tie + lease model.
 
 9. ✅ **Project viability threshold** — `project_viable` boolean added to `fct_kek_scorecard`. Derived from `max_captive_capacity_mwp ≥ 20 MWp` (IPP minimum; DFI screens at ≥ 33 MWp). All 25 KEKs = True at current 1km buildability resolution.
 

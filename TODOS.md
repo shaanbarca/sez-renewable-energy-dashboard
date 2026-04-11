@@ -1,87 +1,22 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
-Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), Phase 3 autoplan review, and methodology/persona audit.
-Last updated: 2026-04-09.
+Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), and methodology/persona audit.
+Last updated: 2026-04-11 (gap analysis integration, stale items cleaned).
 
-**Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
-
----
-
-## Critical Priority — Methodology V2 Pivot (v2.0)
-
-The remote captive solar thesis (50km private gen-tie) has no global precedent and is unrealistic. V2 replaces it with a grid-connected solar model (IPP sells to PLN, PLN delivers to KEK). See [METHODOLOGY_V2.md](docs/METHODOLOGY_V2.md) for full rationale.
-
-### Backend — Pipeline & Model
-
-| # | Item | Files | Depends on | Notes |
-|---|------|-------|-----------|-------|
-| V2-B1 | **Best solar site coordinates** | `build_fct_kek_resource.py` | — | Record lat/lon of the pixel where `pvout_buildable_best_50km` was found. Add columns `best_solar_site_lat`, `best_solar_site_lon`. Unblocks V2-B2. |
-| V2-B2 | **Three-point proximity pipeline** | `build_fct_substation_proximity.py` | V2-B1 | Compute `dist_solar_to_nearest_substation_km` (reuse `_nearest_substation()` helper). Add substation capacity check. Derive `grid_integration_category`: `within_boundary` / `grid_ready` / `invest_grid` / `grid_first`. |
-| V2-B3 | **Within-boundary capacity** | `build_fct_kek_resource.py` | — | Estimate `within_boundary_capacity_mwp` from KEK polygon area (discounted for built-up land). Parallel to V2-B1. |
-| V2-B4 | **Assumptions update** | `assumptions.py` | — | Rename `GENTIE_COST_PER_KW_KM` → `CONNECTION_COST_PER_KW_KM` (default $5, range $2–15). Replace `SUBSTATION_WORKS_PER_KW` → `GRID_CONNECTION_FIXED_PER_KW` (default $80, range $30–200). Deprecate `TRANSMISSION_LEASE_*`. Add threshold constants: `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM=10`, `KEK_TO_SUBSTATION_LOW_THRESHOLD_KM=15`, `SUBSTATION_MIN_CAPACITY_MVA=30`. Split viability: `PROJECT_VIABLE_MIN_MWP_WB=0.5`, `PROJECT_VIABLE_MIN_MWP_GC=20`. |
-| V2-B5 | **Model function renames** | `basic_model.py` | V2-B4 | Rename `lcoe_solar_remote_captive()` → `lcoe_solar_grid_connected()`. Rename `gentie_cost_per_kw()` → `grid_connection_cost_per_kw()`. Add `grid_integration_category()` function. Revise `action_flags()` — add `invest_grid`, remove `invest_resilience`. Update `ActionFlag` enum. |
-| V2-B6 | **LCOE pipeline update** | `build_fct_lcoe.py` | V2-B2, V2-B4, V2-B5 | Replace `remote_captive` scenario with `grid_connected_solar`. Use `dist_solar_to_nearest_substation_km`. Remove transmission lease columns. |
-| V2-B7 | **Dashboard logic + API** | `logic.py`, `scorecard.py` | V2-B5, V2-B6 | Rename fields in `UserAssumptions`. Replace remote_captive computation. Add `grid_integration_category`, `solar_vs_bpp_gap_pct`, `bpp_status` to scorecard output. |
-| V2-B8 | **Tests** | `tests/test_model.py`, `tests/test_pipeline.py`, `tests/test_dash_logic.py` | V2-B5, V2-B6, V2-B7 | Rename tests referencing `remote_captive`/`gentie`. Update expected values. Add tests for `grid_integration_category()`, three-point proximity, split viability thresholds. |
-
-### Frontend
-
-| # | Item | Files | Depends on | Notes |
-|---|------|-------|-----------|-------|
-| V2-F1 | **TypeScript interfaces** | `types.ts` | V2-B7 | Update `ScorecardRow`: replace `lcoe_remote_captive_allin_usd_mwh` → `lcoe_grid_connected_usd_mwh`. Add `grid_integration_category`, `dist_solar_to_nearest_substation_km`, `solar_vs_bpp_gap_pct`, `bpp_status`. Add `invest_grid` to `ActionFlag` type. |
-| V2-F2 | **Assumptions panel** | `AssumptionsPanel.tsx` | V2-F1 | Replace gen-tie slider → grid connection cost slider ($2–15/kW-km). Replace substation works slider → grid connection fixed ($30–200/kW). Remove transmission lease slider. Add threshold sliders for solar-to-substation and KEK-to-substation distances. |
-| V2-F3 | **Score drawer** | `ScoreDrawer.tsx` | V2-F1 | Replace "All-in Remote LCOE" → "Grid-Connected Solar LCOE". Add grid integration category badge. Show `dist_solar_to_nearest_substation_km`. Show `bpp_status` indicator (verified vs estimated). |
-| V2-F4 | **Table columns** | `RankedTable` or similar | V2-F1 | Add `grid_integration_category` column (filterable). Add `bpp_status` indicator. Update column tooltips. |
-| V2-F5 | **Map markers** | Map components | V2-F1 | Color-code markers by `grid_integration_category` (in addition to existing action flag coloring). |
-| V2-F6 | **Walkthrough + methodology modal** | Walkthrough, MethodologyModal | V2-F3 | Update all text references: "remote captive" → "grid-connected solar", "gen-tie" → "grid connection". Update persona walkthrough steps. Point methodology modal to V2 content. |
-
-### Documentation
-
-| # | Item | Files | Depends on | Notes |
-|---|------|-------|-----------|-------|
-| V2-D1 | **Update PERSONAS.md** | `PERSONAS.md` | — | Reframe DFI Investor → DFI Infrastructure Investor. Reframe IPP journey (pre-positioning + advocacy, not free site selection). Add Persona 5: Industrial Investor / KEK Tenant. Update readiness scores. Can start immediately. |
-| V2-D2 | **Merge METHODOLOGY_V2.md** | `METHODOLOGY.md` | V2-B6 | Merge V2 content into main methodology doc after code changes are implemented and verified. |
-| V2-D3 | **Update DATA_DICTIONARY.md** | `DATA_DICTIONARY.md` | V2-B6 | Add new columns, rename changed columns, update statuses. |
-| V2-D4 | **Update DESIGN.md changelog** | `DESIGN.md` | V2-F6 | Add 4 changelog entries (thesis pivot, DFI reframe, new persona, new action flag). |
-| V2-D5 | **Update CLAUDE.md** | `CLAUDE.md` | V2-B6 | Update fact table descriptions, siting scenario references, architecture notes. |
-
-### Implementation order
-
-```
-Phase A (parallel, no code deps):
-  V2-D1 (personas)     — can start now
-  V2-B1 (solar coords) — unblocks B2
-  V2-B3 (WB capacity)  — independent
-  V2-B4 (assumptions)  — independent
-
-Phase B (after Phase A):
-  V2-B2 (3-point proximity) — needs B1
-  V2-B5 (model renames)     — needs B4
-
-Phase C (after Phase B):
-  V2-B6 (LCOE pipeline) — needs B2, B4, B5
-  V2-B8 (tests)         — needs B5, B6
-
-Phase D (after Phase C):
-  V2-B7 (logic + API)   — needs B5, B6
-  V2-F1 (types)         — needs B7
-
-Phase E (after Phase D):
-  V2-F2–F6 (all frontend) — needs F1
-  V2-D2–D5 (doc merge)    — needs B6, F6
-```
+**Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
 ---
 
-## High Priority (v1.1) — All Complete
+## Quick-Win Priority (docs only, no code)
 
-| # | Item | Source | Personas | Notes |
-|---|------|--------|----------|-------|
-| ~~H1~~ | ~~**Wind CF pipeline integration**~~ | ~~PLAN.md decision #19~~ | ~~P3~~ | ✅ Complete — see Completed table below |
-| ~~H2~~ | ~~**BPP data sourcing**~~ | ~~PERSONAS.md gap priority 4~~ | ~~P1~~ | ✅ Complete — see Completed table below |
-| ~~H3~~ | ~~**Land cover buildability refinement**~~ | ~~PLAN.md Phase 2 deferred~~ | ~~P2, P4~~ | ✅ Complete — see Completed table below |
-| ~~H4~~ | ~~**Configurable assumptions — Phase B (infrastructure costs)**~~ | ~~DESIGN.md §3, decision #34~~ | ~~P2, P4~~ | ✅ Complete — see Completed table below |
-| ~~H5~~ | ~~**Configurable assumptions — Phase C (flag thresholds)**~~ | ~~DESIGN.md §3, decision #34~~ | ~~P3~~ | ✅ Complete — see Completed table below |
+Items from the gap analysis that are documentation additions or trivial column derivations.
+
+| # | Item | Source | Files | Status |
+|---|------|--------|-------|--------|
+| ~~Q1~~ | ~~**Indonesia transmission corridor context note**~~ | Gap analysis P0 | `METHODOLOGY_CONSOLIDATED.md` §8.3 | ✅ Done (2026-04-11) — added Norton Rose Fulbright 20-40km context and $5/kW-km → $/km translation. |
+| ~~Q2~~ | ~~**Gen-tie cost unit translation note**~~ | Gap analysis P0 | `METHODOLOGY_CONSOLIDATED.md` §6.2 | ✅ Done (2026-04-11) — example: 25 MW at 5 km = $2.625M total = ~$0.5M/km. |
+| ~~Q3~~ | ~~**Build vs. buy wheeling note for Tenant persona**~~ | Gap analysis P0 | `PERSONAS.md` P5 | ✅ Done (2026-04-11) — forward-looking wheeling note added. |
+| ~~Q4~~ | ~~**`grid_investment_needed_usd` as first-class column**~~ | Gap analysis P0, PERSONAS.md P2 | `build_fct_kek_scorecard.py`, `logic.py`, `types.ts` | ✅ Done (2026-04-11) — `(connection_cost_per_kw + transmission_cost_per_kw) x max_captive_capacity_mwp x 1000`. 18/25 KEKs have values ($8M to $2.4B). |
 
 ---
 
@@ -89,15 +24,22 @@ Phase E (after Phase D):
 
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
-| M1 | **Grid emission factor update** | PERSONAS.md gap priority 5 | P1, P3 | KESDM 2019 Tier 2 OM → 2023 KESDM or IEA SEA 2024 data. Affects `carbon_breakeven_usd_tco2` accuracy. See [METHODOLOGY.md §4](METHODOLOGY.md) for current emission factor methodology. |
-| M2 | **Road proximity layer (Layer 3a)** | PERSONAS.md gap priority 8 | P2, P4 | OSM PBF processing → `dist_to_nearest_road_km`. Construction access cost proxy for remote captive sites. |
-| M3 | **CAPEX market comparables** | PERSONAS.md P1 data gaps | P1 | 2023–2024 Indonesia solar EPC tender data. ESDM catalogue value ($960/kW) may be ±15–20% from market reality. |
-| M4 | **KEK operational status enrichment** | PERSONAS.md gap priority 7 | P4 | Distinguish operating (tenants present) vs. greenfield KEKs. Requires BKPM/KEK management data sourcing. |
-| M5 | **Custom CAPEX input for IPP** | PERSONAS.md P4 audit finding | P4 | Slider exists ($600–1,500/kW). Still needs free-text input for exact $/kW. Workaround: export CSV with CF values and recompute in own model. |
-| M6 | **Configurable assumptions — Phase D (UX polish)** | DESIGN.md §3, decision #34 | All | Reset-to-defaults ✅ done. Still TODO: URL state persistence (`?capex=840&wacc=8`), "scenario changed" badge, export-with-assumptions metadata. |
-| M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets and compare side-by-side. Requires Zustand persist + local storage. |
-| M9 | **Raster overlay bounds expansion** | UI bug (2026-04-09) | All | Raster overlays (PVOUT, wind, buildable) have fixed geographic bounds that clip visibly when the map is pitched (3D terrain). Backend `map_layers.py` generates images at a tight bounding box around Indonesia — needs to be expanded with padding (e.g. ±5° lat/lon) so tilted viewports don't show a hard cutoff line. Currently worked around in frontend by only auto-pitching when zoomed in (zoom > 7). |
-| M8 | **Floating solar modelling** | User observation (2026-04-08) | P2, P4 | Current model excludes water bodies (ESA WorldCover code 80) from buildable area. Floating PV on reservoirs, coastal lagoons, and nearshore waters could unlock viable capacity for land-constrained KEKs (e.g., Bali's Sanur/Kura Kura show ~1,000 ha buildable but fragmented). Floating solar CAPEX is ~20-30% higher than ground-mount ($1,100-1,400/kW vs $960/kW). Requires: (1) identify water bodies within 50km of each KEK, (2) add floating solar CAPEX assumption, (3) new `siting_scenario: floating` in `fct_lcoe`, (4) update buildability filters to include water surfaces as a separate category. |
+| M1 | **Grid emission factor update** | PERSONAS.md gap 5 | P1, P3 | KESDM 2019 Tier 2 OM → 2023 KESDM or IEA SEA 2024 data. Affects `carbon_breakeven_usd_tco2` accuracy (7 years stale). |
+| M2 | **Road proximity layer (Layer 3a)** | PERSONAS.md gap 8 | P2, P4 | OSM PBF processing → `dist_to_nearest_road_km`. Construction access cost proxy. |
+| M3 | **CAPEX market comparables** | PERSONAS.md P1 gaps | P1 | 2023-2024 Indonesia solar EPC tender data. ESDM catalogue ($960/kW) may be +/-15-20% from market. |
+| M4 | **KEK operational status enrichment** | PERSONAS.md gap 7 | P4 | Distinguish operating (tenants present) vs. greenfield. Requires BKPM/KEK management data. |
+| M5 | **Custom CAPEX input for IPP** | PERSONAS.md P4 audit | P4 | Slider gives 3 bands. IPPs need free-text input for exact $/kW. Workaround: export CSV + recompute. |
+| M6 | **Configurable assumptions — Phase D (UX polish)** | DESIGN.md §3 | All | URL state persistence (`?capex=840&wacc=8`), "scenario changed" badge, export-with-assumptions metadata. Reset-to-defaults ✅ done. |
+| M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets, compare side-by-side. Zustand persist + local storage. |
+| M8 | **Floating solar modelling** | User obs (2026-04-08) | P2, P4 | Water bodies excluded from buildable area. Floating PV on reservoirs/lagoons could unlock capacity for land-constrained KEKs. CAPEX ~20-30% higher ($1,100-1,400/kW). Requires new siting scenario. |
+| M9 | **Raster overlay bounds expansion** | UI bug (2026-04-09) | All | Raster overlays clip when map is pitched (3D terrain). Backend `map_layers.py` bounding box needs padding (+/-5 deg). Workaround: auto-pitch only at zoom > 7. |
+| M10 | **Substation-name-to-line-name matching** | V3.1 deferred | All | Grid line names encode endpoints but naming is inconsistent. Geometric check is more reliable. Nice-to-have refinement. |
+| M11 | **Night-time light proxy for utilization** | V3.1 deferred | P2 | VIIRS/DMSP satellite data as proxy for substation load. Improves `capacity_assessment` vs. fixed 65% assumption. |
+| M12 | **Substation upgrade cost in LCOE** | Gap analysis P1, V3.1 deferred | P2, P3 | When `capacity_assessment == "red"`, fold parametric upgrade cost (capacity_gap_mva x $/MVA) into grid-connected LCOE. Turns qualitative flag into quantitative impact. |
+| M13 | **Sub-pixel buildable fraction from ESA WorldCover** | Buildability review (2026-04-10) | P2 | Current `Resampling.mode` at 10m→1km loses sub-pixel detail. Replace with binary-threshold + average resampling at 50%. |
+| M14 | **Buildable land polygons** | Gap analysis P1 | P2, P4 | Convert contiguous buildable pixels into discrete polygon objects (area, max MW, centroid, avg PVOUT). Enables showing WHERE buildable areas are on map, comparing multiple sites per KEK. Value improves with higher-res data. Currently ~1km resolution = coarse polygons. |
+| M15 | **Multi-substation comparison** | Gap analysis P2 | P4 | Evaluate top 3 substations within search radius. Compare total interconnection cost: closer-but-constrained vs. farther-but-available. Medium priority, becomes important for investment-grade analysis. |
+| M16 | **Capacity slider with LCOE curve** | Gap analysis P1 | P4 | Slider for "desired build capacity" (10 MW to max). Shows how LCOE changes with scale: fixed costs dominate at small sizes, grid constraints push cost up at large sizes. High value for IPP "how big should I build?" question. |
 
 ---
 
@@ -105,46 +47,46 @@ Phase E (after Phase D):
 
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
-| L1 | **Datasette REST API** | PLAN.md CEO review | All | Mirror processed CSVs via REST API for programmatic access. New infrastructure dependency. |
-| L2 | **SAIDI/SAIFI reliability indicators** | PLAN.md CEO review | P3 | Replace hardcoded `reliability_req` with PLN SAIDI/SAIFI by grid system. Strengthens `invest_resilience` flag credibility. |
-| L3 | **Flood hazard layer (Layer 2d)** | PERSONAS.md gap priority 9 | P2 | BNPB portal inaccessible. Low incremental value over existing slope exclusion layer. Blocked on data access. |
-| L4 | **Excel/PDF export pipeline** | Autoplan CEO subagent | All | Beyond CSV + GeoJSON: formatted Excel workbook with embedded charts and PDF scorecard per KEK. Distribution format for analysts who won't bookmark a Dash URL. |
-| L5 | **Multilingual (EN/ID)** | — | P3 | Indonesian language option for BKPM/KESDM officials. Adds i18n complexity. |
-| L6 | **Mapbox basemap upgrade from Carto** | DESIGN.md §6 Q2 | All | Currently using Carto dark-matter tiles. Mapbox token exists (used for 3D terrain DEM) but basemap still Carto. Prettier tiles but adds dependency. |
-| L7 | **Mobile responsive layout** | DESIGN.md §6 Q3 | All | Primary users are analysts with laptops. Mobile adds CSS complexity. Deferred from MVP. |
-| L8 | **KEK Management persona (P5)** | Methodology/persona audit | — | Zone administrators (BKPM-appointed) who use the tool to attract tenants. Distinct journey from P1–P4. Good v2.0 addition. |
-| L9 | **Carbon price trajectory modelling** | PERSONAS.md P3 data gaps | P3 | Link `carbon_breakeven_usd_tco2` to Indonesia's ETS trajectory (Article 6 commitments, IDR carbon market). Policy makers need: "at projected carbon price path, when does solar win?" |
+| L1 | **Datasette REST API** | PLAN.md CEO review | All | Mirror processed CSVs via REST API for programmatic access. |
+| L2 | **SAIDI/SAIFI reliability indicators** | PLAN.md CEO review | P3 | Replace hardcoded `reliability_req` with PLN SAIDI/SAIFI by grid system. Strengthens `invest_resilience` flag. |
+| L3 | **Flood hazard layer (Layer 2d)** | PERSONAS.md gap 9 | P2 | BNPB portal inaccessible. Low incremental value over slope layer. Blocked on data access. |
+| L4 | **Excel/PDF export pipeline** | Autoplan CEO subagent | All | Formatted Excel workbook with charts + PDF scorecard per KEK. |
+| L5 | **Multilingual (EN/ID)** | — | P3 | Indonesian language option for BKPM/KESDM officials. |
+| L6 | **Mapbox basemap upgrade from Carto** | DESIGN.md §6 Q2 | All | Prettier tiles but adds dependency. Mapbox token exists (used for terrain DEM). |
+| L7 | **Mobile responsive layout** | DESIGN.md §6 Q3 | All | Primary users are analysts with laptops. |
+| L8 | **KEK Management persona (P6)** | Methodology/persona audit | — | Zone administrators (BKPM-appointed) who use the tool to attract tenants. |
+| L9 | **Carbon price trajectory modelling** | PERSONAS.md P3 gaps | P3 | Link `carbon_breakeven_usd_tco2` to Indonesia ETS trajectory. |
+| L10 | **Spatial story / SEZ-anchored map view** | Gap analysis P2 | P3 | Start from KEK, radiate outward to show solar, color-code by gap type. More of a UX change than data model. Backend data already supports this. |
 
 ---
 
 ## Completed
 
+### V2 Pivot (all complete)
+
+The remote captive solar thesis was replaced with a grid-connected solar model. All 8 backend items (V2-B1 through V2-B8), 6 frontend items (V2-F1 through V2-F6), and 5 documentation items (V2-D1 through V2-D5) are done. See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the final methodology.
+
+### High Priority items (all complete)
+
+H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infrastructure cost sliders, H5 Flag threshold sliders — all done.
+
+### Feature completions
+
 | # | Item | Date | Notes |
 |---|------|------|-------|
-| ✅ H2 | **BPP data sourcing** | 2026-04-07 | Regional BPP Pembangkitan from Kepmen ESDM 169/2021 (FY2020). `bpp_usd_mwh` populated for all 7 grid regions via `pdf_extract_bpp.py`. Java-Bali ~$57/MWh, Papua ~$133/MWh. 10 BPP tests added. |
-| ✅ H3 | **Land cover buildability refinement** | 2026-04-07 | Upgraded kawasan hutan to full KLHK 66K-polygon shapefile (555MB). Integrated KLHK peatland vector boundaries (1,524 features). All 4 buildability layers now active. 7/25 KEKs show zero buildable area. |
-| ✅ | **Configurable assumptions — Phase A (core LCOE controls)** | 2026-04-07 | `src/dash/logic.py` created: `UserAssumptions`, `UserThresholds`, `compute_lcoe_live()`, `compute_scorecard_live()`. 22 tests passing. CAPEX slider + Lifetime slider ready for Dash wiring. |
-| ✅ | **Methodology expert review** | 2026-04-07 | 10 fixes applied to METHODOLOGY.md: stale WACC range, buildability caveats, slope threshold, degradation note, GSA temperature de-rating, carbon lifecycle emissions, FX sensitivity. |
-| ✅ | **Personas expert review** | 2026-04-07 | P3 solar-only caveat added, P4 custom CAPEX note added. `solar_now_at_wacc8` column verified in scorecard CSV. |
-| ✅ | **DESIGN.md configurable assumptions spec** | 2026-04-07 | Decision #34: 3-tier slider controls, hybrid precomputed/live architecture, callback diagram, component choices for 16 controls. |
-| ✅ | **React + Vite migration (Lanes A-E)** | 2026-04-08 | Full Dash → React migration. FastAPI backend (7 endpoints), Vite + React 18 SPA, MapLibre map, TanStack Table, Recharts, Zustand store. All features at parity. |
-| ✅ | **Raster layer color legends** | 2026-04-08 | Gradient legend strips for PVOUT (YlOrRd), Wind (Blues), Buildable (YlGn) when layers toggled on. Draggable, includes 50km radius legend. |
-| ✅ | **Methodology modal with KaTeX** | 2026-04-08 | METHODOLOGY.md rendered in-app via react-markdown + KaTeX. Anchor links scroll within modal. All formulas converted to LaTeX notation. |
-| ✅ | **Biome formatter** | 2026-04-08 | Biome added as pre-commit hook for TypeScript/React formatting and linting. `npm run lint` / `npm run format` scripts. |
-| ✅ | **Liquid glass UI** | 2026-04-08 | Header bar, Back to National View button use backdrop-filter glass styling. Map is full-screen with overlaying UI. |
-| ✅ | **Draggable panels** | 2026-04-08 | Assumptions, Layer Control, Raster Legends all movable via `useDraggable` hook. |
-| ✅ | **50km radius circle** | 2026-04-08 | GeoJSON circle renders on map when KEK selected. Stays visible when drawer closed (only clears on Back to National View). |
-| ✅ | **Buildable area fragmentation warning** | 2026-04-08 | Amber warning in ScoreDrawer Resource tab for KEKs with <2,000 ha buildable area. |
-| ✅ H1 | **Wind CF pipeline integration** | 2026-04-08 | Full wind pipeline: `build_fct_kek_wind_resource.py` → `cf_wind_centroid`, `cf_wind_best_50km`, `wind_class`. EnergyToggle (Solar/Wind/Overall) in frontend. Wind speed raster layer with legend. `best_re_technology` column shows wind where applicable. |
-| ✅ H4 | **Configurable assumptions — Phase B (infrastructure costs)** | 2026-04-08 | All 6 sliders in tier2 accordion: FOM, gen-tie, substation, transmission lease, firming adder, IDR/USD rate. Live recomputation via `compute_scorecard_live()`. |
-| ✅ H5 | **Configurable assumptions — Phase C (flag thresholds)** | 2026-04-08 | All 6 thresholds in tier3 accordion: PVOUT threshold, plan-late %, GEAS %, resilience gap %, min viable MWp, reliability threshold. Action flags recompute live. |
-| ✅ | **Infrastructure typed icons** | 2026-04-09 | Replaced generic green circles with 9 typed SVG icons (airport, port, road, railway, power, water, telecom, facility, other). Substations use lightning bolt icons (blue=nearby, yellow=nearest). |
-| ✅ | **Persona-based walkthrough tour** | 2026-04-09 | 4 persona cards on first load, 8-step spotlight tour per persona. Steps drive UI (switch tabs, select KEK). Guide button in header to re-launch. |
-| ✅ | **3D terrain rendering** | 2026-04-09 | Mapbox terrain-rgb DEM tiles via MapLibre `setTerrain()`. Toggle in layer control. Auto-pitches to 50° once zoomed in (zoom ≥ 7) to avoid the pitched national view looking broken. |
-| ✅ | **Capacity (MWp) column** | 2026-04-09 | `max_captive_capacity_mwp` column in ranked table, sortable. |
-| ✅ | **Column filters (dropdown + range)** | 2026-04-09 | Dropdown filters for categorical columns, min/max range filters for numeric columns. Filter toggle with count badge and clear-all. |
-| ✅ | **Column header tooltips** | 2026-04-09 | Info icon (?) on every column header with hover tooltip explaining the column. Action flag cells show contextual explanation of why that flag was assigned. |
-| ✅ | **Benchmark-aware grid rate column** | 2026-04-09 | Grid Rate column switches between BPP and Tariff based on benchmarkMode toggle. Scorecard recomputes on toggle. |
+| ✅ | React + Vite migration | 2026-04-08 | Full Dash → React. FastAPI backend, Vite SPA, MapLibre, TanStack Table, Recharts, Zustand. |
+| ✅ | Wind CF pipeline | 2026-04-08 | `build_fct_kek_wind_resource.py`, EnergyToggle, wind raster layer, `best_re_technology`. |
+| ✅ | BPP data sourcing | 2026-04-07 | Kepmen ESDM 169/2021 (FY2020). 7 grid regions. `pdf_extract_bpp.py`. |
+| ✅ | Land cover buildability | 2026-04-07 | KLHK 66K polygons + peatland 1,524 features. All 4 layers active. |
+| ✅ | Configurable assumptions (A/B/C) | 2026-04-07/08 | 3-tier slider system, benchmark toggle, reset-to-defaults. |
+| ✅ | Persona walkthrough tour | 2026-04-09 | 4 personas x 8 steps, spotlight overlay, Guide button. |
+| ✅ | 3D terrain rendering | 2026-04-09 | Mapbox terrain-rgb DEM, auto-pitch at zoom >= 7. |
+| ✅ | V3.1 grid infrastructure | 2026-04-10 | Grid line connectivity (1,595 lines), capacity traffic light, action flag split, threshold tightening. |
+| ✅ | Buildability circular mask | 2026-04-10 | Haversine mask replaces bounding box. `best_solar_site_dist_km` column. |
+| ✅ | Methodology consolidation | 2026-04-11 | Merged METHODOLOGY.md + METHODOLOGY_V2.md + methodology_testing.md → single METHODOLOGY_CONSOLIDATED.md. |
+| ✅ | PERSONAS.md V3.1 update | 2026-04-11 | Readiness scores, stale references, flag names, data gaps all updated. |
+| ✅ | USER_JOURNEYS.md | 2026-04-11 | Standalone user journey doc mapped to actual UI components. |
+| ✅ | Gap analysis integration | 2026-04-11 | P0 doc additions (transmission corridor context, gen-tie cost translation, tenant wheeling note). Deferred items added to methodology with TODOS.md cross-references. |
 
 ---
 
@@ -156,8 +98,8 @@ These are data limitations. The dashboard should display clear labels/tooltips f
 |---|--------|------------------|--------|
 | C1 | `demand_mwh_2030` is area x intensity proxy | Tooltip: "Estimated from KEK area x industrial intensity. Not suitable for PPA sizing; field surveys required." | PERSONAS.md P4 data gaps |
 | C2 | GEAS pro-rata allocation is indicative | Label: "Indicative GEAS allocation, not contractual. Actual allocation depends on PLN tender design." | PERSONAS.md P3 data gaps |
-| C3 | Substation capacity nulls (5/25 KEKs) | Display "—" with tooltip: "Capacity not recorded by PLN" | PERSONAS.md P2 data gaps |
+| C3 | Substation capacity nulls (6/25 KEKs) | Display "—" with tooltip: "Capacity not recorded by PLN" | PERSONAS.md P2 data gaps |
 | C4 | `reliability_req` is type-based proxy | Label on `invest_resilience` flag: "Based on KEK type (manufacturing=0.8, tourism=0.4), pending PLN SAIDI/SAIFI data" | PERSONAS.md P3 data gaps |
-| C5 | Panel degradation not modeled | Tooltip on LCOE values: "Screening-level LCOE; does not include ~0.5%/yr panel degradation (~6–7% understatement). Standard for IEA/IRENA screening models." | Methodology audit F7 |
-| C6 | Carbon breakeven excludes solar lifecycle emissions | Tooltip on carbon breakeven: "Assumes zero solar lifecycle emissions. Actual ~40 gCO2/MWh (IPCC AR6). Breakeven ~5–8% optimistic." | Methodology audit F9 |
+| C5 | Panel degradation not modeled | Tooltip on LCOE values: "Screening-level LCOE; does not include ~0.5%/yr panel degradation (~6-7% understatement). Standard for IEA/IRENA screening models." | Methodology audit F7 |
+| C6 | Carbon breakeven excludes solar lifecycle emissions | Tooltip on carbon breakeven: "Assumes zero solar lifecycle emissions. Actual ~40 gCO2/MWh (IPCC AR6). Breakeven ~5-8% optimistic." | Methodology audit F9 |
 | C7 | IDR/USD rate hardcoded | Tooltip on grid cost: "Grid cost converted at 15,800 IDR/USD (2024). A 5% FX move changes grid cost by ~$3/MWh." | Methodology audit F10 |

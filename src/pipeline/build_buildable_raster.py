@@ -45,6 +45,11 @@ GEOTIFF_ZIP = DATA_DIR / "Indonesia_GISdata_LTAym_AvgDailyTotals_GlobalSolarAtla
 PVOUT_TIF_PATH = "Indonesia_GISdata_LTAy_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF/PVOUT.tif"
 OUT_DIR = REPO_ROOT / "outputs" / "assets"
 
+# Minimum buildable pixels required in a 4×4 block for the web raster.
+# At 1 (old default), a single isolated buildable pixel would appear as a large blob
+# on the map due to 4× downsampling. Requiring ≥2 reduces visual false positives.
+MIN_BUILDABLE_PER_BLOCK: int = 2
+
 
 def _load_pvout() -> tuple[np.ndarray, rasterio.profiles.Profile]:
     """Load full PVOUT raster from zip."""
@@ -219,7 +224,7 @@ def build_buildable_raster():
         for j in range(out_w):
             block = result[i * 4 : (i + 1) * 4, j * 4 : (j + 1) * 4]
             finite = block[np.isfinite(block)]
-            if len(finite) > 0:
+            if len(finite) >= MIN_BUILDABLE_PER_BLOCK:
                 downsampled[i, j] = np.mean(finite)
 
     out_profile = {

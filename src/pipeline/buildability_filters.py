@@ -31,6 +31,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import rasterio.transform
 from scipy import ndimage
 
 # Thresholds — match METHODOLOGY.md §2.5
@@ -206,3 +207,54 @@ def compute_buildability_constraint(
         return "unconstrained"
 
     return max(removed, key=lambda k: removed[k])
+
+
+# ─── Distance helpers ─────────────────────────────────────────────────────────
+
+_EARTH_RADIUS_KM: float = 6371.0
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km between two points (decimal degrees)."""
+    lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
+    lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
+    dlat = lat2_r - lat1_r
+    dlon = lon2_r - lon1_r
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(dlon / 2) ** 2
+    return _EARTH_RADIUS_KM * 2 * math.asin(math.sqrt(a))
+
+
+def compute_distance_mask_km(
+    center_lat: float,
+    center_lon: float,
+    win_transform: rasterio.transform.Affine,
+    shape: tuple[int, int],
+) -> np.ndarray:
+    """Vectorized per-pixel haversine distance (km) from center.
+
+    Args:
+        center_lat, center_lon: Reference point (decimal degrees).
+        win_transform: Affine transform of the raster window.
+        shape: (height, width) of the raster patch.
+
+    Returns:
+        float32 2D array of great-circle distances in km.
+    """
+    rows = np.arange(shape[0])
+    cols = np.arange(shape[1])
+    col_grid, row_grid = np.meshgrid(cols, rows)
+
+    # Pixel center coordinates via affine transform: x = a*col + b*row + c, y = d*col + e*row + f
+    lons = win_transform.a * (col_grid + 0.5) + win_transform.b * (row_grid + 0.5) + win_transform.c
+    lats = win_transform.d * (col_grid + 0.5) + win_transform.e * (row_grid + 0.5) + win_transform.f
+
+    # Vectorized haversine
+    lat1 = np.radians(center_lat)
+    lon1 = np.radians(center_lon)
+    lat2 = np.radians(lats)
+    lon2 = np.radians(lons)
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    return (_EARTH_RADIUS_KM * 2 * np.arcsin(np.sqrt(a))).astype(np.float32)

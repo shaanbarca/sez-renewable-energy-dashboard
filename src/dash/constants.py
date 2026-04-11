@@ -167,6 +167,14 @@ TIER2_SLIDERS = {
         "unit": "$/kW",
         "description": "Land acquisition cost for solar farm, applied to grid-connected scenario only",
     },
+    "substation_utilization_pct": {
+        "min": 0.30,
+        "max": 0.95,
+        "step": 0.05,
+        "label": "Substation utilization",
+        "unit": "%",
+        "description": "Assumed fraction of substation capacity in use. Available capacity = rated × (1 - utilization)",
+    },
     "idr_usd_rate": {
         "min": 14000,
         "max": 18000,

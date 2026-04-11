@@ -139,6 +139,7 @@ def build_fct_kek_scorecard(
                 "lcoe_low_usd_mwh",
                 "lcoe_high_usd_mwh",
                 "connection_cost_per_kw",
+                "transmission_cost_per_kw",
             ]
             if c in lcoe_all.columns
         ]
@@ -190,13 +191,23 @@ def build_fct_kek_scorecard(
     ruptl_summary = _ruptl_region_summary(ruptl)
 
     # Substation proximity: distance + siting scenario + V2 grid integration per KEK
+    # V3.1: also pull connectivity + capacity assessment columns
     _sub_cols = [
         "kek_id",
         "dist_to_nearest_substation_km",
         "nearest_substation_capacity_mva",
         "siting_scenario",
     ]
-    for _col in ["grid_integration_category", "dist_solar_to_nearest_substation_km"]:
+    for _col in [
+        "grid_integration_category",
+        "dist_solar_to_nearest_substation_km",
+        "same_grid_region",
+        "line_connected",
+        "inter_substation_connected",
+        "inter_substation_dist_km",
+        "available_capacity_mva",
+        "capacity_assessment",
+    ]:
         if _col in fct_sub.columns:
             _sub_cols.append(_col)
     sub = fct_sub[_sub_cols].copy()
@@ -475,6 +486,28 @@ def build_fct_kek_scorecard(
     # Downgrade to provisional if capex inputs are provisional
     df.loc[is_provisional, "data_completeness"] = "provisional"
 
+    # V3.1: Ensure optional columns exist (NaN if upstream didn't produce them)
+    for _opt_col in [
+        "same_grid_region",
+        "line_connected",
+        "inter_substation_connected",
+        "inter_substation_dist_km",
+        "available_capacity_mva",
+        "capacity_assessment",
+        "transmission_cost_per_kw",
+    ]:
+        if _opt_col not in df.columns:
+            df[_opt_col] = np.nan
+
+    # Grid investment needed (USD): total grid infrastructure cost × capacity (kW)
+    # Includes gen-tie (connection_cost_per_kw) + new transmission line if needed
+    _infra_cost = df["connection_cost_per_kw"].fillna(0) + df["transmission_cost_per_kw"].fillna(0)
+    df["grid_investment_needed_usd"] = np.where(
+        (_infra_cost > 0) & (df["max_captive_capacity_mwp"] > 0),
+        (_infra_cost * df["max_captive_capacity_mwp"] * 1000).round(0),
+        np.nan,
+    )
+
     return df[
         [
             "kek_id",
@@ -498,6 +531,12 @@ def build_fct_kek_scorecard(
             "nearest_substation_capacity_mva",
             "siting_scenario",
             "grid_integration_category",
+            "same_grid_region",
+            "line_connected",
+            "inter_substation_connected",
+            "inter_substation_dist_km",
+            "available_capacity_mva",
+            "capacity_assessment",
             "project_viable",
             "demand_mwh_2030",
             "lcoe_low_usd_mwh",
@@ -507,6 +546,8 @@ def build_fct_kek_scorecard(
             "lcoe_grid_connected_low_usd_mwh",
             "lcoe_grid_connected_high_usd_mwh",
             "connection_cost_per_kw",
+            "transmission_cost_per_kw",
+            "grid_investment_needed_usd",
             "cf_used",
             "is_cf_provisional",
             "is_capex_provisional",

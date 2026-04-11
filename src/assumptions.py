@@ -212,11 +212,12 @@ TRANSMISSION_LEASE_MID_USD_MWH: float = (
 # All thresholds are user-adjustable in the dashboard.
 # Source: METHODOLOGY_V2.md §2.
 
-SOLAR_TO_SUBSTATION_THRESHOLD_KM: float = 10.0
+SOLAR_TO_SUBSTATION_THRESHOLD_KM: float = 5.0
 # Maximum distance (km) from best buildable solar site to nearest PLN substation
 # for the connection to be considered "short" (i.e., grid_ready or invest_transmission/invest_substation).
-# Source: METHODOLOGY_V2.md §2 — no Indonesia-specific benchmark available;
-# 10 km reflects typical MV connection range for utility-scale solar globally.
+# V3.1: Tightened from 10km to 5km per industry practice.
+# Source: YSG Solar (ideal ≤ 2 miles / 3.2 km), IFC Utility-Scale Solar Guide (max 5 miles / 8 km).
+# 5 km is a conservative mid-point; gen-tie costs ~$1–3M/mile make longer connections uneconomic.
 
 KEK_TO_SUBSTATION_THRESHOLD_KM: float = 15.0
 # Maximum distance (km) from KEK centroid to nearest PLN substation for the KEK
@@ -229,6 +230,39 @@ SUBSTATION_MIN_CAPACITY_MVA: float = 30.0
 # new solar generation. Below this, grid reinforcement may be needed.
 # Source: METHODOLOGY_V2.md §2 — rule of thumb: 70-80% of rated MVA is the
 # practical absorption limit; 30 MVA allows ~21-24 MW injection.
+
+SUBSTATION_UTILIZATION_PCT: float = 0.65
+# Default assumed utilization of existing substation capacity (fraction, 0–1).
+# Available capacity = rated_capacity_mva × (1 − utilization_pct).
+# Source: docs/methodology_testing.md §3 — default 60–70%, mid-point 65%.
+# User-adjustable in dashboard. Range: 0.30–0.95.
+# Proxies for smarter defaults (future): night-light intensity, industrial load, PLN RUPTL flags.
+
+# ─── INTER-SUBSTATION TRANSMISSION (V3.1: new line cost) ─────────────────────
+# When the solar site's nearest substation (B_solar) differs from the KEK's
+# nearest substation (B_kek) and no existing transmission line connects them,
+# someone must build a new line. This cost is added to grid-connected LCOE.
+# Source: docs/methodology_testing.md §1–§2.
+
+TRANSMISSION_LINE_COST_USD_PER_KM: float = 1_250_000
+# Cost to build a new transmission line per km (USD/km).
+# Source: industry range $1–3M/mile → $0.6–1.9M/km. Mid-range: $1.25M/km.
+# Varies by voltage level, terrain, and permitting. User-adjustable.
+
+TRANSMISSION_LINE_MAX_VIABLE_KM: float = 15.0
+# Maximum inter-substation distance (km) before new line economics kill viability.
+# Source: docs/methodology_testing.md §1 — practical limit ~10–15 km.
+# Beyond this, LCOE impact is too large for project finance.
+
+GRID_LINE_BUFFER_KM: float = 2.0
+# Buffer distance (km) for geometric grid line connectivity check.
+# A grid line is considered to "connect" a substation if it passes within
+# this distance. Accounts for GIS digitization error and substation footprint.
+
+TRANSMISSION_FALLBACK_CAPACITY_MWP: float = 20.0
+# Conservative default solar capacity (MWp) used for transmission cost calculation
+# when max_captive_capacity_mwp is unavailable. All 25 KEKs currently have capacity
+# data, so this only fires for future KEKs with missing buildability data.
 
 # ─── PROJECT VIABILITY THRESHOLDS ────────────────────────────────────────────
 # V2 splits the viability threshold by siting scenario.

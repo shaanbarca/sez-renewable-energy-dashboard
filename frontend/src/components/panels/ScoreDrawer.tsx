@@ -351,9 +351,23 @@ function DemandTab({ row }: { row: ScorecardRow }) {
   );
 }
 
+const CAPACITY_COLORS: Record<string, string> = {
+  green: '#4CAF50',
+  yellow: '#FFC107',
+  red: '#F44336',
+  unknown: '#666',
+};
+const CAPACITY_LABELS: Record<string, string> = {
+  green: 'Sufficient',
+  yellow: 'Marginal',
+  red: 'Upgrade needed',
+  unknown: 'Unknown',
+};
+
 function PipelineTab({ row }: { row: ScorecardRow }) {
   const gridUpgrade = row.grid_upgrade_planned;
   const ruptlSummary = row.ruptl_region_summary;
+  const cap = row.capacity_assessment ?? 'unknown';
 
   return (
     <>
@@ -363,7 +377,66 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
           label="Grid Upgrade Planned"
           value={gridUpgrade != null ? (gridUpgrade ? 'Yes' : 'No') : 'N/A'}
         />
+        <StatRow label="Grid Integration" value={row.grid_integration_category ?? 'N/A'} />
       </StatCard>
+
+      {/* V3.1: Substation capacity assessment */}
+      <StatCard>
+        <div className="text-[11px] text-zinc-500 mb-2">Substation Capacity</div>
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className="inline-block w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: CAPACITY_COLORS[cap] }}
+          />
+          <span className="text-xs text-zinc-300">{CAPACITY_LABELS[cap]}</span>
+        </div>
+        <StatRow
+          label="Available Capacity"
+          value={row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'}
+          unit="MVA"
+        />
+        <StatRow
+          label="Nearest Sub Distance"
+          value={row.dist_to_nearest_substation_km?.toFixed(1)}
+          unit="km"
+        />
+        <StatRow
+          label="Solar→Sub Distance"
+          value={row.dist_solar_to_nearest_substation_km?.toFixed(1)}
+          unit="km"
+        />
+        <div className="mt-1 text-[9px] text-zinc-600 leading-relaxed">
+          Actual capacity requires a formal PLN grid study.
+        </div>
+      </StatCard>
+
+      {/* V3.1: Grid connectivity */}
+      <StatCard>
+        <div className="text-[11px] text-zinc-500 mb-2">Grid Connectivity</div>
+        <StatRow
+          label="Transmission Line"
+          value={row.line_connected != null ? (row.line_connected ? 'Connected' : 'None') : 'N/A'}
+        />
+        <StatRow
+          label="Same PLN Region"
+          value={row.same_grid_region != null ? (row.same_grid_region ? 'Yes' : 'No') : 'N/A'}
+        />
+        {row.inter_substation_dist_km != null && (
+          <StatRow
+            label="Inter-Sub Distance"
+            value={row.inter_substation_dist_km.toFixed(1)}
+            unit="km"
+          />
+        )}
+        {row.transmission_cost_per_kw != null && row.transmission_cost_per_kw > 0 && (
+          <StatRow
+            label="New Line Cost"
+            value={row.transmission_cost_per_kw.toFixed(0)}
+            unit="$/kW"
+          />
+        )}
+      </StatCard>
+
       {ruptlSummary && (
         <StatCard>
           <div className="text-[11px] text-zinc-500 mb-1">RUPTL Summary</div>
@@ -377,6 +450,9 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
 function FlagsTab({ row }: { row: ScorecardRow }) {
   const flagKeys = [
     'solar_now',
+    'invest_transmission',
+    'invest_substation',
+    'invest_battery',
     'invest_resilience',
     'grid_first',
     'plan_late',

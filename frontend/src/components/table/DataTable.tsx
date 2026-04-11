@@ -42,6 +42,7 @@ const DROPDOWN_COLUMNS = new Set([
   'kek_type',
   'category',
   'best_re_technology',
+  'grid_integration_category',
 ]);
 // Columns that get range filters (numeric)
 const RANGE_COLUMNS = new Set([

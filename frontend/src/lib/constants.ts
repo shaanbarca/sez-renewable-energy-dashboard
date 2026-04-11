@@ -16,7 +16,7 @@ export const ACTION_FLAG_LABELS: Record<ActionFlag, string> = {
   invest_transmission: 'Build Transmission',
   invest_substation: 'Build Substation',
   invest_resilience: 'Invest Resilience',
-  grid_first: 'Grid First',
+  grid_first: 'Build Grid',
   invest_battery: 'Add Battery Storage',
   plan_late: 'Plan Late',
   not_competitive: 'Not Competitive',

@@ -230,7 +230,7 @@ export default function AssumptionsPanel() {
 
       {/* Expandable body — smooth animated collapse */}
       <div
-        className="overflow-hidden transition-all duration-300 ease-in-out"
+        className="overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)]"
         style={{
           maxHeight: collapsed ? 0 : (bodyHeight ?? 800),
           opacity: collapsed ? 0 : 1,

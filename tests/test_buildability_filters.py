@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import rasterio.transform
 
 from src.pipeline.buildability_filters import (
     MAX_ELEV_M,
@@ -20,7 +21,9 @@ from src.pipeline.buildability_filters import (
     apply_min_area_filter,
     apply_slope_elevation_mask,
     compute_buildability_constraint,
+    compute_distance_mask_km,
     compute_slope_degrees,
+    haversine_km,
 )
 
 # ── apply_exclusion_mask ──────────────────────────────────────────────────────
@@ -212,3 +215,84 @@ class TestProperties:
         result = apply_exclusion_mask(pvout, mask)
         # Max of filtered ≤ max of original
         assert result.max() <= pvout.max()
+
+
+# ── haversine_km ─────────────────────────────────────────────────────────────
+
+
+class TestHaversineKm:
+    def test_same_point_is_zero(self):
+        """Distance from a point to itself is 0."""
+        assert haversine_km(0.0, 0.0, 0.0, 0.0) == 0.0
+
+    def test_equator_one_degree_lon(self):
+        """1° longitude at equator ≈ 111.32 km."""
+        d = haversine_km(0.0, 0.0, 0.0, 1.0)
+        assert 110.5 < d < 112.0
+
+    def test_equator_one_degree_lat(self):
+        """1° latitude at equator ≈ 111.32 km."""
+        d = haversine_km(0.0, 0.0, 1.0, 0.0)
+        assert 110.5 < d < 112.0
+
+    def test_known_distance_jakarta_to_bandung(self):
+        """Jakarta (-6.2, 106.8) to Bandung (-6.9, 107.6) ≈ 120 km."""
+        d = haversine_km(-6.2, 106.8, -6.9, 107.6)
+        assert 110 < d < 130
+
+    def test_symmetry(self):
+        """haversine(A, B) == haversine(B, A)."""
+        d1 = haversine_km(-5.0, 110.0, -6.0, 111.0)
+        d2 = haversine_km(-6.0, 111.0, -5.0, 110.0)
+        assert math.isclose(d1, d2, rel_tol=1e-10)
+
+
+# ── compute_distance_mask_km ──────────────────────────────────────────────────
+
+
+class TestComputeDistanceMaskKm:
+    def _make_transform(self, left: float, top: float, res_deg: float) -> rasterio.transform.Affine:
+        """Create a simple affine transform for testing."""
+        return rasterio.transform.Affine(res_deg, 0, left, 0, -res_deg, top)
+
+    def test_center_pixel_near_zero_distance(self):
+        """The pixel closest to the center should be near 0 km."""
+        # 11×11 grid centered at (0, 0), resolution ~0.01° (≈1.1 km)
+        res = 0.01
+        transform = self._make_transform(-0.055, 0.055, res)
+        dist = compute_distance_mask_km(0.0, 0.0, transform, (11, 11))
+        # Center pixel (5, 5) should be very close to 0
+        assert dist[5, 5] < 1.0  # less than 1 km
+
+    def test_corners_farther_than_edges(self):
+        """Corner pixels of a square grid should be farther than edge centers."""
+        res = 0.01
+        transform = self._make_transform(-0.05, 0.05, res)
+        dist = compute_distance_mask_km(0.0, 0.0, transform, (10, 10))
+        # Edge center (0, 5) vs corner (0, 0)
+        assert dist[0, 0] > dist[0, 5]
+
+    def test_50km_box_corners_exceed_50km(self):
+        """Corners of a 50km bounding box should be beyond 50km radius."""
+        # At equator, 50km ≈ 0.449°. Box is ±0.449°.
+        buf_deg = 50.0 / 111.32
+        res = 0.00833  # ~930m PVOUT pixel
+        # Grid covers -buf to +buf in both axes
+        n = int(2 * buf_deg / res) + 1
+        transform = self._make_transform(-buf_deg, buf_deg, res)
+        dist = compute_distance_mask_km(0.0, 0.0, transform, (n, n))
+        # Corners should exceed 50km (diagonal ≈ 70.7km)
+        assert dist[0, 0] > 50.0
+        assert dist[0, -1] > 50.0
+        assert dist[-1, 0] > 50.0
+        assert dist[-1, -1] > 50.0
+        # Edge centers should be ≤ 50km
+        mid = n // 2
+        assert dist[0, mid] < 52.0  # top edge center ≈ 50km
+        assert dist[mid, 0] < 52.0  # left edge center ≈ 50km
+
+    def test_all_distances_non_negative(self):
+        """All distances should be non-negative."""
+        transform = self._make_transform(100.0, 5.0, 0.01)
+        dist = compute_distance_mask_km(-3.0, 100.05, transform, (5, 5))
+        assert np.all(dist >= 0)

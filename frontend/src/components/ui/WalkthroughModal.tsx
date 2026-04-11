@@ -16,9 +16,10 @@ const PERSONAS = [
   },
   {
     id: 'dfi',
-    title: 'DFI Investor',
+    title: 'DFI Infrastructure Investor',
     subtitle: 'Infrastructure fund analyst',
-    description: 'Screen Indonesian industrial sites for captive solar PPA or equity investment.',
+    description:
+      'Identify where grid infrastructure investment unlocks solar potential for industrial zones.',
     icon: '💰',
   },
   {
@@ -31,10 +32,10 @@ const PERSONAS = [
   },
   {
     id: 'ipp',
-    title: 'Energy Investor (IPP)',
-    subtitle: 'Captive solar developer',
+    title: 'IPP / Solar Developer',
+    subtitle: 'Solar developer selling to PLN via PPA',
     description:
-      'Find the best PPA opportunities — large demand, good solar, high grid cost, buildable land.',
+      'Find the strongest solar-to-BPP economics for grid-connected solar — good resource, grid access, and PLN procurement potential.',
     icon: '⚡',
   },
 ] as const;
@@ -123,9 +124,9 @@ const DFI_STEPS: TourStep[] = [
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'Check Siting Scenario',
+    title: 'Check Grid Integration',
     description:
-      'Look at the siting scenario column. "Within boundary" means the solar plant fits inside the KEK — no gen-tie cost. "Remote captive" adds transmission lease cost.',
+      'Look at the Grid Integration column. "within boundary" means solar fits inside the KEK. "grid ready" means substation access is good. "invest transmission" or "invest substation" means targeted infrastructure investment would unlock solar.',
     target: 'bottom-panel',
   },
   {
@@ -147,13 +148,13 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'LCOE at Your Hurdle Rate',
     description:
-      'Switch to the LCOE tab in the scorecard. Verify LCOE bands at WACC=8% for both within-boundary and remote-captive scenarios.',
+      'Switch to the LCOE tab in the scorecard. Verify LCOE bands at WACC=8% for both within-boundary and grid-connected solar scenarios.',
     target: 'drawer',
   },
   {
     title: 'Grid Connection',
     description:
-      'Check substation distance in the scorecard. Large distances (>50km) escalate gen-tie CAPEX beyond the standard adder.',
+      'Check substation distance in the scorecard. The grid connection cost depends on distance from the solar site to the nearest PLN substation.',
     target: 'drawer',
   },
   {
@@ -244,9 +245,9 @@ const IPP_STEPS: TourStep[] = [
     target: 'bottom-panel',
   },
   {
-    title: 'Check Siting Scenario',
+    title: 'Check Grid Integration',
     description:
-      'Prefer "within_boundary" sites — the solar plant fits inside the KEK with no gen-tie cost. "Remote captive" sites add ~$10/MWh in transmission lease.',
+      'Prefer "within boundary" or "grid ready" sites — these have low grid connection cost. "invest transmission" or "invest substation" sites need infrastructure investment to connect solar to the grid.',
     target: 'bottom-panel',
   },
   {

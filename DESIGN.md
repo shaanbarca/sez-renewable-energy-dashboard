@@ -479,3 +479,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-08 | — | Pulsing KEK markers on first load (~5s breathing animation) | Signals that markers are interactive/clickable |
 | 2026-04-08 | — | Biome formatter added to pre-commit hook for TypeScript/React | Consistent code style across all frontend files |
 | 2026-04-08 | — | Buildable area fragmentation warning in ScoreDrawer Resource tab | 1km PVOUT resolution makes contiguity filter a no-op; UI caveat for small buildable areas |
+| 2026-04-09 | — | Thesis pivot: remote captive → grid-connected solar; three-point proximity replaces gen-tie model | No global precedent for 50km private gen-tie; realistic model is IPP → PLN PPA → grid delivery → KEK |
+| 2026-04-09 | — | DFI persona reframed: captive solar investor → grid infrastructure investor | DFIs fund grid infra (ADB/WB precedent), not private gen-ties |
+| 2026-04-09 | — | New persona: Industrial Investor / KEK Tenant (buys from PLN, doesn't build solar) | Separates power consumer from power producer decision-making |
+| 2026-04-09 | — | New action flag: invest_grid (solar exists but grid connection missing) | Policymaker needs to see WHERE grid investment unlocks solar |

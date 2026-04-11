@@ -125,6 +125,8 @@ Test files are in `tests/`. 302 tests across model, pipeline, and API modules �
 - `bess_storage_adder(...)` — V3: BESS storage cost per MWh of solar generation (replaces flat firming adder)
 - `lcoe_solar_with_battery(...)` — V3: solar LCOE + BESS storage adder
 - `grid_connection_cost_per_kw(dist_km)` — V2: connection cost = dist × $5/kW-km + $80/kW fixed
+- `new_transmission_cost_per_kw(inter_substation_dist_km, solar_capacity_mwp)` — V3.1: new line cost when substations not connected = dist × $1.25M/km ÷ capacity
+- `capacity_assessment(substation_capacity_mva, solar_capacity_mwp, utilization_pct)` — V3.1: traffic light (green/yellow/red/unknown)
 - `lcoe_solar_grid_connected(...)` — V2: LCOE with grid connection cost included in effective CAPEX
 - `geas_baseline_allocation(kek_df, ruptl_df)` — pro-rata GEAS allocation by demand share
 - `geas_policy_allocation(kek_df, ruptl_df)` — priority-weighted by demand × PVOUT
@@ -149,7 +151,7 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 **Fact tables** (`fct_*`):
 - `fct_kek_resource` — PVOUT at centroid + best within 50km (from GeoTIFF); v1.1: adds `pvout_buildable_best_50km`, `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` (NaN until `data/buildability/` populated — run `scripts/download_buildability_data.py`)
 - `fct_kek_demand` — per-KEK demand estimates
-- `fct_substation_proximity` — nearest PLN substation per KEK; V3: three-point proximity (solar→substation→KEK) + `grid_integration_category` (`within_boundary`/`grid_ready`/`invest_transmission`/`invest_substation`/`grid_first`)
+- `fct_substation_proximity` — nearest PLN substation per KEK; V3: three-point proximity (solar→substation→KEK) + `grid_integration_category`; V3.1: adds geometric grid line connectivity check (`line_connected`, `inter_substation_connected`), capacity utilization (`available_capacity_mva`, `capacity_assessment` traffic light), PLN region (`regpln`), inter-substation distance
 - `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (450 rows: 25 × 9 × 2); `within_boundary` uses centroid PVOUT + no connection cost; `grid_connected_solar` uses best PVOUT + connection cost from solar-to-substation distance
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
@@ -219,5 +221,6 @@ The review checklist (`/review`) will flag stale documentation as an INFORMATION
 
 - The grid cost proxy uses PLN BPP (cost of supply), **not** the industrial tariff paid by KEK tenants. These differ — industrial tariffs are often subsidized below BPP. Label this distinction clearly in any output.
 - RUPTL data (`fct_ruptl_pipeline`) is region/system-level, not KEK-specific. It provides grid system context only.
-- `data/substation.geojson` contains substation locations for proximity analysis.
+- `data/substation.geojson` contains substation locations for proximity analysis (2,913 PLN substations with `namobj`, `kapgi` MVA, `teggi` voltage, `regpln` PLN region, `statopr` status).
+- `data/pln_grid_lines.geojson` contains 1,595 PLN transmission lines for geometric connectivity checking (V3.1). Properties: `namobj` (line name with endpoints), `tegjar` (voltage kV), geometry (LineString/MultiLineString).
 - `data/industrial_data/` contains a shapefile of Indonesian industrial facilities (50k+ employee firms, 2023).

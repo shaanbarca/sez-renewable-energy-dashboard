@@ -132,6 +132,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           kek_type: row.kek_type ?? '',
           category: row.category ?? '',
           area_ha: row.area_ha ?? null,
+          grid_integration_category: row.grid_integration_category ?? '',
         },
       })),
     };

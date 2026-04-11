@@ -521,6 +521,168 @@ class TestGridIntegrationCategory:
         )
         assert result == "invest_substation"
 
+    # V3.1: Capacity utilization tests
+    def test_capacity_utilization_insufficient(self):
+        """Substation near but available capacity < solar farm → invest_substation."""
+        from src.model.basic_model import grid_integration_category
+
+        # 60 MVA substation, 65% utilized → 21 MVA available; 30 MWp solar > 21 MVA
+        result = grid_integration_category(
+            False,
+            3.0,
+            10.0,
+            substation_capacity_mva=60.0,
+            substation_utilization_pct=0.65,
+            solar_capacity_mwp=30.0,
+        )
+        assert result == "invest_substation"
+
+    def test_capacity_utilization_sufficient(self):
+        """Substation near with enough available capacity → grid_ready."""
+        from src.model.basic_model import grid_integration_category
+
+        # 60 MVA, 65% utilized → 21 MVA available; 10 MWp solar < 21 MVA
+        result = grid_integration_category(
+            False,
+            3.0,
+            10.0,
+            substation_capacity_mva=60.0,
+            substation_utilization_pct=0.65,
+            solar_capacity_mwp=10.0,
+        )
+        assert result == "grid_ready"
+
+    def test_capacity_utilization_none_solar_capacity(self):
+        """Unknown solar capacity → skip utilization check (benefit of doubt)."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(
+            False,
+            3.0,
+            10.0,
+            substation_capacity_mva=60.0,
+            substation_utilization_pct=0.65,
+            solar_capacity_mwp=None,
+        )
+        assert result == "grid_ready"
+
+    # V3.1: Inter-substation connectivity tests
+    def test_inter_substation_not_connected_solar_near(self):
+        """No line between substations + solar near → invest_transmission."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(
+            False,
+            3.0,
+            10.0,
+            inter_substation_connected=False,
+        )
+        assert result == "invest_transmission"
+
+    def test_inter_substation_not_connected_solar_far(self):
+        """No line between substations + solar far → grid_first."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(
+            False,
+            15.0,
+            20.0,
+            inter_substation_connected=False,
+        )
+        assert result == "grid_first"
+
+    def test_inter_substation_connected_allows_grid_ready(self):
+        """Line exists between substations → normal distance logic applies."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(
+            False,
+            3.0,
+            10.0,
+            inter_substation_connected=True,
+        )
+        assert result == "grid_ready"
+
+    def test_inter_substation_none_falls_back(self):
+        """Unknown connectivity (None) → falls back to distance-only logic."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(
+            False,
+            3.0,
+            10.0,
+            inter_substation_connected=None,
+        )
+        assert result == "grid_ready"
+
+
+class TestNewTransmissionCostPerKw:
+    def test_basic_calculation(self):
+        from src.model.basic_model import new_transmission_cost_per_kw
+
+        # 10 km × $1.25M/km = $12.5M total ÷ (20 MWp × 1000) = $625/kW
+        result = new_transmission_cost_per_kw(10.0, 20.0, cost_per_km=1_250_000)
+        assert math.isclose(result, 625.0)
+
+    def test_zero_distance(self):
+        from src.model.basic_model import new_transmission_cost_per_kw
+
+        assert new_transmission_cost_per_kw(0.0, 20.0) == 0.0
+
+    def test_zero_capacity(self):
+        from src.model.basic_model import new_transmission_cost_per_kw
+
+        assert new_transmission_cost_per_kw(10.0, 0.0) == 0.0
+
+    def test_negative_distance(self):
+        from src.model.basic_model import new_transmission_cost_per_kw
+
+        assert new_transmission_cost_per_kw(-5.0, 20.0) == 0.0
+
+    def test_larger_capacity_reduces_per_kw(self):
+        from src.model.basic_model import new_transmission_cost_per_kw
+
+        small = new_transmission_cost_per_kw(10.0, 10.0)
+        large = new_transmission_cost_per_kw(10.0, 50.0)
+        assert large < small
+
+
+class TestCapacityAssessment:
+    def test_green(self):
+        from src.model.basic_model import capacity_assessment
+
+        light, avail = capacity_assessment(100.0, 10.0, utilization_pct=0.65)
+        assert light == "green"
+        assert avail == 35.0  # 100 × 0.35
+
+    def test_yellow(self):
+        from src.model.basic_model import capacity_assessment
+
+        light, avail = capacity_assessment(60.0, 15.0, utilization_pct=0.65)
+        assert light == "yellow"
+        assert avail == 21.0  # 60 × 0.35 = 21, ratio = 21/15 = 1.4
+
+    def test_red(self):
+        from src.model.basic_model import capacity_assessment
+
+        light, avail = capacity_assessment(60.0, 50.0, utilization_pct=0.65)
+        assert light == "red"
+        # 60 × 0.35 = 21, ratio = 21/50 = 0.42 < 0.5
+
+    def test_unknown_no_capacity(self):
+        from src.model.basic_model import capacity_assessment
+
+        light, avail = capacity_assessment(None, 10.0)
+        assert light == "unknown"
+        assert avail is None
+
+    def test_unknown_no_solar(self):
+        from src.model.basic_model import capacity_assessment
+
+        light, avail = capacity_assessment(60.0, None, utilization_pct=0.65)
+        assert light == "unknown"
+        assert avail == 21.0
+
 
 # ---------------------------------------------------------------------------
 # 7. Solar competitive gap
@@ -660,6 +822,56 @@ class TestActionFlags:
             post2030_share=0.2,
         )
         assert flags["solar_now"] is True
+
+    def test_grid_first_suppressed_by_invest_transmission(self):
+        """When gi_cat is invest_transmission, grid_first should be False."""
+        flags = action_flags(
+            solar_attractive=True,
+            grid_upgrade_pre2030=False,
+            reliability_req=0.4,
+            green_share_geas=0.5,
+            post2030_share=0.3,
+            grid_integration_cat="invest_transmission",
+        )
+        assert flags["grid_first"] is False
+        assert flags["invest_transmission"] is True
+
+    def test_grid_first_suppressed_by_invest_substation(self):
+        """When gi_cat is invest_substation, grid_first should be False."""
+        flags = action_flags(
+            solar_attractive=True,
+            grid_upgrade_pre2030=False,
+            reliability_req=0.4,
+            green_share_geas=0.5,
+            post2030_share=0.3,
+            grid_integration_cat="invest_substation",
+        )
+        assert flags["grid_first"] is False
+        assert flags["invest_substation"] is True
+
+    def test_grid_first_still_fires_when_gi_cat_is_grid_first(self):
+        """When gi_cat is explicitly grid_first, the flag should fire."""
+        flags = action_flags(
+            solar_attractive=True,
+            grid_upgrade_pre2030=False,
+            reliability_req=0.4,
+            green_share_geas=0.5,
+            post2030_share=0.3,
+            grid_integration_cat="grid_first",
+        )
+        assert flags["grid_first"] is True
+
+    def test_grid_first_still_fires_when_gi_cat_is_none(self):
+        """When gi_cat is None (data missing), grid_first should still fire."""
+        flags = action_flags(
+            solar_attractive=True,
+            grid_upgrade_pre2030=False,
+            reliability_req=0.4,
+            green_share_geas=0.5,
+            post2030_share=0.3,
+            grid_integration_cat=None,
+        )
+        assert flags["grid_first"] is True
 
 
 # ---------------------------------------------------------------------------

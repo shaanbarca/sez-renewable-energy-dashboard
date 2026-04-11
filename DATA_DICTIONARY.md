@@ -50,7 +50,7 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_kek_demand](#32-outputsdataprocessedfct_kek_demandcsv) | fact | 25 | Estimated 2030 electricity demand per KEK (area × intensity) | `dim_kek` · `src/assumptions.py` (intensity constants) | Answers "how much electricity will this KEK need by 2030?" — used to compute what share of that demand could be met by GEAS-allocated solar, and to size infrastructure needs. | ⚠️ Provisional — area×intensity proxy, no tenant surveys |
 | [fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv) | fact | 7 | I-4/TT and I-3/TM industrial tariffs per PLN grid system (USD/MWh) | `dim_kek` (grid_region_id list) · Permen ESDM 7/2024 (hardcoded tariffs) | The benchmark each KEK's solar LCOE is compared against. If solar LCOE < grid tariff, captive solar is already cost-competitive without any policy support. | ✅ Official — Permen ESDM 7/2024 |
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this KEK's region?" — used to compute the GEAS green energy share each KEK can claim, and to flag KEKs where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
-| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 25 | Nearest PLN substation per KEK — KEK-to-substation + solar-to-substation distances, grid_integration_category | `dim_kek` · `data/substation.geojson` · `raw/kek_polygons.geojson` · `fct_kek_resource` | V2: Three-point proximity (solar→substation→KEK). Drives connection cost in `fct_lcoe` grid_connected_solar scenario. Classifies grid readiness. | ✅ |
+| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 25 | Nearest PLN substation per KEK — KEK-to-substation + solar-to-substation distances, grid connectivity, capacity assessment | `dim_kek` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_kek_resource` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
 | [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 450 | Precomputed LCOE bands — 25 KEKs × 9 WACC values (4–20% in 2% steps) × 2 siting scenarios (within_boundary/grid_connected_solar) | `dim_kek` · `fct_kek_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison. `within_boundary` is base-case; `grid_connected_solar` adds connection cost (solar→substation). | ✅ |
 | [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended (go solar now / wait for grid / add firming / flag late pipeline)? What share of demand can green energy cover by 2030? | ⚠️ Provisional until CAPEX verified |
 
@@ -320,7 +320,7 @@ Fact tables describe *what a KEK has* — resource quality, demand, cost, scorec
 
 **Build logic:**
 1. For each KEK centroid, sample the PVOUT GeoTIFF pixel
-2. Search a 50km radius (latitude-corrected: `km / 111.32 = degrees`) for the maximum PVOUT pixel
+2. Search a 50km radius (latitude-corrected bounding box + circular haversine mask to exclude corners beyond 50km) for the maximum PVOUT pixel
 3. Convert daily → annual: `pvout_daily × 365`
 4. Compute CF: `pvout_annual / 8760`
 
@@ -341,6 +341,9 @@ Fact tables describe *what a KEK has* — resource quality, demand, cost, scorec
 | `buildable_area_ha` | float | computed | Total buildable area in 50km radius after all filters (ha). NaN when data absent. |
 | `max_captive_capacity_mwp` | float | computed | `buildable_area_ha / 1.5` — max captive solar capacity (MWp). 1.5 ha/MWp for tropical fixed-tilt. |
 | `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"land_cover"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"`. `"land_cover"` = ESA WorldCover layer (tree cover/forest, cropland, urban, water, wetland, mangrove) — dominant at all 25 KEKs because Indonesian forest cover is pervasive (60–93% of pixels removed). Peat and kawasan_hutan layers are also active and removing pixels but are numerically smaller than land cover. |
+| `best_solar_site_lat` | float | computed | Latitude of the highest-PVOUT buildable pixel within 50km. NaN when data absent or no buildable area. |
+| `best_solar_site_lon` | float | computed | Longitude of the highest-PVOUT buildable pixel within 50km. NaN when data absent or no buildable area. |
+| `best_solar_site_dist_km` | float | computed | Haversine distance (km) from KEK centroid to best buildable pixel. Always ≤ 50km (enforced by circular mask). NaN when data absent. |
 
 **Note:** `pvout_best_50km` is an upper bound — raw raster max with no buildability filter.
 `pvout_buildable_best_50km` applies Layers 1–4 (METHODOLOGY.md §2.5) and is the
@@ -450,40 +453,53 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 
 ## 3.4b `outputs/data/processed/fct_substation_proximity.csv`
 
-**What it is:** Nearest operational PLN substation per KEK — distance, connection details, siting scenario, and V2 three-point proximity analysis (grid integration category).
+**What it is:** Nearest operational PLN substation per KEK — distance, connection details, siting scenario, V2 three-point proximity analysis (grid integration category), and V3.1 geometric grid connectivity check + substation capacity utilization assessment.
 **Builder:** `src/pipeline/build_fct_substation_proximity.py`
-**Lineage:** `dim_kek.csv` + `data/substation.geojson` + `outputs/data/raw/kek_polygons.geojson` + `fct_kek_resource.csv` (best solar site lat/lon)
+**Lineage:** `dim_kek.csv` + `data/substation.geojson` + `data/pln_grid_lines.geojson` + `outputs/data/raw/kek_polygons.geojson` + `fct_kek_resource.csv` (best solar site lat/lon)
 **Rows:** 25 ✅
 
 **Build logic:**
-1. Filter substations to `statopr == "Operasi"` (operational only)
-2. Haversine distance from each KEK centroid to every substation → take nearest
+1. Filter substations to `statopr == "Operasi"` (operational only); extract `regpln` (PLN region)
+2. Haversine distance from each KEK centroid to every substation → take nearest (B_kek)
 3. Point-in-polygon (shapely) for each KEK polygon → `has_internal_substation`
 4. `siting_scenario = "within_boundary"` if `has_internal_substation` else `"remote_captive"` (V1 compat)
-5. V2: Haversine from best solar site to nearest substation → `dist_solar_to_nearest_substation_km`
+5. V2: Haversine from best solar site to nearest substation (B_solar) → `dist_solar_to_nearest_substation_km`
 6. V2: `grid_integration_category` derived from three-point proximity thresholds (see METHODOLOGY_V2.md §2)
+7. V3.1: If B_solar ≠ B_kek, load PLN grid lines (1,595 lines from `data/pln_grid_lines.geojson`) and check geometric connectivity — does any grid line pass within 2km buffer of both substations?
+8. V3.1: Check PLN region (`regpln`) match as fallback connectivity proxy
+9. V3.1: Compute `available_capacity_mva = capacity_mva × (1 − utilization_pct)` and traffic light assessment
+
+**Data source: `data/pln_grid_lines.geojson`** — 1,595 PLN transmission lines with geometry (LineString/MultiLineString), voltage (`tegjar` kV: 150kV=1286, 500kV=86, 275kV=34, 70kV=177), and names encoding endpoints (e.g. `SUTT 150kV PEKALONGAN-COMAL`).
 
 | Column | Type | Source | Notes |
 |--------|------|--------|-------|
 | `kek_id` | str | dim_kek | Join key |
 | `kek_name` | str | dim_kek | Display name |
-| `nearest_substation_name` | str | substation.geojson `namobj` | Name of nearest operational substation |
+| `nearest_substation_name` | str | substation.geojson `namobj` | Name of nearest operational substation to KEK (B_kek) |
 | `nearest_substation_voltage_kv` | str | substation.geojson `teggi` | e.g. "150 kV" |
 | `nearest_substation_capacity_mva` | float | substation.geojson `kapgi` | Substation capacity (MVA). Source `kapgi` field has mixed units — values ≥ 10,000 are in VA (divided by 1,000,000); values 1–9,999 are already in MVA. Normalization via `_normalize_capacity_mva()`. 19/25 KEKs populated; 6 null (not recorded in PLN dataset). |
 | `dist_to_nearest_substation_km` | float | computed | ✅ Haversine distance from KEK centroid to nearest operational substation, 2 decimals |
 | `has_internal_substation` | bool | computed | True if any operational substation is inside the KEK polygon |
 | `siting_scenario` | str | derived | `"within_boundary"` or `"remote_captive"` (V1 compat) |
-| `dist_solar_to_nearest_substation_km` | float | computed | ✅ V2: Haversine from best solar site to nearest substation. NaN if solar coords unavailable. |
-| `nearest_substation_to_solar_name` | str | computed | ✅ V2: Name of nearest substation to the solar site |
-| `grid_integration_category` | str | computed | ✅ V2: `within_boundary` / `grid_ready` / `invest_grid` / `grid_first` — see METHODOLOGY_V2.md §2 |
+| `dist_solar_to_nearest_substation_km` | float | computed | ✅ V2: Haversine from best solar site to nearest substation (B_solar). NaN if solar coords unavailable. |
+| `nearest_substation_to_solar_name` | str | computed | ✅ V2: Name of nearest substation to the solar site (B_solar) |
+| `grid_integration_category` | str | computed | ✅ V2: `within_boundary` / `grid_ready` / `invest_substation` / `invest_transmission` / `grid_first` — see METHODOLOGY_V2.md §2. V3.1: split `invest_grid` into `invest_substation` (upgrade existing) and `invest_transmission` (new line needed). |
+| `nearest_substation_regpln` | str | substation.geojson `regpln` | ✅ V3.1: PLN region of KEK's nearest substation (B_kek) |
+| `nearest_substation_to_solar_regpln` | str | substation.geojson `regpln` | ✅ V3.1: PLN region of solar site's nearest substation (B_solar) |
+| `same_grid_region` | bool | computed | ✅ V3.1: True if B_kek and B_solar are in the same PLN region (`regpln` match) |
+| `line_connected` | bool | computed | ✅ V3.1: True if any PLN grid line (from `pln_grid_lines.geojson`) passes within 2km buffer of both B_solar and B_kek. Geometric connectivity proxy. |
+| `inter_substation_connected` | bool | computed | ✅ V3.1: `line_connected OR same_grid_region`. If True, no new transmission line needed between substations. |
+| `inter_substation_dist_km` | float | computed | ✅ V3.1: Haversine distance between B_solar and B_kek. 0 if same substation. |
+| `available_capacity_mva` | float | computed | ✅ V3.1: `capacity_mva × (1 − substation_utilization_pct)`. Default utilization = 65%. NaN if capacity unknown. |
+| `capacity_assessment` | str | computed | ✅ V3.1: Traffic light — `green` (available > 2× solar), `yellow` (0.5–2×), `red` (< 0.5×), `unknown` (data unavailable). See METHODOLOGY_V2.md §V3.1. |
 
 ---
 
 ## 3.5 `outputs/data/processed/fct_lcoe.csv`
 
-**What it is:** Precomputed LCOE bands per KEK at 9 WACC values (4–20% in 2% steps) and 2 siting scenarios (within_boundary / grid_connected_solar). V2: replaces remote_captive with grid-connected solar; uses solar-to-substation distance; removes transmission lease adder.
+**What it is:** Precomputed LCOE bands per KEK at 9 WACC values (4–20% in 2% steps) and 2 siting scenarios (within_boundary / grid_connected_solar). V2: replaces remote_captive with grid-connected solar; uses solar-to-substation distance; removes transmission lease adder. V3.1: adds inter-substation transmission cost when `inter_substation_connected == False`.
 **Builder:** `src/pipeline/build_fct_lcoe.py`
-**Lineage:** `dim_kek.csv` + `fct_kek_resource.csv` (PVOUT) + `dim_tech_cost.csv` (CAPEX, FOM, lifetime) + `fct_substation_proximity.csv` (solar-to-substation distance)
+**Lineage:** `dim_kek.csv` + `fct_kek_resource.csv` (PVOUT) + `dim_tech_cost.csv` (CAPEX, FOM, lifetime) + `fct_substation_proximity.csv` (solar-to-substation distance, inter-substation connectivity)
 **Rows:** 450 (25 KEKs × 9 WACC values × 2 scenarios) ✅
 
 **Siting scenarios:**
@@ -492,8 +508,9 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 
 **LCOE formula** (`src/model/basic_model.py → lcoe_solar()`):
 ```
-connection_cost  = dist_km × CONNECTION_COST_PER_KW_KM + GRID_CONNECTION_FIXED_PER_KW  (grid_connected_solar only)
-effective_capex  = capex + connection_cost
+gen_tie_cost     = dist_solar_to_sub_km × CONNECTION_COST_PER_KW_KM + GRID_CONNECTION_FIXED_PER_KW  (grid_connected_solar only)
+transmission_cost= inter_sub_dist_km × TRANSMISSION_LINE_COST_USD_PER_KM / (solar_mwp × 1000)  (V3.1: only if inter_substation_connected == False)
+effective_capex  = capex + gen_tie_cost + transmission_cost
 CRF              = wacc × (1 + wacc)^n / ((1 + wacc)^n − 1)
 LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 ```
@@ -510,6 +527,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `lcoe_usd_mwh` | float | computed | `lcoe_solar(effective_capex_central, fom, wacc/100, lifetime, cf)` |
 | `lcoe_low_usd_mwh` | float | computed | `lcoe_solar(effective_capex_lower, ...)` |
 | `lcoe_high_usd_mwh` | float | computed | `lcoe_solar(effective_capex_upper, ...)` |
+| `transmission_cost_per_kw` | float | computed | ✅ V3.1: Inter-substation new line cost per kW. 0 if `inter_substation_connected == True` or same substation. `inter_sub_dist_km × $1.25M/km ÷ (solar_mwp × 1000)`. |
 | `is_cf_provisional` | bool | derived | `True` if centroid fallback was used for grid_connected_solar |
 | `is_capex_provisional` | bool | dim_tech_cost | Propagated from `dim_tech_cost.is_provisional` |
 | `tech_id` | str | dim_tech_cost | "TECH006" |
@@ -584,7 +602,15 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `lcoe_grid_connected_low_usd_mwh` | float | Same using `capex_lower`. |
 | `lcoe_grid_connected_high_usd_mwh` | float | Same using `capex_upper`. |
 | `connection_cost_per_kw` | float | V2: Grid connection cost per kW for this KEK's solar site. 0 for within_boundary. |
-| `grid_integration_category` | str | V2: `within_boundary` / `grid_ready` / `invest_grid` / `grid_first` — from fct_substation_proximity. |
+| `grid_integration_category` | str | V2/V3.1: `within_boundary` / `grid_ready` / `invest_substation` / `invest_transmission` / `grid_first` — from fct_substation_proximity. V3.1 split `invest_grid` into `invest_substation` (upgrade needed) and `invest_transmission` (new line needed). |
+| `same_grid_region` | bool | V3.1: B_kek and B_solar in same PLN region. |
+| `line_connected` | bool | V3.1: Grid line geometrically connects both substations. |
+| `inter_substation_connected` | bool | V3.1: `line_connected OR same_grid_region`. |
+| `inter_substation_dist_km` | float | V3.1: Haversine between B_solar and B_kek. |
+| `available_capacity_mva` | float | V3.1: Substation headroom = `capacity_mva × (1 − utilization_pct)`. |
+| `capacity_assessment` | str | V3.1: Traffic light — `green` / `yellow` / `red` / `unknown`. |
+| `transmission_cost_per_kw` | float | V3.1: New inter-substation line cost per kW (0 if connected). |
+| `grid_investment_needed_usd` | float | Total grid infrastructure cost: `(connection_cost_per_kw + transmission_cost_per_kw) × max_captive_capacity_mwp × 1000`. Screening estimate for DFI investment sizing. NaN if capacity is 0 or no infrastructure cost. |
 | `project_viable` | bool | `max_captive_capacity_mwp ≥ PROJECT_VIABLE_MIN_MWP (20 MWp)`. True = minimum viable IPP project size met. All 25 KEKs = True at current 1km buildability resolution. DFI threshold is stricter (≥ 33 MWp / ≥ 50 ha). |
 | `clean_power_advantage` | float | `−solar_competitive_gap_pct` — higher = more competitive |
 | `green_share_geas` | float | Pro-rata share of 2030 demand covered by pre-2030 RUPTL solar. Formula: `min(1, (pre2030_mw × 8760 × 0.20 × kek_demand_share) / kek_demand_mwh)`. See `geas_baseline_allocation()`. |
@@ -628,4 +654,4 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 3. **Landcover buildability filter** — `pvout_best_50km` is currently an upper bound with no exclusion of forests, peat, protected areas. Planned for v1.1: 4-layer filter (HCS/HCV, peatland, protected areas, slope > 15°).
 
-4. **Substation proximity** — ✅ Implemented in Phase 2. `fct_substation_proximity.csv` computes `dist_to_nearest_substation_km` and `siting_scenario` per KEK. Gen-tie cost adder integrated into `fct_lcoe.csv` remote_captive scenario.
+4. **Substation proximity** — ✅ Implemented in Phase 2, expanded in V3.1. `fct_substation_proximity.csv` computes distances, grid integration category, geometric grid line connectivity (1,595 PLN lines), substation capacity utilization assessment (traffic light), and inter-substation connectivity. V3.1 adds transmission cost to `fct_lcoe.csv` when `inter_substation_connected == False`.

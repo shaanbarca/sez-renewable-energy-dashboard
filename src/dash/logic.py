@@ -34,9 +34,11 @@ from src.assumptions import (
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PROJECT_VIABLE_MIN_MWP,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
+    SUBSTATION_UTILIZATION_PCT,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
+    TRANSMISSION_FALLBACK_CAPACITY_MWP,
 )
 from src.model.basic_model import (
     ActionFlag,
@@ -47,6 +49,7 @@ from src.model.basic_model import (
     grid_connection_cost_per_kw,
     is_solar_attractive,
     lcoe_solar,
+    new_transmission_cost_per_kw,
     solar_competitive_gap,
 )
 from src.model.basic_model import (
@@ -77,6 +80,7 @@ class UserAssumptions:
     grid_connection_fixed_per_kw: float = GRID_CONNECTION_FIXED_PER_KW
     bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH
     land_cost_usd_per_kw: float = LAND_COST_USD_PER_KW
+    substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
 
@@ -105,6 +109,7 @@ class UserAssumptions:
             "grid_connection_fixed_per_kw": self.grid_connection_fixed_per_kw,
             "bess_capex_usd_per_kwh": self.bess_capex_usd_per_kwh,
             "land_cost_usd_per_kw": self.land_cost_usd_per_kw,
+            "substation_utilization_pct": self.substation_utilization_pct,
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
         }
@@ -236,9 +241,28 @@ def compute_lcoe_live(
                 assumptions.grid_connection_fixed_per_kw,
             )
             land_cost = assumptions.land_cost_usd_per_kw
-            eff_c = capex_c + conn_cost + land_cost
-            eff_l = capex_l + conn_cost + land_cost
-            eff_h = capex_h + conn_cost + land_cost
+
+            # V3.1: transmission line cost when substations are not connected
+            inter_connected = kek.get("inter_substation_connected")
+            inter_sub_dist = kek.get("inter_substation_dist_km", 0.0)
+            if pd.isna(inter_connected):
+                inter_connected = None
+            if pd.isna(inter_sub_dist):
+                inter_sub_dist = 0.0
+            if inter_connected is False and inter_sub_dist > 0:
+                solar_mwp_val = kek.get("max_captive_capacity_mwp")
+                solar_mwp = (
+                    float(solar_mwp_val)
+                    if pd.notna(solar_mwp_val) and float(solar_mwp_val) > 0
+                    else TRANSMISSION_FALLBACK_CAPACITY_MWP
+                )
+                trans_cost = new_transmission_cost_per_kw(inter_sub_dist, solar_mwp)
+            else:
+                trans_cost = 0.0
+
+            eff_c = capex_c + conn_cost + land_cost + trans_cost
+            eff_l = capex_l + conn_cost + land_cost + trans_cost
+            eff_h = capex_h + conn_cost + land_cost + trans_cost
             lcoe_c_gc = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc)
             lcoe_l_gc = lcoe_solar(eff_l, fom, wacc, lifetime, cf_gc)
             lcoe_h_gc = lcoe_solar(eff_h, fom, wacc, lifetime, cf_gc)
@@ -523,6 +547,34 @@ def compute_scorecard_live(
 
         # V2: Pass through grid_integration_category from resource_df
         row["grid_integration_category"] = kek.get("grid_integration_category", None)
+
+        # V3.1: Pass through connectivity + capacity assessment from resource_df
+        row["same_grid_region"] = kek.get("same_grid_region", None)
+        row["line_connected"] = kek.get("line_connected", None)
+        row["inter_substation_connected"] = kek.get("inter_substation_connected", None)
+        row["inter_substation_dist_km"] = kek.get("inter_substation_dist_km", None)
+        row["available_capacity_mva"] = kek.get("available_capacity_mva", None)
+        row["capacity_assessment"] = kek.get("capacity_assessment", None)
+        row["transmission_cost_per_kw"] = kek.get("transmission_cost_per_kw", None)
+
+        # Grid investment needed (USD): total infra cost × capacity (kW)
+        conn_cost = kek.get("connection_cost_per_kw") or 0.0
+        trans_cost_val = kek.get("transmission_cost_per_kw") or 0.0
+        if pd.isna(conn_cost):
+            conn_cost = 0.0
+        if pd.isna(trans_cost_val):
+            trans_cost_val = 0.0
+        infra_cost = conn_cost + trans_cost_val
+        mwp = kek.get("max_captive_capacity_mwp", 0.0)
+        if infra_cost > 0 and mwp and mwp > 0:
+            row["grid_investment_needed_usd"] = round(infra_cost * mwp * 1000)
+        else:
+            row["grid_investment_needed_usd"] = None
+
+        row["dist_solar_to_nearest_substation_km"] = kek.get(
+            "dist_solar_to_nearest_substation_km", None
+        )
+        row["dist_to_nearest_substation_km"] = kek.get("dist_to_nearest_substation_km", None)
 
         rows.append(row)
 

@@ -45,8 +45,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.assumptions import LAND_COST_USD_PER_KW
-from src.model.basic_model import grid_connection_cost_per_kw, lcoe_solar
+from src.assumptions import LAND_COST_USD_PER_KW, TRANSMISSION_FALLBACK_CAPACITY_MWP
+from src.model.basic_model import (
+    grid_connection_cost_per_kw,
+    lcoe_solar,
+    new_transmission_cost_per_kw,
+)
 from src.pipeline.assumptions import (
     HOURS_PER_YEAR,
     WACC_VALUES,
@@ -86,15 +90,23 @@ def build_fct_lcoe(
     resource_cols = ["kek_id", "pvout_centroid", "pvout_best_50km"]
     if gc_pvout_col not in resource_cols:
         resource_cols.append(gc_pvout_col)
+    if "max_captive_capacity_mwp" in resource_raw.columns:
+        resource_cols.append("max_captive_capacity_mwp")
     resource = resource_raw[resource_cols]
 
     tech = pd.read_csv(dim_tech_cost_csv).iloc[0]
 
     # V2: read solar-to-substation distance for grid-connected scenario
+    # V3.1: also read inter-substation connectivity for transmission cost
     proximity_cols = ["kek_id", "dist_to_nearest_substation_km"]
     prox_raw = pd.read_csv(fct_substation_proximity_csv)
-    if "dist_solar_to_nearest_substation_km" in prox_raw.columns:
-        proximity_cols.append("dist_solar_to_nearest_substation_km")
+    for col in [
+        "dist_solar_to_nearest_substation_km",
+        "inter_substation_connected",
+        "inter_substation_dist_km",
+    ]:
+        if col in prox_raw.columns:
+            proximity_cols.append(col)
     proximity = prox_raw[proximity_cols]
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
@@ -133,6 +145,20 @@ def build_fct_lcoe(
             else 0.0
         )
 
+        # V3.1: Inter-substation connectivity and distance
+        inter_connected = (
+            bool(kek_row["inter_substation_connected"])
+            if "inter_substation_connected" in kek_row.index
+            and pd.notna(kek_row.get("inter_substation_connected"))
+            else None
+        )
+        inter_sub_dist = (
+            float(kek_row["inter_substation_dist_km"])
+            if "inter_substation_dist_km" in kek_row.index
+            and pd.notna(kek_row.get("inter_substation_dist_km"))
+            else 0.0
+        )
+
         for scenario, pvout_col in scenarios:
             pvout_val = kek_row.get(pvout_col)
             is_cf_provisional = pd.isna(pvout_val)
@@ -152,18 +178,31 @@ def build_fct_lcoe(
             cf = float(pvout_val) / HOURS_PER_YEAR if pd.notna(pvout_val) else None
 
             # Connection + land cost: 0 for within_boundary, computed for grid_connected_solar
+            # V3.1: adds transmission line cost when substations are not connected
             if scenario == "within_boundary":
                 conn_cost = 0.0
                 land_cost = 0.0
+                trans_cost = 0.0
             else:
                 # V2: use solar-to-substation distance; fallback to KEK-to-substation
                 dist = dist_solar_to_sub if dist_solar_to_sub is not None else dist_kek_to_sub
                 conn_cost = grid_connection_cost_per_kw(dist)
                 land_cost = LAND_COST_USD_PER_KW
+                # V3.1: new transmission line cost if substations are not connected
+                if inter_connected is False and inter_sub_dist > 0:
+                    solar_mwp_val = kek_row.get("max_captive_capacity_mwp")
+                    solar_mwp = (
+                        float(solar_mwp_val)
+                        if pd.notna(solar_mwp_val) and float(solar_mwp_val) > 0
+                        else TRANSMISSION_FALLBACK_CAPACITY_MWP
+                    )
+                    trans_cost = new_transmission_cost_per_kw(inter_sub_dist, solar_mwp)
+                else:
+                    trans_cost = 0.0
 
-            eff_capex_c = capex_c + conn_cost + land_cost
-            eff_capex_l = capex_l + conn_cost + land_cost
-            eff_capex_u = capex_u + conn_cost + land_cost
+            eff_capex_c = capex_c + conn_cost + land_cost + trans_cost
+            eff_capex_l = capex_l + conn_cost + land_cost + trans_cost
+            eff_capex_u = capex_u + conn_cost + land_cost + trans_cost
 
             for wacc in wacc_values:
                 wacc_dec = wacc / 100.0
@@ -185,6 +224,7 @@ def build_fct_lcoe(
                         "pvout_used": actual_pvout_col,
                         "cf_used": round(float(cf), 4) if cf is not None else np.nan,
                         "connection_cost_per_kw": round(conn_cost, 1),
+                        "transmission_cost_per_kw": round(trans_cost, 1),
                         "effective_capex_usd_per_kw": round(eff_capex_c, 1),
                         "lcoe_usd_mwh": _r(lcoe_c),
                         "lcoe_low_usd_mwh": _r(lcoe_l),

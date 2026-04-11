@@ -68,7 +68,9 @@ from src.pipeline.buildability_filters import (
     apply_min_area_filter,
     apply_slope_elevation_mask,
     compute_buildability_constraint,
+    compute_distance_mask_km,
     compute_slope_degrees,
+    haversine_km,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -114,7 +116,11 @@ def _sample_centroid(src: rasterio.DatasetReader, arr: np.ndarray, lon: float, l
 
 
 def _sample_best_50km(src: rasterio.DatasetReader, lon: float, lat: float) -> float:
-    """Return the max valid PVOUT daily value within 50km of (lon, lat)."""
+    """Return the max valid PVOUT daily value within 50km of (lon, lat).
+
+    Uses a bounding-box window for raster extraction, then applies a circular
+    haversine mask to exclude corner pixels beyond the true 50km radius.
+    """
     lat_buf = PVOUT_BUFFER_KM / KM_PER_DEGREE_LAT
     lon_buf = PVOUT_BUFFER_KM / (KM_PER_DEGREE_LAT * math.cos(math.radians(lat)))
     window = from_bounds(
@@ -128,6 +134,12 @@ def _sample_best_50km(src: rasterio.DatasetReader, lon: float, lat: float) -> fl
         patch = src.read(1, window=window)
     except Exception:
         return np.nan
+
+    # Apply circular distance mask — exclude pixels beyond true 50km radius
+    win_transform = rasterio.windows.transform(window, src.transform)
+    dist_km = compute_distance_mask_km(lat, lon, win_transform, patch.shape)
+    patch = np.where(dist_km <= PVOUT_BUFFER_KM, patch, np.nan)
+
     valid = patch[np.isfinite(patch)]
     return float(valid.max()) if len(valid) > 0 else np.nan
 
@@ -261,7 +273,7 @@ def _compute_buildable_pvout(
     lon: float,
     lat: float,
     data_dir: Path = BUILDABILITY_DIR,
-) -> tuple[float, float, float, str, float, float]:
+) -> tuple[float, float, float, str, float, float, float]:
     """Apply the 4-layer land suitability filter to a PVOUT patch.
 
     Applies whatever data files are present in data_dir — layers with missing
@@ -277,8 +289,8 @@ def _compute_buildable_pvout(
 
     Returns:
         (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str,
-         best_solar_site_lat, best_solar_site_lon)
-        Returns (NaN, NaN, NaN, "data_unavailable", NaN, NaN) when no files are present.
+         best_solar_site_lat, best_solar_site_lon, best_solar_site_dist_km)
+        Returns (NaN, NaN, NaN, "data_unavailable", NaN, NaN, NaN) when no files are present.
 
     Note on resolution:
         PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
@@ -289,7 +301,7 @@ def _compute_buildable_pvout(
 
     available = _available_build_files(data_dir)
     if not available:
-        return np.nan, np.nan, np.nan, "data_unavailable", np.nan, np.nan
+        return np.nan, np.nan, np.nan, "data_unavailable", np.nan, np.nan, np.nan
 
     win_transform = rasterio.windows.transform(window, src_transform)
     height, width = pvout_patch.shape
@@ -308,7 +320,7 @@ def _compute_buildable_pvout(
     n_raw = int(valid.sum())
 
     if n_raw == 0:
-        return np.nan, 0.0, 0.0, "unconstrained", np.nan, np.nan
+        return np.nan, 0.0, 0.0, "unconstrained", np.nan, np.nan, np.nan
 
     pvout_working = np.where(valid, pvout_patch, 0.0).astype(float)
 
@@ -398,10 +410,12 @@ def _compute_buildable_pvout(
         )
         best_solar_lat = round(float(best_lat), 5)
         best_solar_lon = round(float(best_lon), 5)
+        best_solar_dist_km = round(haversine_km(lat, lon, best_solar_lat, best_solar_lon), 2)
     else:
         pvout_buildable_daily = np.nan
         best_solar_lat = np.nan
         best_solar_lon = np.nan
+        best_solar_dist_km = np.nan
 
     constraint = compute_buildability_constraint(
         n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_2, n_after_4
@@ -427,6 +441,7 @@ def _compute_buildable_pvout(
         constraint,
         best_solar_lat,
         best_solar_lon,
+        best_solar_dist_km,
     )
 
 
@@ -495,6 +510,12 @@ def build_fct_kek_resource(
             except Exception:
                 pvout_patch = np.array([[]], dtype=float)
 
+            # Apply circular distance mask — exclude corner pixels beyond true 50km radius
+            if pvout_patch.size > 0:
+                win_tf = rasterio.windows.transform(window_50km, src.transform)
+                dist_km = compute_distance_mask_km(lat, lon, win_tf, pvout_patch.shape)
+                pvout_patch = np.where(dist_km <= PVOUT_BUFFER_KM, pvout_patch, np.nan)
+
             # Daily → annual. pvout_daily_to_annual validates plausibility range.
             try:
                 pvout_c = (
@@ -520,6 +541,7 @@ def build_fct_kek_resource(
                 constraint,
                 best_solar_lat,
                 best_solar_lon,
+                best_solar_dist_km,
             ) = _compute_buildable_pvout(
                 pvout_patch, window_50km, src.transform, lon, lat, buildability_dir
             )
@@ -569,6 +591,9 @@ def build_fct_kek_resource(
                     else np.nan,
                     "best_solar_site_lon": best_solar_lon
                     if np.isfinite(best_solar_lon)
+                    else np.nan,
+                    "best_solar_site_dist_km": best_solar_dist_km
+                    if np.isfinite(best_solar_dist_km)
                     else np.nan,
                     # V2: within-boundary solar capacity from KEK polygon area
                     "within_boundary_area_ha": round(area_ha * WB_SOLAR_FRACTION, 1)
@@ -620,6 +645,7 @@ def main() -> None:
         "pvout_buildable_best_50km",
         "buildable_area_ha",
         "buildability_constraint",
+        "best_solar_site_dist_km",
     ]
     print(df[display_cols].to_string(index=False))
 

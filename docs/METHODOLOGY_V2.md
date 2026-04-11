@@ -104,7 +104,7 @@ V1 had two scenarios: `within_boundary` (solar inside KEK) and `remote_captive` 
 | **PVOUT source** | `pvout_centroid` | `pvout_buildable_best_50km` |
 | **Who builds it** | KEK tenant or on-site IPP | Independent IPP |
 | **Who buys the power** | KEK tenant directly (no PLN) | PLN (via PPA), then PLN delivers to KEK |
-| **Grid infrastructure needed** | None — internal distribution only | Solar-to-substation connection (typically <10 km) |
+| **Grid infrastructure needed** | None — internal distribution only | Solar-to-substation connection (typically <5 km) |
 | **Cost to model** | Base LCOE only | Base LCOE + short grid connection cost |
 | **PLN involvement** | None | Central — PLN is the offtaker and deliverer |
 | **KEK tenant's cost** | Solar LCOE (direct) | PLN I-4 tariff or negotiated PPA rate |
@@ -178,11 +178,63 @@ Note: B_solar and B_kek may be different substations. The solar site's nearest s
 
 | Parameter | Default | Range | Rationale |
 |---|---|---|---|
-| `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM` | 10.0 km | 5–20 km | Typical grid connection distance for utility-scale solar. No Indonesia-specific benchmark available; users should adjust based on local terrain and permitting conditions. |
+| `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 5.0 km | 2–10 km | V3.1: Tightened from 10km. Source: YSG Solar (ideal ≤ 2 miles / 3.2 km), IFC Utility-Scale Solar Guide (max 5 miles / 8 km). Gen-tie costs of ~$1–3M/mile make longer connections uneconomic. |
 | `KEK_TO_SUBSTATION_LOW_THRESHOLD_KM` | 15.0 km | 5–30 km | PLN distribution reach to industrial estates. Indonesia's grid density varies dramatically between Java (dense) and eastern islands (sparse); adjust accordingly. |
 | `SUBSTATION_MIN_CAPACITY_MVA` | 30 MVA | 10–100 MVA | Minimum substation capacity to qualify as a viable grid injection point. Lower for small solar projects; higher for large-scale development. |
 
 These thresholds are user-adjustable in the dashboard. **No universal "correct" value exists** — the appropriate threshold depends on the specific region's grid topology, terrain, and regulatory environment. The dashboard's value is in allowing users to test sensitivity across these ranges.
+
+### V3.1: Substation capacity utilization check
+
+Distance alone is insufficient. A substation may be physically nearby but already loaded near capacity. V3.1 adds a **capacity utilization check**:
+
+```
+available_capacity_mva = rated_capacity_mva × (1 - utilization_pct)
+```
+
+- `utilization_pct` defaults to 65% (user-adjustable, range 30–95%)
+- If `solar_capacity_mwp > available_capacity_mva`, the substation needs an upgrade, producing `invest_substation` even if physically near
+- Proxies for smarter defaults (future): night-time light intensity (VIIRS/DMSP), industrial load presence, PLN RUPTL upgrade flags
+
+**Traffic light display:**
+
+| Status | Criteria |
+|---|---|
+| Green | Available capacity > 2× solar potential |
+| Yellow | Available capacity 0.5–2× solar potential |
+| Red | Available capacity < 0.5× solar potential (upgrade needed) |
+| Unknown | Capacity data unavailable |
+
+Disclaimer: "Actual available capacity requires a formal PLN grid study."
+
+### V3.1: Inter-substation connectivity check
+
+When B_solar and B_kek are different substations, the model checks whether an existing transmission line connects them.
+
+**Data source:** `data/pln_grid_lines.geojson` — 1,595 PLN transmission lines with geometry and voltage (`tegjar` kV). Voltage distribution: 150 kV (1,286 lines), 500 kV (86), 275 kV (34), 70 kV (177).
+
+**Geometric check:** For each pair of substations, the pipeline checks if ANY grid line geometry passes within 2 km of BOTH substations (using shapely distance calculations with approximate degree-to-km conversion at Indonesian latitudes).
+
+**Fallback:** If no grid line geometrically connects the substations, the PLN region (`regpln`) field is used as a secondary proxy. Substations in the same PLN region are assumed connected through the regional 150 kV mesh.
+
+**Connectivity output:**
+- `line_connected` — True if a grid line geometrically passes near both substations
+- `same_grid_region` — True if both substations share the same `regpln`
+- `inter_substation_connected` — True if `line_connected OR same_grid_region`
+
+If `inter_substation_connected == False`, the category becomes `invest_transmission` or `grid_first` depending on other conditions.
+
+### V3.1: Infrastructure cost layers
+
+Three layers of grid infrastructure cost affect the economics of connecting solar to a KEK:
+
+| # | Cost | Description | Who pays | Model status |
+|---|---|---|---|---|
+| 1 | **Gen-tie** (solar → B_solar) | Short MV/HV line from solar farm to nearest substation | Developer/IPP | ✅ `grid_connection_cost_per_kw()` — dist × $5/kW-km + $80/kW fixed |
+| 2 | **New transmission line** (B_solar → B_kek) | If no existing line connects the two substations | PLN / DFI | ✅ V3.1: `new_transmission_cost_per_kw()` — dist × $1.25M/km ÷ solar capacity |
+| 3 | **Substation upgrade** | If substation lacks capacity for solar injection | PLN / DFI | ⚠️ Flagged via capacity assessment; cost estimation deferred |
+
+Sources: YSG Solar (gen-tie distances), IFC Utility-Scale Solar Guide (cost ranges), docs/methodology_testing.md (research notes).
 
 ### Data requirement
 

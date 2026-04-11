@@ -51,10 +51,12 @@ from src.assumptions import (
     RUPTL_PRE2030_END,
     SOLAR_TO_SUBSTATION_THRESHOLD_KM,
     SUBSTATION_MIN_CAPACITY_MVA,
+    SUBSTATION_UTILIZATION_PCT,
     SUBSTATION_WORKS_PER_KW,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
+    TRANSMISSION_LINE_COST_USD_PER_KM,
     WIND_CF_MAX,
     WIND_CF_MIN,
 )
@@ -405,6 +407,39 @@ def gentie_cost_per_kw(
     return grid_connection_cost_per_kw(dist_km, cost_per_kw_km, substation_works_per_kw)
 
 
+def new_transmission_cost_per_kw(
+    inter_substation_dist_km: float,
+    solar_capacity_mwp: float,
+    cost_per_km: float = TRANSMISSION_LINE_COST_USD_PER_KM,
+) -> float:
+    """Capital cost per kW of building a new transmission line between two substations.
+
+    V3.1: When the solar site's nearest substation (B_solar) differs from the KEK's
+    nearest substation (B_kek) and no existing line connects them, this cost is
+    added to effective CAPEX for grid-connected LCOE.
+
+    Parameters
+    ----------
+    inter_substation_dist_km:
+        Haversine distance between B_solar and B_kek (km).
+    solar_capacity_mwp:
+        Proposed solar farm capacity (MWp). Must be > 0.
+    cost_per_km:
+        Transmission line construction cost (USD/km). Default $1.25M/km.
+        Range: $0.6–1.9M/km depending on voltage, terrain, permitting.
+
+    Returns
+    -------
+    float
+        Transmission line cost per kW of solar capacity (USD/kW).
+        Returns 0 if distance is 0 (same substation) or capacity is 0.
+    """
+    if inter_substation_dist_km <= 0 or solar_capacity_mwp <= 0:
+        return 0.0
+    total_cost = inter_substation_dist_km * cost_per_km
+    return total_cost / (solar_capacity_mwp * 1_000)  # MWp → kW
+
+
 def lcoe_solar_grid_connected(
     capex_usd_per_kw: float,
     fixed_om_usd_per_kw_yr: float,
@@ -593,7 +628,17 @@ def action_flags(
     invest_battery, grid_first, plan_late
     """
     plan_late = post2030_share >= PLAN_LATE_POST2030_SHARE_THRESHOLD
-    grid_first = solar_attractive and not grid_upgrade_pre2030
+    grid_first = (
+        solar_attractive
+        and not grid_upgrade_pre2030
+        and grid_integration_cat
+        not in (
+            "invest_transmission",
+            "invest_substation",
+            "grid_ready",
+            "within_boundary",
+        )
+    )
     invest_battery = solar_attractive and reliability_req >= FIRMING_RELIABILITY_REQ_THRESHOLD
     invest_transmission = solar_attractive and grid_integration_cat == "invest_transmission"
     invest_substation = solar_attractive and grid_integration_cat == "invest_substation"
@@ -694,6 +739,9 @@ def grid_integration_category(
     solar_to_sub_threshold_km: float = SOLAR_TO_SUBSTATION_THRESHOLD_KM,
     kek_to_sub_threshold_km: float = KEK_TO_SUBSTATION_THRESHOLD_KM,
     min_capacity_mva: float = SUBSTATION_MIN_CAPACITY_MVA,
+    substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
+    solar_capacity_mwp: float | None = None,
+    inter_substation_connected: bool | None = None,
 ) -> str:
     """Classify a KEK's grid integration readiness using three-point proximity.
 
@@ -720,11 +768,22 @@ def grid_integration_category(
         If below min_capacity_mva, treated as if substation is not near
         (grid reinforcement needed).
     solar_to_sub_threshold_km:
-        Max distance for solar-to-substation to be "near" (default 10 km).
+        Max distance for solar-to-substation to be "near" (default 5 km).
     kek_to_sub_threshold_km:
         Max distance for KEK-to-substation to be "well-connected" (default 15 km).
     min_capacity_mva:
         Min substation capacity to absorb solar generation (default 30 MVA).
+    substation_utilization_pct:
+        Assumed fraction of substation capacity already in use (0–1). Default 0.65.
+        Used with solar_capacity_mwp to check if available capacity is sufficient.
+    solar_capacity_mwp:
+        Proposed solar farm capacity (MWp). If provided with substation_capacity_mva,
+        triggers capacity sufficiency check: available = rated × (1 − utilization).
+    inter_substation_connected:
+        V3.1: Whether B_solar and B_kek are connected by an existing transmission line.
+        True = line exists (checked geometrically or via same PLN region).
+        False = no line found, new transmission build needed.
+        None = unknown / same substation / not checked (falls back to distance logic).
 
     Returns
     -------
@@ -735,7 +794,7 @@ def grid_integration_category(
     if has_internal_substation:
         return "within_boundary"
 
-    # Check substation capacity — if too small, treat as if grid is not ready
+    # Check substation rated capacity — if too small, treat as if grid is not ready
     capacity_ok = substation_capacity_mva is None or substation_capacity_mva >= min_capacity_mva
 
     kek_near = dist_kek_to_substation_km <= kek_to_sub_threshold_km and capacity_ok
@@ -745,6 +804,26 @@ def grid_integration_category(
         and capacity_ok
     )
 
+    # V3.1: Capacity utilization check — substation may be rated high enough but
+    # too loaded to absorb proposed solar generation. This triggers invest_substation
+    # (upgrade needed) rather than grid_first, because the substation IS physically near.
+    if (
+        capacity_ok
+        and substation_capacity_mva is not None
+        and solar_capacity_mwp is not None
+        and solar_capacity_mwp > 0
+    ):
+        available_mva = substation_capacity_mva * (1 - substation_utilization_pct)
+        if solar_capacity_mwp > available_mva:
+            return "invest_substation"
+
+    # V3.1: If inter-substation connectivity is explicitly known, use it
+    if inter_substation_connected is False:
+        # No existing line between B_solar and B_kek
+        if solar_near:
+            return "invest_transmission"  # solar can reach a sub, but KEK's sub is disconnected
+        return "grid_first"
+
     if solar_near and kek_near:
         return "grid_ready"
     elif solar_near and not kek_near:
@@ -753,6 +832,33 @@ def grid_integration_category(
         return "invest_substation"
     else:
         return "grid_first"
+
+
+def capacity_assessment(
+    substation_capacity_mva: float | None,
+    solar_capacity_mwp: float | None,
+    utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
+) -> tuple[str, float | None]:
+    """Classify substation capacity adequacy for proposed solar injection.
+
+    Returns (traffic_light, available_mva):
+        'green'   — available capacity > 2× solar potential
+        'yellow'  — available capacity between 0.5× and 2× solar potential
+        'red'     — available capacity < 0.5× solar potential (upgrade needed)
+        'unknown' — capacity data unavailable
+    """
+    if substation_capacity_mva is None or substation_capacity_mva <= 0:
+        return "unknown", None
+    available = substation_capacity_mva * (1 - utilization_pct)
+    if solar_capacity_mwp is None or solar_capacity_mwp <= 0:
+        return "unknown", round(available, 1)
+    ratio = available / solar_capacity_mwp
+    if ratio > 2.0:
+        return "green", round(available, 1)
+    elif ratio >= 0.5:
+        return "yellow", round(available, 1)
+    else:
+        return "red", round(available, 1)
 
 
 # ---------------------------------------------------------------------------

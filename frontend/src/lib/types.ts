@@ -7,6 +7,7 @@ export interface UserAssumptions {
   grid_connection_fixed_per_kw: number;
   bess_capex_usd_per_kwh: number;
   land_cost_usd_per_kw: number;
+  substation_utilization_pct: number;
   idr_usd_rate: number;
 }
 
@@ -83,6 +84,16 @@ export interface ScorecardRow {
   land_cost_usd_per_kw?: number;
   dist_to_nearest_substation_km?: number;
   dist_solar_to_nearest_substation_km?: number;
+
+  // V3.1: Grid connectivity and capacity assessment
+  same_grid_region?: boolean;
+  line_connected?: boolean;
+  inter_substation_connected?: boolean;
+  inter_substation_dist_km?: number;
+  available_capacity_mva?: number;
+  capacity_assessment?: 'green' | 'yellow' | 'red' | 'unknown';
+  transmission_cost_per_kw?: number;
+  grid_investment_needed_usd?: number;
 }
 
 export interface SliderConfig {

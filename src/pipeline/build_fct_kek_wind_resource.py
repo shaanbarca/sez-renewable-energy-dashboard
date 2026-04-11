@@ -42,6 +42,7 @@ from src.pipeline.assumptions import (
     WIND_BUFFER_KM,
     WIND_SOURCE,
 )
+from src.pipeline.buildability_filters import compute_distance_mask_km
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WIND_TIF = REPO_ROOT / "data" / "wind" / "IDN_wind-speed_100m.tif"
@@ -65,7 +66,11 @@ def _sample_centroid(src: rasterio.DatasetReader, arr: np.ndarray, lon: float, l
 
 
 def _sample_best_50km(src: rasterio.DatasetReader, lon: float, lat: float) -> float:
-    """Return the max valid wind speed within 50km of (lon, lat)."""
+    """Return the max valid wind speed within 50km of (lon, lat).
+
+    Uses a bounding-box window for raster extraction, then applies a circular
+    haversine mask to exclude corner pixels beyond the true 50km radius.
+    """
     lat_buf = WIND_BUFFER_KM / KM_PER_DEGREE_LAT
     lon_buf = WIND_BUFFER_KM / (KM_PER_DEGREE_LAT * math.cos(math.radians(lat)))
     window = from_bounds(
@@ -79,6 +84,12 @@ def _sample_best_50km(src: rasterio.DatasetReader, lon: float, lat: float) -> fl
         patch = src.read(1, window=window)
     except Exception:
         return np.nan
+
+    # Apply circular distance mask — exclude pixels beyond true 50km radius
+    win_transform = rasterio.windows.transform(window, src.transform)
+    dist_km = compute_distance_mask_km(lat, lon, win_transform, patch.shape)
+    patch = np.where(dist_km <= WIND_BUFFER_KM, patch, np.nan)
+
     valid = patch[(np.isfinite(patch)) & (patch > 0)]
     return float(valid.max()) if len(valid) > 0 else np.nan
 
