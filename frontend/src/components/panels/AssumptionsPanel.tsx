@@ -1,9 +1,11 @@
 import * as Accordion from '@radix-ui/react-accordion';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDraggable } from '../../hooks/useDraggable';
 import { useScorecard } from '../../hooks/useScorecard';
 import type { SliderConfig, UserAssumptions, UserThresholds } from '../../lib/types';
+import { hasChangedAssumptions } from '../../lib/urlState';
 import { useDashboardStore } from '../../store/dashboard';
+import CapexInput from '../ui/CapexInput';
 import Slider from '../ui/Slider';
 
 /* ---------- sub-components ---------- */
@@ -32,7 +34,7 @@ function SummaryBlock() {
 
   const items = [
     { label: 'WACC', value: `${assumptions.wacc_pct}%` },
-    { label: 'CAPEX', value: `$${assumptions.capex_usd_per_kw}` },
+    { label: 'CAPEX', value: `$${assumptions.capex_usd_per_kw.toLocaleString()}` },
     { label: 'Life', value: `${assumptions.lifetime_yr}yr` },
   ];
 
@@ -158,20 +160,6 @@ function AccordionTrigger({ children }: { children: React.ReactNode }) {
 export default function AssumptionsPanel() {
   const [collapsed, setCollapsed] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [bodyHeight, setBodyHeight] = useState<number | undefined>(undefined);
-
-  // Measure content height for smooth animation
-  useEffect(() => {
-    if (bodyRef.current) {
-      const observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setBodyHeight(entry.contentRect.height);
-        }
-      });
-      observer.observe(bodyRef.current);
-      return () => observer.disconnect();
-    }
-  }, []);
 
   const assumptions = useDashboardStore((s) => s.assumptions);
   const thresholds = useDashboardStore((s) => s.thresholds);
@@ -179,6 +167,13 @@ export default function AssumptionsPanel() {
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const setThresholds = useDashboardStore((s) => s.setThresholds);
   const resetDefaults = useDashboardStore((s) => s.resetDefaults);
+  const defaultAssumptions = useDashboardStore((s) => s.defaultAssumptions);
+  const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
+
+  const isModified =
+    assumptions &&
+    defaultAssumptions &&
+    (hasChangedAssumptions(assumptions, defaultAssumptions) || benchmarkMode !== 'bpp');
 
   const { loading } = useScorecard();
   const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
@@ -219,6 +214,11 @@ export default function AssumptionsPanel() {
           <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
             Assumptions
           </span>
+          {isModified && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-[#90CAF9]/20 text-[#90CAF9]">
+              Modified
+            </span>
+          )}
           {loading && <span className="w-1.5 h-1.5 rounded-full bg-[#90CAF9] animate-pulse" />}
         </div>
         <ChevronDown
@@ -230,28 +230,33 @@ export default function AssumptionsPanel() {
 
       {/* Expandable body — smooth animated collapse */}
       <div
-        className="overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)]"
+        className="overflow-y-auto transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)]"
         style={{
-          maxHeight: collapsed ? 0 : (bodyHeight ?? 800),
+          maxHeight: collapsed ? 0 : 'calc(100vh - 150px)',
           opacity: collapsed ? 0 : 1,
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(255,255,255,0.15) transparent',
         }}
       >
-        <div
-          ref={bodyRef}
-          className="px-3.5 pb-3 overflow-y-auto"
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(255,255,255,0.15) transparent',
-            maxHeight: 'calc(100vh - 150px)',
-          }}
-        >
+        <div ref={bodyRef} className="px-3.5 pb-3">
           <SummaryBlock />
 
           {/* Tier 1: Core */}
           <div className="mb-1">
             <WaccSlider />
+            {sliderConfigs.tier1?.capex_usd_per_kw && (
+              <CapexInput
+                value={assumptions.capex_usd_per_kw}
+                onChange={(v) => setAssumptions({ capex_usd_per_kw: v })}
+                config={sliderConfigs.tier1.capex_usd_per_kw}
+              />
+            )}
             <SliderGroup
-              configs={sliderConfigs.tier1}
+              configs={(() => {
+                if (!sliderConfigs.tier1) return undefined;
+                const { capex_usd_per_kw: _, ...rest } = sliderConfigs.tier1;
+                return Object.keys(rest).length > 0 ? rest : undefined;
+              })()}
               values={assumptions as unknown as Record<string, number>}
               onChange={handleAssumptionChange}
             />

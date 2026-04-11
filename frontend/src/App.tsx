@@ -6,6 +6,7 @@ import ScoreDrawer from './components/panels/ScoreDrawer';
 import BottomPanel from './components/ui/BottomPanel';
 import Header from './components/ui/Header';
 import WalkthroughModal from './components/ui/WalkthroughModal';
+import { useUrlSync } from './hooks/useUrlSync';
 import { useDashboardStore } from './store/dashboard';
 
 function App() {
@@ -15,6 +16,9 @@ function App() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Sync assumptions → URL query params
+  useUrlSync();
 
   // Sync CSS theme variables with the active map style
   useEffect(() => {

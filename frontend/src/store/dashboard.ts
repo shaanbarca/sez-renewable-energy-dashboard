@@ -10,10 +10,12 @@ import type {
   UserAssumptions,
   UserThresholds,
 } from '../lib/types';
+import { parseUrlAssumptions } from '../lib/urlState';
 
 interface DashboardStore {
   // Data
   assumptions: UserAssumptions | null;
+  defaultAssumptions: UserAssumptions | null;
   thresholds: UserThresholds | null;
   sliderConfigs: DefaultsResponse['slider_configs'] | null;
   scorecard: ScorecardRow[] | null;
@@ -63,6 +65,7 @@ let _defaultThresholds: UserThresholds | null = null;
 export const useDashboardStore = create<DashboardStore>((set, get) => ({
   // Data
   assumptions: null,
+  defaultAssumptions: null,
   thresholds: null,
   sliderConfigs: null,
   scorecard: null,
@@ -134,7 +137,10 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       set({
         assumptions: { ..._defaultAssumptions },
         thresholds: { ..._defaultThresholds },
+        benchmarkMode: 'bpp',
       });
+      // Clear URL params
+      window.history.replaceState(null, '', window.location.pathname);
     }
   },
 
@@ -160,13 +166,20 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       _defaultAssumptions = defaults.assumptions;
       _defaultThresholds = defaults.thresholds;
 
+      // Hydrate from URL query params (overrides defaults)
+      const urlOverrides = parseUrlAssumptions();
+      const mergedAssumptions = { ...defaults.assumptions, ...urlOverrides.assumptions };
+      const mergedBenchmark = urlOverrides.benchmarkMode || 'bpp';
+
       set({
-        assumptions: defaults.assumptions,
+        assumptions: mergedAssumptions,
+        defaultAssumptions: { ...defaults.assumptions },
         thresholds: defaults.thresholds,
         sliderConfigs: defaults.slider_configs,
+        benchmarkMode: mergedBenchmark,
       });
 
-      const data = await fetchScorecard(defaults.assumptions, defaults.thresholds, 'bpp');
+      const data = await fetchScorecard(mergedAssumptions, defaults.thresholds, mergedBenchmark);
       set({ scorecard: data.scorecard, loading: false });
     } catch (err) {
       console.error('Failed to initialize dashboard:', err);

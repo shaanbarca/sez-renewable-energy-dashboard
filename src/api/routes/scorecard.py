@@ -37,7 +37,7 @@ router = APIRouter()
 
 
 class AssumptionsInput(BaseModel):
-    capex_usd_per_kw: float = Field(gt=0, description="CAPEX in USD/kW")
+    capex_usd_per_kw: float = Field(ge=0, description="CAPEX in USD/kW")
     lifetime_yr: int = Field(gt=0, le=50)
     wacc_pct: float = Field(gt=0, le=100)
     fom_usd_per_kw_yr: float = Field(ge=0)
