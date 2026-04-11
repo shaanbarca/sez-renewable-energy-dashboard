@@ -2,8 +2,9 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
-import type { ActionFlag, ScorecardRow } from '../../lib/types';
+import type { ActionFlag, ScorecardRow, UserAssumptions } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import Slider from '../ui/Slider';
 
 /* ---------- Types ---------- */
 
@@ -278,6 +279,12 @@ function ResourceTab({
 
 function LCOETab({ row }: { row: ScorecardRow }) {
   const gcLcoe = row.lcoe_grid_connected_usd_mwh;
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
+  const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
+
+  const utilizationConfig = sliderConfigs?.tier2?.substation_utilization_pct;
+  const cap = row.capacity_assessment ?? 'unknown';
 
   return (
     <>
@@ -298,6 +305,40 @@ function LCOETab({ row }: { row: ScorecardRow }) {
           )}
         </StatCard>
       )}
+
+      {/* Substation capacity — slider + live traffic light */}
+      {utilizationConfig && assumptions && (
+        <StatCard>
+          <Slider
+            value={assumptions.substation_utilization_pct}
+            onChange={(v) =>
+              setAssumptions({ substation_utilization_pct: v } as Partial<UserAssumptions>)
+            }
+            min={utilizationConfig.min}
+            max={utilizationConfig.max}
+            step={utilizationConfig.step}
+            label={utilizationConfig.label}
+            unit={utilizationConfig.unit}
+            description={utilizationConfig.description}
+          />
+          <div className="flex items-center gap-2 mt-1">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: CAPACITY_COLORS[cap] }}
+            />
+            <span className="text-xs text-zinc-300">{CAPACITY_LABELS[cap]}</span>
+          </div>
+          <StatRow
+            label="Available Capacity"
+            value={row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'}
+            unit="MVA"
+          />
+          <div className="mt-1 text-[9px] text-zinc-600 leading-relaxed">
+            Applies to all KEKs. Actual utilization requires PLN grid study.
+          </div>
+        </StatCard>
+      )}
+
       <StatCard>
         <StatRowWithTip
           label="Tariff Cost"
@@ -367,7 +408,6 @@ const CAPACITY_LABELS: Record<string, string> = {
 function PipelineTab({ row }: { row: ScorecardRow }) {
   const gridUpgrade = row.grid_upgrade_planned;
   const ruptlSummary = row.ruptl_region_summary;
-  const cap = row.capacity_assessment ?? 'unknown';
 
   return (
     <>
@@ -380,21 +420,9 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
         <StatRow label="Grid Integration" value={row.grid_integration_category ?? 'N/A'} />
       </StatCard>
 
-      {/* V3.1: Substation capacity assessment */}
+      {/* Substation distances (capacity assessment moved to LCOE tab) */}
       <StatCard>
-        <div className="text-[11px] text-zinc-500 mb-2">Substation Capacity</div>
-        <div className="flex items-center gap-2 mb-2">
-          <span
-            className="inline-block w-2.5 h-2.5 rounded-full"
-            style={{ backgroundColor: CAPACITY_COLORS[cap] }}
-          />
-          <span className="text-xs text-zinc-300">{CAPACITY_LABELS[cap]}</span>
-        </div>
-        <StatRow
-          label="Available Capacity"
-          value={row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'}
-          unit="MVA"
-        />
+        <div className="text-[11px] text-zinc-500 mb-2">Substation Proximity</div>
         <StatRow
           label="Nearest Sub Distance"
           value={row.dist_to_nearest_substation_km?.toFixed(1)}
@@ -405,9 +433,6 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
           value={row.dist_solar_to_nearest_substation_km?.toFixed(1)}
           unit="km"
         />
-        <div className="mt-1 text-[9px] text-zinc-600 leading-relaxed">
-          Actual capacity requires a formal PLN grid study.
-        </div>
       </StatCard>
 
       {/* V3.1: Grid connectivity */}

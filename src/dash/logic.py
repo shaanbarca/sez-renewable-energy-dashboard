@@ -52,6 +52,8 @@ from src.model.basic_model import (
     new_transmission_cost_per_kw,
     solar_competitive_gap,
 )
+from src.model.basic_model import capacity_assessment as compute_capacity_assessment
+from src.model.basic_model import grid_integration_category as compute_grid_integration_category
 from src.model.basic_model import (
     invest_resilience as invest_resilience_fn,
 )
@@ -408,9 +410,35 @@ def compute_scorecard_live(
         if pd.isna(reliability_req):
             reliability_req = 0.6
 
-        # Action flags with user thresholds
-        gi_cat = kek.get("grid_integration_category")
-        gi_cat = gi_cat if pd.notna(gi_cat) else None
+        # Live recalculate capacity assessment and grid integration category
+        # using the user's substation utilization assumption
+        sub_cap_mva = kek.get("nearest_substation_capacity_mva")
+        sub_cap_mva = float(sub_cap_mva) if pd.notna(sub_cap_mva) else None
+        solar_cap_mwp = kek.get("max_captive_capacity_mwp")
+        solar_cap_mwp = float(solar_cap_mwp) if pd.notna(solar_cap_mwp) else None
+
+        cap_light, avail_mva = compute_capacity_assessment(
+            sub_cap_mva, solar_cap_mwp, assumptions.substation_utilization_pct
+        )
+
+        has_internal = kek.get("has_internal_substation", False)
+        has_internal = bool(has_internal) if pd.notna(has_internal) else False
+        dist_solar = kek.get("dist_solar_to_nearest_substation_km")
+        dist_solar = float(dist_solar) if pd.notna(dist_solar) else None
+        dist_kek = kek.get("dist_to_nearest_substation_km", 0.0)
+        dist_kek = float(dist_kek) if pd.notna(dist_kek) else 0.0
+        inter_connected = kek.get("inter_substation_connected")
+        inter_connected = bool(inter_connected) if pd.notna(inter_connected) else None
+
+        gi_cat = compute_grid_integration_category(
+            has_internal_substation=has_internal,
+            dist_solar_to_substation_km=dist_solar,
+            dist_kek_to_substation_km=dist_kek,
+            substation_capacity_mva=sub_cap_mva,
+            substation_utilization_pct=assumptions.substation_utilization_pct,
+            solar_capacity_mwp=solar_cap_mwp,
+            inter_substation_connected=inter_connected,
+        )
         flags = action_flags(
             solar_attractive=attractive,
             grid_upgrade_pre2030=grid_upgrade_pre2030,
@@ -545,16 +573,16 @@ def compute_scorecard_live(
             row["lcoe_grid_connected_high_usd_mwh"] = np.nan
             row["connection_cost_per_kw"] = 0.0
 
-        # V2: Pass through grid_integration_category from resource_df
-        row["grid_integration_category"] = kek.get("grid_integration_category", None)
+        # V3.1: Live-computed grid integration + capacity (uses user's utilization slider)
+        row["grid_integration_category"] = gi_cat
+        row["capacity_assessment"] = cap_light
+        row["available_capacity_mva"] = avail_mva
 
-        # V3.1: Pass through connectivity + capacity assessment from resource_df
+        # V3.1: Pass through connectivity columns from resource_df (not affected by utilization)
         row["same_grid_region"] = kek.get("same_grid_region", None)
         row["line_connected"] = kek.get("line_connected", None)
         row["inter_substation_connected"] = kek.get("inter_substation_connected", None)
         row["inter_substation_dist_km"] = kek.get("inter_substation_dist_km", None)
-        row["available_capacity_mva"] = kek.get("available_capacity_mva", None)
-        row["capacity_assessment"] = kek.get("capacity_assessment", None)
         row["transmission_cost_per_kw"] = kek.get("transmission_cost_per_kw", None)
 
         # Grid investment needed (USD): total infra cost × capacity (kW)

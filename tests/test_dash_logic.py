@@ -431,6 +431,57 @@ class TestInfrastructureCosts:
         # Grid cost in USD should decrease when rupiah weakens
         assert result.iloc[0]["grid_cost_usd_mwh"] < default.iloc[0]["grid_cost_usd_mwh"]
 
+    def test_utilization_slider_changes_capacity_assessment(
+        self, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Changing substation_utilization_pct must change capacity_assessment live.
+
+        Thresholds: green > 2× solar, yellow 0.5×–2×, red < 0.5×.
+        Substation 200 MVA, solar 50 MWp:
+          At 0.10 util: available = 200 × 0.90 = 180 MVA, ratio = 3.6 → green
+          At 0.90 util: available = 200 × 0.10 = 20 MVA, ratio = 0.4 → red
+        """
+        resource_df = pd.DataFrame(
+            {
+                "kek_id": ["kek-kendal"],
+                "pvout_centroid": [1550.0],
+                "pvout_best_50km": [1650.0],
+                "dist_to_nearest_substation_km": [5.0],
+                "grid_region_id": ["JAVA_BALI"],
+                "reliability_req": [0.6],
+                "max_captive_capacity_mwp": [50.0],
+                "green_share_geas": [0.35],
+                "nearest_substation_capacity_mva": [200.0],
+                "has_internal_substation": [False],
+                "dist_solar_to_nearest_substation_km": [3.0],
+            }
+        )
+        low_util = compute_scorecard_live(
+            resource_df,
+            UserAssumptions(substation_utilization_pct=0.10),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        high_util = compute_scorecard_live(
+            resource_df,
+            UserAssumptions(substation_utilization_pct=0.90),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        low_row = low_util.iloc[0]
+        high_row = high_util.iloc[0]
+
+        # Low utilization → plenty of capacity → green
+        assert low_row["capacity_assessment"] == "green"
+        # High utilization → overloaded → red
+        assert high_row["capacity_assessment"] == "red"
+        # Available capacity should decrease with higher utilization
+        assert low_row["available_capacity_mva"] > high_row["available_capacity_mva"]
+
     def test_battery_adder_applied_when_invest_battery(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):

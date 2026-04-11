@@ -86,11 +86,20 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     if "grid_region_id" not in resource.columns and "grid_region_id" in dim_kek.columns:
         resource = resource.merge(dim_kek[["kek_id", "grid_region_id"]], on="kek_id", how="left")
 
-    # V2: Add substation proximity columns for grid-connected solar LCOE
+    # V2+V3.1: Add substation proximity columns for live LCOE + capacity recalculation
     if "fct_substation_proximity" in tables:
         prox = tables["fct_substation_proximity"]
         prox_cols = ["kek_id", "dist_to_nearest_substation_km"]
-        for col in ["dist_solar_to_nearest_substation_km", "grid_integration_category"]:
+        for col in [
+            "dist_solar_to_nearest_substation_km",
+            "grid_integration_category",
+            "nearest_substation_capacity_mva",
+            "has_internal_substation",
+            "inter_substation_connected",
+            "inter_substation_dist_km",
+            "same_grid_region",
+            "line_connected",
+        ]:
             if col in prox.columns:
                 prox_cols.append(col)
         merge_cols = [c for c in prox_cols if c not in resource.columns or c == "kek_id"]

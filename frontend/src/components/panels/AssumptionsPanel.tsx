@@ -270,7 +270,11 @@ export default function AssumptionsPanel() {
               </Accordion.Header>
               <Accordion.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
                 <SliderGroup
-                  configs={sliderConfigs.tier2}
+                  configs={(() => {
+                    if (!sliderConfigs.tier2) return undefined;
+                    const { substation_utilization_pct: _, ...rest } = sliderConfigs.tier2;
+                    return Object.keys(rest).length > 0 ? rest : undefined;
+                  })()}
                   values={assumptions as unknown as Record<string, number>}
                   onChange={handleAssumptionChange}
                 />

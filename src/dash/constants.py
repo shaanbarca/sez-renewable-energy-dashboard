@@ -171,8 +171,8 @@ TIER2_SLIDERS = {
         "min": 0.30,
         "max": 0.95,
         "step": 0.05,
-        "label": "Substation utilization",
-        "unit": "%",
+        "label": "Substation utilization (%)",
+        "unit": "",
         "description": "Assumed fraction of substation capacity in use. Available capacity = rated × (1 - utilization)",
     },
     "idr_usd_rate": {
