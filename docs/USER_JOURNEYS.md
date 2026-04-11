@@ -70,7 +70,7 @@ The in-app guided tour (click "Guide" in Header, select "Energy Economist") cove
 | 2 | **Filter to investment opportunities** | Bottom Panel > Ranked Table > Filter | Set action flag filter to `invest_transmission` and `invest_substation`. These are your opportunity set: solar resource exists, demand exists, grid is the bottleneck. |
 | 3 | **Sort by capacity** | Bottom Panel > Ranked Table | Sort `Capacity (MWp)` descending. You want sites large enough for utility-scale: at least 50 MWp. |
 | 4 | **Check grid integration column** | Bottom Panel > Ranked Table | `invest_transmission` = solar near substation but KEK far (build transmission). `invest_substation` = KEK near grid but solar far (build substation). The distinction tells you what to fund. |
-| 5 | **Cross-reference demand** | Score Drawer > Demand tab | Click top candidates. Check `2030 Demand Estimate (GWh)`. Grid investment at a low-demand KEK may not be justified. |
+| 5 | **Cross-reference demand vs supply** | Score Drawer > Demand tab | Click top candidates. Check `Solar Supply Coverage (%)`: green (100%+) means solar can fully meet demand. Red (< 50%) means solar is a supplement, not a replacement. Grid investment at a low-demand, low-coverage KEK may not be justified. |
 | 6 | **Check substation capacity** | Score Drawer > Pipeline tab | Look at the capacity traffic light: green (can absorb), yellow (tight), red (upgrade needed), unknown (no data). Check `Available Capacity (MVA)`. |
 | 7 | **Assess BPP economics** | Score Drawer > LCOE tab | Where `Gap vs BPP (%)` is negative, solar is cheaper than PLN's cost of supply. The investment case is self-supporting. |
 | 8 | **Check grid connectivity** | Score Drawer > Pipeline tab | `Transmission Line: Connected` or `None`. `Same PLN Region: Yes/No`. If disconnected, `New Line Cost ($/kW)` estimates the infrastructure gap. |
@@ -178,7 +178,7 @@ When you click a KEK (map marker or table row), the Score Drawer slides in with 
 - LCOE low/mid/high ($/MWh), grid-connected LCOE (if available), connection cost ($/kW), I-4 tariff cost ($/MWh), gap vs tariff (%), BPP ($/MWh), gap vs BPP (%).
 
 ### Demand
-- 2030 demand estimate (GWh), GEAS green share (%), carbon breakeven ($/tCO2).
+- 2030 demand estimate (GWh), max solar generation potential (GWh/yr), solar supply coverage (% of demand coverable by buildable solar within 50km), GEAS green share (%), carbon breakeven ($/tCO2).
 
 ### Pipeline
 - Grid region, grid upgrade planned (bool), grid integration category.

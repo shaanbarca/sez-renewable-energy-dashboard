@@ -127,6 +127,7 @@ Test files are in `tests/`. 302 tests across model, pipeline, and API modules �
 - `grid_connection_cost_per_kw(dist_km)` — V2: connection cost = dist × $5/kW-km + $80/kW fixed
 - `new_transmission_cost_per_kw(inter_substation_dist_km, solar_capacity_mwp)` — V3.1: new line cost when substations not connected = dist × $1.25M/km ÷ capacity
 - `capacity_assessment(substation_capacity_mva, solar_capacity_mwp, utilization_pct)` — V3.1: traffic light (green/yellow/red/unknown)
+- `substation_upgrade_cost_per_kw(substation_capacity_mva, solar_capacity_mwp, utilization_pct)` — V3.2: additional $/kW when substation capacity insufficient; deficit_fraction × $80/kW
 - `lcoe_solar_grid_connected(...)` — V2: LCOE with grid connection cost included in effective CAPEX
 - `geas_baseline_allocation(kek_df, ruptl_df)` — pro-rata GEAS allocation by demand share
 - `geas_policy_allocation(kek_df, ruptl_df)` — priority-weighted by demand × PVOUT

@@ -482,6 +482,55 @@ class TestInfrastructureCosts:
         # Available capacity should decrease with higher utilization
         assert low_row["available_capacity_mva"] > high_row["available_capacity_mva"]
 
+    def test_utilization_slider_changes_lcoe(
+        self, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """High utilization should raise grid-connected LCOE via substation upgrade cost.
+
+        Substation 60 MVA, solar 50 MWp:
+          At 0.10 util: available = 54 MVA > 50 MWp → no upgrade cost
+          At 0.90 util: available = 6 MVA < 50 MWp → upgrade cost added → LCOE rises
+        """
+        resource_df = pd.DataFrame(
+            {
+                "kek_id": ["kek-kendal"],
+                "pvout_centroid": [1550.0],
+                "pvout_best_50km": [1650.0],
+                "dist_to_nearest_substation_km": [5.0],
+                "grid_region_id": ["JAVA_BALI"],
+                "reliability_req": [0.6],
+                "max_captive_capacity_mwp": [50.0],
+                "green_share_geas": [0.35],
+                "nearest_substation_capacity_mva": [60.0],
+                "has_internal_substation": [False],
+                "dist_solar_to_nearest_substation_km": [3.0],
+            }
+        )
+        low_util = compute_scorecard_live(
+            resource_df,
+            UserAssumptions(substation_utilization_pct=0.10),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        high_util = compute_scorecard_live(
+            resource_df,
+            UserAssumptions(substation_utilization_pct=0.90),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        low_lcoe = low_util.iloc[0]["lcoe_grid_connected_usd_mwh"]
+        high_lcoe = high_util.iloc[0]["lcoe_grid_connected_usd_mwh"]
+
+        # High utilization → substation can't absorb solar → upgrade cost → higher LCOE
+        assert high_lcoe > low_lcoe, (
+            f"Grid-connected LCOE should increase with utilization: "
+            f"low_util={low_lcoe}, high_util={high_lcoe}"
+        )
+
     def test_battery_adder_applied_when_invest_battery(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):

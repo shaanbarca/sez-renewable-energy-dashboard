@@ -51,6 +51,7 @@ from src.model.basic_model import (
     lcoe_solar,
     new_transmission_cost_per_kw,
     solar_competitive_gap,
+    substation_upgrade_cost_per_kw,
 )
 from src.model.basic_model import capacity_assessment as compute_capacity_assessment
 from src.model.basic_model import grid_integration_category as compute_grid_integration_category
@@ -262,15 +263,25 @@ def compute_lcoe_live(
             else:
                 trans_cost = 0.0
 
-            eff_c = capex_c + conn_cost + land_cost + trans_cost
-            eff_l = capex_l + conn_cost + land_cost + trans_cost
-            eff_h = capex_h + conn_cost + land_cost + trans_cost
+            # V3.2: substation upgrade cost when capacity is insufficient
+            sub_cap = kek.get("nearest_substation_capacity_mva")
+            sub_cap = float(sub_cap) if pd.notna(sub_cap) else None
+            solar_mwp_val = kek.get("max_captive_capacity_mwp")
+            solar_mwp_cap = float(solar_mwp_val) if pd.notna(solar_mwp_val) else None
+            upgrade_cost = substation_upgrade_cost_per_kw(
+                sub_cap, solar_mwp_cap, assumptions.substation_utilization_pct
+            )
+
+            eff_c = capex_c + conn_cost + land_cost + trans_cost + upgrade_cost
+            eff_l = capex_l + conn_cost + land_cost + trans_cost + upgrade_cost
+            eff_h = capex_h + conn_cost + land_cost + trans_cost + upgrade_cost
             lcoe_c_gc = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc)
             lcoe_l_gc = lcoe_solar(eff_l, fom, wacc, lifetime, cf_gc)
             lcoe_h_gc = lcoe_solar(eff_h, fom, wacc, lifetime, cf_gc)
         else:
             cf_gc = lcoe_c_gc = lcoe_l_gc = lcoe_h_gc = np.nan
             conn_cost = 0.0
+            upgrade_cost = 0.0
 
         rows.append(
             {
@@ -550,6 +561,27 @@ def compute_scorecard_live(
             "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
             "demand_2030_gwh": round(demand_by_kek[kek_id] / 1000, 1)
             if kek_id in demand_by_kek
+            else None,
+            "max_solar_generation_gwh": _round(
+                float(kek.get("max_captive_capacity_mwp", 0))
+                * float(kek.get("pvout_best_50km", 0))
+                / 1000
+            )
+            if pd.notna(kek.get("max_captive_capacity_mwp"))
+            and pd.notna(kek.get("pvout_best_50km"))
+            else None,
+            "solar_supply_coverage_pct": round(
+                (
+                    float(kek.get("max_captive_capacity_mwp", 0))
+                    * float(kek.get("pvout_best_50km", 0))
+                )
+                / demand_by_kek[kek_id],
+                3,
+            )
+            if kek_id in demand_by_kek
+            and demand_by_kek[kek_id] > 0
+            and pd.notna(kek.get("max_captive_capacity_mwp"))
+            and pd.notna(kek.get("pvout_best_50km"))
             else None,
             "green_share_geas": round(float(green_share), 4) if pd.notna(green_share) else None,
             "plan_late": flags["plan_late"],

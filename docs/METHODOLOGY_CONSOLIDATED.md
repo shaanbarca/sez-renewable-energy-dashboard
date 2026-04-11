@@ -499,9 +499,15 @@ If `inter_substation_connected == False`, the category becomes `invest_transmiss
 |---|---|---|---|
 | 1 | Gen-tie (solar -> B_solar) | Developer/IPP | `grid_connection_cost_per_kw()`: dist x $5/kW-km + $80/kW |
 | 2 | New transmission line (B_solar -> B_kek) | PLN / DFI | `new_transmission_cost_per_kw()`: dist x $1.25M/km / capacity |
-| 3 | Substation upgrade | PLN / DFI | Flagged via capacity assessment; cost estimation deferred (see TODOS.md M12) |
+| 3 | Substation upgrade | PLN / DFI | `substation_upgrade_cost_per_kw()`: deficit_fraction x $80/kW |
 
-**Deferred: substation upgrade cost in LCOE.** When `capacity_assessment == "red"`, the substation needs upgrading before it can absorb new solar. A parametric estimate (capacity_gap_mva x $/MVA, user-adjustable) folded into the grid-connected LCOE would turn this qualitative flag into a quantitative impact on project economics. Tracked as TODOS.md M12.
+**Substation upgrade cost (V3.2).** When available substation capacity is less than the solar capacity to be injected, a proportional upgrade cost is added to the grid-connected LCOE effective CAPEX. The formula:
+
+$$\text{deficit\_fraction} = \frac{\text{solar\_mwp} - \max(0, \text{available\_mva})}{\text{solar\_mwp}}$$
+
+$$\text{upgrade\_cost} = \text{deficit\_fraction} \times \$80/\text{kW}$$
+
+Where available_mva = substation_capacity_mva x (1 - utilization_pct). Cost is $0 when available capacity exceeds solar capacity, and scales linearly to $80/kW when the substation has zero available capacity. The $80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: $50-150/kW range). Returns $0 when capacity data is unknown (conservative).
 
 **Deferred: multi-substation comparison.** The current model finds the single nearest substation to each point. For investment-grade analysis, evaluating the top 3 substations within a search radius and comparing total interconnection cost (closer-but-constrained vs. farther-but-available) would improve site recommendations. Tracked as TODOS.md M15.
 
@@ -548,6 +554,31 @@ The carbon price at which solar becomes cost-competitive.
 ### 9.3 Flip scenario
 
 KEKs where 0 < gap <= 20% are "flip candidates" where modest policy intervention (CAPEX reduction, lower WACC, tariff adjustment) could make solar competitive.
+
+### 9.4 Solar supply coverage
+
+How much of a KEK's electricity demand could be met by buildable solar within the search radius.
+
+$$\text{max\_solar\_generation\_gwh} = \text{max\_captive\_capacity\_mwp} \times \frac{\text{pvout\_best\_50km}}{1000}$$
+
+$$\text{solar\_supply\_coverage} = \frac{\text{max\_solar\_generation\_gwh}}{\text{demand\_2030\_gwh}}$$
+
+Where:
+- `max_captive_capacity_mwp` = buildable solar capacity from buildability filters (§3, Appendix A)
+- `pvout_best_50km` = best annual solar yield within 50km (kWh/kWp/yr)
+- `demand_2030_gwh` = estimated KEK annual electricity demand (from area x industrial intensity)
+- Generation formula: capacity x yield converts MWp to MWh/yr, then /1000 for GWh
+
+**Interpretation:**
+- Coverage >= 100%: solar can fully supply the KEK's demand (excess capacity available)
+- 50-99%: partial coverage, grid or other sources needed for the remainder
+- < 50%: solar alone cannot meet most demand, grid dependency remains high
+
+**Caveats:**
+- Demand is estimated from KEK area x intensity proxy, not actual metered consumption
+- Solar generation assumes the entire buildable capacity is built at best-resource sites
+- Does not account for temporal mismatch (solar is daytime-only without storage)
+- Coverage > 100% does not mean grid-independent (intermittency, night-time demand)
 
 ---
 

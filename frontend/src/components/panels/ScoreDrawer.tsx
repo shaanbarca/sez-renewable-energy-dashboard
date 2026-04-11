@@ -158,8 +158,14 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
     }
     case 'plan_late':
       return 'Over 60% of planned solar additions in this grid region slip past 2030. The RUPTL pipeline needs acceleration for this KEK to benefit.';
-    case 'not_competitive':
-      return `Solar LCOE ($${row.lcoe_mid_usd_mwh?.toFixed(1)}/MWh) exceeds grid cost ($${row.grid_cost_usd_mwh?.toFixed(1)}/MWh) by too wide a margin under current assumptions.`;
+    case 'not_competitive': {
+      const lcoe = row.lcoe_mid_usd_mwh;
+      const gridCost = row.grid_cost_usd_mwh;
+      if (lcoe != null && gridCost != null && lcoe <= gridCost) {
+        return `Solar LCOE ($${lcoe.toFixed(1)}/MWh) is below grid cost ($${gridCost.toFixed(1)}/MWh), but solar resource quality (PVOUT ${row.pvout_best_50km_kwh_kwp_yr?.toFixed(0) ?? '?'} kWh/kWp/yr) is below the minimum threshold. The site lacks sufficient solar irradiance for a viable project.`;
+      }
+      return `Solar LCOE ($${lcoe?.toFixed(1)}/MWh) exceeds grid cost ($${gridCost?.toFixed(1)}/MWh) under current assumptions.`;
+    }
     default:
       return '';
   }
@@ -364,6 +370,11 @@ function LCOETab({ row }: { row: ScorecardRow }) {
 function DemandTab({ row }: { row: ScorecardRow }) {
   const demand2030 = row.demand_2030_gwh;
   const geasShare = row.green_share_geas;
+  const solarGen = row.max_solar_generation_gwh;
+  const coverage = row.solar_supply_coverage_pct;
+
+  const coverageColor =
+    coverage != null ? (coverage >= 1.0 ? '#4CAF50' : coverage >= 0.5 ? '#FFC107' : '#F44336') : undefined;
 
   return (
     <>
@@ -373,6 +384,44 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           value={demand2030 != null ? demand2030.toFixed(1) : null}
           unit="GWh"
         />
+        <StatRow
+          label="Max RE Generation"
+          value={solarGen != null ? solarGen.toFixed(1) : null}
+          unit="GWh/yr"
+        />
+      </StatCard>
+      <StatCard>
+        <div className="text-[11px] text-zinc-500 mb-1.5">Max RE Coverage Potential</div>
+        {coverage != null ? (
+          <>
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className="text-lg font-semibold tabular-nums"
+                style={{ color: coverageColor }}
+              >
+                {(coverage * 100).toFixed(0)}%
+              </span>
+              <span className="text-[10px] text-zinc-500">of demand coverable by RE</span>
+            </div>
+            {/* Visual bar */}
+            <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(coverage * 100, 100)}%`,
+                  backgroundColor: coverageColor,
+                }}
+              />
+            </div>
+            {coverage < 1.0 && demand2030 != null && solarGen != null && (
+              <div className="text-[9px] text-zinc-600 mt-1">
+                Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other generation
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-[11px] text-zinc-500">Data unavailable</div>
+        )}
       </StatCard>
       <StatCard>
         <StatRow

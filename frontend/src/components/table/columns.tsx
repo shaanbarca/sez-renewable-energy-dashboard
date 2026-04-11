@@ -30,6 +30,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
   grid_integration_category:
     'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
+  solar_supply_coverage_pct:
+    'Maximum % of this KEK\'s electricity demand coverable by renewable energy (solar) built within 50km. Green = 100%+, yellow = 50-99%, red = under 50%.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -88,7 +90,8 @@ const ACTION_FLAG_EXPLANATIONS: Record<string, string> = {
     'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   plan_late:
     '60%+ of RUPTL solar additions are scheduled post-2030. Planning is behind — accelerate the pipeline.',
-  not_competitive: 'Solar LCOE exceeds grid cost under current assumptions. Not yet economical.',
+  not_competitive:
+    'Solar LCOE exceeds grid cost, or solar resource quality (PVOUT) is below minimum threshold.',
 };
 
 function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> }) {
@@ -211,6 +214,19 @@ export const columns = [
           {val.toFixed(1)}%
         </span>
       );
+    },
+  }),
+  col.accessor('solar_supply_coverage_pct', {
+    header: () => (
+      <HeaderWithTooltip label="RE Coverage" columnId="solar_supply_coverage_pct" />
+    ),
+    filterFn: 'inRange',
+    cell: (info) => {
+      const val = info.getValue();
+      if (val == null) return '—';
+      const pct = val * 100;
+      const color = val >= 1.0 ? '#4CAF50' : val >= 0.5 ? '#FFC107' : '#F44336';
+      return <span style={{ color }}>{pct.toFixed(0)}%</span>;
     },
   }),
   col.accessor('best_re_technology', {

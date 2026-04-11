@@ -238,6 +238,15 @@ SUBSTATION_UTILIZATION_PCT: float = 0.65
 # User-adjustable in dashboard. Range: 0.30–0.95.
 # Proxies for smarter defaults (future): night-light intensity, industrial load, PLN RUPTL flags.
 
+SUBSTATION_UPGRADE_COST_PER_KW: float = 80.0
+# Cost to upgrade substation capacity when available capacity is insufficient to absorb
+# solar output (USD/kW of solar capacity). Covers: transformer upgrade, new bay, buswork,
+# protection relay upgrades at the substation end.
+# Source: IRENA Renewable Power Generation Costs 2023 — substation upgrade costs typically
+# $50–150/kW depending on scope. $80/kW = mid-range for Indonesian conditions.
+# Applied proportionally to the capacity deficit: if available capacity covers 60% of solar,
+# only 40% of the upgrade cost is added (you only upgrade what's missing).
+
 # ─── INTER-SUBSTATION TRANSMISSION (V3.1: new line cost) ─────────────────────
 # When the solar site's nearest substation (B_solar) differs from the KEK's
 # nearest substation (B_kek) and no existing transmission line connects them,

@@ -69,6 +69,8 @@ export interface ScorecardRow {
   connection_cost_per_kw?: number;
   grid_integration_category?: string;
   demand_2030_gwh?: number;
+  max_solar_generation_gwh?: number;
+  solar_supply_coverage_pct?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;

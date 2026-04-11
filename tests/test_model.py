@@ -684,6 +684,41 @@ class TestCapacityAssessment:
         assert avail == 21.0
 
 
+class TestSubstationUpgradeCost:
+    def test_sufficient_capacity_no_cost(self):
+        from src.model.basic_model import substation_upgrade_cost_per_kw
+
+        cost = substation_upgrade_cost_per_kw(200.0, 50.0, utilization_pct=0.65)
+        assert cost == 0.0  # available = 70 MVA > 50 MWp
+
+    def test_insufficient_capacity_adds_cost(self):
+        from src.model.basic_model import substation_upgrade_cost_per_kw
+
+        # 60 MVA × 0.35 = 21 available, solar = 50 MWp
+        # deficit = (50 - 21) / 50 = 0.58
+        cost = substation_upgrade_cost_per_kw(60.0, 50.0, utilization_pct=0.65)
+        assert cost > 0
+        assert math.isclose(cost, 0.58 * 80.0, rel_tol=0.01)
+
+    def test_high_utilization_higher_cost(self):
+        from src.model.basic_model import substation_upgrade_cost_per_kw
+
+        cost_low = substation_upgrade_cost_per_kw(100.0, 50.0, utilization_pct=0.30)
+        cost_high = substation_upgrade_cost_per_kw(100.0, 50.0, utilization_pct=0.90)
+        assert cost_low == 0.0  # available = 70 > 50
+        assert cost_high > 0  # available = 10 < 50
+
+    def test_none_capacity_no_cost(self):
+        from src.model.basic_model import substation_upgrade_cost_per_kw
+
+        assert substation_upgrade_cost_per_kw(None, 50.0) == 0.0
+
+    def test_none_solar_no_cost(self):
+        from src.model.basic_model import substation_upgrade_cost_per_kw
+
+        assert substation_upgrade_cost_per_kw(100.0, None) == 0.0
+
+
 # ---------------------------------------------------------------------------
 # 7. Solar competitive gap
 # ---------------------------------------------------------------------------

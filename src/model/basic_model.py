@@ -51,6 +51,7 @@ from src.assumptions import (
     RUPTL_PRE2030_END,
     SOLAR_TO_SUBSTATION_THRESHOLD_KM,
     SUBSTATION_MIN_CAPACITY_MVA,
+    SUBSTATION_UPGRADE_COST_PER_KW,
     SUBSTATION_UTILIZATION_PCT,
     SUBSTATION_WORKS_PER_KW,
     TECH006_CAPEX_USD_PER_KW,
@@ -859,6 +860,31 @@ def capacity_assessment(
         return "yellow", round(available, 1)
     else:
         return "red", round(available, 1)
+
+
+def substation_upgrade_cost_per_kw(
+    substation_capacity_mva: float | None,
+    solar_capacity_mwp: float | None,
+    utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
+    upgrade_cost_per_kw: float = SUBSTATION_UPGRADE_COST_PER_KW,
+) -> float:
+    """Additional cost ($/kW) when substation capacity is insufficient for solar injection.
+
+    When available capacity < solar capacity, the deficit fraction determines
+    the upgrade cost. Covers transformer expansion, new bays, buswork, and
+    protection upgrades at the substation.
+
+    Returns 0.0 when capacity data is unknown (conservative: no penalty).
+    """
+    if substation_capacity_mva is None or substation_capacity_mva <= 0:
+        return 0.0
+    if solar_capacity_mwp is None or solar_capacity_mwp <= 0:
+        return 0.0
+    available = substation_capacity_mva * (1 - utilization_pct)
+    if available >= solar_capacity_mwp:
+        return 0.0
+    deficit_fraction = (solar_capacity_mwp - max(0.0, available)) / solar_capacity_mwp
+    return round(deficit_fraction * upgrade_cost_per_kw, 2)
 
 
 # ---------------------------------------------------------------------------

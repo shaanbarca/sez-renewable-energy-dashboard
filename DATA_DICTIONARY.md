@@ -638,6 +638,13 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `grid_emission_factor_t_co2_mwh` | float | Grid emission intensity (tCO2/MWh) from `GRID_EMISSION_FACTOR_T_CO2_MWH[grid_region_id]` — Operating Margin (OM) values from KESDM Tier 2 database 2019 (`data/grid_emission_factors.xlsx`). ⚠️ 2019 vintage. |
 | `carbon_breakeven_usd_tco2` | float | `max(0, lcoe_gap_usd_mwh) / grid_emission_factor` — carbon price (USD/tCO2) at which solar becomes cost-competitive. 0.0 if already competitive. |
 
+**Solar supply coverage columns (live-computed):**
+
+| Column | Type | Formula |
+|--------|------|---------|
+| `max_solar_generation_gwh` | float | `max_captive_capacity_mwp × pvout_best_50km / 1000` — maximum annual solar generation if all buildable capacity were built at best-resource sites within 50km. |
+| `solar_supply_coverage_pct` | float | `max_solar_generation_gwh / demand_2030_gwh` — fraction of KEK demand coverable by buildable solar. >= 1.0 means solar can fully supply the KEK. |
+
 **Data quality column:**
 
 | Column | Type | Formula |

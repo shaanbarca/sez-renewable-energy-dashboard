@@ -19,7 +19,8 @@ const FLAG_DESCRIPTIONS: Record<string, string> = {
     'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   plan_late:
     'Over 60% of planned solar additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
-  not_competitive: 'Solar LCOE exceeds grid cost by too wide a margin under current assumptions.',
+  not_competitive:
+    'Solar LCOE exceeds grid cost, or solar resource quality (PVOUT) is below the minimum threshold.',
 };
 
 export default function ActionFlagLegend() {
