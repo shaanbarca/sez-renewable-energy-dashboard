@@ -280,6 +280,51 @@ export default function AssumptionsPanel() {
             />
           </div>
 
+          {/* Project Sizing (H10) */}
+          <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div
+                className="text-[10px] uppercase tracking-wider"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Target Build Size
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={assumptions.target_capacity_mwp != null}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setAssumptions({ target_capacity_mwp: 50 });
+                    } else {
+                      setAssumptions({ target_capacity_mwp: null });
+                    }
+                  }}
+                  className="w-3 h-3 accent-[var(--accent)]"
+                />
+                <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                  Custom
+                </span>
+              </label>
+            </div>
+            {assumptions.target_capacity_mwp != null ? (
+              <Slider
+                value={assumptions.target_capacity_mwp}
+                onChange={(v) => setAssumptions({ target_capacity_mwp: v })}
+                min={5}
+                max={500}
+                step={5}
+                label="Build Size"
+                unit="MWp"
+                description="Target project capacity. Each KEK uses min(target, max buildable)."
+              />
+            ) : (
+              <div className="text-[10px] py-1" style={{ color: 'var(--text-muted)' }}>
+                Using max buildable capacity per KEK
+              </div>
+            )}
+          </div>
+
           {/* Tier 2 + 3: Advanced */}
           <Accordion.Root type="multiple" className="mt-1">
             <Accordion.Item

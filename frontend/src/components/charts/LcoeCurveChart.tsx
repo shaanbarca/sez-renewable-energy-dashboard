@@ -43,6 +43,9 @@ function CustomTooltip({
 
 export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
   const assumptions = useDashboardStore((s) => s.assumptions);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
+
+  const targetMwp = assumptions?.target_capacity_mwp ?? null;
 
   const data = useMemo(() => {
     if (!assumptions) return [];
@@ -117,17 +120,63 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
 
   const gridCost = row.dashboard_rate_usd_mwh;
   const maxCap = row.max_captive_capacity_mwp;
+  const effectiveCap = targetMwp != null && maxCap != null ? Math.min(targetMwp, maxCap) : null;
+
+  // Find the LCOE at the effective capacity point (interpolate from data)
+  const effectiveLcoe = useMemo(() => {
+    if (effectiveCap == null || data.length < 2) return null;
+    // Find surrounding points and interpolate
+    for (let i = 0; i < data.length - 1; i++) {
+      if (data[i].capacity_mw <= effectiveCap && data[i + 1].capacity_mw >= effectiveCap) {
+        const t =
+          (effectiveCap - data[i].capacity_mw) / (data[i + 1].capacity_mw - data[i].capacity_mw);
+        return data[i].lcoe + t * (data[i + 1].lcoe - data[i].lcoe);
+      }
+    }
+    // If effectiveCap is at or beyond the range, use nearest point
+    if (effectiveCap <= data[0].capacity_mw) return data[0].lcoe;
+    return data[data.length - 1].lcoe;
+  }, [effectiveCap, data]);
+
+  const handleChartClick = (e: { activePayload?: { payload?: DataPoint }[] }) => {
+    if (!e?.activePayload?.[0]?.payload) return;
+    const clickedMw = e.activePayload[0].payload.capacity_mw;
+    setAssumptions({ target_capacity_mwp: Math.round(clickedMw / 5) * 5 || 5 });
+  };
 
   return (
     <div
       className="rounded-lg p-3 mt-2"
       style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
     >
-      <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
-        LCOE vs Project Scale
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          LCOE vs Project Scale
+          {effectiveCap != null && effectiveLcoe != null && (
+            <span style={{ color: 'var(--accent)' }}>
+              {' '}
+              — ${effectiveLcoe.toFixed(1)}/MWh at {effectiveCap} MW
+            </span>
+          )}
+        </div>
+        {targetMwp != null && (
+          <button
+            type="button"
+            onClick={() => setAssumptions({ target_capacity_mwp: null })}
+            className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer"
+            style={{ color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}
+          >
+            Reset
+          </button>
+        )}
       </div>
       <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
+        <AreaChart
+          data={data}
+          margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
+          onClick={handleChartClick}
+          style={{ cursor: 'pointer' }}
+        >
           <defs>
             <linearGradient id="lcoeGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
@@ -197,11 +246,24 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
               }}
             />
           )}
+          {effectiveCap != null && effectiveCap > 0 && (
+            <ReferenceLine
+              x={effectiveCap}
+              stroke="var(--accent)"
+              strokeWidth={2}
+              label={{
+                value: `${effectiveCap} MW`,
+                position: 'top',
+                fontSize: 9,
+                fill: 'var(--accent)',
+              }}
+            />
+          )}
         </AreaChart>
       </ResponsiveContainer>
       <div className="text-[9px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-        LCOE decreases at larger scale as fixed grid costs spread over more capacity, but may
-        rise if substation capacity is exceeded.
+        Click a point to set target build size. LCOE decreases at larger scale as fixed grid costs
+        spread over more capacity, but may rise if substation capacity is exceeded.
       </div>
     </div>
   );

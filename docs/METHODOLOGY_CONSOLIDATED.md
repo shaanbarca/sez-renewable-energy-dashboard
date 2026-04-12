@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
 **Version:** 3.1 (Consolidated, April 2026)
-**Status:** Implemented in code. 11 pipeline steps, 25 KEKs, 327+ tests passing.
+**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 383+ tests passing.
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -52,12 +52,18 @@ This document is the single authoritative methodology reference for the Indonesi
   - [10.4 invest_resilience rationale](#104-invest_resilience-rationale)
 - [11. GEAS Green Share](#11-geas-green-share)
 - [12. DFI Grid Infrastructure Investment Model](#12-dfi-grid-infrastructure-investment-model)
-- [13. User-Adjustable Parameters](#13-user-adjustable-parameters)
-- [14. Known Limitations](#14-known-limitations)
-- [15. Codebase Audit Notes](#15-codebase-audit-notes)
-- [16. Assumptions Summary](#16-assumptions-summary)
-- [17. Reproducibility](#17-reproducibility)
-- [18. Regulatory References](#18-regulatory-references)
+- [13. Captive Power Context](#13-captive-power-context)
+  - [13.1 Data sources](#131-data-sources)
+  - [13.2 Spatial matching](#132-spatial-matching)
+  - [13.3 Perpres 112/2022 compliance](#133-perpres-1122022-compliance)
+  - [13.4 Scorecard fields](#134-scorecard-fields)
+  - [13.5 Map overlays](#135-map-overlays)
+- [14. User-Adjustable Parameters](#14-user-adjustable-parameters)
+- [15. Known Limitations](#15-known-limitations)
+- [16. Codebase Audit Notes](#16-codebase-audit-notes)
+- [17. Assumptions Summary](#17-assumptions-summary)
+- [18. Reproducibility](#18-reproducibility)
+- [19. Regulatory References](#19-regulatory-references)
 - [Appendix A: Buildability Filter Details](#appendix-a-buildability-filter-details)
 - [Appendix B: Legal Framework for Captive Solar](#appendix-b-legal-framework-for-captive-solar)
 - [Appendix C: Evolution from V1 to V3](#appendix-c-evolution-from-v1-to-v3)
@@ -711,7 +717,106 @@ High ratio = small grid investment unlocks large solar potential. This is a scre
 
 ---
 
-## 13. User-Adjustable Parameters
+## 13. Captive Power Context
+
+The dashboard integrates two external datasets to characterize captive (behind-the-meter) fossil fuel generation near each KEK. This creates the demand-side signal: which KEKs have existing coal or nickel-related power that solar could displace?
+
+### 13.1 Data sources
+
+| Source | Dataset | License | Coverage | Update frequency |
+|--------|---------|---------|----------|-----------------|
+| **China Global South Project (CGSP)** | Nickel Tracker | CC | 107 nickel processing facilities across Indonesia | Quarterly |
+| **Global Energy Monitor (GEM)** | Global Coal Plant Tracker | CC BY 4.0 | 26 captive coal plants in Indonesia (filtered from global dataset) | Semi-annual |
+
+**CGSP fields used:** project name, latitude, longitude, capacity, process type (RKEF, Ferro Nickel, HPAL, Laterite), ownership nationality (Chinese/non-Chinese), status.
+
+**GEM fields used:** plant name, latitude, longitude, capacity_mw, status, parent company, region. Note: the KAPSARC mirror of GEM data lacks `commissioning_year`, which limits Perpres 112/2022 compliance dating (see §13.3).
+
+### 13.2 Spatial matching
+
+Both datasets are spatially joined to KEK polygons using a **50 km buffer** (haversine distance from KEK centroid). Per-KEK aggregation produces:
+
+- **Coal:** count of plants, total capacity (MW), semicolon-separated plant names
+- **Nickel:** count of facilities, semicolon-separated project names, dominant process type (mode), Chinese ownership flag (any)
+
+Pipeline functions:
+- `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`
+- `build_captive_nickel_summary()` in `src/pipeline/build_fct_captive_nickel.py`
+
+Output CSVs: `fct_captive_coal_summary.csv` (5 KEKs matched), `fct_captive_nickel_summary.csv` (3 KEKs matched). Merged into `resource_df` via left join on `kek_id` in `data_loader.py:prepare_resource_df()`.
+
+### 13.3 Perpres 112/2022 compliance
+
+Presidential Regulation (Perpres) 112/2022 mandates emission reduction for captive coal power in Indonesia:
+
+- Plants commissioned **post-2022**: 35% emission reduction within 10 years
+- **All captive coal** must cease operations by 2050
+
+**Implementation limitation:** The GEM KAPSARC mirror lacks `commissioning_year`, so we cannot determine individual plant compliance deadlines. Instead, a status-based proxy is used:
+
+- Any KEK with `captive_coal_count > 0` → `has_captive_coal = True`, `perpres_112_status = "Subject to 2050 phase-out"`
+- KEKs with no matched coal → `has_captive_coal = False`, `perpres_112_status = None`
+
+This is a **regulatory compliance signal**, not an action flag. It lives alongside the 8 solar readiness flags as supplementary context. When `commissioning_year` data becomes available (e.g., from ESDM Minerba Geoportal), the status can be refined to per-plant deadlines.
+
+### 13.4 Scorecard fields
+
+Fields added to `fct_kek_scorecard` from captive power summaries:
+
+| Field | Type | Source | Description |
+|-------|------|--------|-------------|
+| `captive_coal_count` | int/null | GEM | Coal plants within 50 km |
+| `captive_coal_mw` | int/null | GEM | Total captive coal capacity (MW) |
+| `captive_coal_plants` | str/null | GEM | Semicolon-separated plant names |
+| `nickel_smelter_count` | int/null | CGSP | Nickel facilities within 50 km |
+| `nickel_projects` | str/null | CGSP | Semicolon-separated project names |
+| `dominant_process_type` | str/null | CGSP | Most common process (RKEF, Ferro Nickel, HPAL) |
+| `has_chinese_ownership` | bool | CGSP | Any Chinese-owned facility within 50 km |
+| `has_captive_coal` | bool | Derived | `captive_coal_count > 0` |
+| `perpres_112_status` | str/null | Derived | Compliance status string |
+
+### 13.5 Map overlays
+
+Two toggleable map layers in LayerControl (default off):
+
+| Layer | Icon | Color | Data |
+|-------|------|-------|------|
+| Nickel Smelters (CGSP) | Factory SVG in circle | `#FF6D00` (orange) | 107 points |
+| Captive Coal Plants (GEM) | Smokestack SVG in circle | `#B71C1C` (dark red) | 26 points |
+
+Both use the `createIconImage(pathData, color, size)` pattern (colored circle background + white SVG path), consistent with infrastructure markers. Click popup shows facility details.
+
+Nickel smelter popups include enriched CGSP fields: production capacity (tons), investment cost (USD), shareholder names, and ESG impact flags (ecological + social). Coal popups show plant name, capacity (MW), unit count, status, and parent company.
+
+### 13.6 Solar replacement potential
+
+For KEKs with matched captive coal, the dashboard computes what percentage of coal generation could be displaced by buildable solar capacity:
+
+```
+captive_coal_generation_gwh = captive_coal_mw × 8.76 × 0.40
+solar_replacement_pct = max_solar_generation_gwh / captive_coal_generation_gwh × 100
+```
+
+Where 0.40 is a typical capacity factor for Indonesian captive coal plants. This gives a concrete signal: "buildable solar near this KEK could replace X% of existing captive coal output." Displayed in the Captive Power card in the ScoreDrawer Pipeline tab.
+
+### 13.7 BESS high-reliability multiplier for RKEF (M19)
+
+Nickel smelters using the RKEF (Rotary Kiln Electric Furnace) process require 24/7 baseload power. The standard 2-hour BESS sizing (enough to bridge cloud events and evening ramp) is insufficient for continuous industrial loads.
+
+When `dominant_process_type == "RKEF"` for a KEK's nearest nickel facilities, the BESS sizing automatically doubles from 2h to 4h:
+
+```
+bess_sizing_hours = BESS_SIZING_HOURS × 2.0    (if RKEF)
+bess_sizing_hours = BESS_SIZING_HOURS           (otherwise)
+```
+
+This doubles the battery CAPEX component (from $500/kW-solar to $1,000/kW-solar at $250/kWh) and proportionally increases the battery adder on LCOE. The effect is visible in the `invest_battery` action flag description and `lcoe_with_battery_usd_mwh` value.
+
+Rationale: JETP Balmorel modeling shows BESS requirements vary by site and industrial load profile. RKEF is the most power-intensive nickel process, operating electric arc furnaces continuously. 4h storage provides evening-to-morning bridging for solar-only supply.
+
+---
+
+## 14. User-Adjustable Parameters
 
 **Tier 1 (primary):**
 
@@ -746,7 +851,7 @@ High ratio = small grid investment unlocks large solar potential. This is a scre
 
 ---
 
-## 14. Known Limitations
+## 15. Known Limitations
 
 | Limitation | Impact | Mitigation |
 |---|---|---|
@@ -764,7 +869,7 @@ High ratio = small grid investment unlocks large solar potential. This is a scre
 
 ---
 
-## 15. Codebase Audit Notes
+## 16. Codebase Audit Notes
 
 Audit performed April 2026 against the current implementation. The codebase is ~95% aligned with this methodology document.
 
@@ -796,7 +901,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 ---
 
-## 16. Assumptions Summary
+## 17. Assumptions Summary
 
 | Assumption | Value | Source | Sensitivity |
 |---|---|---|---|
@@ -813,7 +918,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 ---
 
-## 17. Reproducibility
+## 18. Reproducibility
 
 All inputs are publicly available:
 - Global Solar Atlas GeoTIFFs: globalatlas.solargis.com
@@ -827,7 +932,7 @@ Pipeline: `run_pipeline.py` -> `outputs/data/processed/` -> `src/model/` -> dash
 
 ---
 
-## 18. Regulatory References
+## 19. Regulatory References
 
 | Regulation | Relevance |
 |---|---|

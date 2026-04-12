@@ -13,6 +13,8 @@ const LAYER_ITEMS = [
   { name: 'protected_forest', label: 'Protected Forest' },
   { name: 'industrial', label: 'Industrial Facilities' },
   { name: 'grid_lines', label: 'PLN Grid Lines' },
+  { name: 'nickel_smelters', label: 'Nickel Smelters (CGSP)' },
+  { name: 'captive_coal', label: 'Captive Coal Plants (GEM)' },
 ] as const;
 
 const STYLE_KEYS = Object.keys(MAP_STYLES) as MapStyleKey[];

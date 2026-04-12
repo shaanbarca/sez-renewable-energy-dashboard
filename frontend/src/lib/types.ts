@@ -9,6 +9,7 @@ export interface UserAssumptions {
   land_cost_usd_per_kw: number;
   substation_utilization_pct: number;
   idr_usd_rate: number;
+  target_capacity_mwp?: number | null;
 }
 
 export interface UserThresholds {
@@ -100,6 +101,23 @@ export interface ScorecardRow {
   transmission_cost_per_kw?: number;
   substation_upgrade_cost_per_kw?: number;
   grid_investment_needed_usd?: number;
+  effective_capacity_mwp?: number;
+
+  // H9: Captive power context
+  captive_coal_count?: number | null;
+  captive_coal_mw?: number | null;
+  captive_coal_plants?: string | null;
+  nickel_smelter_count?: number | null;
+  nickel_projects?: string | null;
+  dominant_process_type?: string | null;
+  has_chinese_ownership?: boolean | null;
+
+  // H8: Perpres 112/2022 compliance
+  has_captive_coal?: boolean;
+  perpres_112_status?: string | null;
+  captive_coal_generation_gwh?: number | null;
+  solar_replacement_pct?: number | null;
+  bess_sizing_hours?: number | null;
 }
 
 export interface SubstationWithCosts {

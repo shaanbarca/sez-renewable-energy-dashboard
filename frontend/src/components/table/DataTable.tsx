@@ -43,6 +43,8 @@ const DROPDOWN_COLUMNS = new Set([
   'category',
   'best_re_technology',
   'grid_integration_category',
+  'captive_power_type',
+  'dominant_process_type',
 ]);
 // Columns that get range filters (numeric)
 const RANGE_COLUMNS = new Set([
@@ -51,15 +53,29 @@ const RANGE_COLUMNS = new Set([
   'solar_competitive_gap_pct',
   'dashboard_rate_usd_mwh',
   'area_ha',
+  'solar_replacement_pct',
 ]);
+
+function getCaptivePowerType(row: ScorecardRow): string {
+  const hasCoal = !!row.captive_coal_count && row.captive_coal_count > 0;
+  const hasNickel = !!row.nickel_smelter_count && row.nickel_smelter_count > 0;
+  if (hasCoal && hasNickel) return 'Coal + Nickel';
+  if (hasCoal) return 'Coal';
+  if (hasNickel) return 'Nickel';
+  return 'None';
+}
 
 function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: ScorecardRow[] }) {
   const filterValue = (column.getFilterValue() as string) ?? '';
   const options = useMemo(() => {
     const vals = new Set<string>();
     for (const row of data) {
-      const v = row[column.id as keyof ScorecardRow];
-      if (v != null && v !== '') vals.add(String(v));
+      if (column.id === 'captive_power_type') {
+        vals.add(getCaptivePowerType(row));
+      } else {
+        const v = row[column.id as keyof ScorecardRow];
+        if (v != null && v !== '') vals.add(String(v));
+      }
     }
     return Array.from(vals).sort();
   }, [data, column.id]);
@@ -184,6 +200,12 @@ export default function DataTable() {
       'grid_region_id',
       'bpp_usd_mwh',
       'carbon_breakeven_usd_tco2',
+      'captive_coal_count',
+      'captive_coal_mw',
+      'nickel_smelter_count',
+      'dominant_process_type',
+      'solar_replacement_pct',
+      'perpres_112_status',
     ];
     exportCsv(scorecard as unknown as Record<string, unknown>[], headers);
   }, [scorecard]);

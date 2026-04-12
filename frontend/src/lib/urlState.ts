@@ -86,5 +86,7 @@ export function hasChangedAssumptions(
   for (const [, field] of PARAM_MAP) {
     if (current[field] !== defaults[field]) return true;
   }
+  // H10: target capacity override
+  if ((current.target_capacity_mwp ?? null) !== (defaults.target_capacity_mwp ?? null)) return true;
   return false;
 }

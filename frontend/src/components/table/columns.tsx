@@ -32,6 +32,16 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
   solar_supply_coverage_pct:
     "Maximum % of this KEK's electricity demand coverable by renewable energy (solar) built within 50km. Green = 100%+, yellow = 50-99%, red = under 50%.",
+  captive_power_type:
+    'Captive fossil power near this KEK: Coal (GEM GCPT, within 50km), Nickel smelters (CGSP, within 50km), or both. Subject to Perpres 112/2022 phase-out.',
+  captive_coal_mw:
+    'Total captive coal plant capacity (MW) within 50km of KEK. Source: GEM Global Coal Plant Tracker.',
+  nickel_smelter_count:
+    'Number of nickel processing facilities within 50km. Source: CGSP Nickel Tracker.',
+  dominant_process_type:
+    'Most common nickel smelting process near KEK. RKEF (24/7 baseload, doubles BESS sizing), Ferro Nickel, HPAL, Laterite.',
+  solar_replacement_pct:
+    'What % of captive coal generation could be replaced by buildable solar within 50km. Assumes 40% coal capacity factor.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -194,6 +204,69 @@ export const columns = [
     cell: (info) => {
       const val = info.getValue();
       return val ? val.replace(/_/g, ' ') : '—';
+    },
+  }),
+  col.display({
+    id: 'captive_power_type',
+    header: () => <HeaderWithTooltip label="Captive" columnId="captive_power_type" />,
+    enableColumnFilter: true,
+    filterFn: (row, _columnId, filterValue: string) => {
+      const r = row.original;
+      const hasCoal = !!r.captive_coal_count && r.captive_coal_count > 0;
+      const hasNickel = !!r.nickel_smelter_count && r.nickel_smelter_count > 0;
+      const type =
+        hasCoal && hasNickel ? 'Coal + Nickel' : hasCoal ? 'Coal' : hasNickel ? 'Nickel' : 'None';
+      return type === filterValue;
+    },
+    cell: (info) => {
+      const r = info.row.original;
+      const hasCoal = !!r.captive_coal_count && r.captive_coal_count > 0;
+      const hasNickel = !!r.nickel_smelter_count && r.nickel_smelter_count > 0;
+      if (!hasCoal && !hasNickel) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      return (
+        <span className="flex items-center gap-1 flex-wrap">
+          {hasCoal && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium"
+              style={{ background: '#B71C1C33', color: '#EF5350' }}
+            >
+              Coal {r.captive_coal_mw != null ? `${r.captive_coal_mw} MW` : ''}
+            </span>
+          )}
+          {hasNickel && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium"
+              style={{ background: '#FF6D0033', color: '#FF8F00' }}
+            >
+              Ni ×{r.nickel_smelter_count}
+            </span>
+          )}
+        </span>
+      );
+    },
+  }),
+  col.accessor('dominant_process_type', {
+    header: () => <HeaderWithTooltip label="Ni Process" columnId="dominant_process_type" />,
+    cell: (info) => {
+      const val = info.getValue();
+      if (!val) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      const isRkef = val.toUpperCase() === 'RKEF';
+      return (
+        <span style={{ color: isRkef ? '#FF8F00' : 'var(--text-primary)' }}>
+          {val}
+          {isRkef ? ' (24/7)' : ''}
+        </span>
+      );
+    },
+  }),
+  col.accessor('solar_replacement_pct', {
+    header: () => <HeaderWithTooltip label="Solar Repl." columnId="solar_replacement_pct" />,
+    filterFn: 'inRange',
+    cell: (info) => {
+      const val = info.getValue();
+      if (val == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      const color = val >= 100 ? '#4CAF50' : val >= 50 ? '#FFC107' : '#F44336';
+      return <span style={{ color }}>{val.toFixed(0)}%</span>;
     },
   }),
   col.accessor('lcoe_mid_usd_mwh', {

@@ -211,9 +211,10 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
       return `KEK is grid-connected, but the best solar site is far from any substation. Build a substation or connection point near the solar farm${row.dist_solar_to_nearest_substation_km ? ` (${row.dist_solar_to_nearest_substation_km.toFixed(0)}km)` : ''}.`;
     case 'invest_battery': {
       const parts = ['Solar economics work, but this KEK needs battery storage for reliability.'];
+      const sizingHrs = row.bess_sizing_hours ?? 2;
       if (row.battery_adder_usd_mwh)
         parts.push(
-          `Battery adds +$${row.battery_adder_usd_mwh.toFixed(0)}/MWh (4h Li-ion storage).`,
+          `Battery adds +$${row.battery_adder_usd_mwh.toFixed(0)}/MWh (${sizingHrs}h Li-ion storage${sizingHrs > 2 ? ', RKEF 24/7 sizing' : ''}).`,
         );
       if (row.lcoe_with_battery_usd_mwh)
         parts.push(`Solar + battery: $${row.lcoe_with_battery_usd_mwh.toFixed(1)}/MWh.`);
@@ -651,6 +652,70 @@ function PipelineTab({
           <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
             {ruptlSummary}
           </div>
+        </StatCard>
+      )}
+
+      {/* H9: Captive Power Context */}
+      {(row.captive_coal_count || row.nickel_smelter_count) && (
+        <StatCard>
+          <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
+            Captive Power
+          </div>
+          {!!row.captive_coal_count && (
+            <>
+              <StatRow label="Coal Plants" value={row.captive_coal_count} />
+              {row.captive_coal_mw != null && (
+                <StatRow
+                  label="Coal Capacity"
+                  value={`${row.captive_coal_mw.toLocaleString()}`}
+                  unit="MW"
+                />
+              )}
+              {row.captive_coal_plants && (
+                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {row.captive_coal_plants}
+                </div>
+              )}
+            </>
+          )}
+          {!!row.nickel_smelter_count && (
+            <>
+              <StatRow label="Nickel Smelters" value={row.nickel_smelter_count} />
+              {row.dominant_process_type && (
+                <StatRow label="Process Type" value={row.dominant_process_type} />
+              )}
+              {row.nickel_projects && (
+                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {row.nickel_projects}
+                </div>
+              )}
+              {row.has_chinese_ownership && (
+                <div className="text-[10px]" style={{ color: '#FFAB40' }}>
+                  Chinese ownership present
+                </div>
+              )}
+            </>
+          )}
+          {(row.solar_replacement_pct != null || row.perpres_112_status) && (
+            <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+              {row.captive_coal_generation_gwh != null && (
+                <StatRow
+                  label="Coal Generation"
+                  value={`${row.captive_coal_generation_gwh.toFixed(1)}`}
+                  unit="GWh/yr"
+                />
+              )}
+              {row.solar_replacement_pct != null && (
+                <StatRow
+                  label="Solar Replacement"
+                  value={`${row.solar_replacement_pct.toFixed(0)}%`}
+                />
+              )}
+              {row.perpres_112_status && (
+                <StatRow label="Perpres 112/2022" value={row.perpres_112_status} />
+              )}
+            </div>
+          )}
         </StatCard>
       )}
     </>

@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
-Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), and methodology/persona audit.
-Last updated: 2026-04-12 (within-boundary buildable overlay, light mode theme, stale items cleaned).
+Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
+Last updated: 2026-04-12 (JETP captive power integration priorities added).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
@@ -17,6 +17,21 @@ Items from the gap analysis that are documentation additions or trivial column d
 | ~~Q2~~ | ~~**Gen-tie cost unit translation note**~~ | Gap analysis P0 | `METHODOLOGY_CONSOLIDATED.md` §6.2 | ✅ Done (2026-04-11) — example: 25 MW at 5 km = $2.625M total = ~$0.5M/km. |
 | ~~Q3~~ | ~~**Build vs. buy wheeling note for Tenant persona**~~ | Gap analysis P0 | `PERSONAS.md` P5 | ✅ Done (2026-04-11) — forward-looking wheeling note added. |
 | ~~Q4~~ | ~~**`grid_investment_needed_usd` as first-class column**~~ | Gap analysis P0, PERSONAS.md P2 | `build_fct_kek_scorecard.py`, `logic.py`, `types.ts` | ✅ Done (2026-04-11) — `(connection_cost_per_kw + transmission_cost_per_kw) x max_captive_capacity_mwp x 1000`. 18/25 KEKs have values ($8M to $2.4B). |
+| Q5 | **ESDM Technology Catalogue 2024 vs. 2023 parameter check** | JETP gap analysis P0 #5 | `METHODOLOGY_CONSOLIDATED.md`, `src/assumptions.py` | JETP report references 2024 edition. Compare CAPEX/performance parameters — if materially different, update `VERIFIED_TECH006_DATA`. |
+
+---
+
+## High Priority (JETP Captive Power Integration)
+
+From [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md). Data sources: [CGSP Nickel Tracker](https://nickel.chinaglobalsouth.com/) (CC), [GEM Coal Tracker](https://globalenergymonitor.org/projects/global-coal-plant-tracker/) (CC BY 4.0). See gap analysis §6 for coverage details.
+
+| # | Item | Source | Personas | Notes |
+|---|------|--------|----------|-------|
+| ~~H6~~ | ~~**Overlay CGSP nickel smelters on KEK map**~~ | JETP P0 #1 | P2, P4 | ✅ Done (2026-04-12) — 107 nickel smelters via CGSP Nickel Tracker. `VectorOverlay.tsx` source layer + `map_layers.py:load_nickel_smelters()`. Popup with capacity, ownership, process type. Orange circle+factory icon. |
+| ~~H7~~ | ~~**Overlay GEM captive coal on KEK map**~~ | JETP P0 #2 | P2, P3, P4 | ✅ Done (2026-04-12) — 26 captive coal plants via GEM GCPT. `VectorOverlay.tsx` source layer + `map_layers.py:load_captive_coal()`. Popup with capacity, status, parent. Dark red circle+smokestack icon. |
+| ~~H8~~ | ~~**Add Perpres 112/2022 compliance flag**~~ | JETP P0 #3 | P2, P3 | ✅ Done (2026-04-12) — `has_captive_coal` boolean + `perpres_112_status` string on scorecard. Status-based proxy (GEM KAPSARC mirror lacks commissioning_year). Shows in ScoreDrawer Captive Power card. |
+| ~~H9~~ | ~~**Add captive coal summary per KEK**~~ | JETP P0 #4 | All | ✅ Done (2026-04-12) — 7 new scorecard fields: `captive_coal_count`, `captive_coal_mw`, `captive_coal_plants`, `nickel_smelter_count`, `nickel_projects`, `dominant_process_type`, `has_chinese_ownership`. Pipeline CSVs → data_loader merge → scorecard → ScoreDrawer card. |
+| ~~H10~~ | ~~**Interactive scale selector → scorecard LCOE recalculation**~~ | JETP P1 #6 | P4 | ✅ Done (2026-04-12) — `target_capacity_mwp` parameter recalculates LCOE at user-chosen capacity. Gen-tie cost and substation capacity respond to selected scale. `effective_capacity_mwp` flows through scorecard. |
 
 ---
 
@@ -41,6 +56,16 @@ Items from the gap analysis that are documentation additions or trivial column d
 | ~~M15~~ | ~~**Multi-substation comparison**~~ | Gap analysis P2 | P4 | ✅ **Done (2026-04-12):** `/api/kek/{id}/substations` now computes per-substation costs (connection, upgrade, transmission, total grid CAPEX, LCOE estimate) for top 3 by distance. `SubstationComparison.tsx` card in ScoreDrawer Pipeline tab shows side-by-side comparison with capacity traffic lights. Map markers rank-coded: gold (1st), silver (2nd), cyan (3rd). 4 new API tests. |
 | ~~M16~~ | ~~**Capacity slider with LCOE curve**~~ | Gap analysis P1 | P4 | ✅ Done (2026-04-12) — `LcoeCurveChart.tsx` renders LCOE vs. project scale (5 MW → max capacity). Recharts AreaChart with grid cost reference line and max capacity marker. Client-side CRF formula. Theme-aware. |
 
+### JETP Remaining P1 Items (from [gap analysis](docs/gap_analysis_jetp_captive_power.md))
+
+| # | Item | Source | Personas | Notes |
+|---|------|--------|----------|-------|
+| M17 | **30 km "technically possible" grid integration layer** | JETP P1 #7 | P3 | Secondary, more permissive threshold (30km to substation) for policymaker view. JETP uses 30km for grid integration screening. Aligns with Norton Rose Fulbright 20-40km Indonesian IPP corridor. Keep existing 5km/15km thresholds for investor view. |
+| M18 | **Grant-funded transmission scenario toggle** | JETP P1 #8 | P2, P4 | Toggle that sets connection cost contribution to zero — models DFI grant scenario (e.g. UK MENTARI programme). Shows: "if a DFI covers the gen-tie cost, here's the LCOE impact." |
+| ~~M19~~ | ~~**BESS high-reliability multiplier for RKEF KEKs**~~ | JETP P1 #9 | P4 | ✅ Done (2026-04-12) — Auto-doubles BESS sizing (2h → 4h) when `dominant_process_type == "RKEF"`. Doubles battery CAPEX component ($500→$1,000/kW-solar). Visible in `invest_battery` flag description and `lcoe_with_battery_usd_mwh`. |
+| M20 | **CIT waiver impact on LCOE** | JETP P1 #11 | P2, P4 | Model post-tax LCOE with/without corporate income tax waiver (PMK 130/2020: 100% CIT waiver for 10 years if investment > IDR 100B). Checkbox toggle in assumptions. |
+| M21 | **Hydropower potential layer** | JETP P1 #12 | P2, P3 | MEMR One Map run-of-river data, 30km radius from KEKs. JETP found 3.2 GW run-of-river potential near captive sites. For Sulawesi KEKs (Morowali, Konawe), hydro may beat solar. Needs new LCOE model for hydro. |
+
 ---
 
 ## Low Priority (v2.0)
@@ -57,6 +82,18 @@ Items from the gap analysis that are documentation additions or trivial column d
 | L8 | **KEK Management persona (P6)** | Methodology/persona audit | — | Zone administrators (BKPM-appointed) who use the tool to attract tenants. |
 | L9 | **Carbon price trajectory modelling** | PERSONAS.md P3 gaps | P3 | Link `carbon_breakeven_usd_tco2` to Indonesia ETS trajectory. |
 | L10 | **Spatial story / SEZ-anchored map view** | Gap analysis P2 | P3 | Partially done (2026-04-12): buildable polygons radiate outward on KEK click (green in-boundary → teal remote, 4.5s pulse animation). Auto-enables Solar Buildable Areas layer. Color-coding by gap type still deferred. |
+
+### JETP Deeper Integration
+
+| # | Item | Source | Personas | Notes |
+|---|------|--------|----------|-------|
+| L11 | **Cross-reference ESDM Minerba Geoportal** | JETP P2 #12 | All | Government-authoritative validation of CGSP/GEM data. Mining concession boundaries, processing facility permits, regulatory status. May require manual extraction. |
+| L12 | **Geothermal potential layer** | JETP P2 #13 | P2, P3 | MEMR One Map, 30km radius. Fills gap for Sulawesi and North Sumatra KEKs. Needs new LCOE model for geothermal. |
+| L13 | **Biomass potential layer** | JETP P2 #14 | P3 | MEMR One Map, province-level. Niche but relevant for pulp & paper KEKs. Simpler than point-based layers. |
+| L14 | **Import JETP demand projections** | JETP P2 #15 | All | Replaces area × intensity proxy with activity-driven demand for overlapping KEKs. Requires JETP Secretariat data sharing or database access. |
+| L15 | **REC pathway indicator** | JETP P2 #16 | P5 | Model REC cost vs. solar LCOE as alternative decarbonization path. Tenant can achieve ESG compliance via certificate purchase without physical solar. Distinct from GEAS green share. |
+| L16 | **Industrial clustering benefit on LCOE** | JETP P2 #17 | P2, P4 | Model how aggregated demand within KEK (multiple tenants) affects solar+BESS sizing and LCOE. KEKs are clusters by design but app doesn't model the scaling benefit. High effort. |
+| L17 | **Social/environmental impact flags from CGSP** | JETP P2 #18 | P2, P5 | CGSP includes social and ecological impact flags for nickel projects. ESG-relevant for Tenant and DFI personas. Low effort once CGSP data (H6) is integrated. |
 
 ---
 
@@ -96,6 +133,15 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | M16: LCOE vs capacity curve chart | 2026-04-12 | `LcoeCurveChart.tsx` — Recharts AreaChart showing LCOE vs project scale (5 MW → max). Grid cost reference line, max capacity marker, client-side CRF formula. |
 | ✅ | M7: Scenario save/compare | 2026-04-12 | `ScenarioManager.tsx` — save up to 3 named scenarios to localStorage. Zustand store actions for save/load/delete. Inline UI in AssumptionsPanel. |
 | ✅ | M15: Multi-substation comparison | 2026-04-12 | `/api/kek/{id}/substations` extended with per-substation cost breakdown (top 3). `SubstationComparison.tsx` side-by-side table in ScoreDrawer Pipeline tab. Rank-coded map markers (gold/silver/cyan). 4 API tests. |
+| ✅ | H6: CGSP nickel smelter overlay | 2026-04-12 | 107 smelters from CGSP Nickel Tracker. VectorOverlay source layer, orange circle+factory icon, popup with capacity/ownership/process. LayerControl toggle. |
+| ✅ | H7: GEM captive coal overlay | 2026-04-12 | 26 captive coal plants from GEM GCPT. VectorOverlay source layer, dark red circle+smokestack icon, popup with capacity/status/parent. LayerControl toggle. |
+| ✅ | H8: Perpres 112/2022 flag | 2026-04-12 | `has_captive_coal` + `perpres_112_status` on scorecard. Status-based proxy (commissioning_year unavailable). ScoreDrawer Captive Power card. |
+| ✅ | H9: Captive power scorecard enrichment | 2026-04-12 | 7 new fields from CGSP/GEM summaries. Pipeline CSVs → data_loader merge → scorecard pass-through → ScoreDrawer card. |
+| ✅ | H10: Interactive scale selector | 2026-04-12 | `target_capacity_mwp` recalculates LCOE at user-chosen capacity. `effective_capacity_mwp` flows through scorecard. |
+| ✅ | Icon fix: Nickel/coal map icons | 2026-04-12 | Replaced custom canvas drawing with `createIconImage()` pattern (colored circle + white SVG path). Consistent with InfraMarkers. |
+| ✅ | M19: BESS RKEF high-reliability multiplier | 2026-04-12 | Auto-doubles BESS sizing (2h→4h) for RKEF nickel process KEKs. Doubles battery CAPEX component. Visible in invest_battery flag + LCOE. |
+| ✅ | Solar replacement potential | 2026-04-12 | `solar_replacement_pct` in Captive Power card. Calculates what % of captive coal generation is replaceable by buildable solar (40% coal CF assumption). |
+| ✅ | Enriched nickel popups | 2026-04-12 | CGSP fields now in map popup: capacity (tons), investment cost (USD), shareholder, ESG ecological/social flags. Both raw and processed data paths. |
 
 ---
 

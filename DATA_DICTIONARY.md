@@ -12,7 +12,7 @@ Contract for the data pipeline. Three parts:
 
 ## Table of Contents
 
-- [Table Index](#table-index) — all 9 output tables at a glance
+- [Table Index](#table-index) — all 11 output tables at a glance
 - [Part 1 — Raw Inputs](#part-1--raw-inputs)
   - [1.1 kek_info_and_markers.csv](#11-outputsdatarawkek_info_and_markerscsv)
   - [1.2 kek_distribution_points.csv](#12-outputsdatarawkek_distribution_pointscsv)
@@ -34,6 +34,8 @@ Contract for the data pipeline. Three parts:
   - [3.4b fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv)
   - [3.5 fct_lcoe](#35-outputsdataprocessedfct_lcoecsv)
   - [3.6 fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv)
+  - [3.7 fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv)
+  - [3.8 fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv)
 - [Open Questions](#open-questions)
 
 ---
@@ -52,7 +54,9 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this KEK's region?" — used to compute the GEAS green energy share each KEK can claim, and to flag KEKs where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
 | [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 25 | Nearest PLN substation per KEK — KEK-to-substation + solar-to-substation distances, grid connectivity, capacity assessment | `dim_kek` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_kek_resource` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
 | [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 450 | Precomputed LCOE bands — 25 KEKs × 9 WACC values (4–20% in 2% steps) × 2 siting scenarios (within_boundary/grid_connected_solar) | `dim_kek` · `fct_kek_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison. `within_boundary` is base-case; `grid_connected_solar` adds connection cost (solar→substation). | ✅ |
-| [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended (go solar now / wait for grid / add firming / flag late pipeline)? What share of demand can green energy cover by 2030? | ⚠️ Provisional until CAPEX verified |
+| [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power context | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_coal_summary` · `fct_captive_nickel_summary` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? | ⚠️ Provisional until CAPEX verified |
+| [fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv) | fact | 5 | Per-KEK captive coal plant aggregation within 50 km | `dim_kek` · GEM Global Coal Plant Tracker (KAPSARC mirror) | Identifies KEKs with existing captive coal subject to Perpres 112/2022 phase-out. Feeds `has_captive_coal` and `perpres_112_status` on scorecard. | ✅ |
+| [fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv) | fact | 3 | Per-KEK nickel smelter aggregation within 50 km | `dim_kek` · CGSP Nickel Tracker | Identifies KEKs near nickel processing with high baseload demand. Process type informs BESS sizing requirements. | ✅ |
 
 ---
 
@@ -671,6 +675,59 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | Column | Type | Formula |
 |--------|------|---------|
 | `data_completeness` | str | `"complete"` if no null key columns and `is_capex_provisional=False`. `"provisional"` if `is_capex_provisional=True`. `"partial"` if key columns are null. |
+
+**Captive power columns** (from `fct_captive_coal_summary` + `fct_captive_nickel_summary`, merged via left join):
+
+| Column | Type | Source | Formula / Notes |
+|--------|------|--------|-----------------|
+| `captive_coal_count` | int/null | GEM GCPT | Count of captive coal plants within 50 km of KEK centroid. Null for KEKs with no match. |
+| `captive_coal_mw` | int/null | GEM GCPT | Sum of `capacity_mw` for matched coal plants. |
+| `captive_coal_plants` | str/null | GEM GCPT | Semicolon-separated plant names. |
+| `nickel_smelter_count` | int/null | CGSP | Count of nickel processing facilities within 50 km. |
+| `nickel_projects` | str/null | CGSP | Semicolon-separated project names. |
+| `dominant_process_type` | str/null | CGSP | Mode of process types among matched facilities (RKEF, Ferro Nickel, HPAL, Laterite). |
+| `has_chinese_ownership` | bool | CGSP | True if any matched nickel facility has Chinese ownership. False if no nickel data. |
+| `has_captive_coal` | bool | Derived | `captive_coal_count > 0`. Indicates KEK is subject to Perpres 112/2022. |
+| `perpres_112_status` | str/null | Derived | `"Subject to 2050 phase-out"` if `has_captive_coal`, else null. Status-based proxy (commissioning_year unavailable). |
+| `effective_capacity_mwp` | float/null | User input (H10) | User-selected project capacity for LCOE recalculation. When set, overrides `max_captive_capacity_mwp` for gen-tie cost and substation capacity assessment. Null = use max buildable. |
+| `captive_coal_generation_gwh` | float/null | Derived | Estimated annual coal generation: `captive_coal_mw × 8.76 × 0.40` (40% CF assumption for Indonesian captive coal). |
+| `solar_replacement_pct` | float/null | Derived | `max_solar_generation_gwh / captive_coal_generation_gwh × 100`. What % of captive coal output is replaceable by buildable solar. |
+| `bess_sizing_hours` | float | Derived (M19) | BESS storage sizing: 4h if `dominant_process_type == "RKEF"` (24/7 baseload), 2h otherwise. Drives `battery_adder_usd_mwh` and `lcoe_with_battery_usd_mwh`. |
+
+---
+
+### 3.7 `outputs/data/processed/fct_captive_coal_summary.csv`
+
+**Rows:** 5 (KEKs with captive coal plants within 50 km)
+**Built from:** `dim_kek` centroids × GEM Global Coal Plant Tracker (KAPSARC mirror, filtered to Indonesia captive)
+**Pipeline:** `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `kek_id` | str | KEK identifier (join key to `dim_kek`) |
+| `captive_coal_count` | int | Number of captive coal plants within 50 km |
+| `captive_coal_mw` | float | Total captive coal capacity (MW) |
+| `captive_coal_plants` | str | Semicolon-separated plant names |
+
+**Data source:** GEM Global Coal Plant Tracker, CC BY 4.0. Downloaded via KAPSARC mirror. Filtered to `country="Indonesia"` and captive status. 26 plants in raw data, 5 KEKs matched after 50 km buffer.
+
+---
+
+### 3.8 `outputs/data/processed/fct_captive_nickel_summary.csv`
+
+**Rows:** 3 (KEKs with nickel smelters within 50 km)
+**Built from:** `dim_kek` centroids × CGSP Nickel Tracker
+**Pipeline:** `build_captive_nickel_summary()` in `src/pipeline/build_fct_captive_nickel.py`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `kek_id` | str | KEK identifier (join key to `dim_kek`) |
+| `nickel_smelter_count` | int | Number of nickel processing facilities within 50 km |
+| `nickel_projects` | str | Semicolon-separated project names |
+| `dominant_process_type` | str | Most common nickel process type (RKEF, Ferro Nickel, HPAL, Laterite) |
+| `has_chinese_ownership` | bool | True if any matched facility has Chinese ownership |
+
+**Data source:** CGSP Nickel Tracker (chinaglobalsouth.com/nickel), CC license, updated quarterly. 107 facilities in raw data, 3 KEKs matched after 50 km buffer.
 
 ---
 

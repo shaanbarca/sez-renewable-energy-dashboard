@@ -25,6 +25,7 @@ import pandas as pd
 from src.assumptions import (
     BASE_WACC,
     BESS_CAPEX_USD_PER_KWH,
+    BESS_SIZING_HOURS,
     CONNECTION_COST_PER_KW_KM,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
@@ -87,6 +88,9 @@ class UserAssumptions:
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
 
+    # Project sizing — optional capacity override (H10)
+    target_capacity_mwp: float | None = None
+
     @property
     def wacc_decimal(self) -> float:
         return self.wacc_pct / 100.0
@@ -103,7 +107,7 @@ class UserAssumptions:
 
     def to_dict(self) -> dict:
         """Serialise for dcc.Store."""
-        return {
+        d = {
             "capex_usd_per_kw": self.capex_usd_per_kw,
             "lifetime_yr": self.lifetime_yr,
             "wacc_pct": self.wacc_pct,
@@ -116,6 +120,9 @@ class UserAssumptions:
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
         }
+        if self.target_capacity_mwp is not None:
+            d["target_capacity_mwp"] = self.target_capacity_mwp
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "UserAssumptions":
@@ -247,6 +254,19 @@ def compute_lcoe_live(
             )
             land_cost = assumptions.land_cost_usd_per_kw
 
+            # H10: effective capacity = min(user target, max buildable)
+            max_mwp_val = kek.get("max_captive_capacity_mwp")
+            max_mwp = (
+                float(max_mwp_val)
+                if pd.notna(max_mwp_val) and float(max_mwp_val) > 0
+                else TRANSMISSION_FALLBACK_CAPACITY_MWP
+            )
+            effective_mwp = (
+                min(assumptions.target_capacity_mwp, max_mwp)
+                if assumptions.target_capacity_mwp
+                else max_mwp
+            )
+
             # V3.1: transmission line cost when substations are not connected
             inter_connected = kek.get("inter_substation_connected")
             inter_sub_dist = kek.get("inter_substation_dist_km", 0.0)
@@ -255,23 +275,15 @@ def compute_lcoe_live(
             if pd.isna(inter_sub_dist):
                 inter_sub_dist = 0.0
             if inter_connected is False and inter_sub_dist > 0:
-                solar_mwp_val = kek.get("max_captive_capacity_mwp")
-                solar_mwp = (
-                    float(solar_mwp_val)
-                    if pd.notna(solar_mwp_val) and float(solar_mwp_val) > 0
-                    else TRANSMISSION_FALLBACK_CAPACITY_MWP
-                )
-                trans_cost = new_transmission_cost_per_kw(inter_sub_dist, solar_mwp)
+                trans_cost = new_transmission_cost_per_kw(inter_sub_dist, effective_mwp)
             else:
                 trans_cost = 0.0
 
             # V3.2: substation upgrade cost when capacity is insufficient
             sub_cap = kek.get("nearest_substation_capacity_mva")
             sub_cap = float(sub_cap) if pd.notna(sub_cap) else None
-            solar_mwp_val = kek.get("max_captive_capacity_mwp")
-            solar_mwp_cap = float(solar_mwp_val) if pd.notna(solar_mwp_val) else None
             upgrade_cost = substation_upgrade_cost_per_kw(
-                sub_cap, solar_mwp_cap, assumptions.substation_utilization_pct
+                sub_cap, effective_mwp, assumptions.substation_utilization_pct
             )
 
             eff_c = capex_c + conn_cost + land_cost + trans_cost + upgrade_cost
@@ -285,6 +297,7 @@ def compute_lcoe_live(
             conn_cost = 0.0
             trans_cost = 0.0
             upgrade_cost = 0.0
+            effective_mwp = 0.0
 
         rows.append(
             {
@@ -296,6 +309,7 @@ def compute_lcoe_live(
                 "connection_cost_per_kw": _round(conn_cost, 1),
                 "transmission_cost_per_kw": _round(trans_cost, 1),
                 "substation_upgrade_cost_per_kw": _round(upgrade_cost, 1),
+                "effective_capacity_mwp": _round(effective_mwp, 1),
                 "cf": _round(cf_gc, 4),
                 "pvout_used": pvout_gc,
             }
@@ -432,14 +446,19 @@ def compute_scorecard_live(
             reliability_req = 0.6
 
         # Live recalculate capacity assessment and grid integration category
-        # using the user's substation utilization assumption
+        # using the user's substation utilization assumption + optional capacity override (H10)
         sub_cap_mva = kek.get("nearest_substation_capacity_mva")
         sub_cap_mva = float(sub_cap_mva) if pd.notna(sub_cap_mva) else None
         solar_cap_mwp = kek.get("max_captive_capacity_mwp")
         solar_cap_mwp = float(solar_cap_mwp) if pd.notna(solar_cap_mwp) else None
 
+        # H10: override capacity with user target (capped at max buildable)
+        effective_cap = solar_cap_mwp
+        if assumptions.target_capacity_mwp and solar_cap_mwp:
+            effective_cap = min(assumptions.target_capacity_mwp, solar_cap_mwp)
+
         cap_light, avail_mva = compute_capacity_assessment(
-            sub_cap_mva, solar_cap_mwp, assumptions.substation_utilization_pct
+            sub_cap_mva, effective_cap, assumptions.substation_utilization_pct
         )
 
         has_internal = kek.get("has_internal_substation", False)
@@ -457,7 +476,7 @@ def compute_scorecard_live(
             dist_kek_to_substation_km=dist_kek,
             substation_capacity_mva=sub_cap_mva,
             substation_utilization_pct=assumptions.substation_utilization_pct,
-            solar_capacity_mwp=solar_cap_mwp,
+            solar_capacity_mwp=effective_cap,
             inter_substation_connected=inter_connected,
         )
         flags = action_flags(
@@ -532,6 +551,11 @@ def compute_scorecard_live(
                     action_flag = flag_name
                     break
 
+        # M19: RKEF high-reliability multiplier — double BESS sizing for 24/7 loads
+        dominant_process = str(kek.get("dominant_process_type", "")).strip().upper()
+        is_rkef = dominant_process == "RKEF"
+        bess_sizing = BESS_SIZING_HOURS * 2.0 if is_rkef else BESS_SIZING_HOURS
+
         row = {
             "kek_id": kek_id,
             "action_flag": action_flag,
@@ -556,6 +580,7 @@ def compute_scorecard_live(
                     assumptions.bess_capex_usd_per_kwh,
                     solar_cf=primary_cf,
                     wacc=assumptions.wacc_decimal,
+                    sizing_hours=bess_sizing,
                 ),
                 2,
             )
@@ -567,11 +592,13 @@ def compute_scorecard_live(
                     assumptions.bess_capex_usd_per_kwh,
                     solar_cf=primary_cf,
                     wacc=assumptions.wacc_decimal,
+                    sizing_hours=bess_sizing,
                 ),
                 2,
             )
             if flags["invest_battery"] and primary_cf and primary_cf > 0
             else _round(lcoe_mid),
+            "bess_sizing_hours": bess_sizing,
             "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
             "demand_2030_gwh": round(demand_by_kek[kek_id] / 1000, 1)
             if kek_id in demand_by_kek
@@ -670,7 +697,12 @@ def compute_scorecard_live(
             gc.loc[kek_id, "substation_upgrade_cost_per_kw"] if kek_id in gc.index else 0.0
         )
 
-        # Grid investment needed (USD): total infra cost × capacity (kW)
+        # H10: effective capacity used for this KEK (may be capped by user target)
+        row["effective_capacity_mwp"] = (
+            gc.loc[kek_id, "effective_capacity_mwp"] if kek_id in gc.index else None
+        )
+
+        # Grid investment needed (USD): total infra cost × effective capacity (kW)
         gc_conn = (
             float(row["connection_cost_per_kw"]) if pd.notna(row["connection_cost_per_kw"]) else 0.0
         )
@@ -685,9 +717,12 @@ def compute_scorecard_live(
             else 0.0
         )
         infra_cost = gc_conn + gc_trans + gc_upgrade
-        mwp = kek.get("max_captive_capacity_mwp", 0.0)
-        if infra_cost > 0 and mwp and mwp > 0:
-            row["grid_investment_needed_usd"] = round(infra_cost * mwp * 1000)
+        # Use effective capacity for investment calculation (respects user target)
+        eff_mwp = row.get("effective_capacity_mwp") or kek.get("max_captive_capacity_mwp", 0.0)
+        if pd.isna(eff_mwp):
+            eff_mwp = 0.0
+        if infra_cost > 0 and eff_mwp > 0:
+            row["grid_investment_needed_usd"] = round(infra_cost * eff_mwp * 1000)
         else:
             row["grid_investment_needed_usd"] = None
 
@@ -695,6 +730,60 @@ def compute_scorecard_live(
             "dist_solar_to_nearest_substation_km", None
         )
         row["dist_to_nearest_substation_km"] = kek.get("dist_to_nearest_substation_km", None)
+
+        # H9: Captive power context (pass-through from resource_df summaries)
+        row["captive_coal_count"] = (
+            int(kek.get("captive_coal_count", 0))
+            if pd.notna(kek.get("captive_coal_count"))
+            else None
+        )
+        row["captive_coal_mw"] = (
+            int(kek.get("captive_coal_mw", 0)) if pd.notna(kek.get("captive_coal_mw")) else None
+        )
+        row["captive_coal_plants"] = (
+            str(kek.get("captive_coal_plants", ""))
+            if pd.notna(kek.get("captive_coal_plants"))
+            else None
+        )
+        row["nickel_smelter_count"] = (
+            int(kek.get("nickel_smelter_count", 0))
+            if pd.notna(kek.get("nickel_smelter_count"))
+            else None
+        )
+        row["nickel_projects"] = (
+            str(kek.get("nickel_projects", "")) if pd.notna(kek.get("nickel_projects")) else None
+        )
+        row["dominant_process_type"] = (
+            str(kek.get("dominant_process_type", ""))
+            if pd.notna(kek.get("dominant_process_type"))
+            else None
+        )
+        row["has_chinese_ownership"] = (
+            bool(kek.get("has_chinese_ownership"))
+            if pd.notna(kek.get("has_chinese_ownership"))
+            else False
+        )
+
+        # H8: Perpres 112/2022 compliance status
+        coal_count = row.get("captive_coal_count")
+        if coal_count and coal_count > 0:
+            row["has_captive_coal"] = True
+            row["perpres_112_status"] = "Subject to 2050 phase-out"
+        else:
+            row["has_captive_coal"] = False
+            row["perpres_112_status"] = None
+
+        # Solar replacement potential: what % of captive coal generation can solar replace?
+        # Assumes 40% capacity factor for coal (Indonesian captive coal typical)
+        coal_mw = row.get("captive_coal_mw")
+        solar_gen = row.get("max_solar_generation_gwh")
+        if coal_mw and coal_mw > 0 and solar_gen and solar_gen > 0:
+            coal_gen_gwh = coal_mw * 8.76 * 0.40  # MW → GWh/yr at 40% CF
+            row["captive_coal_generation_gwh"] = round(coal_gen_gwh, 1)
+            row["solar_replacement_pct"] = round(solar_gen / coal_gen_gwh * 100, 0)
+        else:
+            row["captive_coal_generation_gwh"] = None
+            row["solar_replacement_pct"] = None
 
         rows.append(row)
 

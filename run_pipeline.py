@@ -52,6 +52,8 @@ PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 from src.pipeline.build_dim_kek import build_dim_kek
 from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
 from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
+from src.pipeline.build_fct_captive_coal import build_captive_coal_summary
+from src.pipeline.build_fct_captive_nickel import build_captive_nickel_summary
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
 from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
 from src.pipeline.build_fct_kek_resource import build_fct_kek_resource
@@ -97,6 +99,18 @@ PIPELINE: list[Step] = [
         depends_on=["dim_kek"],
     ),
     Step("fct_ruptl_pipeline", build_fct_ruptl_pipeline, "fct_ruptl_pipeline.csv"),
+    Step(
+        "fct_captive_coal_summary",
+        build_captive_coal_summary,
+        "fct_captive_coal_summary.csv",
+        depends_on=["dim_kek"],
+    ),
+    Step(
+        "fct_captive_nickel_summary",
+        build_captive_nickel_summary,
+        "fct_captive_nickel_summary.csv",
+        depends_on=["dim_kek"],
+    ),
     # Stage 3: Computed
     Step(
         "fct_substation_proximity",

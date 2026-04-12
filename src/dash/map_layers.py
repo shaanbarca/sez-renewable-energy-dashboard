@@ -50,6 +50,130 @@ def load_substations() -> list[dict]:
     return stations
 
 
+def load_nickel_smelters() -> list[dict]:
+    """Load CGSP nickel smelter points from processed CSV.
+
+    Returns list of {lat, lon, name, project_type, capacity_tons, cost_usd,
+    shareholder, esg_ecological, esg_social, status, province,
+    is_chinese_owned, kek_id, dist_to_kek_km}.
+    """
+    path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_nickel.csv"
+    if not path.exists():
+        # Fall back to raw data
+        path = DATA_DIR / "captive_power" / "cgsp_nickel_tracker.csv"
+        if not path.exists():
+            return []
+        import pandas as pd
+
+        df = pd.read_csv(path)
+        df = df[df["parent_project_type"] == "Processing"]
+        df = df[df["latitude"].notna() & df["longitude"].notna()]
+        return [
+            {
+                "lon": float(r["longitude"]),
+                "lat": float(r["latitude"]),
+                "name": r.get("project_name", "Unknown"),
+                "project_type": r.get("project_type", ""),
+                "capacity_tons": float(r["capacity"]) if pd.notna(r.get("capacity")) else None,
+                "cost_usd": float(r["cost"])
+                if pd.notna(r.get("cost")) and str(r.get("cost", "")).strip() not in ("", "-")
+                else None,
+                "shareholder": str(r.get("shareholder_ownership", ""))
+                if pd.notna(r.get("shareholder_ownership"))
+                else "",
+                "esg_ecological": str(r.get("esg_impact_ecological", ""))
+                if pd.notna(r.get("esg_impact_ecological"))
+                else "",
+                "esg_social": str(r.get("esg_impact_social", ""))
+                if pd.notna(r.get("esg_impact_social"))
+                else "",
+                "status": r.get("status", ""),
+                "province": r.get("province_city", ""),
+                "is_chinese_owned": "China" in str(r.get("country_ownership", "")),
+            }
+            for _, r in df.iterrows()
+        ]
+
+    import pandas as pd
+
+    df = pd.read_csv(path)
+    results = []
+    for _, r in df.iterrows():
+        if not (pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))):
+            continue
+        results.append(
+            {
+                "lon": float(r["longitude"]),
+                "lat": float(r["latitude"]),
+                "name": str(r.get("project_name", "Unknown"))
+                if pd.notna(r.get("project_name"))
+                else "Unknown",
+                "project_type": str(r.get("project_type", ""))
+                if pd.notna(r.get("project_type"))
+                else "",
+                "capacity_tons": float(r["capacity_tons"])
+                if pd.notna(r.get("capacity_tons"))
+                else None,
+                "cost_usd": float(r["cost_usd"]) if pd.notna(r.get("cost_usd")) else None,
+                "shareholder": str(r.get("shareholder", ""))
+                if pd.notna(r.get("shareholder"))
+                else "",
+                "esg_ecological": str(r.get("esg_ecological", ""))
+                if pd.notna(r.get("esg_ecological"))
+                else "",
+                "esg_social": str(r.get("esg_social", "")) if pd.notna(r.get("esg_social")) else "",
+                "status": str(r.get("status", "")) if pd.notna(r.get("status")) else "",
+                "province": str(r.get("province", "")) if pd.notna(r.get("province")) else "",
+                "is_chinese_owned": bool(r.get("is_chinese_owned", False))
+                if pd.notna(r.get("is_chinese_owned"))
+                else False,
+                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
+                "dist_to_kek_km": float(r["dist_to_kek_km"])
+                if pd.notna(r.get("dist_to_kek_km"))
+                else None,
+            }
+        )
+    return results
+
+
+def load_captive_coal() -> list[dict]:
+    """Load GEM captive coal plant points from processed CSV.
+
+    Returns list of {lat, lon, name, capacity_mw, status, parent, province,
+    kek_id, dist_to_kek_km}.
+    """
+    path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_coal.csv"
+    if not path.exists():
+        return []
+
+    import pandas as pd
+
+    df = pd.read_csv(path)
+    results = []
+    for _, r in df.iterrows():
+        if not (pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))):
+            continue
+        results.append(
+            {
+                "lon": float(r["longitude"]),
+                "lat": float(r["latitude"]),
+                "name": str(r.get("plant_name", "Unknown"))
+                if pd.notna(r.get("plant_name"))
+                else "Unknown",
+                "capacity_mw": float(r["capacity_mw"]) if pd.notna(r.get("capacity_mw")) else 0,
+                "unit_count": int(r.get("unit_count", 1)) if pd.notna(r.get("unit_count")) else 1,
+                "status": str(r.get("status", "")) if pd.notna(r.get("status")) else "",
+                "parent": str(r.get("parent", "")) if pd.notna(r.get("parent")) else "",
+                "province": str(r.get("province", "")) if pd.notna(r.get("province")) else "",
+                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
+                "dist_to_kek_km": float(r["dist_to_kek_km"])
+                if pd.notna(r.get("dist_to_kek_km"))
+                else None,
+            }
+        )
+    return results
+
+
 def load_kek_polygons() -> dict | None:
     """Load KEK boundary polygons as raw GeoJSON dict for Choroplethmapbox."""
     path = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
@@ -529,6 +653,20 @@ def get_all_layers() -> dict:
     except Exception as e:
         print(f"    Grid lines: failed ({e})")
         layers["grid_lines"] = None
+
+    try:
+        layers["nickel_smelters"] = load_nickel_smelters()
+        print(f"    Nickel smelters: {len(layers['nickel_smelters'])} points")
+    except Exception as e:
+        print(f"    Nickel smelters: failed ({e})")
+        layers["nickel_smelters"] = []
+
+    try:
+        layers["captive_coal"] = load_captive_coal()
+        print(f"    Captive coal plants: {len(layers['captive_coal'])} points")
+    except Exception as e:
+        print(f"    Captive coal plants: failed ({e})")
+        layers["captive_coal"] = []
 
     _LAYERS_CACHE = layers
     return layers

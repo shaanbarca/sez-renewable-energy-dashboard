@@ -15,7 +15,7 @@ from src.dash.map_layers import (
 router = APIRouter()
 
 # Valid layer names and their types
-_POINT_LAYERS = {"substations", "industrial"}
+_POINT_LAYERS = {"substations", "industrial", "nickel_smelters", "captive_coal"}
 _GEOJSON_LAYERS = {
     "kek_polygons",
     "peatland",
