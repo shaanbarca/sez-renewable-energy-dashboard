@@ -522,12 +522,12 @@ class TestInfrastructureCosts:
             sample_demand_df,
             sample_grid_df,
         )
-        low_lcoe = low_util.iloc[0]["lcoe_grid_connected_usd_mwh"]
-        high_lcoe = high_util.iloc[0]["lcoe_grid_connected_usd_mwh"]
+        low_lcoe = low_util.iloc[0]["lcoe_mid_usd_mwh"]
+        high_lcoe = high_util.iloc[0]["lcoe_mid_usd_mwh"]
 
         # High utilization → substation can't absorb solar → upgrade cost → higher LCOE
         assert high_lcoe > low_lcoe, (
-            f"Grid-connected LCOE should increase with utilization: "
+            f"Primary LCOE should increase with utilization: "
             f"low_util={low_lcoe}, high_util={high_lcoe}"
         )
 

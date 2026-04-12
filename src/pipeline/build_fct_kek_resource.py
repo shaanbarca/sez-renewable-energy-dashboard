@@ -33,18 +33,24 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
                                NaN if buildability data not present
     best_solar_site_lon        longitude of the best buildable PVOUT pixel (V2)
                                NaN if buildability data not present
-    within_boundary_area_ha    area available for solar within KEK boundary (V2)
-                               = area_ha × WB_SOLAR_FRACTION (default 10%)
+    within_boundary_area_ha    buildable area within KEK polygon boundary (V2.1)
+                               Computed by clipping the 4-layer buildable mask to KEK polygon.
+                               Falls back to area_ha × WB_SOLAR_FRACTION when KEK polygon
+                               is too small for raster resolution or data is unavailable.
     within_boundary_capacity_mwp  max solar capacity within boundary (V2)
                                = within_boundary_area_ha / 1.5 ha/MWp
+    pvout_within_boundary      avg annual PVOUT from buildable pixels within KEK boundary (V2.1)
+                               NaN when fallback (theoretical) — uses pvout_centroid instead
+    within_boundary_source     "raster" if spatial intersection, "theoretical" if fallback
 
-Methodology reference: METHODOLOGY.md Sections 2.4 and 2.5, METHODOLOGY_V2.md §2
+Methodology reference: METHODOLOGY_CONSOLIDATED.md Sections 2.4 and 2.5, METHODOLOGY_V2.md §2
 50km buffer formula: lat_buf = 50/111.32, lon_buf = 50/(111.32×cos(lat_rad))
 """
 
 from __future__ import annotations
 
 import io
+import json
 import math
 import zipfile
 from pathlib import Path
@@ -52,7 +58,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import rasterio
+import rasterio.features
 from rasterio.windows import from_bounds
+from shapely.geometry import shape
+from shapely.ops import unary_union
 
 from src.model.basic_model import pvout_daily_to_annual
 from src.pipeline.assumptions import (
@@ -60,10 +69,10 @@ from src.pipeline.assumptions import (
     KM_PER_DEGREE_LAT,
     PVOUT_BUFFER_KM,
     PVOUT_SOURCE,
-    WB_SOLAR_FRACTION,
 )
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
+    LAND_COVER_BUILDABLE_THRESHOLD,
     apply_exclusion_mask,
     apply_min_area_filter,
     apply_slope_elevation_mask,
@@ -84,6 +93,9 @@ DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
 # Directory where buildability data files are expected to live.
 # Populated by scripts/download_buildability_data.py (see that script for instructions).
 BUILDABILITY_DIR = REPO_ROOT / "data" / "buildability"
+
+# KEK polygon boundaries for spatial intersection with buildable raster
+KEK_POLYGONS_GEOJSON = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
 
 _REQUIRED_BUILD_FILES = [
     "dem_indonesia.tif",
@@ -206,6 +218,71 @@ def _rasterize_shp(
     )
 
 
+def _load_kek_polygons(path: Path) -> dict[str, object]:
+    """Return {slug: shapely_geometry} for all KEK polygon features.
+
+    Unions duplicate slugs (e.g. tanjung-sauh has 6 separate MultiPolygons).
+    """
+    if not path.exists():
+        return {}
+    with path.open() as f:
+        gj = json.load(f)
+    polygons: dict[str, object] = {}
+    for feat in gj["features"]:
+        slug = feat["properties"].get("slug", "")
+        if not slug:
+            continue
+        geom = shape(feat["geometry"])
+        if slug in polygons:
+            polygons[slug] = unary_union([polygons[slug], geom])
+        else:
+            polygons[slug] = geom
+    return polygons
+
+
+def _compute_within_boundary_buildable(
+    filtered_mask: np.ndarray,
+    pvout_patch: np.ndarray,
+    win_transform: rasterio.transform.Affine,
+    kek_polygon: object,
+    pixel_area_ha: float,
+) -> tuple[float, float, float]:
+    """Clip buildable mask to KEK polygon, return (area_ha, avg_pvout_daily, capacity_mwp).
+
+    Rasterizes the KEK polygon onto the same grid as filtered_mask, then
+    intersects to find buildable pixels within the KEK boundary.
+
+    Returns (0.0, NaN, 0.0) if no buildable pixels fall within the KEK polygon.
+    """
+    height, width = filtered_mask.shape
+
+    # Rasterize KEK polygon onto the buildable mask grid
+    kek_rasterized = rasterio.features.rasterize(
+        [(kek_polygon, 1)],
+        out_shape=(height, width),
+        transform=win_transform,
+        fill=0,
+        dtype=np.uint8,
+    )
+
+    # Intersect: buildable AND within KEK boundary
+    within_kek_buildable = filtered_mask & (kek_rasterized == 1)
+    n_pixels = int(within_kek_buildable.sum())
+
+    if n_pixels == 0:
+        return 0.0, np.nan, 0.0
+
+    area_ha = round(n_pixels * pixel_area_ha, 1)
+    capacity_mwp = round(area_ha / HA_PER_MWP, 1)
+
+    # Average PVOUT from buildable pixels within KEK
+    pvout_vals = pvout_patch[within_kek_buildable]
+    finite_vals = pvout_vals[np.isfinite(pvout_vals) & (pvout_vals > 0)]
+    avg_pvout_daily = float(np.mean(finite_vals)) if len(finite_vals) > 0 else np.nan
+
+    return area_ha, avg_pvout_daily, capacity_mwp
+
+
 def _read_raster_window_to_pvout_grid(
     raster_path: Path,
     bbox: tuple[float, float, float, float],
@@ -266,6 +343,64 @@ def _build_land_cover_mask(
     return mask
 
 
+def _resample_landcover_binary_window(
+    raster_path: Path,
+    bbox: tuple[float, float, float, float],
+    out_shape: tuple[int, int],
+    win_transform: rasterio.transform.Affine,
+    exclude_codes: frozenset[int],
+    threshold: float = LAND_COVER_BUILDABLE_THRESHOLD,
+    pvout_crs: str = "EPSG:4326",
+) -> np.ndarray | None:
+    """Binary-threshold resampling of land cover for a windowed region.
+
+    Instead of mode resampling (loses sub-pixel detail at 10m→1km), creates a
+    binary buildable/excluded array at source resolution, then resamples with
+    average to get a buildable fraction per output pixel. Pixels with fraction
+    < threshold are excluded.
+
+    Returns:
+        uint8 mask (1=excluded, 0=buildable), or None on failure.
+    """
+    from rasterio.enums import Resampling
+    from rasterio.warp import reproject
+
+    try:
+        with rasterio.open(raster_path) as src:
+            # Read full source (VRT handles lazy tile loading)
+            raw = src.read(1)
+
+            # Binary: 1.0 = buildable, 0.0 = excluded
+            binary = np.ones_like(raw, dtype=np.float32)
+            for code in exclude_codes:
+                binary[raw == code] = 0.0
+            nodata = src.nodata
+            if nodata is not None:
+                binary[raw == nodata] = 0.0
+
+            # Resample to target grid with average
+            fraction = np.zeros(out_shape, dtype=np.float32)
+            reproject(
+                source=binary,
+                destination=fraction,
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=win_transform,
+                dst_crs=pvout_crs,
+                resampling=Resampling.average,
+                src_nodata=None,
+                dst_nodata=np.nan,
+            )
+
+            # Threshold to binary mask
+            mask = np.zeros(out_shape, dtype=np.uint8)
+            mask[~np.isfinite(fraction) | (fraction < threshold)] = 1
+            return mask
+    except Exception as e:
+        print(f"  WARNING: Could not read/resample {raster_path.name}: {e}")
+        return None
+
+
 def _compute_buildable_pvout(
     pvout_patch: np.ndarray,
     window: rasterio.windows.Window,
@@ -273,7 +408,7 @@ def _compute_buildable_pvout(
     lon: float,
     lat: float,
     data_dir: Path = BUILDABILITY_DIR,
-) -> tuple[float, float, float, str, float, float, float]:
+) -> tuple[float, float, float, str, float, float, float, np.ndarray | None, object | None]:
     """Apply the 4-layer land suitability filter to a PVOUT patch.
 
     Applies whatever data files are present in data_dir — layers with missing
@@ -289,8 +424,9 @@ def _compute_buildable_pvout(
 
     Returns:
         (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str,
-         best_solar_site_lat, best_solar_site_lon, best_solar_site_dist_km)
-        Returns (NaN, NaN, NaN, "data_unavailable", NaN, NaN, NaN) when no files are present.
+         best_solar_site_lat, best_solar_site_lon, best_solar_site_dist_km,
+         filtered_mask, win_transform)
+        Returns (NaN, ..., None, None) when no files are present.
 
     Note on resolution:
         PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
@@ -301,7 +437,7 @@ def _compute_buildable_pvout(
 
     available = _available_build_files(data_dir)
     if not available:
-        return np.nan, np.nan, np.nan, "data_unavailable", np.nan, np.nan, np.nan
+        return np.nan, np.nan, np.nan, "data_unavailable", np.nan, np.nan, np.nan, None, None
 
     win_transform = rasterio.windows.transform(window, src_transform)
     height, width = pvout_patch.shape
@@ -320,7 +456,7 @@ def _compute_buildable_pvout(
     n_raw = int(valid.sum())
 
     if n_raw == 0:
-        return np.nan, 0.0, 0.0, "unconstrained", np.nan, np.nan, np.nan
+        return np.nan, 0.0, 0.0, "unconstrained", np.nan, np.nan, np.nan, None, None
 
     pvout_working = np.where(valid, pvout_patch, 0.0).astype(float)
 
@@ -357,17 +493,16 @@ def _compute_buildable_pvout(
         pvout_after_1b = pvout_after_1a
     n_after_1b = int((pvout_after_1b > 0).sum())
 
-    # ── Layer 1c/d: Land cover (skip if file absent) ──────────────────────────
+    # ── Layer 1c/d: Land cover — binary-threshold resampling (M13) ─────────────
     if "esa_worldcover.vrt" in available:
-        lc_arr = _read_raster_window_to_pvout_grid(
+        lc_mask = _resample_landcover_binary_window(
             data_dir / "esa_worldcover.vrt",
             bbox,
             (height, width),
             win_transform,
-            categorical=True,
+            LAND_COVER_EXCLUDE_CODES,
         )
-        if lc_arr is not None:
-            lc_mask = _build_land_cover_mask(lc_arr, LAND_COVER_EXCLUDE_CODES)
+        if lc_mask is not None:
             pvout_after_1cd = apply_exclusion_mask(pvout_after_1b, lc_mask)
         else:
             pvout_after_1cd = pvout_after_1b
@@ -442,6 +577,8 @@ def _compute_buildable_pvout(
         best_solar_lat,
         best_solar_lon,
         best_solar_dist_km,
+        filtered_mask,
+        win_transform,
     )
 
 
@@ -483,6 +620,13 @@ def build_fct_kek_resource(
             "Run scripts/download_buildability_data.py to acquire data."
         )
 
+    # Load KEK polygon geometries for spatial within-boundary intersection
+    kek_polygons = _load_kek_polygons(KEK_POLYGONS_GEOJSON)
+    if kek_polygons:
+        print(f"  KEK polygons: {len(kek_polygons)} loaded for within-boundary intersection")
+    else:
+        print("  KEK polygons not found — using theoretical within-boundary estimate")
+
     # ─── STAGING + TRANSFORM ──────────────────────────────────────────────────
     records = []
     with rasterio.open(io.BytesIO(tif_bytes)) as src:
@@ -490,7 +634,6 @@ def build_fct_kek_resource(
         for _, row in kek_df.iterrows():
             lat = float(row["latitude"])
             lon = float(row["longitude"])
-            area_ha = float(row["area_ha"]) if pd.notna(row.get("area_ha")) else np.nan
 
             pvout_daily_c = _sample_centroid(src, arr, lon, lat)
             pvout_daily_b = _sample_best_50km(src, lon, lat)
@@ -542,6 +685,8 @@ def build_fct_kek_resource(
                 best_solar_lat,
                 best_solar_lon,
                 best_solar_dist_km,
+                build_mask,
+                build_win_tf,
             ) = _compute_buildable_pvout(
                 pvout_patch, window_50km, src.transform, lon, lat, buildability_dir
             )
@@ -554,6 +699,36 @@ def build_fct_kek_resource(
             except ValueError as e:
                 print(f"  WARNING buildable {row['kek_id']}: {e}")
                 pvout_buildable = np.nan
+
+            # Within-boundary: spatial intersection with KEK polygon
+            kek_id = row["kek_id"]
+            kek_polygon = kek_polygons.get(kek_id)
+            wb_area_ha = np.nan
+            wb_pvout_annual = np.nan
+            wb_capacity_mwp = np.nan
+            wb_source = "theoretical"
+
+            if build_mask is not None and build_win_tf is not None and kek_polygon is not None:
+                pix_ha = _pixel_area_ha(build_win_tf, lat)
+                wb_area_ha, wb_pvout_daily, wb_capacity_mwp = _compute_within_boundary_buildable(
+                    build_mask, pvout_patch, build_win_tf, kek_polygon, pix_ha
+                )
+                if wb_area_ha > 0 and np.isfinite(wb_pvout_daily):
+                    try:
+                        wb_pvout_annual = pvout_daily_to_annual(wb_pvout_daily)
+                    except ValueError:
+                        wb_pvout_annual = np.nan
+                    wb_source = "raster"
+                elif wb_area_ha == 0:
+                    # KEK polygon too small for raster resolution — fall back
+                    wb_source = "theoretical"
+
+            # No fallback: if spatial intersection found 0 buildable pixels,
+            # within-boundary buildable area is genuinely 0.
+            if wb_source == "theoretical":
+                wb_area_ha = 0.0
+                wb_capacity_mwp = 0.0
+                wb_pvout_annual = np.nan
 
             records.append(
                 {
@@ -595,15 +770,17 @@ def build_fct_kek_resource(
                     "best_solar_site_dist_km": best_solar_dist_km
                     if np.isfinite(best_solar_dist_km)
                     else np.nan,
-                    # V2: within-boundary solar capacity from KEK polygon area
-                    "within_boundary_area_ha": round(area_ha * WB_SOLAR_FRACTION, 1)
-                    if np.isfinite(area_ha)
+                    # V2.1: within-boundary solar from spatial KEK×raster intersection
+                    "within_boundary_area_ha": round(wb_area_ha, 1)
+                    if np.isfinite(wb_area_ha)
                     else np.nan,
-                    "within_boundary_capacity_mwp": round(
-                        area_ha * WB_SOLAR_FRACTION / HA_PER_MWP, 1
-                    )
-                    if np.isfinite(area_ha)
+                    "within_boundary_capacity_mwp": round(wb_capacity_mwp, 1)
+                    if np.isfinite(wb_capacity_mwp)
                     else np.nan,
+                    "pvout_within_boundary": round(wb_pvout_annual, 1)
+                    if np.isfinite(wb_pvout_annual)
+                    else np.nan,
+                    "within_boundary_source": wb_source,
                 }
             )
 
@@ -631,6 +808,12 @@ def main() -> None:
         )
     )
     print(f"  cf range (best): {df['cf_best_50km'].min():.3f} – {df['cf_best_50km'].max():.3f}")
+
+    # Within-boundary source breakdown
+    if "within_boundary_source" in df.columns:
+        n_raster = (df["within_boundary_source"] == "raster").sum()
+        n_theoretical = (df["within_boundary_source"] == "theoretical").sum()
+        print(f"  within-boundary source: {n_raster} raster, {n_theoretical} theoretical")
 
     out = PROCESSED / "fct_kek_resource.csv"
     PROCESSED.mkdir(parents=True, exist_ok=True)

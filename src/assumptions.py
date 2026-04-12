@@ -52,12 +52,12 @@ HOURS_PER_YEAR: int = 8_760
 
 PVOUT_ANNUAL_MIN: float = 1_200.0
 # Lower plausibility bound for annual PVOUT in Indonesia (kWh/kWp/yr).
-# Source: METHODOLOGY.md Section 2.2 — "1,200–2,200 kWh/kWp/yr for Indonesian latitudes."
+# Source: METHODOLOGY_CONSOLIDATED.md Section 2.2 — "1,200–2,200 kWh/kWp/yr for Indonesian latitudes."
 # Values below this indicate a unit error (daily value passed as annual) or bad coordinate.
 
 PVOUT_ANNUAL_MAX: float = 2_200.0
 # Upper plausibility bound for annual PVOUT in Indonesia (kWh/kWp/yr).
-# Source: METHODOLOGY.md Section 2.2.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 2.2.
 
 KM_PER_DEGREE_LAT: float = 111.32
 # Approximate kilometres per degree of latitude (Earth mean radius = 6,371 km).
@@ -66,7 +66,7 @@ KM_PER_DEGREE_LAT: float = 111.32
 
 PVOUT_BUFFER_KM: float = 50.0
 # Search radius (km) for best-within-radius PVOUT extraction from GeoTIFF.
-# Source: METHODOLOGY.md Section 2.4.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 2.4.
 # Rationale: 50 km captures typical industrial park siting flexibility (land constraints,
 # grid connection distance) without expanding into a different solar resource regime.
 
@@ -78,7 +78,7 @@ PVOUT_SOURCE: str = "GlobalSolarAtlas-v2"
 
 WACC_VALUES: list[float] = [4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
 # WACC sensitivity range (%) for precomputed LCOE table. 2% steps, 4–20%.
-# Source: METHODOLOGY.md Section 3.3.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 3.3.
 # Rationale:
 #   4–6%  — DFI concessional blended finance (IFC, AIIB, DFC facility rates)
 #   8%    — DFI de-risked / policy-supported project finance
@@ -90,7 +90,7 @@ WACC_VALUES: list[float] = [4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
 
 BASE_WACC: float = 10.0
 # Base-case WACC (%) used for action flags and competitive gap calculation.
-# Source: METHODOLOGY.md Section 3.3.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 3.3.
 # Rationale: 10% reflects typical Indonesian IPP project finance cost of capital.
 # Note: pass as decimal to lcoe_solar() → BASE_WACC / 100 = 0.10.
 
@@ -99,12 +99,12 @@ BASE_WACC_DECIMAL: float = BASE_WACC / 100.0
 
 CAPEX_USD_PER_KW_MIN: float = 200.0
 # Lower CAPEX plausibility bound (USD/kW). Below this = unit error (MUSD/MWe not converted).
-# Source: METHODOLOGY.md Section 3.2.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 3.2.
 
 CAPEX_USD_PER_KW_MAX: float = 4_000.0
 # Upper CAPEX plausibility bound (USD/kW). Above this = likely unit error.
 # Raised from 3000 to 4000 to accommodate wind CAPEX ($2,350 upper) + gen-tie adder.
-# Source: METHODOLOGY.md Section 3.2.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 3.2.
 
 SOLAR_TECH_ID: str = "TECH006"
 # Technology identifier for utility-scale ground-mounted PV in dim_tech_variant.csv.
@@ -295,10 +295,12 @@ PROJECT_VIABLE_MIN_MWP: float = PROJECT_VIABLE_MIN_MWP_GC
 # ─── WITHIN-BOUNDARY SOLAR CAPACITY ─────────────────────────────────────────
 
 WB_SOLAR_FRACTION: float = 0.10
-# Fraction of total KEK area (Luas_ha) assumed available for within-boundary solar.
+# FALLBACK ONLY: used when the KEK polygon is too small to intersect any
+# buildable raster pixel at ~1km resolution, or when buildability data is absent.
+# For KEKs with raster data, the actual buildable area from the spatial intersection
+# of the KEK polygon with the buildability-filtered raster is used instead.
 # Source: METHODOLOGY_V2.md §1.1 — typical industrial zones allocate 50-60% to buildings,
-# 20-25% to roads/utilities, 10-20% to green space/buffer. Solar can be installed on
-# rooftops, parking canopies, and buffer zones. 10% is a conservative floor.
+# 20-25% to roads/utilities, 10-20% to green space/buffer. 10% is a conservative floor.
 # User-adjustable in dashboard. Range: 0.05–0.25 (5–25% of KEK area).
 # Note: At 10%, a 500 ha KEK yields 50 ha × (1 MWp / 1.5 ha) ≈ 33 MWp.
 
@@ -307,11 +309,11 @@ WB_SOLAR_FRACTION: float = 0.10
 FIRMING_ADDER_LOW_USD_MWH: float = 6.0
 # All-in captive solar cost adder — optimistic case.
 # Components: grid backup (~$3–8/MWh effective), wheeling (~$2–5/MWh), PLN permitting (~$1–3/MWh).
-# Source: METHODOLOGY.md Section 5.5, industry estimates.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.5, industry estimates.
 
 FIRMING_ADDER_HIGH_USD_MWH: float = 16.0
 # All-in captive solar cost adder — conservative case.
-# Source: METHODOLOGY.md Section 5.5.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.5.
 
 FIRMING_ADDER_MID_USD_MWH: float = (FIRMING_ADDER_LOW_USD_MWH + FIRMING_ADDER_HIGH_USD_MWH) / 2
 # Mid-point adder = $11/MWh.
@@ -359,30 +361,30 @@ LAND_COST_USD_PER_KW: float = 45.0
 
 FIRMING_PVOUT_THRESHOLD: float = 1_550.0
 # Minimum annual PVOUT (kWh/kWp/yr) for a zone to be considered solar-attractive.
-# Source: METHODOLOGY.md Section 5.2.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.2.
 # Rationale: Below ~1,550 kWh/kWp/yr (~18% CF), intermittency risk is high enough that
 # firming (BESS or hybrid) is typically required to meet industrial load profiles.
 
 PLAN_LATE_POST2030_SHARE_THRESHOLD: float = 0.60
 # Share of RUPTL solar additions post-2030 above which grid planning is flagged late.
-# Source: METHODOLOGY.md Section 5.2.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.2.
 # Rationale: ≥60% post-2030 means most grid upgrades won't be ready to support KEK solar by 2030.
 
 FIRMING_RELIABILITY_REQ_THRESHOLD: float = 0.75
 # Minimum reliability requirement (0–1) above which invest_battery is flagged.
-# Source: METHODOLOGY.md Section 5.2.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.2.
 # Rationale: Industrial zones with ≥75% reliability requirement need BESS or grid backup
 # to guarantee uptime — LCOE alone understates true cost.
 
 GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD: float = 0.30
 # Minimum GEAS green share (0–1) required to trigger solar_now flag.
-# Source: METHODOLOGY.md Section 5.2 (solar_now condition: GEAS ≥ 30%).
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.2 (solar_now condition: GEAS ≥ 30%).
 # Rationale: 30% green share means at least 30% of the KEK's demand can be covered by
 # RUPTL-allocated solar — enough to make a captive project economically viable.
 
 RESILIENCE_LCOE_GAP_THRESHOLD_PCT: float = 20.0
 # Maximum LCOE premium (%) above grid cost for a KEK to still qualify as invest_resilience.
-# Source: METHODOLOGY.md Section 5.3 (Resilience Layer).
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.3 (Resilience Layer).
 # Rationale: A 20% premium above grid cost (~$63 I-4 → $76 effective ceiling) represents the
 # upper bound of a reasonable "reliability insurance" premium for industrial KEKs. Manufacturing
 # tenants facing unplanned outage costs typically value uptime at $50–200/MWh of lost production.
@@ -426,7 +428,7 @@ GRID_EMISSION_FACTOR_DEFAULT: float = 0.77
 
 RUPTL_PRE2030_END: int = 2030
 # Last year of the "pre-2030" RUPTL bucket. Additions in [2025, 2030] count as pre-2030.
-# Source: METHODOLOGY.md Section 5.2 (plan_late threshold definition).
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.2 (plan_late threshold definition).
 
 RUPTL_POST2030_END: int = 2034
 # Last year in the RUPTL 2025–2034 horizon.
@@ -434,7 +436,7 @@ RUPTL_POST2030_END: int = 2034
 
 REGION_CF_DEFAULT: float = 0.20
 # System-level assumed capacity factor for RUPTL-planned solar in GEAS allocation.
-# Source: METHODOLOGY.md Section 5.3.
+# Source: METHODOLOGY_CONSOLIDATED.md Section 5.3.
 # Rationale: 20% is a reasonable aggregate CF for utility-scale solar across Indonesia's
 # grid systems; site-specific CFs are used for KEK LCOE but this system average is used
 # to estimate total RUPTL-derived green energy supply.

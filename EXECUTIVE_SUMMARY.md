@@ -75,7 +75,7 @@ Step 5 — What action does each KEK need?
                          are mostly scheduled post-2030
 ```
 
-> **Deeper dive:** See [METHODOLOGY.md](METHODOLOGY.md) for the full formulas, data sources, and known limitations.
+> **Deeper dive:** See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the full formulas, data sources, and known limitations.
 
 ---
 
@@ -153,7 +153,7 @@ Three things to be aware of when interpreting results:
 
 3. **Demand is estimated, not measured.** KEK electricity demand is estimated from zone area and sector type (industrial parks use more power per hectare than tourism zones). Real figures require tenant load surveys that aren't publicly available.
 
-> **Full limitations list:** See [METHODOLOGY.md — Section 6](METHODOLOGY.md) for a complete catalogue of model limitations and planned fixes.
+> **Full limitations list:** See [METHODOLOGY_CONSOLIDATED.md — Section 11](docs/METHODOLOGY_CONSOLIDATED.md) for a complete catalogue of model limitations and planned fixes.
 
 ---
 
@@ -179,7 +179,7 @@ Three things to be aware of when interpreting results:
 | [PERSONAS.md](PERSONAS.md) | Detailed user journeys for all four audiences — Energy Economist, DFI Investor, Policy Maker, Energy Investor |
 | [DESIGN.md](DESIGN.md) | Dashboard UX design: 6 views, component architecture, colour system, open design decisions |
 | [PLAN.md](PLAN.md) | Full implementation roadmap: phases, status, dashboard design decisions |
-| [METHODOLOGY.md](METHODOLOGY.md) | All formulas, data sources, assumptions, and limitations (for energy economists and peer reviewers) |
+| [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | All formulas, data sources, assumptions, and limitations (for energy economists and peer reviewers) |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Every data table and column: source, formula, status, and lineage |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Technical architecture and data flow diagram |
 | [CLAUDE.md](CLAUDE.md) | Developer setup guide: how to run the pipeline, tests, and notebooks |

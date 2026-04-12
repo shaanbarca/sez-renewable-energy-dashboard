@@ -284,7 +284,7 @@ function ResourceTab({
 }
 
 function LCOETab({ row }: { row: ScorecardRow }) {
-  const gcLcoe = row.lcoe_grid_connected_usd_mwh;
+  const wbLcoe = row.lcoe_within_boundary_usd_mwh;
   const assumptions = useDashboardStore((s) => s.assumptions);
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
@@ -299,16 +299,9 @@ function LCOETab({ row }: { row: ScorecardRow }) {
         <StatRow label="LCOE Mid" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
         <StatRow label="LCOE High" value={row.lcoe_high_usd_mwh?.toFixed(1)} unit="$/MWh" />
       </StatCard>
-      {gcLcoe != null && (
+      {wbLcoe != null && (
         <StatCard>
-          <StatRow label="Grid-Connected LCOE" value={gcLcoe.toFixed(1)} unit="$/MWh" />
-          {row.connection_cost_per_kw != null && (
-            <StatRow
-              label="Connection Cost"
-              value={row.connection_cost_per_kw.toFixed(0)}
-              unit="$/kW"
-            />
-          )}
+          <StatRow label="Within-Boundary LCOE" value={wbLcoe.toFixed(1)} unit="$/MWh" />
         </StatCard>
       )}
 
@@ -367,14 +360,57 @@ function LCOETab({ row }: { row: ScorecardRow }) {
   );
 }
 
+function CoverageBar({
+  label,
+  coverage,
+  subtitle,
+}: { label: string; coverage: number | null | undefined; subtitle?: string }) {
+  const color =
+    coverage != null
+      ? coverage >= 1.0
+        ? '#4CAF50'
+        : coverage >= 0.5
+          ? '#FFC107'
+          : '#F44336'
+      : undefined;
+
+  return (
+    <StatCard>
+      <div className="text-[11px] text-zinc-500 mb-1.5">{label}</div>
+      {coverage != null ? (
+        <>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg font-semibold tabular-nums" style={{ color }}>
+              {(coverage * 100).toFixed(0)}%
+            </span>
+            <span className="text-[10px] text-zinc-500">
+              {subtitle ?? 'of demand coverable by RE'}
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min(coverage * 100, 100)}%`,
+                backgroundColor: color,
+              }}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="text-[11px] text-zinc-500">Data unavailable</div>
+      )}
+    </StatCard>
+  );
+}
+
 function DemandTab({ row }: { row: ScorecardRow }) {
   const demand2030 = row.demand_2030_gwh;
   const geasShare = row.green_share_geas;
   const solarGen = row.max_solar_generation_gwh;
   const coverage = row.solar_supply_coverage_pct;
-
-  const coverageColor =
-    coverage != null ? (coverage >= 1.0 ? '#4CAF50' : coverage >= 0.5 ? '#FFC107' : '#F44336') : undefined;
+  const wbGen = row.within_boundary_generation_gwh;
+  const wbCoverage = row.within_boundary_coverage_pct;
 
   return (
     <>
@@ -385,44 +421,30 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           unit="GWh"
         />
         <StatRow
-          label="Max RE Generation"
+          label="Max RE Generation (50km)"
           value={solarGen != null ? solarGen.toFixed(1) : null}
           unit="GWh/yr"
         />
+        <StatRow
+          label="Within-Boundary Generation"
+          value={wbGen != null ? wbGen.toFixed(1) : null}
+          unit="GWh/yr"
+        />
       </StatCard>
-      <StatCard>
-        <div className="text-[11px] text-zinc-500 mb-1.5">Max RE Coverage Potential</div>
-        {coverage != null ? (
-          <>
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className="text-lg font-semibold tabular-nums"
-                style={{ color: coverageColor }}
-              >
-                {(coverage * 100).toFixed(0)}%
-              </span>
-              <span className="text-[10px] text-zinc-500">of demand coverable by RE</span>
-            </div>
-            {/* Visual bar */}
-            <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(coverage * 100, 100)}%`,
-                  backgroundColor: coverageColor,
-                }}
-              />
-            </div>
-            {coverage < 1.0 && demand2030 != null && solarGen != null && (
-              <div className="text-[9px] text-zinc-600 mt-1">
-                Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other generation
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-[11px] text-zinc-500">Data unavailable</div>
-        )}
-      </StatCard>
+      <CoverageBar
+        label="RE Coverage (50km radius)"
+        coverage={coverage}
+      />
+      <CoverageBar
+        label="Within-Boundary RE Coverage"
+        coverage={wbCoverage}
+        subtitle="of demand coverable inside KEK"
+      />
+      {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
+        <div className="text-[9px] text-zinc-600 -mt-1 px-1">
+          Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other generation
+        </div>
+      )}
       <StatCard>
         <StatRow
           label="GEAS Green Share"

@@ -65,7 +65,7 @@ docs/               Design mockups, reference PDFs
 | File | Purpose |
 |------|---------|
 | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | Plain-language project overview |
-| [METHODOLOGY.md](METHODOLOGY.md) | LCOE formulas, PVOUT conversion, action flags, GEAS allocation |
+| [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | LCOE formulas, PVOUT conversion, action flags, GEAS allocation |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Every column in every pipeline table |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, pipeline dependency graph |
 | [DESIGN.md](DESIGN.md) | Dashboard UX spec, component architecture, color system |

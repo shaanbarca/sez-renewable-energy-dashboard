@@ -376,7 +376,7 @@ FILE 1: Kawasan Hutan (Forest Estate Boundary)   [Layer 1a — highest impact]
             (the .dbf, .prj, .shx files in the same folder)
 
   Covers all KH sub-categories (conservation, protection, production forest).
-  All are treated as hard exclusions. See METHODOLOGY.md §2.5 Layer 1a.
+  All are treated as hard exclusions. See METHODOLOGY_CONSOLIDATED.md §2.5 Layer 1a.
 
 ─────────────────────────────────────────────────────────────────────────────
 NOTE: Peatland (Layer 1b) and land cover (Layer 1c/d) are now automated:

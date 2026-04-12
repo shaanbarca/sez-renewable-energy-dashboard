@@ -14,7 +14,7 @@ This repo is a Python modelling and analysis project for **Indonesia's KEK (Spec
 | [PLAN.md](PLAN.md) | Full implementation plan: architecture, phases, data pipeline, dashboard design (with design review decisions) |
 | [DESIGN.md](DESIGN.md) | Dashboard UX design spec: 6 views, component architecture, colour system, open decisions |
 | [PERSONAS.md](PERSONAS.md) | User journeys for all four personas: Energy Economist, DFI Investor, Policy Maker, Energy Investor |
-| [METHODOLOGY.md](METHODOLOGY.md) | Analytical methodology spec: LCOE formulas, PVOUT conversion, GEAS allocation, geospatial buildability filters — `src/model/basic_model.py` must implement this exactly |
+| [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | Analytical methodology spec (single canonical source): LCOE formulas, PVOUT conversion, GEAS allocation, geospatial buildability filters — `src/model/basic_model.py` must implement this exactly |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Data pipeline contract: every raw input column and every derived column we need to produce, with status (✅/⚠️/❌/🔒) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture: data flow diagram, pipeline dependency graph, key design decisions |
 | [docs/Power_competitiveness_KEK_dashboard_plan.pdf](docs/Power_competitiveness_KEK_dashboard_plan.pdf) | Original product spec PDF |
@@ -90,7 +90,7 @@ Key endpoints:
 - `GET /api/kek/{id}/polygon` — returns KEK boundary polygon GeoJSON
 - `GET /api/kek/{id}/substations` — substations within radius of a KEK
 - `GET /api/ruptl-metrics` — RUPTL pipeline metrics by region
-- `GET /api/methodology` — raw METHODOLOGY.md content for in-app rendering
+- `GET /api/methodology` — raw METHODOLOGY_CONSOLIDATED.md content for in-app rendering
 
 ## Notebooks
 
@@ -161,7 +161,7 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `lcoe_usd_mwh` — solar LCOE from `lcoe_solar(capex, fom, wacc, lifetime, cf)`
 - `cf` derived from PVOUT via `capacity_factor_from_pvout(pvout) = pvout / 8760`
 - Action flags: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive` — 8 flags per KEK via `ActionFlag` enum (V3); `invest_transmission` = solar near substation but KEK far; `invest_substation` = KEK near but solar far; `invest_battery` = high reliability req, BESS storage needed; `invest_resilience` fires when LCOE is 0–20% above grid cost AND reliability_req ≥ 0.75
-- `green_share_geas` — share of 2030 demand met by GEAS-allocated solar (GEAS and captive solar are substitutes — see METHODOLOGY.md §5.3)
+- `green_share_geas` — share of 2030 demand met by GEAS-allocated solar (GEAS and captive solar are substitutes — see METHODOLOGY_CONSOLIDATED.md §8)
 - `carbon_breakeven_usd_tco2` — carbon price (USD/tCO2) at which solar becomes cost-competitive; derived from LCOE gap ÷ grid emission factor (KESDM 2019 OM)
 
 **Solar resource data**: Global Solar Atlas GeoTIFFs in `data/` (zipped). PVOUT is extracted per KEK centroid and best-within-radius offline; the dashboard reads precomputed flat tables only.
@@ -205,10 +205,10 @@ Ready to commit? Or do any of these need attention first?
 |---|---|
 | New pipeline step or new `fct_*` / `dim_*` table | `DATA_DICTIONARY.md` (table index + full column spec), `CLAUDE.md` (Fact tables list), `run_pipeline.py` (Step entry + depends_on), `ARCHITECTURE.md` (pipeline graph if topology changed) |
 | New column added to existing table | `DATA_DICTIONARY.md` (column row in the relevant section), `PERSONAS.md` (if relevant to a persona's key data needs or data gaps), `fct_kek_scorecard` column list in `CLAUDE.md` if scorecard grows |
-| Analytical method or formula changed | `METHODOLOGY.md` (update the relevant section; remove "deferred" notes once implemented) |
-| Deferred item now implemented (e.g. a buildability layer, a new flag) | `METHODOLOGY.md` (remove deferred note), `DATA_DICTIONARY.md` (update status ✅), `PERSONAS.md` (update data gap entry from "Deferred" or "Blocked" to "✅ Built") |
-| Bug fix that changes output values | `METHODOLOGY.md` if the fix changes analytical behaviour; `DATA_DICTIONARY.md` if column semantics changed |
-| New assumption or threshold added | `METHODOLOGY.md` (document the value and rationale), `src/assumptions.py` (single source of truth for constants) |
+| Analytical method or formula changed | `docs/METHODOLOGY_CONSOLIDATED.md` (update the relevant section; remove "deferred" notes once implemented) |
+| Deferred item now implemented (e.g. a buildability layer, a new flag) | `docs/METHODOLOGY_CONSOLIDATED.md` (remove deferred note), `DATA_DICTIONARY.md` (update status ✅), `PERSONAS.md` (update data gap entry from "Deferred" or "Blocked" to "✅ Built") |
+| Bug fix that changes output values | `docs/METHODOLOGY_CONSOLIDATED.md` if the fix changes analytical behaviour; `DATA_DICTIONARY.md` if column semantics changed |
+| New assumption or threshold added | `docs/METHODOLOGY_CONSOLIDATED.md` (document the value and rationale), `src/assumptions.py` (single source of truth for constants) |
 | Persona-relevant capability added or gap closed | `PERSONAS.md` — update the relevant persona's key data needs or data gaps table |
 | Phase or step completed | `PLAN.md` — mark the step ✅ COMPLETE |
 | Design or architecture change | `DESIGN.md` (update relevant section + add §9 Changelog entry), `ARCHITECTURE.md` (if system boundary changed), `EXECUTIVE_SUMMARY.md` (if user-facing capability changed) |

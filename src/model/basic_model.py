@@ -7,7 +7,7 @@ All functions are pure Python / NumPy-free where possible. No Dash imports.
 This module is the single source of truth for analytical logic; it is imported
 identically by notebooks, pipeline scripts, tests, and the Dash app.
 
-Methodology reference: METHODOLOGY.md
+Methodology reference: METHODOLOGY_CONSOLIDATED.md
 Data column definitions:  DATA_DICTIONARY.md
 
 Units are explicit in every function signature and docstring. When in doubt, read
@@ -235,7 +235,7 @@ def lcoe_solar(
     capex_usd_per_kw:
         Overnight capital cost (USD/kW).
         If reading from fct_tech_parameter.csv (units: MUSD/MWe), multiply by 1000
-        before passing here. See METHODOLOGY.md Section 3.2 for unit conversion.
+        before passing here. See METHODOLOGY_CONSOLIDATED.md Section 3.2 for unit conversion.
     fixed_om_usd_per_kw_yr:
         Annual fixed O&M (USD/kW/year).
     wacc:
@@ -280,7 +280,7 @@ def lcoe_solar_with_firming(
     """All-in captive solar cost: LCOE + firming/wheeling adder.
 
     Used for 'invest_battery' KEKs where reliability requirements mean
-    LCOE alone understates the real investor cost. See METHODOLOGY.md Section 5.5.
+    LCOE alone understates the real investor cost. See METHODOLOGY_CONSOLIDATED.md Section 5.5.
 
     Parameters
     ----------
@@ -522,7 +522,7 @@ def solar_competitive_gap(lcoe_mid: float, grid_cost_usd_mwh: float) -> float:
         Solar LCOE at mid WACC (USD/MWh).
     grid_cost_usd_mwh:
         Grid reference cost — use I-4 industrial tariff (USD/MWh).
-        See METHODOLOGY.md Section 4 and DATA_DICTIONARY.md for BPP vs tariff guidance.
+        See METHODOLOGY_CONSOLIDATED.md Section 4 and DATA_DICTIONARY.md for BPP vs tariff guidance.
 
     Returns
     -------
@@ -542,7 +542,7 @@ def is_solar_attractive(
 ) -> bool:
     """Return True if solar economics AND resource both meet the attractiveness bar.
 
-    Conditions (METHODOLOGY.md Section 5.2, Option B):
+    Conditions (METHODOLOGY_CONSOLIDATED.md Section 5.2, Option B):
         1. lcoe_mid ≤ grid_cost  — economics are competitive at current WACC
         2. pvout_best_50km ≥ pvout_threshold  — resource is sufficient (≥1,550 kWh/kWp/yr)
 
@@ -598,7 +598,7 @@ def action_flags(
 ) -> dict[str, bool]:
     """Compute action flags for a single KEK.
 
-    Flag logic (see METHODOLOGY.md Section 5.2):
+    Flag logic (see METHODOLOGY_CONSOLIDATED.md Section 5.2):
     - solar_now:            solar attractive AND grid ready AND sufficient GEAS allocation
     - invest_transmission:  solar near substation but KEK far — build transmission to KEK
     - invest_substation:    KEK near substation but solar far — build substation near solar
@@ -748,7 +748,7 @@ def grid_integration_category(
 
     Three points: (A) best buildable solar site, (B) nearest PLN substation, (C) KEK centroid.
 
-    Categories (METHODOLOGY.md §2):
+    Categories (METHODOLOGY_CONSOLIDATED.md §2):
         within_boundary      — substation inside KEK polygon; solar can connect directly
         grid_ready           — substation near both solar AND KEK (short connection feasible)
         invest_transmission  — solar near substation, KEK far — build transmission to KEK
@@ -901,7 +901,7 @@ def geas_baseline_allocation(
 ) -> pd.DataFrame:
     """Pro-rata GEAS allocation of pre-2030 RUPTL solar to KEKs by demand share.
 
-    Formula (METHODOLOGY.md Section 5.3):
+    Formula (METHODOLOGY_CONSOLIDATED.md Section 5.3):
         allocatable_green_mwh = pre2030_solar_mw * 8760 * region_cf
         geas_alloc_kek = allocatable_green_mwh * (kek_demand / region_demand)
         green_share_geas = min(1, geas_alloc_kek / kek_demand)

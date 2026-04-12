@@ -344,9 +344,13 @@ Fact tables describe *what a KEK has* — resource quality, demand, cost, scorec
 | `best_solar_site_lat` | float | computed | Latitude of the highest-PVOUT buildable pixel within 50km. NaN when data absent or no buildable area. |
 | `best_solar_site_lon` | float | computed | Longitude of the highest-PVOUT buildable pixel within 50km. NaN when data absent or no buildable area. |
 | `best_solar_site_dist_km` | float | computed | Haversine distance (km) from KEK centroid to best buildable pixel. Always ≤ 50km (enforced by circular mask). NaN when data absent. |
+| `within_boundary_area_ha` | float | computed | Buildable area (ha) inside the KEK polygon after 4-layer buildability filter. **0.0 when spatial intersection finds no buildable pixels** (no theoretical fallback). 12 KEKs have raster-derived values; 13 KEKs are 0.0. |
+| `within_boundary_capacity_mwp` | float | computed | `within_boundary_area_ha / 1.5` — max captive solar capacity inside KEK boundary (MWp). 0.0 when area is 0. |
+| `pvout_within_boundary` | float | computed | Mean annual PVOUT (kWh/kWp/yr) of buildable pixels inside the KEK polygon. NaN when no buildable pixels exist. |
+| `within_boundary_source` | str | computed | `"raster"` if spatial buildable pixels were found inside the KEK polygon; `"theoretical"` if no pixels survived the buildability filter (area/capacity zeroed). |
 
 **Note:** `pvout_best_50km` is an upper bound — raw raster max with no buildability filter.
-`pvout_buildable_best_50km` applies Layers 1–4 (METHODOLOGY.md §2.5) and is the
+`pvout_buildable_best_50km` applies Layers 1–4 (METHODOLOGY_CONSOLIDATED.md §3.3) and is the
 preferred value for LCOE when data is available. Until `data/buildability/` is populated,
 both columns are available but `pvout_buildable_best_50km = NaN` and the pipeline
 falls back to `pvout_best_50km`. Run `scripts/download_buildability_data.py` to acquire data.
@@ -464,7 +468,7 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 3. Point-in-polygon (shapely) for each KEK polygon → `has_internal_substation`
 4. `siting_scenario = "within_boundary"` if `has_internal_substation` else `"remote_captive"` (V1 compat)
 5. V2: Haversine from best solar site to nearest substation (B_solar) → `dist_solar_to_nearest_substation_km`
-6. V2: `grid_integration_category` derived from three-point proximity thresholds (see METHODOLOGY_V2.md §2)
+6. V2: `grid_integration_category` derived from three-point proximity thresholds (see METHODOLOGY_CONSOLIDATED.md §7)
 7. V3.1: If B_solar ≠ B_kek, load PLN grid lines (1,595 lines from `data/pln_grid_lines.geojson`) and check geometric connectivity — does any grid line pass within 2km buffer of both substations?
 8. V3.1: Check PLN region (`regpln`) match as fallback connectivity proxy
 9. V3.1: Compute `available_capacity_mva = capacity_mva × (1 − utilization_pct)` and traffic light assessment
@@ -483,7 +487,7 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 | `siting_scenario` | str | derived | `"within_boundary"` or `"remote_captive"` (V1 compat) |
 | `dist_solar_to_nearest_substation_km` | float | computed | ✅ V2: Haversine from best solar site to nearest substation (B_solar). NaN if solar coords unavailable. |
 | `nearest_substation_to_solar_name` | str | computed | ✅ V2: Name of nearest substation to the solar site (B_solar) |
-| `grid_integration_category` | str | computed | ✅ V2: `within_boundary` / `grid_ready` / `invest_substation` / `invest_transmission` / `grid_first` — see METHODOLOGY_V2.md §2. V3.1: split `invest_grid` into `invest_substation` (upgrade existing) and `invest_transmission` (new line needed). |
+| `grid_integration_category` | str | computed | ✅ V2: `within_boundary` / `grid_ready` / `invest_substation` / `invest_transmission` / `grid_first` — see METHODOLOGY_CONSOLIDATED.md §7. V3.1: split `invest_grid` into `invest_substation` (upgrade existing) and `invest_transmission` (new line needed). |
 | `nearest_substation_regpln` | str | substation.geojson `regpln` | ✅ V3.1: PLN region of KEK's nearest substation (B_kek) |
 | `nearest_substation_to_solar_regpln` | str | substation.geojson `regpln` | ✅ V3.1: PLN region of solar site's nearest substation (B_solar) |
 | `same_grid_region` | bool | computed | ✅ V3.1: True if B_kek and B_solar are in the same PLN region (`regpln` match) |
@@ -491,7 +495,7 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 | `inter_substation_connected` | bool | computed | ✅ V3.1: `line_connected OR same_grid_region`. If True, no new transmission line needed between substations. |
 | `inter_substation_dist_km` | float | computed | ✅ V3.1: Haversine distance between B_solar and B_kek. 0 if same substation. |
 | `available_capacity_mva` | float | computed | ✅ V3.1: `capacity_mva × (1 − substation_utilization_pct)`. Default utilization = 65%. NaN if capacity unknown. |
-| `capacity_assessment` | str | computed | ✅ V3.1: Traffic light — `green` (available > 2× solar), `yellow` (0.5–2×), `red` (< 0.5×), `unknown` (data unavailable). See METHODOLOGY_V2.md §V3.1. |
+| `capacity_assessment` | str | computed | ✅ V3.1: Traffic light — `green` (available > 2× solar), `yellow` (0.5–2×), `red` (< 0.5×), `unknown` (data unavailable). See METHODOLOGY_CONSOLIDATED.md §7. |
 
 ---
 

@@ -32,6 +32,7 @@ from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.warp import reproject
 
 from src.pipeline.buildability_filters import (
+    LAND_COVER_BUILDABLE_THRESHOLD,
     LAND_COVER_EXCLUDE_CODES,
     apply_exclusion_mask,
     apply_slope_elevation_mask,
@@ -123,6 +124,62 @@ def _resample_raster_to_grid(
         return None
 
 
+def _resample_landcover_binary(
+    raster_path: Path,
+    out_shape: tuple[int, int],
+    dst_transform: rasterio.transform.Affine,
+    exclude_codes: frozenset[int],
+    threshold: float = LAND_COVER_BUILDABLE_THRESHOLD,
+) -> np.ndarray | None:
+    """Resample categorical land cover to a binary buildability mask.
+
+    Instead of mode resampling (which discards sub-pixel detail at 10m→1km),
+    this reads the source data, creates a binary buildable/excluded array,
+    then resamples with average to get a buildable fraction per output pixel.
+    Pixels with fraction >= threshold are buildable (0), else excluded (1).
+
+    Returns:
+        uint8 mask array (1=excluded, 0=buildable), or None on failure.
+    """
+    print(f"    Resampling {raster_path.name} (binary-threshold at {threshold:.0%})...")
+    try:
+        with rasterio.open(raster_path) as src:
+            # Read full source data
+            raw = src.read(1)
+
+            # Binary: 1.0 = buildable (not excluded), 0.0 = excluded
+            binary = np.ones_like(raw, dtype=np.float32)
+            for code in exclude_codes:
+                binary[raw == code] = 0.0
+
+            # Handle nodata
+            nodata = src.nodata
+            if nodata is not None:
+                binary[raw == nodata] = 0.0
+
+            # Resample binary with average → buildable fraction (0.0–1.0)
+            fraction = np.zeros(out_shape, dtype=np.float32)
+            reproject(
+                source=binary,
+                destination=fraction,
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=dst_transform,
+                dst_crs="EPSG:4326",
+                resampling=Resampling.average,
+                src_nodata=None,
+                dst_nodata=np.nan,
+            )
+
+            # Threshold: excluded (1) where buildable fraction < threshold
+            mask = np.zeros(out_shape, dtype=np.uint8)
+            mask[~np.isfinite(fraction) | (fraction < threshold)] = 1
+            return mask
+    except Exception as e:
+        print(f"    WARNING: Could not read {raster_path.name}: {e}")
+        return None
+
+
 def build_buildable_raster():
     """Generate the nationwide buildable PVOUT raster."""
     print("\n=== Building nationwide buildable PVOUT raster ===\n")
@@ -162,20 +219,16 @@ def build_buildable_raster():
     else:
         print("    Peatland: not found, skipping")
 
-    # 4. Land cover (ESA WorldCover)
+    # 4. Land cover (ESA WorldCover) — binary-threshold resampling (M13)
     lc_path = BUILD_DIR / "esa_worldcover.vrt"
     if lc_path.exists():
         before = np.count_nonzero(result > 0)
-        lc_arr = _resample_raster_to_grid(lc_path, (h, w), transform, categorical=True)
-        if lc_arr is not None:
-            lc_int = np.round(np.nan_to_num(lc_arr, nan=0)).astype(int)
-            lc_mask = np.zeros_like(lc_int, dtype=np.uint8)
-            for code in LAND_COVER_EXCLUDE_CODES:
-                lc_mask[lc_int == code] = 1
+        lc_mask = _resample_landcover_binary(lc_path, (h, w), transform, LAND_COVER_EXCLUDE_CODES)
+        if lc_mask is not None:
             result = apply_exclusion_mask(result, lc_mask)
             excluded = before - np.count_nonzero(result > 0)
             print(f"    Land cover: excluded {excluded:,} pixels ({excluded / before * 100:.1f}%)")
-            del lc_arr, lc_mask
+            del lc_mask
     else:
         print("    Land cover VRT: not found, skipping")
 

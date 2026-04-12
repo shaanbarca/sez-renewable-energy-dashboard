@@ -87,9 +87,18 @@ def build_fct_lcoe(
         if "pvout_buildable_best_50km" in resource_raw.columns
         else "pvout_best_50km"
     )
+    # V2.1: Use pvout_within_boundary for within-boundary scenario when available
+    wb_pvout_col = (
+        "pvout_within_boundary"
+        if "pvout_within_boundary" in resource_raw.columns
+        and resource_raw["pvout_within_boundary"].notna().any()
+        else "pvout_centroid"
+    )
     resource_cols = ["kek_id", "pvout_centroid", "pvout_best_50km"]
     if gc_pvout_col not in resource_cols:
         resource_cols.append(gc_pvout_col)
+    if wb_pvout_col not in resource_cols:
+        resource_cols.append(wb_pvout_col)
     if "max_captive_capacity_mwp" in resource_raw.columns:
         resource_cols.append("max_captive_capacity_mwp")
     resource = resource_raw[resource_cols]
@@ -118,10 +127,10 @@ def build_fct_lcoe(
     tech_id = str(tech["tech_id"])
     is_capex_provisional = bool(tech.get("is_provisional", False))
 
-    # within_boundary always uses pvout_centroid (on-site plant, no connection cost)
+    # within_boundary uses pvout_within_boundary (spatial) when available, else pvout_centroid
     # grid_connected_solar uses buildable PVOUT when available, else falls back to raw best_50km
     scenarios = [
-        ("within_boundary", "pvout_centroid"),
+        ("within_boundary", wb_pvout_col),
         ("grid_connected_solar", gc_pvout_col),
     ]
 

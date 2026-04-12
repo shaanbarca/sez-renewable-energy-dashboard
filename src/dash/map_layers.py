@@ -349,25 +349,37 @@ def load_wind_raster() -> tuple[str, list[list[float]]] | None:
     )
 
 
-def load_buildable_raster() -> tuple[str, list[list[float]]] | None:
-    """Load pre-computed buildable PVOUT raster (output of build_buildable_raster.py)."""
-    import rasterio
-
-    path = REPO_ROOT / "outputs" / "assets" / "buildable_pvout_web.tif"
+def load_buildable_polygons() -> dict | None:
+    """Load buildable area polygons (M14: raster-to-polygon conversion)."""
+    path = REPO_ROOT / "outputs" / "assets" / "buildable_polygons.geojson"
     if not path.exists():
         return None
+    with open(path) as f:
+        return json.load(f)
 
-    with rasterio.open(path) as src:
-        data = src.read(1)
-        bounds = (src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
 
-    # Convert daily kWh/kWp to annual for display
-    data = data * 365.0
-    data[data <= 0] = np.nan
-
-    return _raster_to_base64_png(
-        data, bounds, colormap="YlGn", vmin=1000, vmax=1800, alpha=0.55, max_width=800
-    )
+# def load_buildable_raster() -> tuple[str, list[list[float]]] | None:
+#     """Load pre-computed buildable PVOUT raster (output of build_buildable_raster.py).
+#
+#     Removed from frontend — buildable_polygons is the single source of truth.
+#     """
+#     import rasterio
+#
+#     path = REPO_ROOT / "outputs" / "assets" / "buildable_pvout_web.tif"
+#     if not path.exists():
+#         return None
+#
+#     with rasterio.open(path) as src:
+#         data = src.read(1)
+#         bounds = (src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
+#
+#     # Convert daily kWh/kWp to annual for display
+#     data = data * 365.0
+#     data[data <= 0] = np.nan
+#
+#     return _raster_to_base64_png(
+#         data, bounds, colormap="YlGn", vmin=1000, vmax=1800, alpha=0.55, max_width=800
+#     )
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +397,6 @@ def get_all_layers() -> dict:
         kek_polygons: GeoJSON dict or None
         pvout: (base64_png, coordinates) or None
         wind: (base64_png, coordinates) or None
-        buildable: (base64_png, coordinates) or None
     """
     global _LAYERS_CACHE
     if _LAYERS_CACHE is not None:
@@ -415,11 +426,12 @@ def get_all_layers() -> dict:
         layers["wind"] = None
 
     try:
-        layers["buildable"] = load_buildable_raster()
-        print(f"    Buildable solar: {'loaded' if layers['buildable'] else 'not found'}")
+        layers["buildable_polygons"] = load_buildable_polygons()
+        n_bp = len(layers["buildable_polygons"]["features"]) if layers["buildable_polygons"] else 0
+        print(f"    Buildable polygons: {n_bp} polygons")
     except Exception as e:
-        print(f"    Buildable solar: failed ({e})")
-        layers["buildable"] = None
+        print(f"    Buildable polygons: failed ({e})")
+        layers["buildable_polygons"] = None
 
     try:
         layers["peatland"] = load_peatland()
@@ -459,6 +471,6 @@ LAYER_OPTIONS = [
     {"label": "Substations (PLN)", "value": "substations"},
     {"label": "KEK Boundaries", "value": "kek_polygons"},
     {"label": "Solar Potential (PVOUT)", "value": "pvout"},
-    {"label": "Solar Buildable Area", "value": "buildable"},
+    {"label": "Solar Buildable Areas", "value": "buildable_polygons"},
     {"label": "Wind Speed (100m)", "value": "wind"},
 ]

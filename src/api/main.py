@@ -88,8 +88,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 @app.get("/api/methodology", response_class=PlainTextResponse)
 async def get_methodology():
-    """Return the raw METHODOLOGY.md content for rendering in the frontend."""
-    md_path = PROJECT_ROOT / "METHODOLOGY.md"
+    """Return the raw METHODOLOGY_CONSOLIDATED.md content for rendering in the frontend."""
+    md_path = PROJECT_ROOT / "docs" / "METHODOLOGY_CONSOLIDATED.md"
     if not md_path.exists():
         return PlainTextResponse("Methodology document not found.", status_code=404)
     return PlainTextResponse(md_path.read_text(encoding="utf-8"))

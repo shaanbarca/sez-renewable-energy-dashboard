@@ -7,7 +7,7 @@ interface RasterLayerData {
   _loading?: boolean;
 }
 
-const RASTER_LAYERS = ['pvout', 'wind', 'buildable'] as const;
+const RASTER_LAYERS = ['pvout', 'wind'] as const;
 
 export default function RasterOverlay() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);

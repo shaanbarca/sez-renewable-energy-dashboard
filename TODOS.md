@@ -37,7 +37,7 @@ Items from the gap analysis that are documentation additions or trivial column d
 | M11 | **Night-time light proxy for utilization** | V3.1 deferred | P2 | VIIRS/DMSP satellite data as proxy for substation load. Improves `capacity_assessment` vs. fixed 65% assumption. |
 | M12 | **Substation upgrade cost in LCOE** | Gap analysis P1, V3.1 deferred | P2, P3 | When `capacity_assessment == "red"`, fold parametric upgrade cost (capacity_gap_mva x $/MVA) into grid-connected LCOE. Turns qualitative flag into quantitative impact. |
 | M13 | **Sub-pixel buildable fraction from ESA WorldCover** | Buildability review (2026-04-10) | P2 | Current `Resampling.mode` at 10m→1km loses sub-pixel detail. Replace with binary-threshold + average resampling at 50%. |
-| M14 | **Buildable land polygons** | Gap analysis P1 | P2, P4 | Convert contiguous buildable pixels into discrete polygon objects (area, max MW, centroid, avg PVOUT). Enables showing WHERE buildable areas are on map, comparing multiple sites per KEK. Value improves with higher-res data. Currently ~1km resolution = coarse polygons. |
+| M14 | **Buildable land polygons (in-boundary + remote)** | Gap analysis P1 | P2, P4 | ✅ **Partially complete (2026-04-12):** Remote/50km buildable polygons are live on the map as "Solar Buildable Areas" layer (clickable popups: area_ha, avg PVOUT, max capacity). See `build_buildable_polygons.py`. **Remaining:** (a) within-boundary polygons as a separate layer clipped to KEK boundary, (b) splitting remote vs. within-boundary in the layer control. Currently all polygons are in one combined layer. Value improves with higher-res data (~1km resolution = coarse). |
 | M15 | **Multi-substation comparison** | Gap analysis P2 | P4 | Evaluate top 3 substations within search radius. Compare total interconnection cost: closer-but-constrained vs. farther-but-available. Medium priority, becomes important for investment-grade analysis. |
 | M16 | **Capacity slider with LCOE curve** | Gap analysis P1 | P4 | Slider for "desired build capacity" (10 MW to max). Shows how LCOE changes with scale: fixed costs dominate at small sizes, grid constraints push cost up at large sizes. High value for IPP "how big should I build?" question. |
 
@@ -87,6 +87,9 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | PERSONAS.md V3.1 update | 2026-04-11 | Readiness scores, stale references, flag names, data gaps all updated. |
 | ✅ | USER_JOURNEYS.md | 2026-04-11 | Standalone user journey doc mapped to actual UI components. |
 | ✅ | Gap analysis integration | 2026-04-11 | P0 doc additions (transmission corridor context, gen-tie cost translation, tenant wheeling note). Deferred items added to methodology with TODOS.md cross-references. |
+| ✅ | Methodology archival | 2026-04-12 | Archived METHODOLOGY.md (v0.4), METHODOLOGY_V2.md (draft), methodology_testing.md → `docs/archives/`. METHODOLOGY_CONSOLIDATED.md is now the single canonical reference. All doc links updated. |
+| ✅ | Remove raster buildable layer | 2026-04-12 | Removed coarse raster "Solar Buildable Area" from frontend + API. Polygon layer renamed to "Solar Buildable Areas". Clickable popups added. |
+| ✅ | Fix within-boundary 20% fallback | 2026-04-12 | Theoretical fallback zeroed: KEKs with no spatial buildable pixels report 0 area/capacity instead of fake 10% estimate. |
 
 ---
 

@@ -18,14 +18,6 @@ const RASTER_LEGENDS = [
     max: '8',
     gradient: 'linear-gradient(to right, #deebf7, #9ecae1, #6baed6, #4292c6, #2171b5, #084594)',
   },
-  {
-    key: 'buildable',
-    label: 'Solar Buildable Area',
-    unit: 'kWh/kWp/yr',
-    min: '1,000',
-    max: '1,800',
-    gradient: 'linear-gradient(to right, #ffffb2, #d9f0a3, #addd8e, #78c679, #41ab5d, #006837)',
-  },
 ] as const;
 
 export default function RasterLegend() {

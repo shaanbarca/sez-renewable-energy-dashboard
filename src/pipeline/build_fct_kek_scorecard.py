@@ -219,6 +219,8 @@ def build_fct_kek_scorecard(
         "buildable_area_ha",
         "max_captive_capacity_mwp",
         "buildability_constraint",
+        "pvout_within_boundary",
+        "within_boundary_source",
     ]
     _resource_base = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
     _resource_cols = _resource_base + [c for c in _build_cols if c in resource.columns]

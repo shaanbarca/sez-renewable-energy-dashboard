@@ -206,8 +206,10 @@ def compute_lcoe_live(
             dist_kek = 0.0
         dist_km = dist_solar if dist_solar is not None else dist_kek
 
-        # Within-boundary scenario: use centroid PVOUT, no connection cost
-        pvout_wb = kek.get("pvout_centroid")
+        # Within-boundary scenario: prefer spatial PVOUT, fallback to centroid
+        pvout_wb = kek.get("pvout_within_boundary")
+        if pd.isna(pvout_wb) or pvout_wb is None or pvout_wb <= 0:
+            pvout_wb = kek.get("pvout_centroid")
         if pd.notna(pvout_wb) and pvout_wb > 0:
             cf_wb = capacity_factor_from_pvout(pvout_wb)
             lcoe_c_wb = lcoe_solar(capex_c, fom, wacc, lifetime, cf_wb)
@@ -359,13 +361,18 @@ def compute_scorecard_live(
         else:
             grid_cost = default_grid_cost
 
-        # LCOE from within_boundary (primary)
-        lcoe_mid = wb.loc[kek_id, "lcoe_mid_usd_mwh"] if kek_id in wb.index else np.nan
-        wb_cf = (
-            float(wb.loc[kek_id, "cf"])
-            if kek_id in wb.index and pd.notna(wb.loc[kek_id, "cf"])
-            else 0.0
-        )
+        # Primary LCOE: prefer grid-connected (includes connection + upgrade costs)
+        # Fall back to within-boundary if gc unavailable
+        if kek_id in gc.index:
+            lcoe_mid = gc.loc[kek_id, "lcoe_mid_usd_mwh"]
+            primary_cf = float(gc.loc[kek_id, "cf"]) if pd.notna(gc.loc[kek_id, "cf"]) else 0.0
+        else:
+            lcoe_mid = wb.loc[kek_id, "lcoe_mid_usd_mwh"] if kek_id in wb.index else np.nan
+            primary_cf = (
+                float(wb.loc[kek_id, "cf"])
+                if kek_id in wb.index and pd.notna(wb.loc[kek_id, "cf"])
+                else 0.0
+            )
 
         # Competitive gap (benchmark-dependent — uses grid_cost which may be BPP or tariff)
         if pd.notna(lcoe_mid) and grid_cost > 0:
@@ -522,12 +529,12 @@ def compute_scorecard_live(
             "kek_id": kek_id,
             "action_flag": action_flag,
             "lcoe_mid_usd_mwh": _round(lcoe_mid),
-            "lcoe_low_usd_mwh": _round(wb.loc[kek_id, "lcoe_low_usd_mwh"])
-            if kek_id in wb.index
-            else np.nan,
-            "lcoe_high_usd_mwh": _round(wb.loc[kek_id, "lcoe_high_usd_mwh"])
-            if kek_id in wb.index
-            else np.nan,
+            "lcoe_low_usd_mwh": _round(gc.loc[kek_id, "lcoe_low_usd_mwh"])
+            if kek_id in gc.index
+            else (_round(wb.loc[kek_id, "lcoe_low_usd_mwh"]) if kek_id in wb.index else np.nan),
+            "lcoe_high_usd_mwh": _round(gc.loc[kek_id, "lcoe_high_usd_mwh"])
+            if kek_id in gc.index
+            else (_round(wb.loc[kek_id, "lcoe_high_usd_mwh"]) if kek_id in wb.index else np.nan),
             "solar_competitive_gap_pct": _round(gap_pct),
             "gap_vs_tariff_pct": _round(gap_vs_tariff_pct),
             "gap_vs_bpp_pct": _round(gap_vs_bpp_pct),
@@ -540,23 +547,23 @@ def compute_scorecard_live(
             "battery_adder_usd_mwh": round(
                 bess_storage_adder(
                     assumptions.bess_capex_usd_per_kwh,
-                    solar_cf=wb_cf,
+                    solar_cf=primary_cf,
                     wacc=assumptions.wacc_decimal,
                 ),
                 2,
             )
-            if flags["invest_battery"] and wb_cf and wb_cf > 0
+            if flags["invest_battery"] and primary_cf and primary_cf > 0
             else 0.0,
             "lcoe_with_battery_usd_mwh": round(
                 lcoe_mid
                 + bess_storage_adder(
                     assumptions.bess_capex_usd_per_kwh,
-                    solar_cf=wb_cf,
+                    solar_cf=primary_cf,
                     wacc=assumptions.wacc_decimal,
                 ),
                 2,
             )
-            if flags["invest_battery"] and wb_cf and wb_cf > 0
+            if flags["invest_battery"] and primary_cf and primary_cf > 0
             else _round(lcoe_mid),
             "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
             "demand_2030_gwh": round(demand_by_kek[kek_id] / 1000, 1)
@@ -583,6 +590,35 @@ def compute_scorecard_live(
             and pd.notna(kek.get("max_captive_capacity_mwp"))
             and pd.notna(kek.get("pvout_best_50km"))
             else None,
+            "within_boundary_generation_gwh": _round(
+                float(kek.get("within_boundary_capacity_mwp", 0))
+                * float(
+                    kek.get("pvout_within_boundary")
+                    if pd.notna(kek.get("pvout_within_boundary"))
+                    else kek.get("pvout_centroid", 0)
+                )
+                / 1000
+            )
+            if pd.notna(kek.get("within_boundary_capacity_mwp"))
+            and (pd.notna(kek.get("pvout_within_boundary")) or pd.notna(kek.get("pvout_centroid")))
+            else None,
+            "within_boundary_coverage_pct": round(
+                (
+                    float(kek.get("within_boundary_capacity_mwp", 0))
+                    * float(
+                        kek.get("pvout_within_boundary")
+                        if pd.notna(kek.get("pvout_within_boundary"))
+                        else kek.get("pvout_centroid", 0)
+                    )
+                )
+                / demand_by_kek[kek_id],
+                3,
+            )
+            if kek_id in demand_by_kek
+            and demand_by_kek[kek_id] > 0
+            and pd.notna(kek.get("within_boundary_capacity_mwp"))
+            and (pd.notna(kek.get("pvout_within_boundary")) or pd.notna(kek.get("pvout_centroid")))
+            else None,
             "green_share_geas": round(float(green_share), 4) if pd.notna(green_share) else None,
             "plan_late": flags["plan_late"],
             "invest_resilience": resilience,
@@ -593,17 +629,20 @@ def compute_scorecard_live(
             "capex_usd_per_kw": assumptions.capex_usd_per_kw,
         }
 
-        # V2: Add grid-connected solar LCOE columns
-        if kek_id in gc.index:
-            row["lcoe_grid_connected_usd_mwh"] = _round(gc.loc[kek_id, "lcoe_mid_usd_mwh"])
-            row["lcoe_grid_connected_low_usd_mwh"] = _round(gc.loc[kek_id, "lcoe_low_usd_mwh"])
-            row["lcoe_grid_connected_high_usd_mwh"] = _round(gc.loc[kek_id, "lcoe_high_usd_mwh"])
-            row["connection_cost_per_kw"] = gc.loc[kek_id, "connection_cost_per_kw"]
+        # Within-boundary LCOE (secondary, for reference — captive solar, no connection costs)
+        if kek_id in wb.index:
+            row["lcoe_within_boundary_usd_mwh"] = _round(wb.loc[kek_id, "lcoe_mid_usd_mwh"])
+            row["lcoe_within_boundary_low_usd_mwh"] = _round(wb.loc[kek_id, "lcoe_low_usd_mwh"])
+            row["lcoe_within_boundary_high_usd_mwh"] = _round(wb.loc[kek_id, "lcoe_high_usd_mwh"])
         else:
-            row["lcoe_grid_connected_usd_mwh"] = np.nan
-            row["lcoe_grid_connected_low_usd_mwh"] = np.nan
-            row["lcoe_grid_connected_high_usd_mwh"] = np.nan
-            row["connection_cost_per_kw"] = 0.0
+            row["lcoe_within_boundary_usd_mwh"] = np.nan
+            row["lcoe_within_boundary_low_usd_mwh"] = np.nan
+            row["lcoe_within_boundary_high_usd_mwh"] = np.nan
+
+        # Connection cost from gc scenario (for display)
+        row["connection_cost_per_kw"] = (
+            gc.loc[kek_id, "connection_cost_per_kw"] if kek_id in gc.index else 0.0
+        )
 
         # V3.1: Live-computed grid integration + capacity (uses user's utilization slider)
         row["grid_integration_category"] = gi_cat

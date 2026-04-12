@@ -23,7 +23,7 @@ Resolution note:
     a single pixel already exceeds the 10 ha threshold. Layer 4 is retained as a count
     of contiguous buildable pixels for completeness and future use at higher resolution.
 
-Reference: METHODOLOGY.md Section 2.5
+Reference: METHODOLOGY_CONSOLIDATED.md Section 2.5
 """
 
 from __future__ import annotations
@@ -34,11 +34,12 @@ import numpy as np
 import rasterio.transform
 from scipy import ndimage
 
-# Thresholds — match METHODOLOGY.md §2.5
+# Thresholds — match METHODOLOGY_CONSOLIDATED.md §2.5
 MAX_SLOPE_DEG: float = 8.0  # Layer 2a hard exclusion threshold (degrees)
 MAX_ELEV_M: float = 1500.0  # Layer 2c hard exclusion threshold (metres)
 MIN_AREA_HA: float = 10.0  # Layer 4 minimum contiguous buildable patch (ha)
 HA_PER_MWP: float = 1.5  # 1.5 ha/MWp (tropical fixed-tilt, GCR ~0.45–0.55)
+LAND_COVER_BUILDABLE_THRESHOLD: float = 0.5  # sub-pixel: >=50% of source pixels must be buildable
 
 VALID_CONSTRAINTS: frozenset[str] = frozenset(
     [

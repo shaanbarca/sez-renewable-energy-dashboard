@@ -54,12 +54,21 @@ interface GridLineHover {
   voltage: string;
 }
 
+interface BuildableClick {
+  longitude: number;
+  latitude: number;
+  area_ha: number;
+  avg_pvout_annual: number;
+  capacity_mwp: number;
+}
+
 export default function VectorOverlay() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const layers = useDashboardStore((s) => s.layers);
   const { current: mapRef } = useMap();
   const [subHover, setSubHover] = useState<SubHover | null>(null);
   const [gridHover, setGridHover] = useState<GridLineHover | null>(null);
+  const [buildableClick, setBuildableClick] = useState<BuildableClick | null>(null);
 
   // Substation hover handlers
   useEffect(() => {
@@ -127,6 +136,38 @@ export default function VectorOverlay() {
       map.off('mouseleave', 'overlay-grid-lines-line', onLeave);
     };
   }, [mapRef, gridHover]);
+
+  // Buildable polygon click + hover cursor
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = () => {
+      map.getCanvas().style.cursor = 'pointer';
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+    };
+    const onClick = (e: maplibregl.MapLayerMouseEvent) => {
+      const feat = e.features?.[0];
+      if (feat) {
+        setBuildableClick({
+          longitude: e.lngLat.lng,
+          latitude: e.lngLat.lat,
+          area_ha: feat.properties?.area_ha ?? 0,
+          avg_pvout_annual: feat.properties?.avg_pvout_annual ?? 0,
+          capacity_mwp: feat.properties?.capacity_mwp ?? 0,
+        });
+      }
+    };
+    map.on('mouseenter', 'overlay-buildable-polygons-fill', onEnter);
+    map.on('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
+    map.on('click', 'overlay-buildable-polygons-fill', onClick);
+    return () => {
+      map.off('mouseenter', 'overlay-buildable-polygons-fill', onEnter);
+      map.off('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
+      map.off('click', 'overlay-buildable-polygons-fill', onClick);
+    };
+  }, [mapRef]);
 
   // Load custom bolt icon onto the map
   useEffect(() => {
@@ -252,6 +293,39 @@ export default function VectorOverlay() {
         </Popup>
       )}
 
+      {/* Buildable polygon click popup */}
+      {buildableClick && (
+        <Popup
+          longitude={buildableClick.longitude}
+          latitude={buildableClick.latitude}
+          closeButton={true}
+          closeOnClick={false}
+          onClose={() => setBuildableClick(null)}
+          anchor="bottom"
+          offset={12}
+          className="buildable-popup"
+        >
+          <div
+            style={{
+              background: '#1e1e1e',
+              color: '#e0e0e0',
+              padding: '8px 14px',
+              borderRadius: 4,
+              fontSize: 11,
+              lineHeight: 1.6,
+              minWidth: 200,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 4, color: '#66BB6A' }}>
+              Solar Buildable Area
+            </div>
+            <div>Area: {buildableClick.area_ha.toLocaleString()} ha</div>
+            <div>Avg PVOUT: {buildableClick.avg_pvout_annual.toLocaleString()} kWh/kWp/yr</div>
+            <div>Max Capacity: {buildableClick.capacity_mwp.toLocaleString()} MWp</div>
+          </div>
+        </Popup>
+      )}
+
       {/* KEK Polygons */}
       {layerVisibility.kek_polygons &&
         layers.kek_polygons &&
@@ -306,6 +380,29 @@ export default function VectorOverlay() {
                 id="overlay-protected-forest-fill"
                 type="fill"
                 paint={{ 'fill-color': '#2E7D32', 'fill-opacity': 0.25 }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* Buildable Areas (Polygons) */}
+      {layerVisibility.buildable_polygons &&
+        layers.buildable_polygons &&
+        !layers.buildable_polygons._loading &&
+        (() => {
+          const data = layers.buildable_polygons;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-buildable-polygons" type="geojson" data={data}>
+              <Layer
+                id="overlay-buildable-polygons-fill"
+                type="fill"
+                paint={{ 'fill-color': '#66BB6A', 'fill-opacity': 0.25 }}
+              />
+              <Layer
+                id="overlay-buildable-polygons-outline"
+                type="line"
+                paint={{ 'line-color': '#388E3C', 'line-width': 1, 'line-opacity': 0.5 }}
               />
             </Source>
           );

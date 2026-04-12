@@ -194,7 +194,7 @@ All callbacks use `prevent_initial_call=True` except startup data loaders.
 | Component | Implementation | Rationale |
 |-----------|---------------|-----------|
 | Map | `dash-leaflet.MapContainer` with Mapbox dark-v11 tiles | Full-screen, always visible. Mapbox token loaded from `.env` via python-dotenv. Native `dl.LayersControl` (bottom-left) for toggling overlays |
-| Map layers | `dl.LayersControl` with `dl.Overlay` wrappers | Native Leaflet layer control (expandable checkbox panel). Overlays: Substations, KEK Boundaries, PVOUT, Buildable Solar, Wind Speed |
+| Map layers | `dl.LayersControl` with `dl.Overlay` wrappers | Native Leaflet layer control (expandable checkbox panel). Overlays: Substations, KEK Boundaries, PVOUT, Solar Buildable Areas (vector polygons), Wind Speed |
 | Raster overlays | `dl.ImageOverlay` inside `dl.Overlay` | Base64 PNG rasters toggled via LayersControl. Opacity 0.7 when active |
 | Quadrant chart | `plotly.Scatter` with `shapes` for zone shading | Full control over quadrant lines; lives in bottom drawer tab 2 |
 | Ranked table | `dash_table.DataTable` | Built-in sorting, filtering, CSV export; lives in bottom drawer tab 1 |
@@ -354,7 +354,7 @@ Fields sourced from `fct_kek_scorecard` (57 columns). See [DATA_DICTIONARY.md](D
 
 ### WACC slider behaviour
 
-The dashboard ships with nine precomputed WACC values (4 / 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20%). The WACC selector is a `dcc.Slider` with snap marks at each value, default = 10%. This covers the full range from DFI concessional financing (4–6%) through SE Asia equity ceiling (20%). No continuous interpolation is needed. See [METHODOLOGY.md §3.3](METHODOLOGY.md) for the full WACC methodology.
+The dashboard ships with nine precomputed WACC values (4 / 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20%). The WACC selector is a `dcc.Slider` with snap marks at each value, default = 10%. This covers the full range from DFI concessional financing (4–6%) through SE Asia equity ceiling (20%). No continuous interpolation is needed. See [METHODOLOGY_CONSOLIDATED.md §6](docs/METHODOLOGY_CONSOLIDATED.md) for the full WACC methodology.
 
 ### Demand override hook
 
@@ -472,10 +472,10 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-08 | — | Full migration from Dash to React + Vite + TypeScript SPA with FastAPI backend | Dash limitations (no lazy layer loading, no rich map interactions, bundle size). React + MapLibre gives native layer control, fly-to, polygon rendering. |
 | 2026-04-08 | — | Liquid glass header: translucent backdrop-filter overlay on map | Map is always full-screen, header floats above with blur(48px) glass effect |
 | 2026-04-08 | — | 50km radius circle renders on map when KEK is selected | Visualizes the captive solar siting radius used by the model |
-| 2026-04-08 | — | Raster layer legends (PVOUT, Wind, Buildable) with color gradient strips | User couldn't interpret heatmap colors without a legend |
+| 2026-04-08 | — | Raster layer legends (PVOUT, Wind) with color gradient strips | User couldn't interpret heatmap colors without a legend |
 | 2026-04-08 | — | Draggable panels: Assumptions, Layer Control, and Raster Legends all movable | Panels can overlap map features; drag to reposition |
 | 2026-04-08 | — | Drawer close (X) separated from KEK deselection; radius stays visible | User wants to close the detail panel but keep the spatial context (radius, polygon) |
-| 2026-04-08 | — | Methodology modal: renders METHODOLOGY.md in-app with KaTeX math notation | Stakeholders can review analytical methodology without leaving the dashboard |
+| 2026-04-08 | — | Methodology modal: renders METHODOLOGY_CONSOLIDATED.md in-app with KaTeX math notation | Stakeholders can review analytical methodology without leaving the dashboard |
 | 2026-04-08 | — | Pulsing KEK markers on first load (~5s breathing animation) | Signals that markers are interactive/clickable |
 | 2026-04-08 | — | Biome formatter added to pre-commit hook for TypeScript/React | Consistent code style across all frontend files |
 | 2026-04-08 | — | Buildable area fragmentation warning in ScoreDrawer Resource tab | 1km PVOUT resolution makes contiguity filter a no-op; UI caveat for small buildable areas |
@@ -483,3 +483,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-09 | — | DFI persona reframed: captive solar investor → grid infrastructure investor | DFIs fund grid infra (ADB/WB precedent), not private gen-ties |
 | 2026-04-09 | — | New persona: Industrial Investor / KEK Tenant (buys from PLN, doesn't build solar) | Separates power consumer from power producer decision-making |
 | 2026-04-09 | — | New action flag: invest_grid (solar exists but grid connection missing) | Policymaker needs to see WHERE grid investment unlocks solar |
+| 2026-04-12 | — | Removed raster "Solar Buildable Area" layer; polygon layer renamed to "Solar Buildable Areas" | Raster at ~3.7km was coarse and inconsistent with vector polygons. Single source of truth now. |
+| 2026-04-12 | — | Buildable polygons are clickable: popup shows area (ha), avg PVOUT, max capacity (MWp) | Users can inspect individual contiguous buildable sites on the map |
+| 2026-04-12 | — | Within-boundary theoretical fallback zeroed out | KEKs with no spatial buildable pixels now show 0% coverage instead of a fake 20% estimate |
+| 2026-04-12 | — | Methodology files consolidated: archived v0.4 + V2 + testing notes → `docs/archives/` | Single canonical methodology: `docs/METHODOLOGY_CONSOLIDATED.md` |

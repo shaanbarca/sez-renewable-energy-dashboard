@@ -63,14 +63,16 @@ export interface ScorecardRow {
   // Optional fields that may be present depending on pipeline data
   pvout_centroid_kwh_kwp_yr?: number;
   pvout_best_50km_kwh_kwp_yr?: number;
-  lcoe_grid_connected_usd_mwh?: number;
-  lcoe_grid_connected_low_usd_mwh?: number;
-  lcoe_grid_connected_high_usd_mwh?: number;
+  lcoe_within_boundary_usd_mwh?: number;
+  lcoe_within_boundary_low_usd_mwh?: number;
+  lcoe_within_boundary_high_usd_mwh?: number;
   connection_cost_per_kw?: number;
   grid_integration_category?: string;
   demand_2030_gwh?: number;
   max_solar_generation_gwh?: number;
   solar_supply_coverage_pct?: number;
+  within_boundary_generation_gwh?: number;
+  within_boundary_coverage_pct?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;
