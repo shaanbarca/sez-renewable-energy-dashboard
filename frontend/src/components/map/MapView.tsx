@@ -12,6 +12,7 @@ import InfraMarkers from './InfraMarkers';
 import type { HoverInfo } from './KekMarkers';
 import KekMarkers from './KekMarkers';
 
+import MeasureTool from './MeasureTool';
 import RasterOverlay from './RasterOverlay';
 import VectorOverlay from './VectorOverlay';
 
@@ -64,6 +65,7 @@ export default function MapView() {
   const [wbBuildable, setWbBuildable] = useState<GeoJSON.FeatureCollection | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const [measuring, setMeasuring] = useState(false);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
 
   const mapStyle = (MAP_STYLES[mapStyleKey] ?? MAP_STYLES.dark).style;
@@ -300,10 +302,10 @@ export default function MapView() {
         }}
         mapStyle={mapStyle as string}
         style={{ width: '100%', height: '100%' }}
-        interactiveLayerIds={['kek-circles']}
-        onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        interactiveLayerIds={measuring ? [] : ['kek-circles']}
+        onClick={measuring ? undefined : handleClick}
+        onMouseEnter={measuring ? undefined : handleMouseEnter}
+        onMouseLeave={measuring ? undefined : handleMouseLeave}
         onZoom={handleZoom}
       >
         <NavigationControl position="bottom-right" />
@@ -312,6 +314,7 @@ export default function MapView() {
         <RasterOverlay />
         <VectorOverlay />
         <InfraMarkers />
+        <MeasureTool onMeasuringChange={setMeasuring} />
 
         {/* 50km radius circle around selected KEK */}
         {radiusCircle && (
