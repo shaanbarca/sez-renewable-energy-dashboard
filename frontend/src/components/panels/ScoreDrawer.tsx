@@ -48,8 +48,12 @@ function StatRow({
   const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-[11px] text-zinc-500">{label}</span>
-      <span className="text-[12px] font-medium text-zinc-200 tabular-nums">{display}</span>
+      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </span>
+      <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--text-value)' }}>
+        {display}
+      </span>
     </div>
   );
 }
@@ -69,21 +73,23 @@ function StatRowWithTip({
   const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-[11px] text-zinc-500 relative">
+      <span className="text-[11px] relative" style={{ color: 'var(--text-muted)' }}>
         {label}
         <span
-          className="ml-1 text-zinc-600 hover:text-zinc-300 cursor-help inline-block"
+          className="ml-1 cursor-help inline-block"
+          style={{ color: 'var(--text-muted)' }}
           onMouseEnter={() => setShowTip(true)}
           onMouseLeave={() => setShowTip(false)}
         >
           ?
           {showTip && (
             <span
-              className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] text-zinc-200 leading-snug whitespace-normal w-48"
+              className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-48"
               style={{
-                background: 'rgba(20, 20, 24, 0.95)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                background: 'var(--popup-bg)',
+                color: 'var(--text-value)',
+                border: '1px solid var(--popup-border)',
+                boxShadow: 'var(--popup-shadow)',
               }}
             >
               {tip}
@@ -91,7 +97,9 @@ function StatRowWithTip({
           )}
         </span>
       </span>
-      <span className="text-[12px] font-medium text-zinc-200 tabular-nums">{display}</span>
+      <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--text-value)' }}>
+        {display}
+      </span>
     </div>
   );
 }
@@ -101,8 +109,8 @@ function StatCard({ children }: { children: React.ReactNode }) {
     <div
       className="rounded-md px-3 py-2 mb-2"
       style={{
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.05)',
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
       }}
     >
       {children}
@@ -116,15 +124,19 @@ function FlagBadge({ active, label, color }: { active: boolean; label: string; c
       <div className="flex items-center gap-2">
         <span
           className="w-2 h-2 rounded-full"
-          style={{ background: active ? color : 'rgba(255,255,255,0.1)' }}
+          style={{ background: active ? color : 'var(--border-subtle)' }}
         />
-        <span className="text-[11px] text-zinc-400">{label}</span>
+        <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+          {label}
+        </span>
       </div>
       <span
-        className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-          active ? 'text-white/90' : 'text-zinc-600'
-        }`}
-        style={active ? { background: `${color}33` } : { background: 'rgba(255,255,255,0.03)' }}
+        className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+        style={
+          active
+            ? { background: `${color}33`, color: color }
+            : { background: 'var(--card-bg)', color: 'var(--text-muted)' }
+        }
       >
         {active ? 'Active' : 'Inactive'}
       </span>
@@ -269,7 +281,9 @@ function ResourceTab({
       </StatCard>
       <StatCard>
         {loadingSubs ? (
-          <div className="text-[11px] text-zinc-500 py-2 text-center">Loading substations...</div>
+          <div className="text-[11px] py-2 text-center" style={{ color: 'var(--text-muted)' }}>
+            Loading substations...
+          </div>
         ) : nearest ? (
           <>
             <StatRow label="Nearest Substation" value={nearest.name} />
@@ -325,14 +339,18 @@ function LCOETab({ row }: { row: ScorecardRow }) {
               className="inline-block w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: CAPACITY_COLORS[cap] }}
             />
-            <span className="text-xs text-zinc-300">{CAPACITY_LABELS[cap]}</span>
+            <span className="text-xs" style={{ color: 'var(--text-value)' }}>
+              {CAPACITY_LABELS[cap]}
+            </span>
           </div>
           <StatRow
             label="Available Capacity"
-            value={row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'}
+            value={
+              row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'
+            }
             unit="MVA"
           />
-          <div className="mt-1 text-[9px] text-zinc-600 leading-relaxed">
+          <div className="mt-1 text-[9px] text-[var(--text-muted)] leading-relaxed">
             Applies to all KEKs. Actual utilization requires PLN grid study.
           </div>
         </StatCard>
@@ -364,7 +382,11 @@ function CoverageBar({
   label,
   coverage,
   subtitle,
-}: { label: string; coverage: number | null | undefined; subtitle?: string }) {
+}: {
+  label: string;
+  coverage: number | null | undefined;
+  subtitle?: string;
+}) {
   const color =
     coverage != null
       ? coverage >= 1.0
@@ -376,18 +398,23 @@ function CoverageBar({
 
   return (
     <StatCard>
-      <div className="text-[11px] text-zinc-500 mb-1.5">{label}</div>
+      <div className="text-[11px] mb-1.5" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </div>
       {coverage != null ? (
         <>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg font-semibold tabular-nums" style={{ color }}>
               {(coverage * 100).toFixed(0)}%
             </span>
-            <span className="text-[10px] text-zinc-500">
+            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
               {subtitle ?? 'of demand coverable by RE'}
             </span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+          <div
+            className="w-full h-1.5 rounded-full overflow-hidden"
+            style={{ background: 'var(--bar-bg)' }}
+          >
             <div
               className="h-full rounded-full transition-all"
               style={{
@@ -398,7 +425,9 @@ function CoverageBar({
           </div>
         </>
       ) : (
-        <div className="text-[11px] text-zinc-500">Data unavailable</div>
+        <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Data unavailable
+        </div>
       )}
     </StatCard>
   );
@@ -431,18 +460,16 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           unit="GWh/yr"
         />
       </StatCard>
-      <CoverageBar
-        label="RE Coverage (50km radius)"
-        coverage={coverage}
-      />
+      <CoverageBar label="RE Coverage (50km radius)" coverage={coverage} />
       <CoverageBar
         label="Within-Boundary RE Coverage"
         coverage={wbCoverage}
         subtitle="of demand coverable inside KEK"
       />
       {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
-        <div className="text-[9px] text-zinc-600 -mt-1 px-1">
-          Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other generation
+        <div className="text-[9px] text-[var(--text-muted)] -mt-1 px-1">
+          Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
+          generation
         </div>
       )}
       <StatCard>
@@ -493,7 +520,9 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
 
       {/* Substation distances (capacity assessment moved to LCOE tab) */}
       <StatCard>
-        <div className="text-[11px] text-zinc-500 mb-2">Substation Proximity</div>
+        <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
+          Substation Proximity
+        </div>
         <StatRow
           label="Nearest Sub Distance"
           value={row.dist_to_nearest_substation_km?.toFixed(1)}
@@ -508,7 +537,9 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
 
       {/* V3.1: Grid connectivity */}
       <StatCard>
-        <div className="text-[11px] text-zinc-500 mb-2">Grid Connectivity</div>
+        <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
+          Grid Connectivity
+        </div>
         <StatRow
           label="Transmission Line"
           value={row.line_connected != null ? (row.line_connected ? 'Connected' : 'None') : 'N/A'}
@@ -535,8 +566,12 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
 
       {ruptlSummary && (
         <StatCard>
-          <div className="text-[11px] text-zinc-500 mb-1">RUPTL Summary</div>
-          <div className="text-[11px] text-zinc-300 leading-relaxed">{ruptlSummary}</div>
+          <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
+            RUPTL Summary
+          </div>
+          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
+            {ruptlSummary}
+          </div>
         </StatCard>
       )}
     </>
@@ -567,7 +602,10 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
               color={ACTION_FLAG_COLORS[flag] ?? '#666'}
             />
             {activeFlag === flag && (
-              <p className="text-[10px] text-zinc-400 leading-relaxed mt-1 mb-2 pl-5">
+              <p
+                className="text-[10px] leading-relaxed mt-1 mb-2 pl-5"
+                style={{ color: 'var(--text-secondary)' }}
+              >
                 {getFlagExplanation(flag, row)}
               </p>
             )}
@@ -669,7 +707,7 @@ export default function ScoreDrawer() {
         backdropFilter: 'var(--blur-heavy)',
         WebkitBackdropFilter: 'var(--blur-heavy)',
         borderLeft: '1px solid var(--glass-border)',
-        boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
+        boxShadow: 'var(--drawer-shadow)',
       }}
     >
       {row && (
@@ -690,7 +728,8 @@ export default function ScoreDrawer() {
               </div>
               <button
                 onClick={handleClose}
-                className="p-1 rounded hover:bg-white/[0.06] transition-colors text-zinc-500 hover:text-zinc-300"
+                className="p-1 rounded transition-colors"
+                style={{ color: 'var(--text-muted)' }}
                 aria-label="Close drawer"
               >
                 <CloseIcon />
@@ -712,7 +751,10 @@ export default function ScoreDrawer() {
                 </span>
               </div>
               {flagDescription && (
-                <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed pl-[18px]">
+                <p
+                  className="text-[10px] mt-1 leading-relaxed pl-[18px]"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
                   {flagDescription}
                 </p>
               )}
@@ -723,17 +765,15 @@ export default function ScoreDrawer() {
           <Tabs.Root defaultValue="info" className="flex-1 flex flex-col min-h-0">
             <Tabs.List
               className="flex px-4 gap-0.5"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+              style={{ borderBottom: '1px solid var(--border-subtle)' }}
             >
               {TABS.map((tab) => (
                 <Tabs.Trigger
                   key={tab.value}
                   value={tab.value}
-                  className="px-2.5 py-2 text-[11px] font-medium text-zinc-500
-                             hover:text-zinc-300 transition-colors relative
-                             data-[state=active]:text-[#90CAF9]
+                  className="drawer-tab px-2.5 py-2 text-[11px] font-medium transition-colors relative
                              after:absolute after:bottom-0 after:left-1 after:right-1 after:h-[2px]
-                             after:rounded-full after:bg-[#90CAF9] after:opacity-0
+                             after:rounded-full after:opacity-0
                              data-[state=active]:after:opacity-100 after:transition-opacity"
                 >
                   {tab.label}

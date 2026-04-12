@@ -8,6 +8,7 @@ from src.dash.constants import RUPTL_REGION_COLORS
 from src.dash.map_layers import (
     filter_substations_near_point,
     get_kek_polygon_by_id,
+    get_within_boundary_buildable,
     polygon_bbox,
 )
 
@@ -108,6 +109,15 @@ def get_kek_polygon(kek_id: str):
             "lon": center_lon,
         },
     }
+
+
+@router.get("/kek/{kek_id}/buildable")
+def get_kek_buildable(kek_id: str):
+    """Return buildable polygon fragments clipped to a KEK boundary."""
+    result = get_within_boundary_buildable(kek_id)
+    if result is None:
+        return {"type": "FeatureCollection", "features": []}
+    return result
 
 
 @router.get("/kek/{kek_id}/substations")

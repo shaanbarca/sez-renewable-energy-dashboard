@@ -246,11 +246,15 @@ def _compute_within_boundary_buildable(
     win_transform: rasterio.transform.Affine,
     kek_polygon: object,
     pixel_area_ha: float,
+    kek_area_ha: float,
 ) -> tuple[float, float, float]:
     """Clip buildable mask to KEK polygon, return (area_ha, avg_pvout_daily, capacity_mwp).
 
     Rasterizes the KEK polygon onto the same grid as filtered_mask, then
     intersects to find buildable pixels within the KEK boundary.
+
+    Area is capped at kek_area_ha to prevent inflation when coarse raster
+    pixels (~1370 ha each) partially overlap small KEKs.
 
     Returns (0.0, NaN, 0.0) if no buildable pixels fall within the KEK polygon.
     """
@@ -273,6 +277,9 @@ def _compute_within_boundary_buildable(
         return 0.0, np.nan, 0.0
 
     area_ha = round(n_pixels * pixel_area_ha, 1)
+    # Cap at actual KEK area: coarse pixels can overcount when they
+    # partially overlap a KEK smaller than the pixel itself
+    area_ha = round(min(area_ha, kek_area_ha), 1)
     capacity_mwp = round(area_ha / HA_PER_MWP, 1)
 
     # Average PVOUT from buildable pixels within KEK
@@ -710,8 +717,15 @@ def build_fct_kek_resource(
 
             if build_mask is not None and build_win_tf is not None and kek_polygon is not None:
                 pix_ha = _pixel_area_ha(build_win_tf, lat)
+                # Compute KEK polygon area in ha for capping
+                kek_geom_area_ha = (
+                    kek_polygon.area
+                    * (KM_PER_DEGREE_LAT**2)
+                    * math.cos(math.radians(lat))
+                    * 100  # km² → ha
+                )
                 wb_area_ha, wb_pvout_daily, wb_capacity_mwp = _compute_within_boundary_buildable(
-                    build_mask, pvout_patch, build_win_tf, kek_polygon, pix_ha
+                    build_mask, pvout_patch, build_win_tf, kek_polygon, pix_ha, kek_geom_area_ha
                 )
                 if wb_area_ha > 0 and np.isfinite(wb_pvout_daily):
                     try:

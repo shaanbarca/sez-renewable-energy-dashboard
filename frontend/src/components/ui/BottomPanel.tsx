@@ -41,11 +41,12 @@ export default function BottomPanel() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="w-full h-8 flex items-center justify-center gap-2
-                     text-[#90CAF9] text-xs font-medium tracking-wide
-                     hover:bg-white/[0.08] transition-colors cursor-pointer shrink-0"
+                     text-xs font-medium tracking-wide
+                     transition-colors cursor-pointer shrink-0"
           style={{
-            background: 'rgba(144, 202, 249, 0.08)',
-            borderTop: '2px solid rgba(144, 202, 249, 0.3)',
+            color: 'var(--accent)',
+            background: 'var(--accent-soft)',
+            borderTop: '2px solid var(--accent-border)',
           }}
           title={collapsed ? 'Show table panel' : 'Hide table panel'}
         >

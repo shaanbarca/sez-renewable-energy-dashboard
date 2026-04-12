@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), and methodology/persona audit.
-Last updated: 2026-04-11 (gap analysis integration, stale items cleaned).
+Last updated: 2026-04-12 (within-boundary buildable overlay, light mode theme, stale items cleaned).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
@@ -28,8 +28,8 @@ Items from the gap analysis that are documentation additions or trivial column d
 | M2 | **Road proximity layer (Layer 3a)** | PERSONAS.md gap 8 | P2, P4 | OSM PBF processing → `dist_to_nearest_road_km`. Construction access cost proxy. |
 | M3 | **CAPEX market comparables** | PERSONAS.md P1 gaps | P1 | 2023-2024 Indonesia solar EPC tender data. ESDM catalogue ($960/kW) may be +/-15-20% from market. |
 | M4 | **KEK operational status enrichment** | PERSONAS.md gap 7 | P4 | Distinguish operating (tenants present) vs. greenfield. Requires BKPM/KEK management data. |
-| M5 | **Custom CAPEX input for IPP** | PERSONAS.md P4 audit | P4 | Slider gives 3 bands. IPPs need free-text input for exact $/kW. Workaround: export CSV + recompute. |
-| M6 | **Configurable assumptions — Phase D (UX polish)** | DESIGN.md §3 | All | URL state persistence (`?capex=840&wacc=8`), "scenario changed" badge, export-with-assumptions metadata. Reset-to-defaults ✅ done. |
+| ~~M5~~ | ~~**Custom CAPEX input for IPP**~~ | PERSONAS.md P4 audit | P4 | ✅ Done (2026-04-11) — `CapexInput.tsx` free-text input with slider, validates range, tab/enter commit. |
+| ~~M6~~ | ~~**Configurable assumptions — Phase D (UX polish)**~~ | DESIGN.md §3 | All | ✅ Done (2026-04-11) — URL state persistence (`urlState.ts`, `useUrlSync.ts`), "Modified" badge, reset-to-defaults. |
 | M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets, compare side-by-side. Zustand persist + local storage. |
 | M8 | **Floating solar modelling** | User obs (2026-04-08) | P2, P4 | Water bodies excluded from buildable area. Floating PV on reservoirs/lagoons could unlock capacity for land-constrained KEKs. CAPEX ~20-30% higher ($1,100-1,400/kW). Requires new siting scenario. |
 | M9 | **Raster overlay bounds expansion** | UI bug (2026-04-09) | All | Raster overlays clip when map is pitched (3D terrain). Backend `map_layers.py` bounding box needs padding (+/-5 deg). Workaround: auto-pitch only at zoom > 7. |
@@ -37,7 +37,7 @@ Items from the gap analysis that are documentation additions or trivial column d
 | M11 | **Night-time light proxy for utilization** | V3.1 deferred | P2 | VIIRS/DMSP satellite data as proxy for substation load. Improves `capacity_assessment` vs. fixed 65% assumption. |
 | M12 | **Substation upgrade cost in LCOE** | Gap analysis P1, V3.1 deferred | P2, P3 | When `capacity_assessment == "red"`, fold parametric upgrade cost (capacity_gap_mva x $/MVA) into grid-connected LCOE. Turns qualitative flag into quantitative impact. |
 | M13 | **Sub-pixel buildable fraction from ESA WorldCover** | Buildability review (2026-04-10) | P2 | Current `Resampling.mode` at 10m→1km loses sub-pixel detail. Replace with binary-threshold + average resampling at 50%. |
-| M14 | **Buildable land polygons (in-boundary + remote)** | Gap analysis P1 | P2, P4 | ✅ **Partially complete (2026-04-12):** Remote/50km buildable polygons are live on the map as "Solar Buildable Areas" layer (clickable popups: area_ha, avg PVOUT, max capacity). See `build_buildable_polygons.py`. **Remaining:** (a) within-boundary polygons as a separate layer clipped to KEK boundary, (b) splitting remote vs. within-boundary in the layer control. Currently all polygons are in one combined layer. Value improves with higher-res data (~1km resolution = coarse). |
+| ~~M14~~ | ~~**Buildable land polygons (in-boundary + remote)**~~ | Gap analysis P1 | P2, P4 | ✅ **Done (2026-04-12):** Remote/50km buildable polygons live as "Solar Buildable Areas" layer with clickable popups. Within-boundary polygons clipped to KEK boundary via `/api/kek/{id}/buildable` endpoint (`get_within_boundary_buildable` in `map_layers.py`). Displayed as green overlay on KEK zoom. Area capped at KEK polygon area to prevent raster pixel inflation. |
 | M15 | **Multi-substation comparison** | Gap analysis P2 | P4 | Evaluate top 3 substations within search radius. Compare total interconnection cost: closer-but-constrained vs. farther-but-available. Medium priority, becomes important for investment-grade analysis. |
 | M16 | **Capacity slider with LCOE curve** | Gap analysis P1 | P4 | Slider for "desired build capacity" (10 MW to max). Shows how LCOE changes with scale: fixed costs dominate at small sizes, grid constraints push cost up at large sizes. High value for IPP "how big should I build?" question. |
 
@@ -52,7 +52,7 @@ Items from the gap analysis that are documentation additions or trivial column d
 | L3 | **Flood hazard layer (Layer 2d)** | PERSONAS.md gap 9 | P2 | BNPB portal inaccessible. Low incremental value over slope layer. Blocked on data access. |
 | L4 | **Excel/PDF export pipeline** | Autoplan CEO subagent | All | Formatted Excel workbook with charts + PDF scorecard per KEK. |
 | L5 | **Multilingual (EN/ID)** | — | P3 | Indonesian language option for BKPM/KESDM officials. |
-| L6 | **Mapbox basemap upgrade from Carto** | DESIGN.md §6 Q2 | All | Prettier tiles but adds dependency. Mapbox token exists (used for terrain DEM). |
+| ~~L6~~ | ~~**Mapbox basemap upgrade from Carto**~~ | DESIGN.md §6 Q2 | All | ❌ Won't do — MapLibre can't resolve `mapbox://` protocol URLs in style JSON. `transformRequest` workaround attempted but unreliable. Carto Dark Matter is the dark basemap. |
 | L7 | **Mobile responsive layout** | DESIGN.md §6 Q3 | All | Primary users are analysts with laptops. |
 | L8 | **KEK Management persona (P6)** | Methodology/persona audit | — | Zone administrators (BKPM-appointed) who use the tool to attract tenants. |
 | L9 | **Carbon price trajectory modelling** | PERSONAS.md P3 gaps | P3 | Link `carbon_breakeven_usd_tco2` to Indonesia ETS trajectory. |
@@ -90,6 +90,8 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | Methodology archival | 2026-04-12 | Archived METHODOLOGY.md (v0.4), METHODOLOGY_V2.md (draft), methodology_testing.md → `docs/archives/`. METHODOLOGY_CONSOLIDATED.md is now the single canonical reference. All doc links updated. |
 | ✅ | Remove raster buildable layer | 2026-04-12 | Removed coarse raster "Solar Buildable Area" from frontend + API. Polygon layer renamed to "Solar Buildable Areas". Clickable popups added. |
 | ✅ | Fix within-boundary 20% fallback | 2026-04-12 | Theoretical fallback zeroed: KEKs with no spatial buildable pixels report 0 area/capacity instead of fake 10% estimate. |
+| ✅ | Within-boundary buildable overlay | 2026-04-12 | `/api/kek/{id}/buildable` clips buildable polygons to KEK boundary with 220m buffer. Green fill overlay on map. Area capped at KEK polygon area to prevent raster inflation. |
+| ✅ | Light mode theme system | 2026-04-12 | 15+ CSS custom properties for theme-aware styling. All components migrated from hardcoded dark colors to `var(--*)`. Light mode glass opacity, contrast, and popup theming. LayerControl moved to header dropdown. |
 
 ---
 

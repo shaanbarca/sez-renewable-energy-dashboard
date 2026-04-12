@@ -31,7 +31,7 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   grid_integration_category:
     'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
   solar_supply_coverage_pct:
-    'Maximum % of this KEK\'s electricity demand coverable by renewable energy (solar) built within 50km. Green = 100%+, yellow = 50-99%, red = under 50%.',
+    "Maximum % of this KEK's electricity demand coverable by renewable energy (solar) built within 50km. Green = 100%+, yellow = 50-99%, red = under 50%.",
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -217,9 +217,7 @@ export const columns = [
     },
   }),
   col.accessor('solar_supply_coverage_pct', {
-    header: () => (
-      <HeaderWithTooltip label="RE Coverage" columnId="solar_supply_coverage_pct" />
-    ),
+    header: () => <HeaderWithTooltip label="RE Coverage" columnId="solar_supply_coverage_pct" />,
     filterFn: 'inRange',
     cell: (info) => {
       const val = info.getValue();

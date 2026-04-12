@@ -10,6 +10,7 @@
   --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 50%);
   --blur: blur(24px) saturate(1.4);
   --blur-heavy: blur(32px) saturate(1.5);
+  --header-backdrop: blur(48px) saturate(1.8) brightness(1.15);
   --text-primary: #e0e0e0;
   --text-secondary: #999;
   --text-muted: #666;
@@ -23,6 +24,24 @@
   --popup-bg: rgba(20, 20, 24, 0.9);
   --popup-border: rgba(255, 255, 255, 0.1);
   --popup-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* Theme-aware component tokens */
+  --accent: #90caf9;
+  --accent-soft: rgba(144, 202, 249, 0.08);
+  --accent-muted: rgba(144, 202, 249, 0.2);
+  --accent-border: rgba(144, 202, 249, 0.3);
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --card-border: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --text-value: #e0e0e0;
+  --selected-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --toggle-on-bg: rgba(255, 255, 255, 0.15);
+  --toggle-on-text: #ffffff;
+  --toggle-off-text: #71717a;
+  --bar-bg: rgba(255, 255, 255, 0.06);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --drawer-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
 
   /* Action flag colors */
   --flag-solar-now: #2e7d32;
@@ -40,24 +59,44 @@
 /* Light map styles */
 [data-theme="light"],
 [data-theme="voyager"] {
-  --glass: rgba(255, 255, 255, 0.7);
-  --glass-heavy: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(0, 0, 0, 0.1);
-  --glass-border-bright: rgba(0, 0, 0, 0.15);
-  --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 50%);
-  --text-primary: #1a1a1a;
-  --text-secondary: #555;
-  --text-muted: #888;
-  --panel-bg: rgba(255, 255, 255, 0.65);
-  --panel-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
-  --header-bg: rgba(255, 255, 255, 0.6);
-  --header-border: rgba(0, 0, 0, 0.08);
-  --header-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 2px 16px rgba(0, 0, 0, 0.06);
-  --tab-active-bg: rgba(0, 0, 0, 0.06);
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-heavy: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(0, 0, 0, 0.12);
+  --glass-border-bright: rgba(0, 0, 0, 0.18);
+  --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 50%);
+  --blur: blur(28px) saturate(1.2);
+  --blur-heavy: blur(36px) saturate(1.3);
+  --header-backdrop: blur(48px) saturate(1.2);
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --panel-bg: rgba(255, 255, 255, 0.78);
+  --panel-shadow: 0 -1px 3px rgba(0, 0, 0, 0.04), 0 -4px 24px rgba(0, 0, 0, 0.06);
+  --header-bg: rgba(255, 255, 255, 0.72);
+  --header-border: rgba(0, 0, 0, 0.1);
+  --header-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06), 0 1px 8px rgba(0, 0, 0, 0.04);
+  --tab-active-bg: rgba(0, 0, 0, 0.05);
   --tab-border: rgba(0, 0, 0, 0.1);
-  --popup-bg: rgba(255, 255, 255, 0.95);
-  --popup-border: rgba(0, 0, 0, 0.1);
-  --popup-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --popup-bg: rgba(255, 255, 255, 0.96);
+  --popup-border: rgba(0, 0, 0, 0.12);
+  --popup-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  --accent: #1565c0;
+  --accent-soft: rgba(21, 101, 192, 0.06);
+  --accent-muted: rgba(21, 101, 192, 0.12);
+  --accent-border: rgba(21, 101, 192, 0.25);
+  --card-bg: rgba(0, 0, 0, 0.025);
+  --card-border: rgba(0, 0, 0, 0.07);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --text-value: #111827;
+  --selected-bg: rgba(0, 0, 0, 0.06);
+  --input-border: rgba(0, 0, 0, 0.15);
+  --toggle-on-bg: rgba(21, 101, 192, 0.12);
+  --toggle-on-text: #1565c0;
+  --toggle-off-text: #6b7280;
+  --bar-bg: rgba(0, 0, 0, 0.06);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --drawer-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
 }
 
 /* Satellite uses dark panels for contrast against imagery */
@@ -84,4 +123,30 @@ body {
 
 .maplibregl-popup-tip {
   border-top-color: var(--popup-bg);
+}
+
+/* Slider — theme-aware accent */
+.slider-range {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.slider-thumb {
+  background: var(--accent);
+  border: 2px solid var(--glass-heavy);
+}
+.slider-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 80%, white);
+}
+.slider-thumb:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Drawer tab styling — theme-aware accent */
+.drawer-tab {
+  color: var(--text-muted);
+}
+.drawer-tab[data-state="active"] {
+  color: var(--accent);
+}
+.drawer-tab::after {
+  background-color: var(--accent);
 }

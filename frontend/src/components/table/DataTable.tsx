@@ -68,8 +68,12 @@ function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: 
     <select
       value={filterValue}
       onChange={(e) => column.setFilterValue(e.target.value || undefined)}
-      className="w-full bg-transparent text-[10px] text-zinc-400 outline-none border border-white/10 rounded px-1 py-0.5 mt-1 cursor-pointer"
-      style={{ maxWidth: 120 }}
+      className="w-full bg-transparent text-[10px] outline-none rounded px-1 py-0.5 mt-1 cursor-pointer"
+      style={{
+        color: 'var(--text-secondary)',
+        border: '1px solid var(--input-border)',
+        maxWidth: 120,
+      }}
     >
       <option value="">All</option>
       {options.map((opt) => (
@@ -113,14 +117,16 @@ function RangeFilter({ column, data }: { column: Column<ScorecardRow>; data: Sco
         placeholder={min.toFixed(0)}
         defaultValue={filterValue[0]}
         onChange={(e) => handleChange(0, e.target.value)}
-        className="w-14 bg-transparent text-[10px] text-zinc-400 outline-none border border-white/10 rounded px-1 py-0.5 tabular-nums"
+        className="w-14 bg-transparent text-[10px] outline-none rounded px-1 py-0.5 tabular-nums"
+        style={{ color: 'var(--text-secondary)', border: '1px solid var(--input-border)' }}
       />
       <input
         type="number"
         placeholder={max.toFixed(0)}
         defaultValue={filterValue[1]}
         onChange={(e) => handleChange(1, e.target.value)}
-        className="w-14 bg-transparent text-[10px] text-zinc-400 outline-none border border-white/10 rounded px-1 py-0.5 tabular-nums"
+        className="w-14 bg-transparent text-[10px] outline-none rounded px-1 py-0.5 tabular-nums"
+        style={{ color: 'var(--text-secondary)', border: '1px solid var(--input-border)' }}
       />
     </div>
   );
@@ -183,7 +189,14 @@ export default function DataTable() {
   }, [scorecard]);
 
   if (!scorecard) {
-    return <div className="flex items-center justify-center h-full text-zinc-600">Loading...</div>;
+    return (
+      <div
+        className="flex items-center justify-center h-full"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -200,7 +213,8 @@ export default function DataTable() {
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className="text-zinc-500 shrink-0"
+            className="shrink-0"
+            style={{ color: 'var(--text-muted)' }}
           >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -217,7 +231,8 @@ export default function DataTable() {
             <button
               type="button"
               onClick={() => setGlobalFilter('')}
-              className="text-zinc-500 hover:text-zinc-300 text-[10px] cursor-pointer"
+              className="text-[10px] cursor-pointer"
+              style={{ color: 'var(--text-muted)' }}
             >
               ✕
             </button>
@@ -227,11 +242,16 @@ export default function DataTable() {
         <button
           type="button"
           onClick={() => setShowFilters(!showFilters)}
-          className={`border px-3 py-1 text-xs rounded cursor-pointer transition-colors ${
+          className="px-3 py-1 text-xs rounded cursor-pointer transition-colors"
+          style={
             showFilters || columnFilters.length > 0
-              ? 'text-[#90CAF9] border-[#90CAF9]/30 bg-[#90CAF9]/10'
-              : 'text-zinc-500 hover:text-zinc-300 border-white/10'
-          }`}
+              ? {
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent-border)',
+                  background: 'var(--accent-soft)',
+                }
+              : { color: 'var(--text-muted)', border: '1px solid var(--input-border)' }
+          }
         >
           Filters{columnFilters.length > 0 ? ` (${columnFilters.length})` : ''}
         </button>
@@ -239,7 +259,8 @@ export default function DataTable() {
           <button
             type="button"
             onClick={() => setColumnFilters([])}
-            className="text-zinc-500 hover:text-zinc-300 text-[10px] cursor-pointer"
+            className="text-[10px] cursor-pointer"
+            style={{ color: 'var(--text-muted)' }}
           >
             Clear all
           </button>
@@ -247,7 +268,8 @@ export default function DataTable() {
         <button
           type="button"
           onClick={handleExport}
-          className="text-zinc-500 hover:text-zinc-300 border border-white/10 px-3 py-1 text-xs rounded cursor-pointer"
+          className="px-3 py-1 text-xs rounded cursor-pointer transition-colors"
+          style={{ color: 'var(--text-muted)', border: '1px solid var(--input-border)' }}
         >
           Export CSV
         </button>
@@ -281,7 +303,11 @@ export default function DataTable() {
             {showFilters && (
               <tr>
                 {table.getHeaderGroups()[0].headers.map((header) => (
-                  <th key={`filter-${header.id}`} className="px-3 py-1 border-b border-white/5">
+                  <th
+                    key={`filter-${header.id}`}
+                    className="px-3 py-1"
+                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                  >
                     {DROPDOWN_COLUMNS.has(header.column.id) && (
                       <DropdownFilter column={header.column} data={data} />
                     )}
@@ -297,9 +323,11 @@ export default function DataTable() {
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className={`cursor-pointer hover:bg-white/[0.04] ${
-                  row.original.kek_id === selectedKek ? 'bg-white/[0.04]' : ''
-                }`}
+                className="cursor-pointer"
+                style={{
+                  background:
+                    row.original.kek_id === selectedKek ? 'var(--selected-bg)' : undefined,
+                }}
                 onClick={() => selectKek(row.original.kek_id)}
               >
                 {row.getVisibleCells().map((cell) => (

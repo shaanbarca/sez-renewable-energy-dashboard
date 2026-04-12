@@ -29,22 +29,27 @@ export default function Slider({
   return (
     <div className="group py-1.5">
       <div className="flex items-center justify-between mb-1">
-        <label className="text-[11px] text-zinc-400 leading-tight relative">
+        <label
+          className="text-[11px] leading-tight relative"
+          style={{ color: 'var(--text-secondary)' }}
+        >
           {label}
           {description && (
             <span
-              className="ml-1 text-zinc-600 hover:text-zinc-300 cursor-help inline-block"
+              className="ml-1 cursor-help inline-block"
+              style={{ color: 'var(--text-muted)' }}
               onMouseEnter={() => setShowTip(true)}
               onMouseLeave={() => setShowTip(false)}
             >
               ?
               {showTip && (
                 <span
-                  className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] text-zinc-200 leading-snug whitespace-normal w-48"
+                  className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-48"
                   style={{
-                    background: 'rgba(20, 20, 24, 0.95)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                    background: 'var(--popup-bg)',
+                    color: 'var(--text-value)',
+                    border: '1px solid var(--popup-border)',
+                    boxShadow: 'var(--popup-shadow)',
                   }}
                 >
                   {description}
@@ -53,9 +58,14 @@ export default function Slider({
             </span>
           )}
         </label>
-        <span className="text-[11px] font-medium text-zinc-200 tabular-nums">
+        <span
+          className="text-[11px] font-medium tabular-nums"
+          style={{ color: 'var(--text-value)' }}
+        >
           {value}
-          <span className="text-zinc-500 ml-0.5">{unit}</span>
+          <span className="ml-0.5" style={{ color: 'var(--text-muted)' }}>
+            {unit}
+          </span>
         </span>
       </div>
 
@@ -67,13 +77,15 @@ export default function Slider({
         max={max}
         step={step}
       >
-        <RadixSlider.Track className="relative grow h-[4px] rounded-full bg-white/[0.08]">
-          <RadixSlider.Range className="absolute h-full rounded-full bg-[#90CAF9]/60" />
+        <RadixSlider.Track
+          className="slider-track relative grow h-[4px] rounded-full"
+          style={{ background: 'var(--bar-bg)' }}
+        >
+          <RadixSlider.Range className="slider-range absolute h-full rounded-full" />
         </RadixSlider.Track>
         <RadixSlider.Thumb
-          className="block w-3.5 h-3.5 rounded-full bg-[#90CAF9] border-2 border-white/80 shadow-md
-                     hover:bg-[#BBDEFB] focus:outline-none focus:ring-2 focus:ring-[#90CAF9]/40
-                     transition-colors cursor-grab active:cursor-grabbing"
+          className="slider-thumb block w-3.5 h-3.5 rounded-full shadow-md
+                     focus:outline-none transition-colors cursor-grab active:cursor-grabbing"
           aria-label={label}
         />
       </RadixSlider.Root>
@@ -81,7 +93,11 @@ export default function Slider({
       {marks && (
         <div className="flex justify-between mt-0.5 px-0.5">
           {Object.entries(marks).map(([val, lbl]) => (
-            <span key={val} className="text-[9px] text-zinc-600 tabular-nums">
+            <span
+              key={val}
+              className="text-[9px] tabular-nums"
+              style={{ color: 'var(--text-muted)' }}
+            >
               {lbl}
             </span>
           ))}

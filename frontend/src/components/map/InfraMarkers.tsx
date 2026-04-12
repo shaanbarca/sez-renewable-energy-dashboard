@@ -352,14 +352,14 @@ export default function InfraMarkers() {
           <div
             style={{
               padding: '6px 10px',
-              background: 'rgba(20, 20, 24, 0.92)',
+              background: 'var(--popup-bg)',
               borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.12)',
+              border: '1px solid var(--popup-border)',
               backdropFilter: 'blur(12px)',
               maxWidth: 220,
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', marginBottom: 3 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>
               {hoverInfo.title}
             </div>
             <span

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useDashboardStore } from '../../store/dashboard';
+import LayerControl from '../map/LayerControl';
 import ActionFlagLegend from './ActionFlagLegend';
 import EnergyToggle from './EnergyToggle';
 import MethodologyModal from './MethodologyModal';
@@ -10,7 +11,10 @@ function GuideButton() {
     <button
       type="button"
       onClick={restart}
-      className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+      className="text-xs transition-colors cursor-pointer"
+      style={{ color: 'var(--text-secondary)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
     >
       Guide
     </button>
@@ -28,8 +32,8 @@ export default function Header() {
         className="flex items-center justify-between px-5 py-3"
         style={{
           background: 'var(--header-bg)',
-          backdropFilter: 'blur(48px) saturate(1.8) brightness(1.15)',
-          WebkitBackdropFilter: 'blur(48px) saturate(1.8) brightness(1.15)',
+          backdropFilter: 'var(--header-backdrop)',
+          WebkitBackdropFilter: 'var(--header-backdrop)',
           borderBottom: `1px solid var(--header-border)`,
           boxShadow: 'var(--header-shadow)',
         }}
@@ -42,6 +46,7 @@ export default function Header() {
             KEK Power Competitiveness Dashboard
           </h1>
           <ActionFlagLegend />
+          <LayerControl />
         </div>
 
         <div className="flex items-center gap-4">
@@ -49,14 +54,18 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setMethodologyOpen(true)}
-            className="text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            className="text-xs transition-colors cursor-pointer"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
           >
             Methodology
           </button>
           <EnergyToggle />
           <span
-            className="px-2.5 py-1 rounded-full text-xs font-medium text-zinc-300 border"
+            className="px-2.5 py-1 rounded-full text-xs font-medium border"
             style={{
+              color: 'var(--text-secondary)',
               background: 'var(--glass)',
               borderColor: 'var(--glass-border-bright)',
             }}

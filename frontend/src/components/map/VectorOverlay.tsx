@@ -249,8 +249,8 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: '#1e1e1e',
-              color: '#e0e0e0',
+              background: 'var(--popup-bg)',
+              color: 'var(--text-primary)',
               padding: '6px 10px',
               borderRadius: 4,
               fontSize: 11,
@@ -277,8 +277,8 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: '#1e1e1e',
-              color: '#e0e0e0',
+              background: 'var(--popup-bg)',
+              color: 'var(--text-primary)',
               padding: '6px 10px',
               borderRadius: 4,
               fontSize: 11,
@@ -307,16 +307,16 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: '#1e1e1e',
-              color: '#e0e0e0',
-              padding: '8px 14px',
-              borderRadius: 4,
-              fontSize: 11,
+              background: 'var(--popup-bg)',
+              color: 'var(--text-primary)',
+              padding: '10px 16px',
+              borderRadius: 6,
+              fontSize: 12,
               lineHeight: 1.6,
-              minWidth: 200,
+              minWidth: 260,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 4, color: '#66BB6A' }}>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: '#2E7D32' }}>
               Solar Buildable Area
             </div>
             <div>Area: {buildableClick.area_ha.toLocaleString()} ha</div>

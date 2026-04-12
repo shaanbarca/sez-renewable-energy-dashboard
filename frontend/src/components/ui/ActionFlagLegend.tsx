@@ -41,7 +41,10 @@ export default function ActionFlagLegend() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors cursor-pointer"
+        style={{ color: 'var(--text-secondary)' }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
       >
         {/* Show compact dot strip as a preview */}
         <span className="flex items-center gap-0.5">
@@ -73,10 +76,13 @@ export default function ActionFlagLegend() {
             backdropFilter: 'var(--blur-heavy)',
             WebkitBackdropFilter: 'var(--blur-heavy)',
             border: '1px solid var(--glass-border-bright)',
-            boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 32px rgba(0, 0, 0, 0.5)',
+            boxShadow: 'var(--popup-shadow)',
           }}
         >
-          <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2 font-medium">
+          <p
+            className="text-[10px] uppercase tracking-wider mb-2 font-medium"
+            style={{ color: 'var(--text-muted)' }}
+          >
             Action Flags
           </p>
           <div className="grid gap-1.5">
@@ -87,8 +93,13 @@ export default function ActionFlagLegend() {
                   style={{ backgroundColor: ACTION_FLAG_COLORS[flag] }}
                 />
                 <div>
-                  <span className="text-xs text-zinc-200">{ACTION_FLAG_LABELS[flag]}</span>
-                  <p className="text-[10px] text-zinc-500 leading-snug hidden group-hover:block">
+                  <span className="text-xs" style={{ color: 'var(--text-value)' }}>
+                    {ACTION_FLAG_LABELS[flag]}
+                  </span>
+                  <p
+                    className="text-[10px] leading-snug hidden group-hover:block"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
                     {FLAG_DESCRIPTIONS[flag]}
                   </p>
                 </div>

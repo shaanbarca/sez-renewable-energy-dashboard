@@ -26,8 +26,11 @@ export default function EnergyToggle() {
         <ToggleGroup.Item
           key={opt.value}
           value={opt.value}
-          className="px-3 py-1.5 text-xs font-medium transition-colors data-[state=on]:bg-white/15 data-[state=on]:text-white data-[state=off]:text-zinc-500 data-[state=off]:hover:text-zinc-300"
-          style={{ backgroundColor: energyMode === opt.value ? undefined : 'transparent' }}
+          className="px-3 py-1.5 text-xs font-medium transition-colors"
+          style={{
+            backgroundColor: energyMode === opt.value ? 'var(--toggle-on-bg)' : 'transparent',
+            color: energyMode === opt.value ? 'var(--toggle-on-text)' : 'var(--toggle-off-text)',
+          }}
         >
           {opt.label}
         </ToggleGroup.Item>

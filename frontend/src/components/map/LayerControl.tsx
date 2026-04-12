@@ -1,4 +1,4 @@
-import { useDraggable } from '../../hooks/useDraggable';
+import { useEffect, useRef, useState } from 'react';
 import { MAP_STYLES } from '../../lib/constants';
 import type { MapStyleKey } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -22,8 +22,10 @@ export default function LayerControl() {
   const toggleLayer = useDashboardStore((s) => s.toggleLayer);
   const mapStyle = useDashboardStore((s) => s.mapStyle);
   const setMapStyle = useDashboardStore((s) => s.setMapStyle);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
+  const activeCount = LAYER_ITEMS.filter(({ name }) => !!layerVisibility[name]).length;
 
   const allOn = LAYER_ITEMS.every(({ name }) => !!layerVisibility[name]);
   const noneOn = LAYER_ITEMS.every(({ name }) => !layerVisibility[name]);
@@ -39,94 +41,145 @@ export default function LayerControl() {
     }
   };
 
-  return (
-    <div
-      className="absolute top-[60px] right-3 z-10 rounded-lg px-3 py-2.5 max-h-[420px] overflow-y-auto"
-      style={{
-        backdropFilter: 'var(--blur)',
-        WebkitBackdropFilter: 'var(--blur)',
-        background: 'var(--glass)',
-        border: '1px solid var(--glass-border)',
-        transform: `translate(${dragPos.x}px, ${dragPos.y}px)`,
-      }}
-    >
-      <div
-        className="flex items-center justify-between mb-2 cursor-grab active:cursor-grabbing"
-        onMouseDown={onDragStart}
-      >
-        <div
-          className="text-xs font-semibold uppercase tracking-wider"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          Layers
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={selectAll}
-            disabled={allOn}
-            className="text-[10px] text-[#90CAF9] hover:text-white disabled:text-zinc-600 transition-colors cursor-pointer disabled:cursor-default"
-          >
-            All
-          </button>
-          <button
-            type="button"
-            onClick={deselectAll}
-            disabled={noneOn}
-            className="text-[10px] text-[#90CAF9] hover:text-white disabled:text-zinc-600 transition-colors cursor-pointer disabled:cursor-default"
-          >
-            None
-          </button>
-        </div>
-      </div>
-      <div className="space-y-1">
-        {LAYER_ITEMS.map(({ name, label }) => (
-          <label
-            key={name}
-            className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            <input
-              type="checkbox"
-              checked={!!layerVisibility[name]}
-              onChange={() => toggleLayer(name)}
-              className="accent-blue-500 w-3.5 h-3.5"
-            />
-            {label}
-          </label>
-        ))}
-      </div>
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
-      {/* Map style switcher */}
-      <div className="mt-3 pt-2 pb-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
-        <div
-          className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
-          style={{ color: 'var(--text-muted)' }}
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+        style={{
+          color: open ? 'var(--text-primary)' : 'var(--text-secondary)',
+          background: open ? 'var(--selected-bg)' : 'transparent',
+          border: `1px solid ${open ? 'var(--glass-border-bright)' : 'transparent'}`,
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         >
-          Map Style
-        </div>
-        <div className="flex gap-1">
-          {STYLE_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMapStyle(key)}
-              className="px-2 py-1 text-[10px] rounded transition-colors cursor-pointer"
-              style={
-                mapStyle === key
-                  ? {
-                      background: 'rgba(59, 130, 246, 0.15)',
-                      color: '#3b82f6',
-                      border: '1px solid rgba(59, 130, 246, 0.4)',
-                    }
-                  : { color: 'var(--text-secondary)', border: '1px solid transparent' }
-              }
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
+        </svg>
+        Layers
+        <span
+          className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium min-w-[20px] text-center"
+          style={{
+            background: activeCount > 0 ? 'var(--accent-muted)' : 'transparent',
+            color: activeCount > 0 ? 'var(--accent)' : 'transparent',
+          }}
+        >
+          {activeCount}
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-[calc(100%+6px)] right-0 z-[100] rounded-lg px-3 py-2.5 min-w-[220px]"
+          style={{
+            backdropFilter: 'var(--blur-heavy)',
+            WebkitBackdropFilter: 'var(--blur-heavy)',
+            background: 'var(--glass-heavy)',
+            border: '1px solid var(--glass-border-bright)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-secondary)' }}
             >
-              {MAP_STYLES[key].label}
-            </button>
-          ))}
+              Layers
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAll}
+                disabled={allOn}
+                className="text-[10px] transition-colors cursor-pointer disabled:cursor-default"
+                style={{ color: 'var(--accent)' }}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={deselectAll}
+                disabled={noneOn}
+                className="text-[10px] transition-colors cursor-pointer disabled:cursor-default"
+                style={{ color: 'var(--accent)' }}
+              >
+                None
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1">
+            {LAYER_ITEMS.map(({ name, label }) => (
+              <label
+                key={name}
+                className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!layerVisibility[name]}
+                  onChange={() => toggleLayer(name)}
+                  className="accent-blue-500 w-3.5 h-3.5"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          {/* Map style switcher */}
+          <div className="mt-3 pt-2 pb-1" style={{ borderTop: '1px solid var(--glass-border)' }}>
+            <div
+              className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Map Style
+            </div>
+            <div className="flex gap-1">
+              {STYLE_KEYS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMapStyle(key)}
+                  className="px-2 py-1 text-[10px] rounded transition-colors cursor-pointer"
+                  style={
+                    mapStyle === key
+                      ? {
+                          background: 'var(--accent-muted)',
+                          color: 'var(--accent)',
+                          border: '1px solid var(--accent-border)',
+                        }
+                      : { color: 'var(--text-secondary)', border: '1px solid transparent' }
+                  }
+                >
+                  {MAP_STYLES[key].label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

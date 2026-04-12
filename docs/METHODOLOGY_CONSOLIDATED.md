@@ -187,7 +187,7 @@ Candidate zone (50km radius)
 
 **Resolution note:** The PVOUT raster is ~1km resolution (~86 ha/pixel). Layer 4 is a near-no-op at this resolution. See Appendix A for full filter specifications.
 
-**Deferred: buildable land polygons.** The current pipeline picks the single best pixel per KEK and records aggregate `buildable_area_ha`. A future improvement would group contiguous buildable pixels into discrete polygon objects, each with its own area, max capacity, centroid, and average PVOUT. This enables (1) showing WHERE buildable areas are on the map, (2) comparing multiple sites within the same 50km radius, and (3) per-polygon substation distance calculations. Value improves with higher-resolution data. Tracked as TODOS.md M14.
+**Buildable land polygons (implemented).** Contiguous buildable pixels are vectorized into polygon objects by `build_buildable_polygons.py`, each with area (ha), max capacity (MWp), centroid, and average PVOUT. These are displayed on the map as the "Solar Buildable Areas" layer (clickable popups). When a KEK is selected, a within-boundary overlay clips buildable polygons to the KEK boundary using `get_within_boundary_buildable()` in `map_layers.py`. The clipping applies a 220m buffer (`BUFFER_DEG = 0.002`) to catch near-miss polygons from raster vectorization, then intersects with the actual KEK polygon. Within-boundary area is capped at the KEK polygon's geographic area to prevent inflation when coarse raster pixels (~1,370 ha each) partially overlap small KEKs. Resolution note: at ~1km PVOUT resolution, polygon boundaries are approximate (~500m accuracy).
 
 ### 3.4 Solar site coordinates
 
@@ -237,6 +237,7 @@ Solar plant inside KEK boundary, behind-the-meter. No PLN involvement.
 - **Grid infrastructure needed:** None (internal distribution only)
 - **Cost:** Base LCOE only (no connection cost, no land cost)
 - **Minimum viable capacity:** 0.5 MWp (Indonesian IUPTLS regulatory threshold)
+- **Buildable area visualization:** When a KEK is selected, buildable polygons within the KEK boundary are displayed as a green overlay on the map. These are clipped from the 50km-radius buildable polygons (§3.3) using the KEK polygon boundary, with a 220m buffer to catch edge polygons from raster vectorization. Metrics: `within_boundary_area_ha`, `within_boundary_capacity_mwp`, `pvout_within_boundary` (see `build_fct_kek_resource.py`).
 
 ### 5.2 Grid-connected solar
 

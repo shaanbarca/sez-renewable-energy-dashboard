@@ -60,22 +60,27 @@ export default function CapexInput({ value, onChange, config }: CapexInputProps)
   return (
     <div className="py-1.5">
       <div className="flex items-center justify-between mb-1">
-        <label className="text-[11px] text-zinc-400 leading-tight relative">
+        <label
+          className="text-[11px] leading-tight relative"
+          style={{ color: 'var(--text-secondary)' }}
+        >
           {config.label}
           {config.description && (
             <span
-              className="ml-1 text-zinc-600 hover:text-zinc-300 cursor-help inline-block"
+              className="ml-1 cursor-help inline-block"
+              style={{ color: 'var(--text-muted)' }}
               onMouseEnter={() => setShowTip(true)}
               onMouseLeave={() => setShowTip(false)}
             >
               ?
               {showTip && (
                 <span
-                  className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] text-zinc-200 leading-snug whitespace-normal w-48"
+                  className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-48"
                   style={{
-                    background: 'rgba(20, 20, 24, 0.95)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                    background: 'var(--popup-bg)',
+                    color: 'var(--text-value)',
+                    border: '1px solid var(--popup-border)',
+                    boxShadow: 'var(--popup-shadow)',
                   }}
                 >
                   {config.description}
@@ -87,7 +92,7 @@ export default function CapexInput({ value, onChange, config }: CapexInputProps)
 
         {/* Inline text input */}
         <div className="flex items-center gap-0.5 text-[11px]">
-          <span className="text-zinc-500">$</span>
+          <span style={{ color: 'var(--text-muted)' }}>$</span>
           <input
             ref={inputRef}
             type="text"
@@ -97,11 +102,13 @@ export default function CapexInput({ value, onChange, config }: CapexInputProps)
             onBlur={() => commit(localText)}
             onKeyDown={handleKeyDown}
             onFocus={() => inputRef.current?.select()}
-            className={`w-14 bg-transparent text-right font-medium tabular-nums outline-none
-                       border-b transition-colors
-                       ${invalid ? 'text-red-400 border-red-400/50' : 'text-zinc-200 border-zinc-700 focus:border-[#90CAF9]/60'}`}
+            className="w-14 bg-transparent text-right font-medium tabular-nums outline-none border-b transition-colors"
+            style={{
+              color: invalid ? '#f87171' : 'var(--text-value)',
+              borderColor: invalid ? 'rgba(248, 113, 113, 0.5)' : 'var(--border-subtle)',
+            }}
           />
-          <span className="text-zinc-500">{config.unit}</span>
+          <span style={{ color: 'var(--text-muted)' }}>{config.unit}</span>
         </div>
       </div>
 
@@ -114,20 +121,22 @@ export default function CapexInput({ value, onChange, config }: CapexInputProps)
         max={config.max}
         step={config.step}
       >
-        <RadixSlider.Track className="relative grow h-[4px] rounded-full bg-white/[0.08]">
-          <RadixSlider.Range className="absolute h-full rounded-full bg-[#90CAF9]/60" />
+        <RadixSlider.Track
+          className="slider-track relative grow h-[4px] rounded-full"
+          style={{ background: 'var(--bar-bg)' }}
+        >
+          <RadixSlider.Range className="slider-range absolute h-full rounded-full" />
         </RadixSlider.Track>
         <RadixSlider.Thumb
-          className="block w-3.5 h-3.5 rounded-full bg-[#90CAF9] border-2 border-white/80 shadow-md
-                     hover:bg-[#BBDEFB] focus:outline-none focus:ring-2 focus:ring-[#90CAF9]/40
-                     transition-colors cursor-grab active:cursor-grabbing"
+          className="slider-thumb block w-3.5 h-3.5 rounded-full shadow-md
+                     focus:outline-none transition-colors cursor-grab active:cursor-grabbing"
           aria-label={config.label}
         />
       </RadixSlider.Root>
 
       {/* Out-of-range hint */}
       {(value < config.min || value > config.max) && (
-        <div className="text-[9px] text-zinc-600 mt-0.5">
+        <div className="text-[9px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
           Custom value (slider range: {config.min}–{config.max})
         </div>
       )}

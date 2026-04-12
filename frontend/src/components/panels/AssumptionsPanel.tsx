@@ -44,10 +44,17 @@ function SummaryBlock() {
         <div
           key={item.label}
           className="flex-1 px-2 py-1.5 rounded text-center"
-          style={{ background: 'rgba(255,255,255,0.04)' }}
+          style={{ background: 'var(--card-bg)' }}
         >
-          <div className="text-[9px] text-zinc-500 uppercase tracking-wider">{item.label}</div>
-          <div className="text-xs font-medium text-zinc-200 tabular-nums">{item.value}</div>
+          <div
+            className="text-[9px] uppercase tracking-wider"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {item.label}
+          </div>
+          <div className="text-xs font-medium tabular-nums" style={{ color: 'var(--text-value)' }}>
+            {item.value}
+          </div>
         </div>
       ))}
     </div>
@@ -118,23 +125,24 @@ function BenchmarkToggle() {
   ];
 
   return (
-    <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+    <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+      <div
+        className="text-[10px] uppercase tracking-wider mb-1.5"
+        style={{ color: 'var(--text-muted)' }}
+      >
         Grid Cost Benchmark
       </div>
-      <div
-        className="flex rounded overflow-hidden"
-        style={{ background: 'rgba(255,255,255,0.04)' }}
-      >
+      <div className="flex rounded overflow-hidden" style={{ background: 'var(--card-bg)' }}>
         {options.map((opt) => (
           <button
             key={opt.value}
             onClick={() => setBenchmarkMode(opt.value)}
-            className={`flex-1 py-1.5 text-[11px] font-medium transition-colors ${
+            className="flex-1 py-1.5 text-[11px] font-medium transition-colors"
+            style={
               benchmarkMode === opt.value
-                ? 'bg-[#90CAF9]/20 text-[#90CAF9]'
-                : 'text-zinc-500 hover:text-zinc-400'
-            }`}
+                ? { background: 'var(--accent-muted)', color: 'var(--accent)' }
+                : { color: 'var(--text-muted)' }
+            }
           >
             {opt.label}
           </button>
@@ -148,9 +156,12 @@ function BenchmarkToggle() {
 
 function AccordionTrigger({ children }: { children: React.ReactNode }) {
   return (
-    <Accordion.Trigger className="flex items-center justify-between w-full py-1.5 text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-400 transition-colors group">
+    <Accordion.Trigger
+      className="flex items-center justify-between w-full py-1.5 text-[10px] uppercase tracking-wider transition-colors group"
+      style={{ color: 'var(--text-muted)' }}
+    >
       <span>{children}</span>
-      <ChevronDown className="text-zinc-600 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+      <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
     </Accordion.Trigger>
   );
 }
@@ -206,7 +217,7 @@ export default function AssumptionsPanel() {
       {/* Drag handle + Header */}
       <div
         onMouseDown={onDragStart}
-        className="flex items-center justify-between w-full px-3.5 py-2.5 hover:bg-white/[0.03] transition-colors cursor-grab active:cursor-grabbing"
+        className="flex items-center justify-between w-full px-3.5 py-2.5 transition-colors cursor-grab active:cursor-grabbing"
         onClick={() => setCollapsed(!collapsed)}
         role="button"
       >
@@ -215,14 +226,22 @@ export default function AssumptionsPanel() {
             Assumptions
           </span>
           {isModified && (
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-[#90CAF9]/20 text-[#90CAF9]">
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-medium"
+              style={{ background: 'var(--accent-muted)', color: 'var(--accent)' }}
+            >
               Modified
             </span>
           )}
-          {loading && <span className="w-1.5 h-1.5 rounded-full bg-[#90CAF9] animate-pulse" />}
+          {loading && (
+            <span
+              className="w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ background: 'var(--accent)' }}
+            />
+          )}
         </div>
         <ChevronDown
-          className={`text-zinc-500 transition-transform duration-200 ${
+          className={`transition-transform duration-200 ${
             collapsed ? '' : 'rotate-180'
           }`}
         />
@@ -235,7 +254,7 @@ export default function AssumptionsPanel() {
           maxHeight: collapsed ? 0 : 'calc(100vh - 150px)',
           opacity: collapsed ? 0 : 1,
           scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(255,255,255,0.15) transparent',
+          scrollbarColor: 'var(--scrollbar-thumb) transparent',
         }}
       >
         <div ref={bodyRef} className="px-3.5 pb-3">
@@ -264,7 +283,11 @@ export default function AssumptionsPanel() {
 
           {/* Tier 2 + 3: Advanced */}
           <Accordion.Root type="multiple" className="mt-1">
-            <Accordion.Item value="advanced" className="border-t border-white/[0.06]">
+            <Accordion.Item
+              value="advanced"
+              className="border-t"
+              style={{ borderColor: 'var(--border-subtle)' }}
+            >
               <Accordion.Header>
                 <AccordionTrigger>Advanced Assumptions</AccordionTrigger>
               </Accordion.Header>
@@ -281,7 +304,11 @@ export default function AssumptionsPanel() {
               </Accordion.Content>
             </Accordion.Item>
 
-            <Accordion.Item value="thresholds" className="border-t border-white/[0.06]">
+            <Accordion.Item
+              value="thresholds"
+              className="border-t"
+              style={{ borderColor: 'var(--border-subtle)' }}
+            >
               <Accordion.Header>
                 <AccordionTrigger>Flag Thresholds</AccordionTrigger>
               </Accordion.Header>
@@ -300,9 +327,11 @@ export default function AssumptionsPanel() {
           {/* Reset */}
           <button
             onClick={resetDefaults}
-            className="w-full mt-3 mb-2 py-1.5 rounded text-[11px] font-medium text-zinc-400
-                       hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
-            style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+            className="w-full mt-3 mb-2 py-1.5 rounded text-[11px] font-medium transition-colors"
+            style={{
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+            }}
           >
             Reset to Defaults
           </button>

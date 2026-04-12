@@ -358,6 +358,73 @@ def load_buildable_polygons() -> dict | None:
         return json.load(f)
 
 
+def _strip_z(geojson_geom: dict) -> None:
+    """Remove z-coordinates from a GeoJSON geometry dict in-place."""
+    coords = geojson_geom.get("coordinates")
+    if coords is None:
+        return
+    geojson_geom["coordinates"] = _strip_z_coords(coords)
+
+
+def _strip_z_coords(coords: list | tuple) -> list:
+    """Recursively strip z-values from nested coordinate arrays."""
+    if not coords:
+        return list(coords)
+    if isinstance(coords[0], (int, float)):
+        return list(coords[:2])
+    return [_strip_z_coords(c) for c in coords]
+
+
+def get_within_boundary_buildable(kek_id: str) -> dict | None:
+    """Return buildable polygon fragments clipped to a KEK boundary.
+
+    Loads the KEK polygon and all buildable polygons, buffers the buildable
+    polygons by ~150m to catch near-misses from raster vectorization, then
+    clips to the KEK boundary. Returns a GeoJSON FeatureCollection of the
+    clipped fragments, or None if no overlap.
+    """
+    from shapely.geometry import mapping, shape
+
+    kek_feat = get_kek_polygon_by_id(kek_id)
+    if kek_feat is None:
+        return None
+
+    bp = load_buildable_polygons()
+    if bp is None or not bp.get("features"):
+        return None
+
+    kek_geom = shape(kek_feat["geometry"])
+    # Buffer KEK slightly outward to catch polygons just outside boundary
+    BUFFER_DEG = 0.002  # ~220m at equator, ~200m at Indonesian latitudes
+    kek_buffered = kek_geom.buffer(BUFFER_DEG)
+
+    # Find buildable polygons that intersect the buffered KEK
+    clipped_features = []
+    for feat in bp["features"]:
+        bp_geom = shape(feat["geometry"])
+        if not kek_buffered.intersects(bp_geom):
+            continue
+        # Clip to the actual KEK boundary (not the buffer)
+        clipped = kek_geom.intersection(bp_geom.buffer(BUFFER_DEG))
+        if clipped.is_empty or clipped.area == 0:
+            continue
+        geojson_geom = mapping(clipped)
+        # Strip z-coordinates (shapely intersection can produce 3D coords)
+        _strip_z(geojson_geom)
+        clipped_features.append(
+            {
+                "type": "Feature",
+                "geometry": geojson_geom,
+                "properties": feat.get("properties", {}),
+            }
+        )
+
+    if not clipped_features:
+        return None
+
+    return {"type": "FeatureCollection", "features": clipped_features}
+
+
 # def load_buildable_raster() -> tuple[str, list[list[float]]] | None:
 #     """Load pre-computed buildable PVOUT raster (output of build_buildable_raster.py).
 #

@@ -4,14 +4,14 @@ import Map, { Layer, NavigationControl, Source } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useMapLayers } from '../../hooks/useMapLayers';
-import { fetchKekPolygon } from '../../lib/api';
+import { fetchKekBuildable, fetchKekPolygon } from '../../lib/api';
 import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
 import type { HoverInfo } from './KekMarkers';
 import KekMarkers from './KekMarkers';
-import LayerControl from './LayerControl';
+
 import RasterOverlay from './RasterOverlay';
 import VectorOverlay from './VectorOverlay';
 
@@ -61,6 +61,7 @@ export default function MapView() {
   const selectedKek = useDashboardStore((s) => s.selectedKek);
   const selectKek = useDashboardStore((s) => s.selectKek);
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
+  const [wbBuildable, setWbBuildable] = useState<GeoJSON.FeatureCollection | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
@@ -110,6 +111,19 @@ export default function MapView() {
         console.error('Failed to fetch KEK polygon:', err);
         setPolygon(null);
       });
+  }, [selectedKek]);
+
+  // Fetch within-boundary buildable overlay when KEK is selected
+  useEffect(() => {
+    if (!selectedKek) {
+      setWbBuildable(null);
+      return;
+    }
+    fetchKekBuildable(selectedKek)
+      .then((data) => {
+        setWbBuildable(data.features?.length ? data : null);
+      })
+      .catch(() => setWbBuildable(null));
   }, [selectedKek]);
 
   const handleClick = useCallback(
@@ -233,9 +247,30 @@ export default function MapView() {
             />
           </Source>
         )}
-      </Map>
 
-      <LayerControl />
+        {/* Within-boundary buildable overlay (clipped to KEK) */}
+        {wbBuildable && (
+          <Source id="wb-buildable" type="geojson" data={wbBuildable}>
+            <Layer
+              id="wb-buildable-fill"
+              type="fill"
+              paint={{
+                'fill-color': '#66BB6A',
+                'fill-opacity': 0.35,
+              }}
+            />
+            <Layer
+              id="wb-buildable-outline"
+              type="line"
+              paint={{
+                'line-color': '#43A047',
+                'line-width': 1.5,
+                'line-opacity': 0.7,
+              }}
+            />
+          </Source>
+        )}
+      </Map>
 
       {/* Back to National View button — centered top, above assumptions panel */}
       {(selectedKek || isZoomedIn) && (
