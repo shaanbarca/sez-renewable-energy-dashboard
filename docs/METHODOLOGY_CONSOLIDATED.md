@@ -375,6 +375,25 @@ Default: 10% (ADB benchmark for SE Asia renewable energy). Dashboard slider: 4-2
 
 Three LCOE values per KEK per WACC: `lcoe_low` (CAPEX_lower), `lcoe_mid` (CAPEX_central, primary), `lcoe_high` (CAPEX_upper).
 
+### 6.7 LCOE sensitivity to project scale
+
+The dashboard includes an "LCOE vs Project Scale" chart that shows how LCOE varies with project capacity (MW). This is a **sensitivity visualization only**, it does not change the scorecard LCOE, which uses the per-kW formulas at actual capacity.
+
+**Capacity-dependent cost components:**
+
+| Cost | How it scales | Formula in chart |
+|------|--------------|------------------|
+| Connection line | Fixed total cost / capacity (economies of scale) | `(dist_km x $125k/km + $2M) / cap_kW` |
+| Transmission line | Fixed total cost / capacity | `(inter_sub_dist x $1.25M/km) / cap_kW` (only if substations not connected) |
+| Substation upgrade | Deficit grows with capacity (diseconomy) | `max(0, 1 - avail_mva / (cap_mw x util)) x $80/kW` |
+| CAPEX, land, FOM | Constant per kW | No scale effect |
+
+**Reference calibration:** The connection line total cost ($125k/km) is derived from the per-kW formula at ~25MW reference scale: $5/kW-km x 25,000 kW = $125,000/km. The $2M fixed cost is $80/kW x 25,000 kW. At exactly 25MW, both formulations give the same LCOE.
+
+**Typical curve shape:** Declining at small capacity (connection costs dominate, spread over more kW), flattening at medium capacity, potentially rising at large capacity if substation upgrade costs grow. KEKs with red capacity assessment show a more pronounced uptick at high capacity.
+
+**Implementation:** `LcoeCurveChart.tsx` (frontend only, no backend computation).
+
 ---
 
 ## 7. Grid Cost Reference

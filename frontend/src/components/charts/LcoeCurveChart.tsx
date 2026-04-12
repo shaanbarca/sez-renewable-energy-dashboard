@@ -58,17 +58,23 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
     const n = assumptions.lifetime_yr;
     const fom = assumptions.fom_usd_per_kw_yr;
     const capex = assumptions.capex_usd_per_kw;
-
-    // Connection cost (constant per kW)
-    const dist = row.dist_solar_to_nearest_substation_km ?? row.dist_to_nearest_substation_km ?? 0;
-    const connCost =
-      dist * assumptions.connection_cost_per_kw_km + assumptions.grid_connection_fixed_per_kw;
     const landCost = assumptions.land_cost_usd_per_kw;
 
-    // Inter-substation distance for transmission cost (varies with capacity)
+    // Connection line: total fixed cost that gets spread over capacity
+    // $125k/km implied by $5/kW-km at ~25MW reference scale
+    const dist = row.dist_solar_to_nearest_substation_km ?? row.dist_to_nearest_substation_km ?? 0;
+    const connLineTotal = dist * 125_000;
+    // Fixed switchgear/protection: ~$2M one-time cost
+    const connFixedTotal = 2_000_000;
+
+    // Transmission line: only if substations not connected
     const needsTransLine =
       row.inter_substation_connected === false && (row.inter_substation_dist_km ?? 0) > 0;
     const interSubDist = row.inter_substation_dist_km ?? 0;
+
+    // Substation capacity for upgrade cost
+    const availMva = row.available_capacity_mva ?? null;
+    const util = assumptions.substation_utilization_pct;
 
     // CRF
     const crf = (wacc * (1 + wacc) ** n) / ((1 + wacc) ** n - 1);
@@ -81,8 +87,22 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
     const points: DataPoint[] = [];
     for (let i = 0; i < steps; i++) {
       const cap = minCap + i * stepSize;
-      const transCost = needsTransLine ? (interSubDist * 1_250_000) / (cap * 1000) : 0;
-      const effCapex = capex + connCost + landCost + transCost;
+      const capKw = cap * 1000;
+
+      // Connection: total cost / capacity (economies of scale)
+      const connPerKw = capKw > 0 ? (connLineTotal + connFixedTotal) / capKw : 0;
+
+      // Transmission: fixed total / capacity (only if needed)
+      const transPerKw = needsTransLine ? (interSubDist * 1_250_000) / capKw : 0;
+
+      // Substation upgrade: deficit grows with capacity
+      let upgradePerKw = 0;
+      if (availMva != null && availMva > 0) {
+        const deficit = Math.max(0, 1 - availMva / (cap * util));
+        upgradePerKw = deficit * 80;
+      }
+
+      const effCapex = capex + connPerKw + landCost + transPerKw + upgradePerKw;
       const lcoe = (effCapex * crf + fom) / (cf * 8.76);
       points.push({
         capacity_mw: Math.round(cap * 10) / 10,
@@ -180,7 +200,8 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
         </AreaChart>
       </ResponsiveContainer>
       <div className="text-[9px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-        LCOE decreases at larger scale as fixed transmission costs spread over more capacity.
+        LCOE decreases at larger scale as fixed grid costs spread over more capacity, but may
+        rise if substation capacity is exceeded.
       </div>
     </div>
   );
