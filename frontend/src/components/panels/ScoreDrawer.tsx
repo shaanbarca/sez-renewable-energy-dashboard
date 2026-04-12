@@ -101,6 +101,60 @@ function StatRowWithTip({
   );
 }
 
+/** Colored stat value — green/yellow/red based on value. */
+function ColoredStatRow({
+  label,
+  value,
+  unit,
+  tip,
+  color,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  unit?: string;
+  tip?: string;
+  color?: string;
+}) {
+  const [showTip, setShowTip] = useState(false);
+  const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-[11px] relative" style={{ color: 'var(--text-muted)' }}>
+        {label}
+        {tip && (
+          <span
+            className="ml-1 cursor-help inline-block"
+            style={{ color: 'var(--text-muted)' }}
+            onMouseEnter={() => setShowTip(true)}
+            onMouseLeave={() => setShowTip(false)}
+          >
+            ?
+            {showTip && (
+              <span
+                className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-48"
+                style={{
+                  background: 'var(--popup-bg)',
+                  color: 'var(--text-value)',
+                  border: '1px solid var(--popup-border)',
+                  boxShadow: 'var(--popup-shadow)',
+                }}
+              >
+                {tip}
+              </span>
+            )}
+          </span>
+        )}
+      </span>
+      <span
+        className="text-[12px] font-medium tabular-nums"
+        style={{ color: color ?? 'var(--text-value)' }}
+      >
+        {display}
+      </span>
+    </div>
+  );
+}
+
 function StatCard({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -111,6 +165,38 @@ function StatCard({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+function SectionHeader({ title, tip }: { title: string; tip?: string }) {
+  const [showTip, setShowTip] = useState(false);
+  return (
+    <div className="text-[11px] font-medium mb-1.5 relative" style={{ color: 'var(--text-muted)' }}>
+      {title}
+      {tip && (
+        <span
+          className="ml-1 cursor-help inline-block"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={() => setShowTip(true)}
+          onMouseLeave={() => setShowTip(false)}
+        >
+          ?
+          {showTip && (
+            <span
+              className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-52"
+              style={{
+                background: 'var(--popup-bg)',
+                color: 'var(--text-value)',
+                border: '1px solid var(--popup-border)',
+                boxShadow: 'var(--popup-shadow)',
+              }}
+            >
+              {tip}
+            </span>
+          )}
+        </span>
+      )}
     </div>
   );
 }
@@ -237,204 +323,7 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
   }
 }
 
-/* ---------- Tab content components ---------- */
-
-function InfoTab({ row }: { row: ScorecardRow }) {
-  return (
-    <>
-      <StatCard>
-        <StatRow label="Type" value={row.kek_type ?? null} />
-        <StatRow label="Category" value={row.category ?? null} />
-        <StatRow
-          label="Area"
-          value={
-            row.area_ha != null
-              ? row.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })
-              : null
-          }
-          unit="ha"
-        />
-      </StatCard>
-      <StatCard>
-        <StatRow label="Province" value={row.province} />
-        <StatRow label="Grid Region" value={row.grid_region_id} />
-      </StatCard>
-      <StatCard>
-        <StatRow label="Developer" value={row.developer ?? null} />
-        <StatRow label="Legal Basis" value={row.legal_basis ?? null} />
-      </StatCard>
-      {row.demand_2030_gwh != null && (
-        <StatCard>
-          <StatRowWithTip
-            label="Est. Demand 2030"
-            value={row.demand_2030_gwh.toFixed(1)}
-            unit="GWh"
-            tip="Estimated annual electricity demand in 2030, derived from zone area × energy intensity by KEK type. This is a provisional estimate."
-          />
-        </StatCard>
-      )}
-    </>
-  );
-}
-
-function ResourceTab({
-  row,
-  substations,
-  loadingSubs,
-}: {
-  row: ScorecardRow;
-  substations: SubstationWithCosts[];
-  loadingSubs: boolean;
-}) {
-  const pvoutCentroid = row.pvout_centroid_kwh_kwp_yr;
-  const pvoutBest = row.pvout_best_50km_kwh_kwp_yr;
-  const cf =
-    pvoutBest != null
-      ? (pvoutBest / 8760).toFixed(3)
-      : pvoutCentroid != null
-        ? (pvoutCentroid / 8760).toFixed(3)
-        : null;
-  const nearest = substations.find((s) => s.is_nearest);
-
-  return (
-    <>
-      <StatCard>
-        <StatRow
-          label="PVOUT Centroid"
-          value={pvoutCentroid != null ? pvoutCentroid.toFixed(0) : null}
-          unit="kWh/kWp/yr"
-        />
-        <StatRow
-          label="PVOUT Best 50km"
-          value={pvoutBest != null ? pvoutBest.toFixed(0) : null}
-          unit="kWh/kWp/yr"
-        />
-        <StatRow label="Capacity Factor" value={cf} />
-      </StatCard>
-      <StatCard>
-        <StatRow
-          label="Buildable Area"
-          value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null}
-          unit="ha"
-        />
-        <StatRow
-          label="Max Capacity"
-          value={
-            row.max_captive_capacity_mwp != null ? row.max_captive_capacity_mwp.toFixed(0) : null
-          }
-          unit="MWp"
-        />
-        {row.buildable_area_ha != null &&
-          row.buildable_area_ha > 0 &&
-          row.buildable_area_ha < 2000 && (
-            <div className="text-[10px] text-amber-400/70 leading-tight mt-1">
-              Note: buildable area is the sum of suitable pixels within 50km at ~1km resolution.
-              Actual contiguous land for a solar farm may be smaller.
-            </div>
-          )}
-      </StatCard>
-      <StatCard>
-        {loadingSubs ? (
-          <div className="text-[11px] py-2 text-center" style={{ color: 'var(--text-muted)' }}>
-            Loading substations...
-          </div>
-        ) : nearest ? (
-          <>
-            <StatRow label="Nearest Substation" value={nearest.name} />
-            <StatRow label="Distance" value={nearest.dist_km.toFixed(1)} unit="km" />
-          </>
-        ) : (
-          <StatRow label="Nearest Substation" value="N/A" />
-        )}
-      </StatCard>
-    </>
-  );
-}
-
-function LCOETab({ row }: { row: ScorecardRow }) {
-  const wbLcoe = row.lcoe_within_boundary_usd_mwh;
-  const assumptions = useDashboardStore((s) => s.assumptions);
-  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
-  const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
-
-  const utilizationConfig = sliderConfigs?.tier2?.substation_utilization_pct;
-  const cap = row.capacity_assessment ?? 'unknown';
-
-  return (
-    <>
-      <StatCard>
-        <StatRow label="LCOE Low" value={row.lcoe_low_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRow label="LCOE Mid" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRow label="LCOE High" value={row.lcoe_high_usd_mwh?.toFixed(1)} unit="$/MWh" />
-      </StatCard>
-      {wbLcoe != null && (
-        <StatCard>
-          <StatRow label="Within-Boundary LCOE" value={wbLcoe.toFixed(1)} unit="$/MWh" />
-        </StatCard>
-      )}
-
-      {row.max_captive_capacity_mwp != null && row.max_captive_capacity_mwp > 0 && (
-        <LcoeCurveChart row={row} />
-      )}
-
-      {/* Substation capacity — slider + live traffic light */}
-      {utilizationConfig && assumptions && (
-        <StatCard>
-          <Slider
-            value={assumptions.substation_utilization_pct}
-            onChange={(v) =>
-              setAssumptions({ substation_utilization_pct: v } as Partial<UserAssumptions>)
-            }
-            min={utilizationConfig.min}
-            max={utilizationConfig.max}
-            step={utilizationConfig.step}
-            label={utilizationConfig.label}
-            unit={utilizationConfig.unit}
-            description={utilizationConfig.description}
-          />
-          <div className="flex items-center gap-2 mt-1">
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: CAPACITY_COLORS[cap] }}
-            />
-            <span className="text-xs" style={{ color: 'var(--text-value)' }}>
-              {CAPACITY_LABELS[cap]}
-            </span>
-          </div>
-          <StatRow
-            label="Available Capacity"
-            value={
-              row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'
-            }
-            unit="MVA"
-          />
-          <div className="mt-1 text-[9px] text-[var(--text-muted)] leading-relaxed">
-            Applies to all KEKs. Actual utilization requires PLN grid study.
-          </div>
-        </StatCard>
-      )}
-
-      <StatCard>
-        <StatRowWithTip
-          label="Tariff Cost"
-          value={row.dashboard_rate_usd_mwh?.toFixed(1)}
-          unit="$/MWh"
-          tip="PLN I-4/TT industrial tariff rate. This is the subsidized rate paid by KEK tenants, not the true cost of supply (BPP)."
-        />
-        <StatRow label="LCOE Gap to Tariff" value={row.gap_vs_tariff_pct?.toFixed(1)} unit="%" />
-      </StatCard>
-      <StatCard>
-        <StatRowWithTip
-          label="BPP"
-          value={row.bpp_usd_mwh?.toFixed(1)}
-          unit="$/MWh"
-          tip="Biaya Pokok Penyediaan — PLN's unsubsidized cost of electricity supply for this grid region. Unlike the industrial tariff, BPP reflects the true generation + transmission cost."
-        />
-        <StatRow label="LCOE Gap to BPP" value={row.gap_vs_bpp_pct?.toFixed(1)} unit="%" />
-      </StatCard>
-    </>
-  );
-}
+/* ---------- Coverage bar ---------- */
 
 function CoverageBar({
   label,
@@ -491,63 +380,6 @@ function CoverageBar({
   );
 }
 
-function DemandTab({ row }: { row: ScorecardRow }) {
-  const demand2030 = row.demand_2030_gwh;
-  const geasShare = row.green_share_geas;
-  const solarGen = row.max_solar_generation_gwh;
-  const coverage = row.solar_supply_coverage_pct;
-  const wbGen = row.within_boundary_generation_gwh;
-  const wbCoverage = row.within_boundary_coverage_pct;
-
-  return (
-    <>
-      <StatCard>
-        <StatRow
-          label="2030 Demand Estimate"
-          value={demand2030 != null ? demand2030.toFixed(1) : null}
-          unit="GWh"
-        />
-        <StatRow
-          label="Max RE Generation (50km)"
-          value={solarGen != null ? solarGen.toFixed(1) : null}
-          unit="GWh/yr"
-        />
-        <StatRow
-          label="Within-Boundary Generation"
-          value={wbGen != null ? wbGen.toFixed(1) : null}
-          unit="GWh/yr"
-        />
-      </StatCard>
-      <CoverageBar label="RE Coverage (50km radius)" coverage={coverage} />
-      <CoverageBar
-        label="Within-Boundary RE Coverage"
-        coverage={wbCoverage}
-        subtitle="of demand coverable inside KEK"
-      />
-      {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
-        <div className="text-[9px] text-[var(--text-muted)] -mt-1 px-1">
-          Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
-          generation
-        </div>
-      )}
-      <StatCard>
-        <StatRow
-          label="GEAS Green Share"
-          value={geasShare != null ? `${(geasShare * 100).toFixed(1)}` : null}
-          unit="%"
-        />
-        <StatRow
-          label="Carbon Breakeven"
-          value={
-            row.carbon_breakeven_usd_tco2 != null ? row.carbon_breakeven_usd_tco2.toFixed(1) : null
-          }
-          unit="$/tCO2"
-        />
-      </StatCard>
-    </>
-  );
-}
-
 const CAPACITY_COLORS: Record<string, string> = {
   green: '#4CAF50',
   yellow: '#FFC107',
@@ -561,106 +393,580 @@ const CAPACITY_LABELS: Record<string, string> = {
   unknown: 'Unknown',
 };
 
-function PipelineTab({
-  row,
-  substations,
-}: {
-  row: ScorecardRow;
-  substations: SubstationWithCosts[];
-}) {
-  const gridUpgrade = row.grid_upgrade_planned;
-  const ruptlSummary = row.ruptl_region_summary;
+/* ---------- Tab 1: Overview (was Info) ---------- */
+
+function OverviewTab({ row }: { row: ScorecardRow }) {
+  const gapPct = row.solar_competitive_gap_pct;
+  const gapColor = gapPct < 0 ? '#4CAF50' : gapPct > 0 ? '#EF5350' : '#e0e0e0';
+  const gapSign = gapPct > 0 ? '+' : '';
 
   return (
     <>
       <StatCard>
-        <StatRow label="Grid Region" value={row.grid_region_id} />
-        <StatRow
-          label="Grid Upgrade Planned"
-          value={gridUpgrade != null ? (gridUpgrade ? 'Yes' : 'No') : 'N/A'}
+        <SectionHeader title="KEK Identity" />
+        <StatRowWithTip
+          label="Type"
+          value={row.kek_type ?? null}
+          tip="Industrial KEKs have high baseload demand and strong transition incentives. Tourism KEKs have lighter loads."
         />
-        <StatRow label="Grid Integration" value={row.grid_integration_category ?? 'N/A'} />
+        <StatRowWithTip
+          label="Category"
+          value={row.category ?? null}
+          tip="Established = operating with tenants. Proposed = may lack infrastructure. Under Construction = near-term opportunity."
+        />
+        <StatRowWithTip
+          label="Area"
+          value={
+            row.area_ha != null
+              ? row.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })
+              : null
+          }
+          unit="ha"
+          tip="Larger KEKs have more space for on-site solar. >1,000 ha is significant."
+        />
+        <StatRow label="Province" value={row.province} />
+        <StatRow label="Grid Region" value={row.grid_region_id} />
       </StatCard>
 
-      {/* Substation distances (capacity assessment moved to LCOE tab) */}
       <StatCard>
-        <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
-          Substation Proximity
-        </div>
-        <StatRow
-          label="Nearest Sub Distance"
-          value={row.dist_to_nearest_substation_km?.toFixed(1)}
-          unit="km"
+        <SectionHeader
+          title="At a Glance"
+          tip="Key numbers that tell you whether solar makes sense here. Green gap = solar is cheaper than grid."
         />
-        <StatRow
-          label="Solar→Sub Distance"
+        <StatRowWithTip
+          label="Solar LCOE"
+          value={row.lcoe_mid_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="Solar cost per MWh at current assumptions (10% WACC default). Compare to grid cost below."
+        />
+        <StatRowWithTip
+          label="Grid Cost"
+          value={row.grid_cost_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="PLN's cost to supply power here. If LCOE is lower, solar is already cheaper."
+        />
+        <ColoredStatRow
+          label="Competitive Gap"
+          value={`${gapSign}${gapPct.toFixed(1)}%`}
+          color={gapColor}
+          tip="Negative = solar beats grid. Positive = solar is more expensive. Below -10% is a strong case."
+        />
+        <StatRow label="Best RE" value={row.best_re_technology} />
+        {row.solar_supply_coverage_pct != null && (
+          <ColoredStatRow
+            label="RE Coverage"
+            value={`${(row.solar_supply_coverage_pct * 100).toFixed(0)}%`}
+            color={
+              row.solar_supply_coverage_pct >= 1.0
+                ? '#4CAF50'
+                : row.solar_supply_coverage_pct >= 0.5
+                  ? '#FFC107'
+                  : '#F44336'
+            }
+            tip="How much of this KEK's demand could renewable energy cover. Green (100%+) = full coverage possible."
+          />
+        )}
+      </StatCard>
+
+      {(row.demand_2030_gwh != null || row.captive_coal_count || row.nickel_smelter_count) && (
+        <StatCard>
+          <SectionHeader title="Demand Context" />
+          {row.demand_2030_gwh != null && (
+            <StatRowWithTip
+              label="Est. 2030 Demand"
+              value={row.demand_2030_gwh.toFixed(1)}
+              unit="GWh"
+              tip="Projected from zone area x energy intensity. Provisional estimate, not actual metered demand."
+            />
+          )}
+          {!!row.captive_coal_count && row.captive_coal_count > 0 && (
+            <StatRowWithTip
+              label="Captive Coal"
+              value={
+                row.captive_coal_mw != null
+                  ? `${row.captive_coal_count} plants, ${row.captive_coal_mw.toLocaleString()} MW`
+                  : `${row.captive_coal_count} plants`
+              }
+              tip="Existing coal plants within 50km. Subject to Perpres 112/2022 phase-out by 2050."
+            />
+          )}
+          {!!row.nickel_smelter_count && row.nickel_smelter_count > 0 && (
+            <StatRowWithTip
+              label="Nickel Smelters"
+              value={
+                row.dominant_process_type
+                  ? `${row.nickel_smelter_count} (${row.dominant_process_type})`
+                  : `${row.nickel_smelter_count}`
+              }
+              tip="RKEF smelters run 24/7 baseload, doubling battery storage requirements from 2h to 4h."
+            />
+          )}
+        </StatCard>
+      )}
+
+      {(row.developer || row.legal_basis) && (
+        <StatCard>
+          <SectionHeader title="Developer & Legal" />
+          <StatRow label="Developer" value={row.developer ?? null} />
+          <StatRow label="Legal Basis" value={row.legal_basis ?? null} />
+        </StatCard>
+      )}
+    </>
+  );
+}
+
+/* ---------- Tab 2: Solar (was Resource) ---------- */
+
+function SolarTab({ row }: { row: ScorecardRow }) {
+  const pvoutCentroid = row.pvout_centroid_kwh_kwp_yr;
+  const pvoutBest = row.pvout_best_50km_kwh_kwp_yr;
+  const cf =
+    pvoutBest != null
+      ? (pvoutBest / 8760).toFixed(3)
+      : pvoutCentroid != null
+        ? (pvoutCentroid / 8760).toFixed(3)
+        : null;
+
+  const wbLcoe = row.lcoe_within_boundary_usd_mwh;
+
+  return (
+    <>
+      <StatCard>
+        <SectionHeader
+          title="Solar Resource Quality"
+          tip="Higher PVOUT = more sun = cheaper solar. Above 1,400 kWh/kWp/yr is good for Indonesia."
+        />
+        <StatRowWithTip
+          label="PVOUT Centroid"
+          value={pvoutCentroid != null ? pvoutCentroid.toFixed(0) : null}
+          unit="kWh/kWp/yr"
+          tip="Solar yield at the KEK center. Used for on-site/within-boundary solar scenarios."
+        />
+        <StatRowWithTip
+          label="PVOUT Best (50km)"
+          value={pvoutBest != null ? pvoutBest.toFixed(0) : null}
+          unit="kWh/kWp/yr"
+          tip="Best solar yield on buildable land within 50km. Used for grid-connected scenarios. >1,500 is strong for Indonesia."
+        />
+        <StatRowWithTip
+          label="Capacity Factor"
+          value={cf}
+          tip="Fraction of time solar produces at full power. 0.15-0.20 is typical for Indonesia. Higher = cheaper LCOE."
+        />
+        <StatRow label="Best RE" value={row.best_re_technology} />
+      </StatCard>
+
+      <StatCard>
+        <SectionHeader
+          title="Buildable Land"
+          tip="Land within 50km that passes slope, land cover, forest, and peatland filters."
+        />
+        <StatRowWithTip
+          label="Buildable Area"
+          value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null}
+          unit="ha"
+          tip="Sum of suitable ~1km pixels within 50km. Actual contiguous sites for a solar farm may be smaller."
+        />
+        <StatRowWithTip
+          label="Max Capacity"
+          value={
+            row.max_captive_capacity_mwp != null ? row.max_captive_capacity_mwp.toFixed(0) : null
+          }
+          unit="MWp"
+          tip="MWp buildable at 5 ha/MWp density. This is the upper bound, not a recommended project size."
+        />
+        {row.buildable_area_ha != null &&
+          row.buildable_area_ha > 0 &&
+          row.buildable_area_ha < 2000 && (
+            <div className="text-[10px] text-amber-400/70 leading-tight mt-1">
+              Note: buildable area is the sum of suitable pixels within 50km at ~1km resolution.
+              Actual contiguous land for a solar farm may be smaller.
+            </div>
+          )}
+      </StatCard>
+
+      <StatCard>
+        <SectionHeader
+          title="LCOE Breakdown"
+          tip="Levelized Cost of Energy at three discount rates. Low = concessional finance, Mid = market rate, High = high-risk."
+        />
+        <StatRow label="LCOE Low (4%)" value={row.lcoe_low_usd_mwh?.toFixed(1)} unit="$/MWh" />
+        <StatRowWithTip
+          label="LCOE Mid (10%)"
+          value={row.lcoe_mid_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="Cost at 10% WACC (market rate). This is the primary comparison number. Low=4% (concessional DFI), High=16% (high-risk)."
+        />
+        <StatRow label="LCOE High (16%)" value={row.lcoe_high_usd_mwh?.toFixed(1)} unit="$/MWh" />
+        {wbLcoe != null && (
+          <StatRowWithTip
+            label="Within-Boundary"
+            value={wbLcoe.toFixed(1)}
+            unit="$/MWh"
+            tip="LCOE for solar built inside the KEK boundary. No grid connection cost, but uses centroid PVOUT which may be lower than best 50km."
+          />
+        )}
+      </StatCard>
+
+      {row.max_captive_capacity_mwp != null && row.max_captive_capacity_mwp > 0 && (
+        <LcoeCurveChart row={row} />
+      )}
+    </>
+  );
+}
+
+/* ---------- Tab 3: Grid (was split across Pipeline + LCOE) ---------- */
+
+function GridTab({
+  row,
+  substations,
+  loadingSubs,
+}: {
+  row: ScorecardRow;
+  substations: SubstationWithCosts[];
+  loadingSubs: boolean;
+}) {
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
+  const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
+  const utilizationConfig = sliderConfigs?.tier2?.substation_utilization_pct;
+  const cap = row.capacity_assessment ?? 'unknown';
+  const nearest = substations.find((s) => s.is_nearest);
+
+  return (
+    <>
+      <StatCard>
+        <SectionHeader
+          title="Grid Integration"
+          tip="How ready is the grid for solar at this KEK. Determines what investment is needed to connect."
+        />
+        <StatRowWithTip
+          label="Category"
+          value={row.grid_integration_category?.replace(/_/g, ' ') ?? 'N/A'}
+          tip="within_boundary = solar inside KEK. grid_ready = substation nearby. invest_transmission = build line from sub to KEK. invest_substation = build sub near solar. grid_first = major grid expansion needed."
+        />
+        <StatRowWithTip
+          label="Grid Upgrade Planned"
+          value={
+            row.grid_upgrade_planned != null ? (row.grid_upgrade_planned ? 'Yes' : 'No') : 'N/A'
+          }
+          tip="Whether RUPTL includes grid capacity additions in this region before 2030. 'No' + competitive solar = 'grid_first' flag."
+        />
+        <StatRow label="Grid Region" value={row.grid_region_id} />
+      </StatCard>
+
+      <StatCard>
+        <SectionHeader title="Substation Proximity" />
+        {loadingSubs ? (
+          <div className="text-[11px] py-2 text-center" style={{ color: 'var(--text-muted)' }}>
+            Loading substations...
+          </div>
+        ) : nearest ? (
+          <>
+            <StatRow label="Nearest Sub" value={nearest.name} />
+            <StatRow label="KEK-Sub Distance" value={nearest.dist_km.toFixed(1)} unit="km" />
+          </>
+        ) : (
+          <StatRow label="Nearest Sub" value="N/A" />
+        )}
+        <StatRowWithTip
+          label="Solar-Sub Distance"
           value={row.dist_solar_to_nearest_substation_km?.toFixed(1)}
           unit="km"
+          tip="Distance from the best solar site to the nearest substation. Drives gen-tie connection cost ($5/kW per km + $80/kW fixed)."
         />
       </StatCard>
 
-      {/* V3.1: Grid connectivity */}
       <StatCard>
-        <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
-          Grid Connectivity
-        </div>
-        <StatRow
+        <SectionHeader
+          title="Grid Connectivity"
+          tip="Whether existing PLN transmission lines connect the substations near the KEK and the solar site."
+        />
+        <StatRowWithTip
           label="Transmission Line"
           value={row.line_connected != null ? (row.line_connected ? 'Connected' : 'None') : 'N/A'}
+          tip="Whether a PLN transmission line geometrically connects the KEK-nearest and solar-nearest substations. 'None' means new line may be needed."
         />
         <StatRow
           label="Same PLN Region"
           value={row.same_grid_region != null ? (row.same_grid_region ? 'Yes' : 'No') : 'N/A'}
         />
         {row.inter_substation_dist_km != null && (
-          <StatRow
+          <StatRowWithTip
             label="Inter-Sub Distance"
             value={row.inter_substation_dist_km.toFixed(1)}
             unit="km"
-          />
-        )}
-        {row.transmission_cost_per_kw != null && row.transmission_cost_per_kw > 0 && (
-          <StatRow
-            label="New Line Cost"
-            value={row.transmission_cost_per_kw.toFixed(0)}
-            unit="$/kW"
-          />
-        )}
-        {row.substation_upgrade_cost_per_kw != null && row.substation_upgrade_cost_per_kw > 0 && (
-          <StatRow
-            label="Sub Upgrade Cost"
-            value={row.substation_upgrade_cost_per_kw.toFixed(0)}
-            unit="$/kW"
-          />
-        )}
-        {row.grid_investment_needed_usd != null && (
-          <StatRow
-            label="Total Grid Investment"
-            value={`$${(row.grid_investment_needed_usd / 1_000_000).toFixed(1)}M`}
+            tip="Distance between the KEK's nearest substation and the solar site's nearest substation. Drives new transmission line cost if not already connected."
           />
         )}
       </StatCard>
 
-      {/* M15: Multi-substation cost comparison */}
-      {substations.length > 1 && <SubstationComparison substations={substations} />}
-
-      {ruptlSummary && (
+      {/* Substation capacity — slider + live traffic light */}
+      {utilizationConfig && assumptions && (
         <StatCard>
-          <div className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>
-            RUPTL Summary
+          <SectionHeader
+            title="Substation Capacity"
+            tip="Can the nearest substation handle the solar output? Green = sufficient headroom. Red = upgrade needed."
+          />
+          <Slider
+            value={assumptions.substation_utilization_pct}
+            onChange={(v) =>
+              setAssumptions({ substation_utilization_pct: v } as Partial<UserAssumptions>)
+            }
+            min={utilizationConfig.min}
+            max={utilizationConfig.max}
+            step={utilizationConfig.step}
+            label={utilizationConfig.label}
+            unit={utilizationConfig.unit}
+            description={utilizationConfig.description}
+          />
+          <div className="flex items-center gap-2 mt-1">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: CAPACITY_COLORS[cap] }}
+            />
+            <span className="text-xs" style={{ color: 'var(--text-value)' }}>
+              {CAPACITY_LABELS[cap]}
+            </span>
           </div>
-          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
-            {ruptlSummary}
+          <StatRow
+            label="Available Capacity"
+            value={
+              row.available_capacity_mva != null ? row.available_capacity_mva.toFixed(1) : 'N/A'
+            }
+            unit="MVA"
+          />
+          <div className="mt-1 text-[9px] text-[var(--text-muted)] leading-relaxed">
+            Applies to all KEKs. Actual utilization requires PLN grid study.
           </div>
         </StatCard>
       )}
 
-      {/* H9: Captive Power Context */}
+      {/* Connection costs */}
+      {(row.connection_cost_per_kw != null ||
+        row.transmission_cost_per_kw != null ||
+        row.substation_upgrade_cost_per_kw != null ||
+        row.grid_investment_needed_usd != null) && (
+        <StatCard>
+          <SectionHeader
+            title="Connection Costs"
+            tip="Estimated infrastructure cost to connect solar to the KEK. Scales with project capacity (MWp)."
+          />
+          {row.connection_cost_per_kw != null && (
+            <StatRowWithTip
+              label="Gen-Tie Cost"
+              value={row.connection_cost_per_kw.toFixed(0)}
+              unit="$/kW"
+              tip="Cost to connect the solar farm to the nearest substation. Formula: distance x $5/kW-km + $80/kW fixed."
+            />
+          )}
+          {row.transmission_cost_per_kw != null && row.transmission_cost_per_kw > 0 && (
+            <StatRowWithTip
+              label="New Line Cost"
+              value={row.transmission_cost_per_kw.toFixed(0)}
+              unit="$/kW"
+              tip="Cost to build a new transmission line between substations. Only applies when KEK-nearest and solar-nearest substations are not already connected."
+            />
+          )}
+          {row.substation_upgrade_cost_per_kw != null && row.substation_upgrade_cost_per_kw > 0 && (
+            <StatRow
+              label="Sub Upgrade Cost"
+              value={row.substation_upgrade_cost_per_kw.toFixed(0)}
+              unit="$/kW"
+            />
+          )}
+          {row.grid_investment_needed_usd != null && (
+            <StatRowWithTip
+              label="Total Grid Investment"
+              value={`$${(row.grid_investment_needed_usd / 1_000_000).toFixed(1)}M`}
+              tip="Estimated total: gen-tie + new transmission line + substation upgrade. This is the infrastructure price tag for connecting solar to this KEK."
+            />
+          )}
+        </StatCard>
+      )}
+
+      {/* M15: Multi-substation cost comparison */}
+      {substations.length > 1 && <SubstationComparison substations={substations} />}
+    </>
+  );
+}
+
+/* ---------- Tab 4: Economics (was LCOE) ---------- */
+
+function EconomicsTab({ row }: { row: ScorecardRow }) {
+  const gapTariffColor =
+    row.gap_vs_tariff_pct != null ? (row.gap_vs_tariff_pct < 0 ? '#4CAF50' : '#EF5350') : undefined;
+  const gapBppColor =
+    row.gap_vs_bpp_pct != null ? (row.gap_vs_bpp_pct < 0 ? '#4CAF50' : '#EF5350') : undefined;
+
+  const sizingHrs = row.bess_sizing_hours ?? 2;
+  const batteryStillCompetitive =
+    row.lcoe_with_battery_usd_mwh != null && row.grid_cost_usd_mwh != null
+      ? row.lcoe_with_battery_usd_mwh <= row.grid_cost_usd_mwh
+      : null;
+
+  return (
+    <>
+      <StatCard>
+        <SectionHeader
+          title="Solar vs Tariff"
+          tip="Compares solar LCOE to the PLN industrial tariff. This is what a KEK tenant actually pays today."
+        />
+        <StatRow label="Solar LCOE" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
+        <StatRowWithTip
+          label="Tariff (I-4/TT)"
+          value={row.dashboard_rate_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="PLN industrial tariff rate paid by KEK tenants. Often subsidized below PLN's actual cost (BPP). This is what a tenant actually pays today."
+        />
+        <ColoredStatRow
+          label="Gap to Tariff"
+          value={
+            row.gap_vs_tariff_pct != null
+              ? `${row.gap_vs_tariff_pct > 0 ? '+' : ''}${row.gap_vs_tariff_pct.toFixed(1)}%`
+              : null
+          }
+          color={gapTariffColor}
+        />
+      </StatCard>
+
+      <StatCard>
+        <SectionHeader
+          title="Solar vs BPP"
+          tip="Compares solar LCOE to PLN's true cost of supply. If solar beats BPP, PLN saves money buying solar. This is the IPP benchmark."
+        />
+        <StatRowWithTip
+          label="BPP"
+          value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}
+          unit="$/MWh"
+          tip="Biaya Pokok Penyediaan — PLN's unsubsidized cost of supply. Unlike the tariff, BPP reflects true generation + transmission cost."
+        />
+        <ColoredStatRow
+          label="Gap to BPP"
+          value={
+            row.gap_vs_bpp_pct != null
+              ? `${row.gap_vs_bpp_pct > 0 ? '+' : ''}${row.gap_vs_bpp_pct.toFixed(1)}%`
+              : null
+          }
+          color={gapBppColor}
+        />
+      </StatCard>
+
+      {/* Battery storage impact */}
+      {(row.battery_adder_usd_mwh != null || row.lcoe_with_battery_usd_mwh != null) && (
+        <StatCard>
+          <SectionHeader
+            title="Battery Storage Impact"
+            tip="What happens to economics when you add Li-ion battery storage for reliability."
+          />
+          {row.battery_adder_usd_mwh != null && (
+            <StatRowWithTip
+              label="Battery Adder"
+              value={`+$${row.battery_adder_usd_mwh.toFixed(0)}`}
+              unit="/MWh"
+              tip="Li-ion storage cost added to solar LCOE. RKEF nickel smelters need 4h (24/7 baseload), others default to 2h."
+            />
+          )}
+          {row.lcoe_with_battery_usd_mwh != null && (
+            <StatRow
+              label="Solar + Battery"
+              value={row.lcoe_with_battery_usd_mwh.toFixed(1)}
+              unit="$/MWh"
+            />
+          )}
+          <StatRowWithTip
+            label="BESS Sizing"
+            value={`${sizingHrs}h${sizingHrs > 2 ? ' (RKEF)' : ''}`}
+            tip={`Hours of battery storage. 2h default. 4h for KEKs with RKEF nickel (24/7 demand). ${sizingHrs > 2 ? 'This KEK has RKEF smelters nearby, so sizing is doubled.' : 'Adjustable via BESS CAPEX slider.'}`}
+          />
+          {batteryStillCompetitive != null && (
+            <ColoredStatRow
+              label="Still Competitive"
+              value={batteryStillCompetitive ? 'Yes' : 'No'}
+              color={batteryStillCompetitive ? '#4CAF50' : '#EF5350'}
+              tip="Whether solar + battery is still cheaper than grid cost. If yes, the project works even with storage."
+            />
+          )}
+        </StatCard>
+      )}
+
+      <StatCard>
+        <SectionHeader
+          title="Carbon & Policy"
+          tip="Carbon economics and policy support metrics. Low carbon breakeven = strong decarbonization case."
+        />
+        <StatRowWithTip
+          label="Carbon Breakeven"
+          value={
+            row.carbon_breakeven_usd_tco2 != null ? row.carbon_breakeven_usd_tco2.toFixed(1) : null
+          }
+          unit="$/tCO2"
+          tip="Carbon price that makes solar cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
+        />
+        <StatRowWithTip
+          label="GEAS Green Share"
+          value={row.green_share_geas != null ? `${(row.green_share_geas * 100).toFixed(1)}` : null}
+          unit="%"
+          tip="% of 2030 demand that GEAS-allocated solar could cover. GEAS and captive solar are substitutes — high share means strong policy support."
+        />
+      </StatCard>
+    </>
+  );
+}
+
+/* ---------- Tab 5: Demand ---------- */
+
+function DemandTab({ row }: { row: ScorecardRow }) {
+  const demand2030 = row.demand_2030_gwh;
+  const solarGen = row.max_solar_generation_gwh;
+  const coverage = row.solar_supply_coverage_pct;
+  const wbGen = row.within_boundary_generation_gwh;
+  const wbCoverage = row.within_boundary_coverage_pct;
+
+  return (
+    <>
+      <StatCard>
+        <SectionHeader title="Electricity Demand" />
+        <StatRowWithTip
+          label="2030 Demand Estimate"
+          value={demand2030 != null ? demand2030.toFixed(1) : null}
+          unit="GWh"
+          tip="Estimated from zone area x energy intensity by KEK type. Provisional — actual metered demand not available."
+        />
+        <StatRowWithTip
+          label="Max RE Generation (50km)"
+          value={solarGen != null ? solarGen.toFixed(1) : null}
+          unit="GWh/yr"
+          tip="Annual GWh from max buildable solar within 50km at best PVOUT. Upper bound, not a project proposal."
+        />
+        <StatRowWithTip
+          label="Within-Boundary Gen"
+          value={wbGen != null ? wbGen.toFixed(1) : null}
+          unit="GWh/yr"
+          tip="GWh from solar built inside the KEK boundary only. Limited by KEK area and centroid PVOUT."
+        />
+      </StatCard>
+
+      <CoverageBar label="RE Coverage (50km radius)" coverage={coverage} />
+      <CoverageBar
+        label="Within-Boundary RE Coverage"
+        coverage={wbCoverage}
+        subtitle="of demand coverable inside KEK"
+      />
+      {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
+        <div className="text-[9px] text-[var(--text-muted)] -mt-1 px-1">
+          Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
+          generation
+        </div>
+      )}
+
+      {/* Captive Power Context */}
       {(row.captive_coal_count || row.nickel_smelter_count) && (
         <StatCard>
-          <div className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
-            Captive Power
-          </div>
+          <SectionHeader
+            title="Captive Power"
+            tip="Coal plants and nickel smelters within 50km. These are transition targets — existing fossil power that solar could displace."
+          />
           {!!row.captive_coal_count && (
             <>
               <StatRow label="Coal Plants" value={row.captive_coal_count} />
@@ -671,6 +977,14 @@ function PipelineTab({
                   unit="MW"
                 />
               )}
+              {row.captive_coal_generation_gwh != null && (
+                <StatRowWithTip
+                  label="Coal Generation"
+                  value={`${row.captive_coal_generation_gwh.toFixed(1)}`}
+                  unit="GWh/yr"
+                  tip="Estimated annual generation assuming 40% capacity factor x 8,760 hours. Industry standard for captive coal utilization."
+                />
+              )}
               {row.captive_coal_plants && (
                 <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
                   {row.captive_coal_plants}
@@ -678,11 +992,18 @@ function PipelineTab({
               )}
             </>
           )}
+          {!!row.captive_coal_count && !!row.nickel_smelter_count && (
+            <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
+          )}
           {!!row.nickel_smelter_count && (
             <>
               <StatRow label="Nickel Smelters" value={row.nickel_smelter_count} />
               {row.dominant_process_type && (
-                <StatRow label="Process Type" value={row.dominant_process_type} />
+                <StatRowWithTip
+                  label="Process Type"
+                  value={row.dominant_process_type}
+                  tip="RKEF = Rotary Kiln Electric Furnace, runs 24/7 at high temperatures. Doubles battery sizing from 2h to 4h. Highest electricity intensity of all nickel processes."
+                />
               )}
               {row.nickel_projects && (
                 <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
@@ -690,37 +1011,58 @@ function PipelineTab({
                 </div>
               )}
               {row.has_chinese_ownership && (
-                <div className="text-[10px]" style={{ color: '#FFAB40' }}>
-                  Chinese ownership present
-                </div>
+                <StatRowWithTip
+                  label="Chinese Ownership"
+                  value="Present"
+                  tip="Indicates Chinese-invested facilities nearby. Relevant for DFI due diligence and ESG screening. Source: CGSP Nickel Tracker."
+                />
               )}
             </>
           )}
           {(row.solar_replacement_pct != null || row.perpres_112_status) && (
             <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              {row.captive_coal_generation_gwh != null && (
-                <StatRow
-                  label="Coal Generation"
-                  value={`${row.captive_coal_generation_gwh.toFixed(1)}`}
-                  unit="GWh/yr"
-                />
-              )}
               {row.solar_replacement_pct != null && (
-                <StatRow
+                <ColoredStatRow
                   label="Solar Replacement"
                   value={`${row.solar_replacement_pct.toFixed(0)}%`}
+                  color={
+                    row.solar_replacement_pct >= 100
+                      ? '#4CAF50'
+                      : row.solar_replacement_pct >= 50
+                        ? '#FFC107'
+                        : '#F44336'
+                  }
+                  tip="What % of captive coal generation solar could replace. 100%+ (green) = full displacement possible. <50% (red) = supplementary generation needed."
                 />
               )}
               {row.perpres_112_status && (
-                <StatRow label="Perpres 112/2022" value={row.perpres_112_status} />
+                <StatRowWithTip
+                  label="Perpres 112/2022"
+                  value={row.perpres_112_status}
+                  tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
+                />
               )}
             </div>
           )}
         </StatCard>
       )}
+
+      {row.ruptl_region_summary && (
+        <StatCard>
+          <SectionHeader
+            title="RUPTL Pipeline"
+            tip="RUPTL = PLN's 10-year grid expansion plan. Shows planned generation additions by technology in this KEK's grid region."
+          />
+          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
+            {row.ruptl_region_summary}
+          </div>
+        </StatCard>
+      )}
     </>
   );
 }
+
+/* ---------- Tab 6: Flags ---------- */
 
 function FlagsTab({ row }: { row: ScorecardRow }) {
   const activeFlag = row.action_flag;
@@ -729,12 +1071,10 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
   return (
     <>
       <StatCard>
-        <div
-          className="text-[10px] uppercase tracking-wider mb-1 font-medium"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          Solar Readiness
-        </div>
+        <SectionHeader
+          title="Solar Readiness"
+          tip="Flags are ranked best to worst. The active flag (highlighted) is this KEK's primary action recommendation based on solar economics, grid readiness, and pipeline status."
+        />
         {ACTION_FLAG_HIERARCHY.map((flag, i) => {
           const isActive = activeFlag === flag;
           const isAbove = activeIdx >= 0 && i < activeIdx;
@@ -753,13 +1093,24 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
         })}
       </StatCard>
       <StatCard>
-        <StatRow label="Grid Cost Proxy" value={row.grid_cost_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRow
+        <SectionHeader title="Supporting Context" />
+        <StatRowWithTip
+          label="Grid Cost Proxy"
+          value={row.grid_cost_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="The benchmark used for competitive gap calculation. Either BPP (cost of supply) or I-4/TT tariff, depending on your selected benchmark mode."
+        />
+        <StatRowWithTip
           label="BPP"
           value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}
           unit="$/MWh"
+          tip="Biaya Pokok Penyediaan — PLN's unsubsidized cost of supply for this grid region."
         />
-        <StatRow label="Project Viable" value={row.project_viable ? 'Yes' : 'No'} />
+        <StatRowWithTip
+          label="Project Viable"
+          value={row.project_viable ? 'Yes' : 'No'}
+          tip="Whether a solar project meets minimum thresholds: PVOUT above cutoff, buildable area exists, and capacity above minimum viable size."
+        />
       </StatCard>
     </>
   );
@@ -768,11 +1119,11 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
 /* ---------- Main drawer ---------- */
 
 const TABS = [
-  { value: 'info', label: 'KEK Info' },
-  { value: 'resource', label: 'Resource' },
-  { value: 'lcoe', label: 'LCOE' },
+  { value: 'overview', label: 'Overview' },
+  { value: 'solar', label: 'Solar' },
+  { value: 'grid', label: 'Grid' },
+  { value: 'economics', label: 'Economics' },
   { value: 'demand', label: 'Demand' },
-  { value: 'pipeline', label: 'Pipeline' },
   { value: 'flags', label: 'Flags' },
 ] as const;
 
@@ -902,7 +1253,7 @@ export default function ScoreDrawer() {
           </div>
 
           {/* Tabs */}
-          <Tabs.Root defaultValue="info" className="flex-1 flex flex-col min-h-0">
+          <Tabs.Root defaultValue="overview" className="flex-1 flex flex-col min-h-0">
             <Tabs.List
               className="flex px-4 gap-0.5"
               style={{ borderBottom: '1px solid var(--border-subtle)' }}
@@ -922,20 +1273,20 @@ export default function ScoreDrawer() {
             </Tabs.List>
 
             <div className="flex-1 overflow-y-auto px-4 py-3">
-              <Tabs.Content value="info">
-                <InfoTab row={row} />
+              <Tabs.Content value="overview">
+                <OverviewTab row={row} />
               </Tabs.Content>
-              <Tabs.Content value="resource">
-                <ResourceTab row={row} substations={substations} loadingSubs={loadingSubs} />
+              <Tabs.Content value="solar">
+                <SolarTab row={row} />
               </Tabs.Content>
-              <Tabs.Content value="lcoe">
-                <LCOETab row={row} />
+              <Tabs.Content value="grid">
+                <GridTab row={row} substations={substations} loadingSubs={loadingSubs} />
+              </Tabs.Content>
+              <Tabs.Content value="economics">
+                <EconomicsTab row={row} />
               </Tabs.Content>
               <Tabs.Content value="demand">
                 <DemandTab row={row} />
-              </Tabs.Content>
-              <Tabs.Content value="pipeline">
-                <PipelineTab row={row} substations={substations} />
               </Tabs.Content>
               <Tabs.Content value="flags">
                 <FlagsTab row={row} />

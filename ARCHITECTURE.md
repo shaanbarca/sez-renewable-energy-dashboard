@@ -48,10 +48,12 @@ flowchart TD
         P7["fct_substation_proximity"]
         P8["fct_lcoe"]
         P9["fct_kek_scorecard"]
+        P10["fct_captive_coal"]
+        P11["fct_captive_nickel"]
     end
 
     subgraph OUTPUTS["outputs/data/processed/"]
-        O1["flat CSV tables\n(9 files)"]
+        O1["flat CSV tables\n(11 files)"]
     end
 
     API["FastAPI Backend\nsrc/api/main.py — loads CSVs at startup,\nserves JSON via 7 endpoints"]
@@ -80,7 +82,7 @@ flowchart TD
     P6 --> P9
     P4 --> P9
 
-    P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 --> O1
+    P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 & P10 & P11 --> O1
     O1 --> API
     API --> FRONTEND
     FRONTEND --> BROWSER
@@ -109,8 +111,7 @@ flowchart TD
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |
 | Data | pandas | 2.x | All tabular transforms |
 | PDF extraction | pdfplumber | — | RUPTL + ESDM Tech Catalogue tables |
-| Dashboard | Dash + Plotly | 2.x | Interactive web app (Phase 3) |
-| Testing | pytest | — | 195 tests, all pure-function |
+| Testing | pytest | — | 383 tests, all pure-function |
 | Linting | ruff | — | Format + lint (configured in pyproject.toml) |
 
 ---
@@ -134,8 +135,12 @@ Stage 2 — Facts (depend on dim_kek)
 Stage 3 — Computed
   fct_lcoe                  ← dim_kek, fct_kek_resource, dim_tech_cost, fct_substation_proximity
 
-Stage 4 — Final scorecard
-  fct_kek_scorecard         ← dim_kek, fct_lcoe, fct_grid_cost_proxy, fct_ruptl_pipeline, fct_kek_demand
+Stage 4 — Captive power
+  fct_captive_coal          ← dim_kek
+  fct_captive_nickel        ← dim_kek
+
+Stage 5 — Final scorecard
+  fct_kek_scorecard         ← dim_kek, fct_lcoe, fct_grid_cost_proxy, fct_ruptl_pipeline, fct_kek_demand, fct_captive_coal, fct_captive_nickel
 ```
 
 Run a single step: `uv run python run_pipeline.py fct_kek_scorecard`
@@ -147,7 +152,7 @@ Run full pipeline: `uv run python run_pipeline.py`
 
 ### 1. Star Schema — Dim + Fact Tables
 
-All data is stored as a star schema (dimension + fact tables) rather than a single denormalised CSV. `dim_kek` is the central entity; every fact table joins to it on `kek_id`. This allows each pipeline step to be independently rebuilt without invalidating the full dataset, and keeps the Dash app's startup load small — nine small CSVs instead of one wide join.
+All data is stored as a star schema (dimension + fact tables) rather than a single denormalised CSV. `dim_kek` is the central entity; every fact table joins to it on `kek_id`. This allows each pipeline step to be independently rebuilt without invalidating the full dataset, and keeps the API's startup load small — eleven small CSVs instead of one wide join.
 
 ### 2. Precomputed Flat Tables — No Runtime Raster Operations
 
@@ -208,6 +213,8 @@ src/
     build_fct_substation_proximity.py
     build_fct_lcoe.py
     build_fct_kek_scorecard.py
+    build_fct_captive_coal.py   ← GEM GCPT coal plants within 50km of each KEK
+    build_fct_captive_nickel.py ← CGSP nickel smelters within 50km of each KEK
     buildability_filters.py     ← pure filter functions, zero I/O
     pdf_extract_ruptl.py
     pdf_extract_esdm_tech.py

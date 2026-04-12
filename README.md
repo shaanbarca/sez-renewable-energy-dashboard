@@ -27,7 +27,7 @@ For each KEK, the model computes:
 
 1. **Solar LCOE** from CRF annuity method (CAPEX, FOM, WACC, capacity factor from PVOUT)
 2. **Competitiveness gap** vs PLN grid cost (I-4 industrial tariff or BPP by region)
-3. **Action flags**: `solar_now`, `grid_first`, `firming_needed`, `invest_resilience`, `plan_late`
+3. **Action flags**: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`
 4. **Buildable area** within 50km (filtered by forest, peat, slope, land cover)
 5. **Carbon breakeven price** (USD/tCO2 at which solar wins)
 
@@ -53,7 +53,7 @@ src/pipeline/       Data pipeline builders (dim_kek, fct_lcoe, etc.)
 src/api/            FastAPI backend (routes, scorecard recomputation)
 src/dash/           Shared modules (data_loader, map_layers, logic, constants)
 frontend/src/       React SPA (components, store, hooks, lib)
-tests/              302 tests (model, pipeline, API)
+tests/              383 tests (model, pipeline, API)
 notebooks/          Jupyter notebooks for exploration
 data/               Input data (GeoTIFFs, GeoJSON, shapefiles)
 outputs/            Pipeline output CSVs
@@ -75,7 +75,7 @@ docs/               Design mockups, reference PDFs
 ## Tests
 
 ```bash
-uv run pytest tests/       # 302 tests
+uv run pytest tests/       # 383 tests
 uv run ruff check src/     # Python lint
 cd frontend && npm run lint # TypeScript lint (Biome)
 ```

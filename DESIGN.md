@@ -44,7 +44,7 @@ Six named views arranged in a **map-forward layout**. The map is always visible.
 | 1 | **Overview Map** | Full-screen (always visible) | Spatial distribution of clean power competitiveness across all 25 KEKs | `fct_kek_scorecard.action_flag`, `solar_competitive_gap_wacc10_pct` | Click marker → zoom to KEK + show Scorecard |
 | 2 | **Quadrant Chart** | Bottom drawer (tab 2) | LCOE vs. grid cost proxy for all KEKs simultaneously — four zones visible at once | `fct_lcoe` (WACC-filtered) + `fct_grid_cost_proxy` | WACC selector updates positions live |
 | 3 | **Ranked Table** | Bottom drawer (tab 1) | Sortable, filterable comparison of all 25 KEKs | `fct_kek_scorecard` | Column sort; action flag filter; CSV export |
-| 4 | **KEK Scorecard** | Right side panel (slides in on KEK click) | Single-zone deep-dive: LCOE bands, resource, demand, grid context, action flag | All joined tables (one row per KEK) | Tab between Resource / LCOE / Demand / Pipeline / Flags |
+| 4 | **KEK Scorecard** | Right side panel (slides in on KEK click) | Single-zone deep-dive: LCOE bands, resource, demand, grid context, action flag | All joined tables (one row per KEK) | Tab between Overview / Solar / Grid / Economics / Demand / Flags |
 | 5 | **Flip Scenario Panel** | Bottom drawer (tab 4) | "Which KEKs become competitive under changed assumptions?" | `fct_lcoe` WACC=8% columns + threshold slider | WACC selector + competitive-gap threshold slider |
 | 6 | **RUPTL Context** | Bottom drawer (tab 3) | Regional grid pipeline timing — when does PLN's solar come online near each KEK? | `fct_ruptl_pipeline` | Region filter; scenario toggle (RE Base / ARED) |
 
@@ -103,7 +103,7 @@ Triggered by clicking a KEK `dl.CircleMarker` on map or a row in the ranked tabl
 - Selected KEK marker enlarged (radius 14, yellow border) to indicate selection
 - "Back to National View" button appears (top-center, `dmc.Button`) to exit zoomed state
 - Scorecard panel slides in from right (`dmc.Drawer`, 380px, title "KEK Scorecard", visible close X button)
-  - 5 tabs: Resource / LCOE / Demand / Pipeline / Flags
+  - 6 tabs: Overview / Solar / Grid / Economics / Demand / Flags
   - Close (X) or click outside → zoom back to national view, return to State 1
 - Bottom drawer still available — RUPTL tab auto-filters to this KEK's grid region
 - Click a different KEK in table → transitions directly (no return to State 1 first)
@@ -244,7 +244,7 @@ All callbacks use `prevent_initial_call=True` except startup data loaders.
 
 Fields sourced from `fct_kek_scorecard` (57 columns). See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for full column definitions.
 
-**Resource tab:**
+**Solar tab** (was "Resource"):
 | Field | Display label | Unit |
 |-------|--------------|------|
 | `pvout_centroid` | Annual PVOUT (centroid) | kWh/kWp/yr |
@@ -257,7 +257,7 @@ Fields sourced from `fct_kek_scorecard` (57 columns). See [DATA_DICTIONARY.md](D
 | `resource_quality` | Resource quality flag | text |
 | `project_viable` | Project viable (≥ 20 MWp) | boolean |
 
-**LCOE tab** (values update when WACC slider changes):
+**Economics tab** (was "LCOE"; values update when WACC slider changes):
 | Field | Display label | Unit |
 |-------|--------------|------|
 | `lcoe_low_usd_mwh` | LCOE (low) | USD/MWh |
@@ -279,7 +279,7 @@ Fields sourced from `fct_kek_scorecard` (57 columns). See [DATA_DICTIONARY.md](D
 | `green_share_geas` | GEAS green share (2030) | % |
 | `kek_type` | KEK sector type | text |
 
-**Pipeline tab** (joined from `fct_ruptl_pipeline` via `grid_region_id`):
+**Grid tab** (was "Pipeline"; joined from `fct_ruptl_pipeline` via `grid_region_id`):
 | Field | Display label | Unit |
 |-------|--------------|------|
 | `pre2030_solar_mw` | RUPTL solar planned pre-2030 | MW |
@@ -387,7 +387,7 @@ Wind capacity factor will be added using the same pipeline architecture as solar
 - `pvout_wind_equivalent` — normalised wind output for comparison with solar PVOUT
 
 **Dashboard impact:**
-- Scorecard Resource tab: show wind CF alongside solar CF
+- Scorecard Solar tab: show wind CF alongside solar CF
 - Quadrant chart: toggle to show wind LCOE series (teal `#00796B`, see §4)
 - Ranked table: add `cf_wind` column
 
@@ -450,7 +450,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-07 | #30 | Add startup CSV validation | 8 error paths unhandled; app crashed silently on missing data |
 | 2026-04-07 | #34 | Configurable assumptions: 3-tier slider controls + live LCOE recomputation | Hardcoded assumptions limited all 4 personas; 25 KEKs makes live computation trivial (~5ms) |
 | 2026-04-08 | — | Implement interaction states: loading spinner, empty table, selected KEK highlight | Design review found all 4 interaction states unimplemented |
-| 2026-04-08 | — | Expand scorecard: add Demand tab + Pipeline tab, complete Resource/LCOE fields | Scorecard was missing ~half of DESIGN.md §3 fields, 2 of 4 tabs |
+| 2026-04-08 | — | Expand scorecard: add Demand tab + Pipeline tab, complete Resource/LCOE fields (now Solar/Economics/Grid tabs) | Scorecard was missing ~half of DESIGN.md §3 fields, 2 of 4 tabs |
 | 2026-04-08 | — | Add quadrant zone shading (green/red) with labels | Parity line alone didn't communicate competitive zones |
 | 2026-04-08 | — | Polish: rgba() table colors, Badge tooltips, consistent helper naming | Design review polish findings (hex hack, inconsistent "?" style) |
 | 2026-04-08 | — | Map-forward redesign: full-screen map, right slide-in scorecard, bottom drawer with Table/Quadrant/RUPTL/Flip tabs | Design-shotgun exploration chose variant C (map-forward) refined to 4 interaction states |
@@ -478,7 +478,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-08 | — | Methodology modal: renders METHODOLOGY_CONSOLIDATED.md in-app with KaTeX math notation | Stakeholders can review analytical methodology without leaving the dashboard |
 | 2026-04-08 | — | Pulsing KEK markers on first load (~5s breathing animation) | Signals that markers are interactive/clickable |
 | 2026-04-08 | — | Biome formatter added to pre-commit hook for TypeScript/React | Consistent code style across all frontend files |
-| 2026-04-08 | — | Buildable area fragmentation warning in ScoreDrawer Resource tab | 1km PVOUT resolution makes contiguity filter a no-op; UI caveat for small buildable areas |
+| 2026-04-08 | — | Buildable area fragmentation warning in ScoreDrawer Solar tab | 1km PVOUT resolution makes contiguity filter a no-op; UI caveat for small buildable areas |
 | 2026-04-09 | — | Thesis pivot: remote captive → grid-connected solar; three-point proximity replaces gen-tie model | No global precedent for 50km private gen-tie; realistic model is IPP → PLN PPA → grid delivery → KEK |
 | 2026-04-09 | — | DFI persona reframed: captive solar investor → grid infrastructure investor | DFIs fund grid infra (ADB/WB precedent), not private gen-ties |
 | 2026-04-09 | — | New persona: Industrial Investor / KEK Tenant (buys from PLN, doesn't build solar) | Separates power consumer from power producer decision-making |
@@ -488,9 +488,10 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-12 | — | Within-boundary theoretical fallback zeroed out | KEKs with no spatial buildable pixels now show 0% coverage instead of a fake 20% estimate |
 | 2026-04-12 | — | Methodology files consolidated: archived v0.4 + V2 + testing notes → `docs/archives/` | Single canonical methodology: `docs/METHODOLOGY_CONSOLIDATED.md` |
 | 2026-04-12 | — | M12: Substation upgrade cost in precomputed LCOE pipeline + live scorecard API | `substation_upgrade_cost_per_kw` and `transmission_cost_per_kw` now flow through live API; `grid_investment_needed_usd` includes all 3 cost components |
-| 2026-04-12 | — | M16: LCOE vs project scale curve chart (`LcoeCurveChart.tsx`) in ScoreDrawer LCOE tab | Shows how LCOE drops as capacity increases (transmission cost spreading). Client-side CRF formula. |
+| 2026-04-12 | — | M16: LCOE vs project scale curve chart (`LcoeCurveChart.tsx`) in ScoreDrawer Solar tab | Shows how LCOE drops as capacity increases (transmission cost spreading). Client-side CRF formula. |
 | 2026-04-12 | — | M7: Scenario save/compare (`ScenarioManager.tsx`) in AssumptionsPanel | Save up to 3 named scenarios to localStorage. Load/delete inline UI. |
 | 2026-04-12 | — | Buildable radiate animation on KEK selection + auto-enable Solar Buildable Areas layer | Within-boundary (green) pulses first, then remote (teal) 1s later. 4.5s total. L10-adjacent spatial storytelling. |
 | 2026-04-12 | — | Buildable legend in RasterLegend: in-boundary green, remote teal, 50km radius | Color distinction: green = inside KEK (no grid cost), teal = remote 50km (needs connection) |
 | 2026-04-12 | — | Renamed "Gap" → "LCOE Gap" across ScoreDrawer, DataTable, QuadrantChart, walkthrough | Clearer labeling: "LCOE Gap to BPP", "LCOE Gap to Tariff", "LCOE Gap (%)" |
-| 2026-04-12 | — | M15: Multi-substation comparison in ScoreDrawer Pipeline tab | `/api/kek/{id}/substations` computes per-substation costs (connection, upgrade, transmission, LCOE) for top 3. `SubstationComparison.tsx` side-by-side table. Map markers rank-coded: gold (rank 1), silver (rank 2), cyan (rank 3). |
+| 2026-04-12 | — | M15: Multi-substation comparison in ScoreDrawer Grid tab | `/api/kek/{id}/substations` computes per-substation costs (connection, upgrade, transmission, LCOE) for top 3. `SubstationComparison.tsx` side-by-side table. Map markers rank-coded: gold (rank 1), silver (rank 2), cyan (rank 3). |
+| 2026-04-12 | — | ScoreDrawer tab reorganization: 6 story-focused tabs with ~35 info badges | Renamed: KEK Info→Overview, Resource→Solar, LCOE→Economics, Pipeline→Grid. Each tab answers one question. Content reshuffled: LCOE bands→Solar, grid infra→Grid, captive power→Demand, carbon/GEAS→Economics. SectionHeader + ColoredStatRow components. WalkthroughModal updated. |

@@ -22,9 +22,9 @@
 
 ## The Problem This Solves
 
-Indonesia has 24 **Special Economic Zones** (called KEKs — *Kawasan Ekonomi Khusus*) spread across the archipelago. These are industrial parks and tourism zones where the government has created special rules to attract foreign investment. One of the biggest questions investors ask before committing to a KEK is: **"How much will electricity cost here, and can we get clean energy?"**
+Indonesia has 25 **Special Economic Zones** (called KEKs — *Kawasan Ekonomi Khusus*) spread across the archipelago. These are industrial parks and tourism zones where the government has created special rules to attract foreign investment. One of the biggest questions investors ask before committing to a KEK is: **"How much will electricity cost here, and can we get clean energy?"**
 
-Today, answering that question requires piecing together data from multiple government PDFs, energy tariff regulations, and satellite datasets — work that takes weeks and is rarely done consistently. This project automates that process and produces a single, transparent scorecard for all 24 KEKs.
+Today, answering that question requires piecing together data from multiple government PDFs, energy tariff regulations, and satellite datasets — work that takes weeks and is rarely done consistently. This project automates that process and produces a single, transparent scorecard for all 25 KEKs.
 
 ---
 
@@ -65,14 +65,23 @@ Step 4 — How big is the gap?
     vs. the grid. A negative gap means solar is already cheaper.
 
 Step 5 — What action does each KEK need?
-    Based on the gap and grid conditions, we assign one of four flags:
-    • Go solar now     — already cost-competitive, grid is ready
-    • Grid first       — solar is attractive but the grid upgrade isn't
-                         scheduled until after 2030
-    • Firming needed   — solar works economically, but the KEK needs
-                         reliable 24/7 power (storage or backup required)
-    • Watch pipeline   — PLN's planned solar additions for this region
-                         are mostly scheduled post-2030
+    Based on the gap and grid conditions, we assign one of nine action flags:
+    • Solar now             — already cost-competitive, grid is ready
+    • Invest: transmission  — solar can reach a substation, but the KEK
+                              is far from grid. Build transmission.
+    • Invest: substation    — KEK is grid-connected, but solar is far
+                              from any substation. Build a new one.
+    • Grid first            — solar is attractive but grid upgrade isn't
+                              scheduled until after 2030
+    • Invest: battery       — solar economics work, but battery storage
+                              is needed for reliability
+    • Invest: resilience    — solar is near grid parity and the KEK has
+                              high reliability requirements
+    • Plan late             — 60%+ of RUPTL solar is scheduled post-2030.
+                              Planning is behind.
+    • Not competitive       — solar LCOE exceeds grid cost or resource
+                              quality is below minimum threshold
+    • No solar resource     — insufficient solar resource for viable project
 ```
 
 > **Deeper dive:** See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the full formulas, data sources, and known limitations.
@@ -91,7 +100,7 @@ Step 5 — What action does each KEK need?
 | **GEAS** | Government Energy Allocation for Solar — the share of planned grid-scale solar (from the national electricity plan, RUPTL) that a KEK can claim as "green energy" toward its sustainability targets. |
 | **RUPTL** | PLN's 10-year electricity supply plan (2025–2034), which sets the schedule for new power plants by region. |
 | **I-4/TT tariff** | The official industrial electricity rate for large users connected to the high-voltage grid. ~$63/MWh nationwide. |
-| **Action flag** | A one-line recommendation per KEK based on the analysis: `solar_now`, `grid_first`, `firming_needed`, or `plan_late`. |
+| **Action flag** | A one-line recommendation per KEK based on the analysis. Nine flags from best to worst: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`. |
 
 ---
 
@@ -100,7 +109,7 @@ Step 5 — What action does each KEK need?
 The project has three layers:
 
 ### 1. Data Pipeline
-A set of Python scripts that pull from six public data sources and produce eight clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 24 KEKs.
+A set of Python scripts that pull from six public data sources and produce eleven clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 25 KEKs.
 
 **Data sources used:**
 - Global Solar Atlas v2 satellite data (sun radiation per location)
@@ -111,15 +120,16 @@ A set of Python scripts that pull from six public data sources and produce eight
 - Substation locations (for grid access proximity analysis)
 
 ### 2. Analytical Model
-A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (127 automated tests) and produces a scorecard table covering all 24 KEKs with LCOE bands, competitive gap, action flags, and green energy share estimates.
+A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (383 automated tests) and produces a scorecard table covering all 25 KEKs with LCOE bands, competitive gap, action flags, and green energy share estimates.
 
-### 3. Dashboard *(in progress)*
-An interactive web dashboard (built in Dash/Plotly) that lets analysts adjust assumptions — financing rate, capital cost — and instantly see how the rankings change. Planned views:
-- **Map** — 24 KEKs colored by clean power advantage
-- **Quadrant chart** — solar cost vs. grid cost, with four action zones
-- **WACC slider** — adjust financing assumptions to match a fund's hurdle rate
-- **Ranked table** — sortable, exportable to CSV
-- **Flip scenario** — which KEKs are within reach of solar-competitive with one policy lever
+### 3. Dashboard
+An interactive web dashboard (React + Vite frontend with FastAPI backend) that lets analysts adjust assumptions — financing rate, capital cost, BESS parameters — and instantly see how the rankings change. Six views:
+- **Map** — 25 KEKs colored by action flag on MapLibre GL with 3D terrain, buildable area overlays, substation markers
+- **Ranked table** — sortable, filterable TanStack Table with column filters, CSV export
+- **Quadrant chart** — solar cost vs. grid cost scatter with action flag zones
+- **RUPTL context** — regional grid pipeline timing by technology
+- **KEK Scorecard** — 6-tab deep-dive (Overview / Solar / Grid / Economics / Demand / Flags) with info badges and interactive LCOE curve chart
+- **Assumptions panel** — WACC, CAPEX, FOM, lifetime, BESS CAPEX, substation utilization sliders for live recomputation
 
 > **Roadmap details:** See [PLAN.md](PLAN.md) for the full delivery plan and phase status.
 
@@ -127,7 +137,7 @@ An interactive web dashboard (built in Dash/Plotly) that lets analysts adjust as
 
 ## The Data (What's Available Today)
 
-All eight output tables are produced by the pipeline. Key outputs:
+All eleven output tables are produced by the pipeline. Key outputs:
 
 | What it tells you | Table | Status |
 |-------------------|-------|--------|
@@ -162,7 +172,7 @@ Three things to be aware of when interpreting results:
 **Primary audience:** Development bank analysts (ADB, IFC, AIIB) and energy investors doing due diligence on industrial location decisions or captive solar project financing.
 
 **How a typical analyst uses this:**
-1. Open the dashboard → see all 24 KEKs on a map colored by clean power score
+1. Open the dashboard → see all 25 KEKs on a map colored by clean power score
 2. Set the WACC slider to their fund's hurdle rate → rankings update live
 3. Identify 3–5 candidate KEKs from the quadrant chart
 4. Toggle the "flip scenario" → see which KEKs become solar-competitive under a concessional finance rate or CAPEX reduction

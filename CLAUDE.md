@@ -111,7 +111,7 @@ Key notebooks:
 uv run pytest tests/
 ```
 
-Test files are in `tests/`. 302 tests across model, pipeline, and API modules — all should pass.
+Test files are in `tests/`. 383 tests across model, pipeline, and API modules — all should pass.
 
 ## Model module
 
@@ -120,7 +120,7 @@ Test files are in `tests/`. 302 tests across model, pipeline, and API modules �
 - `capacity_factor_from_pvout(pvout_annual)` — divides by 8760
 - `lcoe_solar(capex_usd_per_kw, fom, wacc, lifetime_yr, cf)` — CRF annuity LCOE formula; expects CAPEX in USD/kW
 - `lcoe_solar_with_firming(...)` — adds firming adder (low/mid/high = +6/11/16 USD/MWh)
-- `action_flags(...)` — returns `{solar_now, invest_transmission, invest_substation, grid_first, invest_battery, plan_late}` boolean dict (V3: 8 flags via ActionFlag enum)
+- `action_flags(...)` — returns `ActionFlag` enum value; 9 flags ranked best→worst: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`
 - `grid_integration_category(...)` — returns `within_boundary`/`grid_ready`/`invest_transmission`/`invest_substation`/`grid_first` from three-point proximity
 - `bess_storage_adder(...)` — V3: BESS storage cost per MWh of solar generation (replaces flat firming adder)
 - `lcoe_solar_with_battery(...)` — V3: solar LCOE + BESS storage adder
@@ -156,6 +156,8 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `fct_lcoe` — computed LCOE bands per KEK × WACC × siting scenario (450 rows: 25 × 9 × 2); `within_boundary` uses centroid PVOUT + no connection cost; `grid_connected_solar` uses best PVOUT + connection cost from solar-to-substation distance
 - `fct_ruptl_pipeline` — planned capacity additions by region/year from RUPTL
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
+- `fct_captive_coal` — GEM Global Coal Plant Tracker: captive coal plants within 50km of each KEK (count, total MW, plant names)
+- `fct_captive_nickel` — CGSP Nickel Tracker: nickel smelters within 50km of each KEK (count, process type, Chinese ownership, project names)
 
 **Key computed outputs** (see `sample_end_to_end_policy_planning.ipynb`):
 - `lcoe_usd_mwh` — solar LCOE from `lcoe_solar(capex, fom, wacc, lifetime, cf)`

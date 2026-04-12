@@ -138,7 +138,7 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'KEK Resource Tab',
     description:
-      'Click a KEK to open its scorecard. The Resource tab shows PVOUT, buildable area, and the 50km search radius on the map.',
+      'Click a KEK to open its scorecard. The Solar tab shows PVOUT, buildable area, LCOE breakdown, and the scale curve.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -148,7 +148,7 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'LCOE at Your Hurdle Rate',
     description:
-      'Switch to the LCOE tab in the scorecard. Verify LCOE bands at WACC=8% for both within-boundary and grid-connected solar scenarios.',
+      'Switch to the Economics tab in the scorecard. Compare solar LCOE against tariff and BPP, check battery impact, and verify the carbon breakeven.',
     target: 'drawer',
   },
   {
@@ -202,7 +202,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: 'KEK Pipeline Detail',
     description:
-      'Click a KEK to open its scorecard. The Pipeline tab shows which RUPTL scenario (RE Base vs ARED) changes the plan_late flag.',
+      'Click a KEK to open its scorecard. The Demand tab shows captive power context and RUPTL pipeline status for this region.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -266,7 +266,7 @@ const IPP_STEPS: TourStep[] = [
   {
     title: 'KEK Deep Dive',
     description:
-      'Click your top KEK to see the full scorecard: PVOUT map (Resource tab), LCOE bands (LCOE tab), and demand profile (Demand tab).',
+      'Click your top KEK to see the full scorecard: solar resource (Solar tab), grid connection (Grid tab), economics (Economics tab), and demand (Demand tab).',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
