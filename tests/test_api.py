@@ -253,3 +253,34 @@ def test_kek_substations_unranked_have_nulls(client):
         assert s["connection_cost_per_kw"] is None
         assert s["total_grid_capex_per_kw"] is None
         assert s["lcoe_estimate_usd_mwh"] is None
+
+
+# ---------------------------------------------------------------------------
+# No solar resource flag tests
+# ---------------------------------------------------------------------------
+
+
+def test_no_solar_resource_flag_for_zero_capacity(client):
+    """18. KEKs with buildable_area=0 get no_solar_resource flag, not invest_battery."""
+    body = _default_body(client)
+    resp = client.post("/api/scorecard", json=body)
+    data = resp.json()
+
+    # Bitung has 0 buildable area — should get no_solar_resource
+    bitung = next((r for r in data["scorecard"] if r["kek_id"] == "kek-bitung"), None)
+    assert bitung is not None, "kek-bitung not found in scorecard"
+    assert bitung["action_flag"] == "no_solar_resource", (
+        f"Expected no_solar_resource for Bitung, got {bitung['action_flag']}"
+    )
+
+
+def test_normal_keks_not_affected_by_no_solar_flag(client):
+    """19. KEKs with positive capacity still get normal flags (not no_solar_resource)."""
+    body = _default_body(client)
+    resp = client.post("/api/scorecard", json=body)
+    data = resp.json()
+
+    # Palu has buildable area > 0 — should NOT get no_solar_resource
+    palu = next((r for r in data["scorecard"] if r["kek_id"] == "kek-palu"), None)
+    assert palu is not None, "kek-palu not found in scorecard"
+    assert palu["action_flag"] != "no_solar_resource"

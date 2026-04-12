@@ -2,25 +2,40 @@ import type { ActionFlag, MapStyleKey } from './types';
 
 export const ACTION_FLAG_COLORS: Record<ActionFlag, string> = {
   solar_now: '#2E7D32',
+  invest_resilience: '#F57C00',
+  invest_battery: '#FFA726',
   invest_transmission: '#0277BD',
   invest_substation: '#00838F',
-  invest_resilience: '#F57C00',
   grid_first: '#1565C0',
-  invest_battery: '#FFA726',
   plan_late: '#7B1FA2',
   not_competitive: '#C62828',
+  no_solar_resource: '#78909C',
 };
 
 export const ACTION_FLAG_LABELS: Record<ActionFlag, string> = {
   solar_now: 'Solar Now',
+  invest_resilience: 'Invest Resilience',
+  invest_battery: 'Add Battery Storage',
   invest_transmission: 'Build Transmission',
   invest_substation: 'Build Substation',
-  invest_resilience: 'Invest Resilience',
   grid_first: 'Build Grid',
-  invest_battery: 'Add Battery Storage',
   plan_late: 'Plan Late',
   not_competitive: 'Not Competitive',
+  no_solar_resource: 'No Solar Resource',
 };
+
+/** Hierarchical order: best-case (deploy now) → worst-case (structurally blocked). */
+export const ACTION_FLAG_HIERARCHY: ActionFlag[] = [
+  'solar_now',
+  'invest_resilience',
+  'invest_battery',
+  'invest_transmission',
+  'invest_substation',
+  'grid_first',
+  'plan_late',
+  'not_competitive',
+  'no_solar_resource',
+];
 
 export const MAP_STYLES: Record<MapStyleKey, { label: string; style: string | object }> = {
   dark: {

@@ -586,6 +586,7 @@ class ActionFlag(StrEnum):
     GRID_FIRST = "grid_first"
     PLAN_LATE = "plan_late"
     NOT_COMPETITIVE = "not_competitive"
+    NO_SOLAR_RESOURCE = "no_solar_resource"  # buildable area = 0, no land for solar
 
 
 def action_flags(

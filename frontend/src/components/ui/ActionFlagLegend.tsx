@@ -1,26 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
-import type { ActionFlag } from '../../lib/types';
-
-const flags = Object.keys(ACTION_FLAG_COLORS) as ActionFlag[];
+import { ACTION_FLAG_COLORS, ACTION_FLAG_HIERARCHY, ACTION_FLAG_LABELS } from '../../lib/constants';
 
 const FLAG_DESCRIPTIONS: Record<string, string> = {
   solar_now:
     'Solar is cost-competitive today. Grid upgrades are planned and GEAS allocation is sufficient.',
+  invest_resilience:
+    'Solar is within ~20% of grid parity. Investing now builds resilience against future grid cost increases.',
+  invest_battery:
+    'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   invest_transmission:
     'Solar can reach a substation, but the KEK is far from grid infrastructure. Build transmission to KEK.',
   invest_substation:
     'KEK is grid-connected, but the best solar site is far from any substation. Build a substation near solar.',
-  invest_resilience:
-    'Solar is within ~20% of grid parity. Investing now builds resilience against future grid cost increases.',
   grid_first:
     'No substation near the KEK or the solar site. New grid infrastructure (substation + transmission) must be built before solar can connect.',
-  invest_battery:
-    'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   plan_late:
     'Over 60% of planned solar additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
   not_competitive:
     'Solar LCOE exceeds grid cost, or solar resource quality (PVOUT) is below the minimum threshold.',
+  no_solar_resource:
+    'All land within the search radius is protected forest, peatland, or unbuildable. No area available for solar.',
 };
 
 export default function ActionFlagLegend() {
@@ -48,7 +47,7 @@ export default function ActionFlagLegend() {
       >
         {/* Show compact dot strip as a preview */}
         <span className="flex items-center gap-0.5">
-          {flags.slice(0, 4).map((flag) => (
+          {ACTION_FLAG_HIERARCHY.slice(0, 4).map((flag) => (
             <span
               key={flag}
               className="inline-block w-1.5 h-1.5 rounded-full"
@@ -83,28 +82,46 @@ export default function ActionFlagLegend() {
             className="text-[10px] uppercase tracking-wider mb-2 font-medium"
             style={{ color: 'var(--text-muted)' }}
           >
-            Action Flags
+            Solar Readiness Ladder
           </p>
-          <div className="grid gap-1.5">
-            {flags.map((flag) => (
-              <div key={flag} className="group flex items-start gap-2">
-                <span
-                  className="inline-block w-2 h-2 rounded-full mt-[5px] shrink-0"
-                  style={{ backgroundColor: ACTION_FLAG_COLORS[flag] }}
-                />
-                <div>
-                  <span className="text-xs" style={{ color: 'var(--text-value)' }}>
-                    {ACTION_FLAG_LABELS[flag]}
-                  </span>
-                  <p
-                    className="text-[10px] leading-snug hidden group-hover:block"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {FLAG_DESCRIPTIONS[flag]}
-                  </p>
+          <div>
+            {ACTION_FLAG_HIERARCHY.map((flag, i) => {
+              const color = ACTION_FLAG_COLORS[flag];
+              const isLast = i === ACTION_FLAG_HIERARCHY.length - 1;
+              return (
+                <div key={flag} className="group flex items-stretch gap-0">
+                  {/* Vertical track */}
+                  <div className="flex flex-col items-center" style={{ width: 16 }}>
+                    <div
+                      className="rounded-full shrink-0 mt-[7px]"
+                      style={{ width: 8, height: 8, background: color }}
+                    />
+                    {!isLast && (
+                      <div
+                        className="flex-1"
+                        style={{
+                          width: 2,
+                          background: 'var(--border-subtle)',
+                          minHeight: 8,
+                        }}
+                      />
+                    )}
+                  </div>
+                  {/* Label + hover description */}
+                  <div className="pl-1.5 pb-1.5">
+                    <span className="text-xs" style={{ color: 'var(--text-value)' }}>
+                      {ACTION_FLAG_LABELS[flag]}
+                    </span>
+                    <p
+                      className="text-[10px] leading-snug hidden group-hover:block mt-0.5"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {FLAG_DESCRIPTIONS[flag]}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

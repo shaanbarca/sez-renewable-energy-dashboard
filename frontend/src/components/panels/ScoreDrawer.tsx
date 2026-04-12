@@ -1,7 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { ACTION_FLAG_COLORS, ACTION_FLAG_HIERARCHY, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type {
   ActionFlag,
   ScorecardRow,
@@ -115,28 +115,82 @@ function StatCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-function FlagBadge({ active, label, color }: { active: boolean; label: string; color: string }) {
+/** Single step in the hierarchical flag stepper. */
+function FlagStep({
+  label,
+  color,
+  active,
+  above,
+  isFirst,
+  isLast,
+  explanation,
+}: {
+  label: string;
+  color: string;
+  active: boolean;
+  above: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  explanation?: string;
+}) {
+  const dotSize = active ? 12 : 8;
+  const dotColor = active ? color : above ? 'var(--border-subtle)' : `${color}55`;
+  const trackColor = isLast ? 'transparent' : 'var(--border-subtle)';
+
   return (
-    <div className="flex items-center justify-between py-1">
-      <div className="flex items-center gap-2">
-        <span
-          className="w-2 h-2 rounded-full"
-          style={{ background: active ? color : 'var(--border-subtle)' }}
+    <div className="flex gap-0">
+      {/* Track column: always continuous */}
+      <div className="flex flex-col items-center shrink-0" style={{ width: 20 }}>
+        {/* Top line (above dot) */}
+        <div
+          style={{
+            width: 2,
+            height: 6,
+            background: isFirst ? 'transparent' : 'var(--border-subtle)',
+          }}
         />
-        <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-          {label}
-        </span>
+        {/* Dot */}
+        <div
+          className="rounded-full shrink-0"
+          style={{
+            width: dotSize,
+            height: dotSize,
+            background: dotColor,
+            boxShadow: active ? `0 0 8px ${color}66` : 'none',
+          }}
+        />
+        {/* Bottom line (fills remaining height, including explanation) */}
+        <div
+          className="flex-1"
+          style={{
+            width: 2,
+            background: trackColor,
+            minHeight: 6,
+          }}
+        />
       </div>
-      <span
-        className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-        style={
-          active
-            ? { background: `${color}33`, color: color }
-            : { background: 'var(--card-bg)', color: 'var(--text-muted)' }
-        }
-      >
-        {active ? 'Active' : 'Inactive'}
-      </span>
+      {/* Content column */}
+      <div className="pl-2 flex-1 pb-1">
+        <div className="flex items-center" style={{ minHeight: dotSize + 12 }}>
+          <span
+            className={`text-[11px] ${active ? 'font-medium' : ''}`}
+            style={{
+              color: active ? color : above ? 'var(--text-muted)' : 'var(--text-secondary)',
+              opacity: active ? 1 : above ? 0.5 : 0.7,
+            }}
+          >
+            {label}
+          </span>
+        </div>
+        {active && explanation && (
+          <p
+            className="text-[10px] leading-relaxed pb-1"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {explanation}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -175,6 +229,8 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
       }
       return `Solar LCOE ($${lcoe?.toFixed(1)}/MWh) exceeds grid cost ($${gridCost?.toFixed(1)}/MWh) under current assumptions.`;
     }
+    case 'no_solar_resource':
+      return 'All land within the 50km search radius is protected forest, peatland, or otherwise unbuildable. There is no available area for solar development.';
     default:
       return '';
   }
@@ -602,38 +658,34 @@ function PipelineTab({
 }
 
 function FlagsTab({ row }: { row: ScorecardRow }) {
-  const flagKeys = [
-    'solar_now',
-    'invest_transmission',
-    'invest_substation',
-    'invest_battery',
-    'invest_resilience',
-    'grid_first',
-    'plan_late',
-    'not_competitive',
-  ] as const;
   const activeFlag = row.action_flag;
+  const activeIdx = ACTION_FLAG_HIERARCHY.indexOf(activeFlag as ActionFlag);
 
   return (
     <>
       <StatCard>
-        {flagKeys.map((flag) => (
-          <div key={flag}>
-            <FlagBadge
-              active={activeFlag === flag}
+        <div
+          className="text-[10px] uppercase tracking-wider mb-1 font-medium"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Solar Readiness
+        </div>
+        {ACTION_FLAG_HIERARCHY.map((flag, i) => {
+          const isActive = activeFlag === flag;
+          const isAbove = activeIdx >= 0 && i < activeIdx;
+          return (
+            <FlagStep
+              key={flag}
               label={ACTION_FLAG_LABELS[flag] ?? flag}
               color={ACTION_FLAG_COLORS[flag] ?? '#666'}
+              active={isActive}
+              above={isAbove}
+              isFirst={i === 0}
+              isLast={i === ACTION_FLAG_HIERARCHY.length - 1}
+              explanation={isActive ? getFlagExplanation(flag, row) : undefined}
             />
-            {activeFlag === flag && (
-              <p
-                className="text-[10px] leading-relaxed mt-1 mb-2 pl-5"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {getFlagExplanation(flag, row)}
-              </p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </StatCard>
       <StatCard>
         <StatRow label="Grid Cost Proxy" value={row.grid_cost_usd_mwh?.toFixed(1)} unit="$/MWh" />

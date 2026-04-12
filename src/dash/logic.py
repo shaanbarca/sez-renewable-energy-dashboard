@@ -509,24 +509,28 @@ def compute_scorecard_live(
         project_viable = max_mwp >= thresholds.min_viable_mwp
 
         # Derive action_flag: first True flag wins (priority order)
-        action_flag = ActionFlag.NOT_COMPETITIVE
-        for flag_name in [
-            ActionFlag.SOLAR_NOW,
-            ActionFlag.INVEST_TRANSMISSION,
-            ActionFlag.INVEST_SUBSTATION,
-            ActionFlag.GRID_FIRST,
-            ActionFlag.INVEST_BATTERY,
-            ActionFlag.INVEST_RESILIENCE,
-            ActionFlag.PLAN_LATE,
-        ]:
-            flag_val = (
-                resilience
-                if flag_name == ActionFlag.INVEST_RESILIENCE
-                else flags.get(flag_name, False)
-            )
-            if flag_val is True:
-                action_flag = flag_name
-                break
+        # No buildable land → no solar resource, skip all solar-dependent flags
+        if max_mwp <= 0:
+            action_flag = ActionFlag.NO_SOLAR_RESOURCE
+        else:
+            action_flag = ActionFlag.NOT_COMPETITIVE
+            for flag_name in [
+                ActionFlag.SOLAR_NOW,
+                ActionFlag.INVEST_TRANSMISSION,
+                ActionFlag.INVEST_SUBSTATION,
+                ActionFlag.GRID_FIRST,
+                ActionFlag.INVEST_BATTERY,
+                ActionFlag.INVEST_RESILIENCE,
+                ActionFlag.PLAN_LATE,
+            ]:
+                flag_val = (
+                    resilience
+                    if flag_name == ActionFlag.INVEST_RESILIENCE
+                    else flags.get(flag_name, False)
+                )
+                if flag_val is True:
+                    action_flag = flag_name
+                    break
 
         row = {
             "kek_id": kek_id,

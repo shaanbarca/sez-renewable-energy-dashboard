@@ -15,11 +15,12 @@ def test_action_flag_values():
     assert ActionFlag.GRID_FIRST == "grid_first"
     assert ActionFlag.PLAN_LATE == "plan_late"
     assert ActionFlag.NOT_COMPETITIVE == "not_competitive"
+    assert ActionFlag.NO_SOLAR_RESOURCE == "no_solar_resource"
 
 
 def test_action_flag_count():
-    """There are exactly 8 action flags."""
-    assert len(list(ActionFlag)) == 8
+    """There are exactly 9 action flags."""
+    assert len(list(ActionFlag)) == 9
 
 
 def test_action_flag_str_comparison():

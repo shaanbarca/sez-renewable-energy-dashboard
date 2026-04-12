@@ -1056,6 +1056,7 @@ class TestFctKekScorecard:
             "plan_late",
             "data_missing",
             "not_competitive",
+            "no_solar_resource",
             "wind_competitive",
         }
         assert set(sc["action_flag"].unique()).issubset(valid_flags)

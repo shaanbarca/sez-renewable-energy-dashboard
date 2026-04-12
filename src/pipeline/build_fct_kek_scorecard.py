@@ -424,6 +424,10 @@ def build_fct_kek_scorecard(
     # - "not_competitive": all data present but BOTH solar AND wind LCOE > grid cost
     # - otherwise: first True flag wins
     def _flag_label(row: pd.Series) -> str:
+        # No buildable land → no solar resource, skip all solar-dependent flags
+        max_mwp = row.get("max_captive_capacity_mwp", 0.0)
+        if pd.isna(max_mwp) or max_mwp <= 0:
+            return "no_solar_resource"
         if any(
             row.get(f) is None for f in ["solar_now", "grid_first", "invest_battery", "plan_late"]
         ):

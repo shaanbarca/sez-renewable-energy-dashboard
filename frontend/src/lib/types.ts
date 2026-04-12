@@ -28,7 +28,8 @@ export type ActionFlag =
   | 'grid_first'
   | 'invest_battery'
   | 'plan_late'
-  | 'not_competitive';
+  | 'not_competitive'
+  | 'no_solar_resource';
 
 export interface ScorecardRow {
   kek_id: string;
