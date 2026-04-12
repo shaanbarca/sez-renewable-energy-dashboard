@@ -538,13 +538,13 @@ def is_solar_attractive(
     lcoe_usd_mwh: float,
     grid_cost_usd_mwh: float,
     pvout_best_50km: float | None = None,
-    pvout_threshold: float = 1550.0,
+    pvout_threshold: float = 1350.0,
 ) -> bool:
     """Return True if solar economics AND resource both meet the attractiveness bar.
 
     Conditions (METHODOLOGY_CONSOLIDATED.md Section 5.2, Option B):
         1. lcoe_mid ≤ grid_cost  — economics are competitive at current WACC
-        2. pvout_best_50km ≥ pvout_threshold  — resource is sufficient (≥1,550 kWh/kWp/yr)
+        2. pvout_best_50km ≥ pvout_threshold  — resource is sufficient (≥1,350 kWh/kWp/yr)
 
     Condition 2 is skipped if pvout_best_50km is None (keeps the function usable
     in notebook contexts where only LCOE is available).
@@ -558,7 +558,7 @@ def is_solar_attractive(
     pvout_best_50km:
         Annual PVOUT within 50km radius (kWh/kWp/yr). If None, resource check is skipped.
     pvout_threshold:
-        Minimum PVOUT for the resource to be considered sufficient (default 1,550 kWh/kWp/yr).
+        Minimum PVOUT for the resource to be considered sufficient (default 1,350 kWh/kWp/yr).
     """
     lcoe_ok = lcoe_usd_mwh <= grid_cost_usd_mwh
     if pvout_best_50km is None:
@@ -744,13 +744,15 @@ def grid_integration_category(
     substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
     solar_capacity_mwp: float | None = None,
     inter_substation_connected: bool | None = None,
+    within_boundary_coverage_pct: float | None = None,
 ) -> str:
     """Classify a KEK's grid integration readiness using three-point proximity.
 
     Three points: (A) best buildable solar site, (B) nearest PLN substation, (C) KEK centroid.
 
     Categories (METHODOLOGY_CONSOLIDATED.md §2):
-        within_boundary      — substation inside KEK polygon; solar can connect directly
+        within_boundary      — substation inside KEK polygon OR within-boundary solar
+                               covers >= 100% of demand (behind-the-meter, no grid needed)
         grid_ready           — substation near both solar AND KEK (short connection feasible)
         invest_transmission  — solar near substation, KEK far — build transmission to KEK
         invest_substation    — KEK near substation, solar far — build substation near solar
@@ -786,6 +788,10 @@ def grid_integration_category(
         True = line exists (checked geometrically or via same PLN region).
         False = no line found, new transmission build needed.
         None = unknown / same substation / not checked (falls back to distance logic).
+    within_boundary_coverage_pct:
+        V3.2: Fraction of KEK demand coverable by within-boundary solar (0.0–N).
+        If >= 1.0, the KEK is self-sufficient with on-site solar and classifies as
+        'within_boundary' regardless of substation distances.
 
     Returns
     -------
@@ -794,6 +800,10 @@ def grid_integration_category(
         'invest_substation', 'grid_first'.
     """
     if has_internal_substation:
+        return "within_boundary"
+
+    # V3.2: If within-boundary solar covers >= 100% of demand, KEK is self-sufficient
+    if within_boundary_coverage_pct is not None and within_boundary_coverage_pct >= 1.0:
         return "within_boundary"
 
     # Check substation rated capacity — if too small, treat as if grid is not ready

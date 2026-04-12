@@ -30,6 +30,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
   grid_integration_category:
     'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
+  grid_investment_needed_usd:
+    'Estimated total grid infrastructure cost: gen-tie + new transmission line + substation upgrade. Scales with project capacity (MWp). Screening estimate for DFI investment sizing.',
   solar_supply_coverage_pct:
     "Maximum % of this KEK's electricity demand coverable by renewable energy (solar) built within 50km. Green = 100%+, yellow = 50-99%, red = under 50%.",
   captive_power_type:
@@ -204,6 +206,19 @@ export const columns = [
     cell: (info) => {
       const val = info.getValue();
       return val ? val.replace(/_/g, ' ') : '—';
+    },
+  }),
+  col.accessor('grid_investment_needed_usd', {
+    header: () => (
+      <HeaderWithTooltip label="Grid Invest ($M)" columnId="grid_investment_needed_usd" />
+    ),
+    filterFn: 'inRange',
+    cell: (info) => {
+      const v = info.getValue();
+      if (v == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      const millions = v / 1_000_000;
+      const color = millions > 500 ? '#EF5350' : millions > 100 ? '#FFC107' : '#4CAF50';
+      return <span style={{ color }}>${millions.toFixed(0)}M</span>;
     },
   }),
   col.display({

@@ -113,7 +113,7 @@ class TestUserAssumptions:
 class TestUserThresholds:
     def test_defaults(self):
         t = get_default_thresholds()
-        assert t.pvout_threshold == 1550.0
+        assert t.pvout_threshold == 1350.0
         assert t.plan_late_threshold == 0.60
         assert t.geas_threshold == 0.30
         assert t.resilience_gap_pct == 20.0

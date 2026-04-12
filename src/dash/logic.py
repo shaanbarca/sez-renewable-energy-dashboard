@@ -133,7 +133,7 @@ class UserAssumptions:
 class UserThresholds:
     """Action flag thresholds adjustable via dashboard sliders (Tier 3)."""
 
-    pvout_threshold: float = 1550.0
+    pvout_threshold: float = 1350.0
     plan_late_threshold: float = PLAN_LATE_POST2030_SHARE_THRESHOLD
     geas_threshold: float = GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD
     resilience_gap_pct: float = RESILIENCE_LCOE_GAP_THRESHOLD_PCT
@@ -470,6 +470,11 @@ def compute_scorecard_live(
         inter_connected = kek.get("inter_substation_connected")
         inter_connected = bool(inter_connected) if pd.notna(inter_connected) else None
 
+        # Within-boundary coverage: if on-site solar covers >= 100% of demand,
+        # classify as within_boundary regardless of substation distances.
+        wb_coverage = kek.get("within_boundary_coverage_pct")
+        wb_coverage = float(wb_coverage) if pd.notna(wb_coverage) else None
+
         gi_cat = compute_grid_integration_category(
             has_internal_substation=has_internal,
             dist_solar_to_substation_km=dist_solar,
@@ -478,6 +483,7 @@ def compute_scorecard_live(
             substation_utilization_pct=assumptions.substation_utilization_pct,
             solar_capacity_mwp=effective_cap,
             inter_substation_connected=inter_connected,
+            within_boundary_coverage_pct=wb_coverage,
         )
         flags = action_flags(
             solar_attractive=attractive,

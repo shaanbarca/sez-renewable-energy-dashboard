@@ -111,7 +111,7 @@ flowchart TD
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |
 | Data | pandas | 2.x | All tabular transforms |
 | PDF extraction | pdfplumber | — | RUPTL + ESDM Tech Catalogue tables |
-| Testing | pytest | — | 383 tests, all pure-function |
+| Testing | pytest | — | 386 tests, all pure-function |
 | Linting | ruff | — | Format + lint (configured in pyproject.toml) |
 
 ---

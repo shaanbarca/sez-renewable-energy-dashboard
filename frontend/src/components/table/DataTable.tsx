@@ -54,6 +54,7 @@ const RANGE_COLUMNS = new Set([
   'dashboard_rate_usd_mwh',
   'area_ha',
   'solar_replacement_pct',
+  'grid_investment_needed_usd',
 ]);
 
 function getCaptivePowerType(row: ScorecardRow): string {
@@ -198,6 +199,8 @@ export default function DataTable() {
       'best_re_technology',
       'dashboard_rate_usd_mwh',
       'grid_region_id',
+      'grid_integration_category',
+      'grid_investment_needed_usd',
       'bpp_usd_mwh',
       'carbon_breakeven_usd_tco2',
       'captive_coal_count',

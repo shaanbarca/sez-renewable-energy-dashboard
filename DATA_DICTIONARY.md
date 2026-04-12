@@ -618,7 +618,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | Column | Type | Formula |
 |--------|------|---------|
 | `solar_competitive_gap_pct` | float | `(lcoe_mid_usd_mwh − dashboard_rate_usd_mwh) / dashboard_rate_usd_mwh × 100`. Negative = solar already cheaper than grid. Base case WACC=10%. |
-| `solar_attractive` | bool | `pvout_best_50km ≥ 1,550 kWh/kWp/yr AND lcoe_mid_usd_mwh ≤ dashboard_rate_usd_mwh` |
+| `solar_attractive` | bool | `pvout_best_50km ≥ 1,350 kWh/kWp/yr AND lcoe_mid_usd_mwh ≤ dashboard_rate_usd_mwh` |
 | `lcoe_mid_wacc8_usd_mwh` | float | LCOE at WACC=8% (de-risked finance scenario), within_boundary. Sourced from `fct_lcoe.csv` at `wacc_pct=8`. |
 | `solar_competitive_gap_wacc8_pct` | float | Same formula as `solar_competitive_gap_pct` but using `lcoe_mid_wacc8_usd_mwh`. Negative = solar competitive under de-risked financing. |
 | `solar_now_at_wacc8` | bool | `lcoe_mid_wacc8_usd_mwh ≤ dashboard_rate_usd_mwh` — True for 8 KEKs. The "what does a green finance facility unlock?" signal for DFI analysts. |
@@ -626,7 +626,8 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `lcoe_grid_connected_low_usd_mwh` | float | Same using `capex_lower`. |
 | `lcoe_grid_connected_high_usd_mwh` | float | Same using `capex_upper`. |
 | `connection_cost_per_kw` | float | V2: Grid connection cost per kW for this KEK's solar site. 0 for within_boundary. |
-| `grid_integration_category` | str | V2/V3.1: `within_boundary` / `grid_ready` / `invest_substation` / `invest_transmission` / `grid_first` — from fct_substation_proximity. V3.1 split `invest_grid` into `invest_substation` (upgrade needed) and `invest_transmission` (new line needed). |
+| `within_boundary_coverage_pct` | float | V3.2: Fraction of KEK 2030 demand coverable by within-boundary solar. `wb_capacity_mwp × pvout_within_boundary / demand_mwh_2030`. If >= 1.0, overrides `grid_integration_category` to `within_boundary`. |
+| `grid_integration_category` | str | V2/V3.1/V3.2: `within_boundary` / `grid_ready` / `invest_substation` / `invest_transmission` / `grid_first` — from fct_substation_proximity, overridden by within-boundary coverage >= 100% (V3.2). |
 | `same_grid_region` | bool | V3.1: B_kek and B_solar in same PLN region. |
 | `line_connected` | bool | V3.1: Grid line geometrically connects both substations. |
 | `inter_substation_connected` | bool | V3.1: `line_connected OR same_grid_region`. |
@@ -648,7 +649,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 | Flag | Formula |
 |------|---------|
-| `solar_attractive` | `pvout_best_50km ≥ 1,550 AND lcoe_mid ≤ dashboard_rate` |
+| `solar_attractive` | `pvout_best_50km ≥ 1,350 AND lcoe_mid ≤ dashboard_rate` |
 | `solar_now` | `solar_attractive AND grid_upgrade_pre2030 AND green_share_geas ≥ 0.30` |
 | `grid_first` | `solar_attractive AND NOT grid_upgrade_pre2030` |
 | `firming_needed` | `solar_attractive AND reliability_req ≥ 0.75` |

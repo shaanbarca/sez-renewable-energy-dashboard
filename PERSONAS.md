@@ -1,10 +1,31 @@
 # Personas — Indonesia KEK Power Competitiveness Dashboard
 
-Five primary user personas. Each section covers: who they are, what they need from the data, their step-by-step journey through the dashboard, what they export, and how they'd cite the tool.
+Five primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
 
-*Updated for Methodology V3.1 — grid-connected solar model, 8 action flags, BESS storage model, three-point proximity with grid connectivity check. See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
+*Updated for Methodology V3.1 — grid-connected solar model, 9 action flags, BESS storage model, three-point proximity with grid connectivity check, captive power context. See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
 
 **Related:** [DESIGN.md](DESIGN.md) | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
+
+---
+
+## Why This Dashboard Exists
+
+Indonesia is pursuing the most aggressive nickel downstreaming strategy on earth. The country holds the world's largest nickel reserves and is building smelters, battery plants, and industrial parks at pace to capture more of the value chain. This requires massive new electricity — and right now, that electricity comes overwhelmingly from captive coal.
+
+The transition question isn't *should Indonesia decarbonize its industrial zones?* — it's *can Indonesia industrialize and decarbonize simultaneously without sacrificing cost or reliability?*
+
+This dashboard answers that question, site by site, for all 25 KEKs. It is the first tool that maps the intersection of:
+
+- **Solar economics** — LCOE at adjustable financing rates (Global Solar Atlas, ESDM cost catalogue)
+- **Grid infrastructure** — substation proximity, capacity, connectivity, upgrade costs (PLN SIMOL, PLN grid lines)
+- **Captive power exposure** — coal plants and nickel smelters within 50km, subject to Perpres 112/2022 phase-out (GEM GCPT, CGSP Nickel Tracker)
+- **Industrial demand** — estimated 2030 electricity demand by KEK type and area
+- **Policy pipeline** — RUPTL planned additions by region and year, GEAS solar allocations
+- **Regional grid cost** — BPP (PLN's actual cost of supply) and I-4 industrial tariff by grid region
+
+No single dataset tells this story. IRENA publishes country-level LCOE ranges. Global Solar Atlas shows radiation but not economics or grid context. RUPTL is a raw PDF. The GEM coal tracker maps plants but not their solar replacement potential. The value is the *cross* — six datasets joined at KEK level with adjustable assumptions, producing 9 action flags that are not labels but specific policy recommendations.
+
+At the current default assumptions, 7 of 25 KEKs flip to solar-competitive under concessional finance (8% WACC). Four more are within 20% of grid parity. The remaining gaps are specific and nameable: a substation upgrade here, a transmission line there, a RUPTL acceleration somewhere else. Each action flag tells you exactly what needs to happen.
 
 ---
 
@@ -28,7 +49,7 @@ Five primary user personas. Each section covers: who they are, what they need fr
 |---------|-------|--------|-----------------|
 | Energy Economist | **80%** | Full WACC spectrum (4-20%), carbon breakeven, BPP sourced (Kepmen ESDM 169/2021), `solar_vs_bpp_gap_pct` computed, V3.1 capacity assessment | Grid emission factor is 2019 vintage; CAPEX from ESDM catalogue (not market data) |
 | DFI Infrastructure Investor | **80%** | V3.1 grid connectivity check, capacity traffic light, transmission cost estimate, inter-substation distance, BPP sourced for procurement economics | `grid_investment_needed_usd` (aggregate per KEK) not yet a first-class column |
-| Policy Maker *(primary)* | **80%** | 8 action flags with `invest_transmission` + `invest_substation` split; grid connectivity + capacity assessment; wind LCOE included | `reliability_req` is type-based proxy, not PLN SAIDI/SAIFI |
+| Policy Maker *(primary)* | **80%** | 9 action flags with `invest_transmission` + `invest_substation` split; grid connectivity + capacity assessment; wind LCOE included; captive power context | `reliability_req` is type-based proxy, not PLN SAIDI/SAIFI |
 | IPP / Solar Developer | **80%** | Buildability + resource screening solid; V3.1 solar-to-substation distance, grid readiness, capacity assessment; BPP gap computed | Custom CAPEX input still slider-only (3 bands) |
 | Industrial Investor / KEK Tenant | **65%** | I-4 tariff + BPP (FY2020) available; V3.1 grid infrastructure quality signals (capacity assessment, connectivity) | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
 
@@ -62,6 +83,10 @@ Ranked by impact across personas × implementation effort. See each persona's `#
 **Role:** Economic analyst, multilateral development bank (ADB, IFC, World Bank)
 **Context:** Preparing a country energy competitiveness assessment or a renewable energy policy brief. Needs to compare solar LCOE against grid cost across many sites simultaneously and quantify the carbon arbitrage opportunity. Works in Excel and PowerPoint; exports data for colleagues.
 **Primary question:** *At our fund's hurdle rate, which KEKs already make economic sense for solar — and what policy change would unlock the others?*
+
+### What only this dashboard shows them
+
+This is the first site-level evidence base showing that concessional finance directly changes outcomes for Indonesian industrial zones. Move the WACC slider from 10% to 8% and watch 7 of 25 KEKs flip to solar-competitive. That number *is* the DFI lending program's impact, quantified, at site level, with transparent assumptions anyone can reproduce. The carbon breakeven column ($X/tCO2 per KEK) sizes the carbon pricing opportunity — where even modest pricing ($10-15/tCO2) closes the gap. IRENA publishes country-level LCOE ranges for Indonesia. This shows it for each of 25 industrial zones, at 9 financing rates, with a CSV export that drops straight into an investment memo annex. No other public tool does this.
 
 ### Readiness — 80%
 
@@ -125,6 +150,10 @@ Ranked table CSV → paste into Excel economic comparison table. Carbon breakeve
 **Context:** Identifying where grid infrastructure investment unlocks solar potential at Indonesian industrial zones. DFIs regularly finance transmission lines, substations, and grid reinforcement in developing countries. This persona invests in the **grid** that connects solar supply to industrial demand — not in solar projects directly.
 **Primary question:** *Where does grid investment unlock the most solar potential per infrastructure dollar — and what instrument (concessional loan, viability gap funding, blended finance) fits each case?*
 
+### What only this dashboard shows them
+
+The biggest bottleneck to clean industrial power in Indonesia isn't solar economics — it's grid infrastructure. This dashboard shows exactly where the bottleneck is and what it costs to fix. Not "invest in Indonesian grid" — but specifically: "this KEK needs a transmission line from substation X, Y km away, costing ~$Z/kW, unlocking W MWp of solar that undercuts PLN's cost of supply by N%." The three-point proximity model (solar site → substation → KEK) with geometric connectivity check and capacity traffic light provides the kind of infrastructure gap specificity that normally requires a pre-feasibility study. A DFI can filter to `invest_transmission` and `invest_substation` KEKs, rank by solar potential per infrastructure dollar, and walk into a board meeting with a ranked grid investment pipeline. No other tool combines solar resource, grid topology, substation capacity, and industrial demand at this resolution.
+
 **V2 note:** This persona was fundamentally reframed from V1. The V1 "DFI Investor" screened captive solar projects with private gen-tie infrastructure — an approach with no global precedent at 50km scale. V2 reframes the DFI as an infrastructure investor, which aligns with how DFIs actually operate in the power sector.
 
 ### Readiness — 80%
@@ -141,7 +170,7 @@ Ranked table CSV → paste into Excel economic comparison table. Carbon breakeve
 - ✅ V3.1: `transmission_cost_per_kw` — inter-substation new line cost estimate when connectivity is missing
 
 **What's missing:**
-- **`grid_investment_needed_usd` not yet computed as aggregate** — order-of-magnitude total investment estimate per KEK. `transmission_cost_per_kw` exists but total $ requires multiplying by solar capacity.
+- ✅ `grid_investment_needed_usd` computed as aggregate — order-of-magnitude total investment estimate per KEK. 18/25 KEKs have values ($8M to $2.4B). Surfaced in DataTable (sortable, filterable column) and ScoreDrawer Grid + Overview tabs.
 - **BPP partially sourced** — regional BPP from Kepmen ESDM 169/2021 (FY2020 vintage). More recent PLN Statistik 2024 data would strengthen the procurement economics case.
 
 ### Key data needs
@@ -185,7 +214,7 @@ Ranked CSV of `invest_transmission`/`invest_substation` KEKs with investment est
 |-----|----------------------|--------|
 | ~~`grid_integration_category` not yet built~~ | ~~The primary decision variable.~~ | ✅ Built (V3.1) — classifies `invest_substation`, `invest_transmission`, `grid_first`. Geometric grid line connectivity + capacity utilization check. |
 | ~~`dist_solar_to_nearest_substation_km` not yet computed~~ | ~~Required for grid investment sizing.~~ | ✅ Built (V2) — solar-to-substation distance computed for all KEKs with solar coords. |
-| `grid_investment_needed_usd` not yet a first-class column | Order-of-magnitude total investment estimate. `transmission_cost_per_kw` exists (V3.1) but total $ = `transmission_cost_per_kw × solar_mwp × 1000` is not precomputed as a single column. | Deferred — trivial to derive from existing columns in frontend or export. |
+| ~~`grid_investment_needed_usd` not yet a first-class column~~ | ~~Order-of-magnitude total investment estimate.~~ | ✅ Built — precomputed in pipeline, surfaced as sortable DataTable column ($XM format, color-coded) + ScoreDrawer Overview and Grid tabs. 18/25 KEKs have values ($8M to $2.4B). Also in CSV export. |
 | BPP data vintage | Regional BPP from Kepmen ESDM 169/2021 (FY2020). More recent PLN Statistik 2024 data would strengthen procurement economics. | ⚠️ Partial — FY2020 data available, more recent data desirable. |
 | Substation capacity partial | 6 of 25 KEKs have null `nearest_substation_capacity_mva`. V3.1 `capacity_assessment` shows `unknown` for these. | Available with gaps — 19/25 KEKs have data. |
 | Flood hazard layer (Layer 2d) missing | Coastal sites may have buildable land on flood-prone ground. | Deferred — BNPB portal inaccessible. |
@@ -198,10 +227,14 @@ Ranked CSV of `invest_transmission`/`invest_substation` KEKs with investment est
 **Context:** Preparing input for a RUPTL review, a KEK electricity regulation update, or a green industrial park policy. V2 makes this persona the **primary audience** because the dashboard now directly answers: "Where should grid infrastructure investment go to unlock cheap solar for industrial zones?"
 **Primary question:** *Where should grid infrastructure investment be prioritized to unlock solar potential at KEKs — and which KEKs are already grid-ready for solar procurement?*
 
+### What only this dashboard shows them
+
+No other public tool crosses solar economics, grid topology, captive coal exposure, RUPTL pipeline timing, and nickel smelter locations at KEK level. A KESDM official can see in one screen: "Galang Batang has a 2,880 MW captive coal plant within 50km. Solar is 34% above grid cost today, but at 8% WACC the gap narrows to single digits. The substation needs capacity, and RUPTL solar additions for this region are mostly post-2030 — accelerate the pipeline." The 9 action flags are not labels — they are the policy playbook. Each one names the specific intervention: build a substation, extend a transmission line, accelerate RUPTL, invest in battery storage. The dashboard maps exactly where Indonesia's industrial ambitions and decarbonization goals align, and where they need a specific policy lever to close the gap. A policymaker preparing input for a RUPTL review or KEK electricity regulation update gets site-by-site, evidence-based recommendations that would take weeks to assemble manually.
+
 ### Readiness — 80%
 
 **What works:**
-- Action flags now include 8 categories: `solar_now`, `invest_transmission`, `invest_substation`, `invest_battery`, `invest_resilience`, `grid_first`, `plan_late`, `not_competitive`. V3 split `invest_grid` into actionable sub-flags.
+- Action flags now include 9 categories: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`. V3 split `invest_grid` into actionable sub-flags.
 - Full RUPTL pipeline context: `pre2030_solar_mw`, `post2030_share`, `grid_upgrade_pre2030`, `ruptl_summary`
 - `green_share_geas` quantifies GEAS allocation as a policy lever
 - `carbon_breakeven_usd_tco2` supports carbon market design arguments
@@ -278,6 +311,10 @@ Ranked table CSV filtered by `grid_integration_category`. Screenshot of three-po
 
 **Primary question:** *Where are the strongest solar-to-BPP economics — and where should we pre-position for PLN procurement or advocate for solar prioritization?*
 
+### What only this dashboard shows them
+
+The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — not just where solar is cheap, but where it undercuts PLN's actual cost of supply (BPP), which is often 15-35% higher than the subsidized industrial tariff. Where that gap is negative, the IPP's pitch to PLN writes itself: "procure solar here and your generation cost drops." Combined with `grid_integration_category` (is the substation ready or does the IPP need to factor in grid delay?), `max_captive_capacity_mwp` (how big can the project be?), and `capacity_assessment` (can the local grid absorb the output?), this is a pre-feasibility screening tool that narrows 25 KEKs to 3-5 viable target regions before expensive site visits and land acquisition. The buildability data (slope, forest, peat, land cover filters) tells the IPP what percentage of nearby land is actually buildable — saving months of field screening. No other tool combines solar resource quality, grid injection readiness, BPP economics, and land buildability at this resolution.
+
 **V2 note:** V1 framed the IPP as selling captive power directly to KEK tenants via PPA. V2 reframes the offtake model: IPP sells to PLN, PLN delivers to KEK tenants. This is the standard Indonesian model.
 
 ### Readiness — 80%
@@ -345,6 +382,10 @@ Ranked table CSV (top 10 sites) for BD pipeline tracker. KEK Scorecard screensho
 **Role:** Site selection manager or country director, industrial manufacturer or smelter operator (e.g., nickel processing, petrochemicals, automotive components, data center operator)
 **Context:** Deciding which KEK to locate a factory or processing facility in. This persona does **not** build solar — they buy electricity from PLN at the regulated industrial tariff. Their decision is driven by electricity cost, reliability, and increasingly by green energy credentials (ESG requirements from buyers and investors).
 **Primary question:** *Which KEK offers the lowest risk for electricity cost and reliability over the next 10–15 years — and which ones will have the greenest power mix?*
+
+### What only this dashboard shows them
+
+All KEKs pay the same PLN industrial tariff today — the differentiation is *risk*. This dashboard exposes the subsidy gap (BPP vs. tariff) by region. In regions like Papua, PLN's actual cost of supply is $133/MWh but the tariff is $63/MWh — a $70/MWh subsidy that is a future tariff hike waiting to happen. KEKs in regions where solar could lower the BPP are safer 15-year bets for electricity cost stability. For ESG-sensitive operators — nickel processors selling to EV battery supply chains, data centers with carbon commitments — the `green_share_geas` metric shows which KEKs will have the greenest power mix by 2030. The captive power context shows existing coal plants and nickel smelters within 50km, many subject to Perpres 112/2022 phase-out by 2050 — a regulatory risk (and transition opportunity) for co-located industry. No other tool maps subsidy exposure, green energy trajectory, and captive power regulatory risk at KEK level for industrial site selection.
 
 **V2 note:** This persona was implicit in V1 but not separately modeled. They are the demand side of the equation — the factories and smelters that create the industrial electricity demand the dashboard quantifies.
 

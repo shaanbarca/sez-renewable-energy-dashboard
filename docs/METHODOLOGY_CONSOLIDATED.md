@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
 **Version:** 3.1 (Consolidated, April 2026)
-**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 383+ tests passing.
+**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 386 tests passing.
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -46,7 +46,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [9.2 Carbon breakeven price](#92-carbon-breakeven-price)
   - [9.3 Flip scenario](#93-flip-scenario)
 - [10. Action Flags](#10-action-flags)
-  - [10.1 Flag definitions (8 flags)](#101-flag-definitions-8-flags)
+  - [10.1 Flag definitions (9 flags)](#101-flag-definitions-9-flags)
   - [10.2 Priority ordering](#102-priority-ordering)
   - [10.3 solar_attractive definition](#103-solar_attractive-definition)
   - [10.4 invest_resilience rationale](#104-invest_resilience-rationale)
@@ -64,6 +64,7 @@ This document is the single authoritative methodology reference for the Indonesi
 - [17. Assumptions Summary](#17-assumptions-summary)
 - [18. Reproducibility](#18-reproducibility)
 - [19. Regulatory References](#19-regulatory-references)
+- [References](#references)
 - [Appendix A: Buildability Filter Details](#appendix-a-buildability-filter-details)
 - [Appendix B: Legal Framework for Captive Solar](#appendix-b-legal-framework-for-captive-solar)
 - [Appendix C: Evolution from V1 to V3](#appendix-c-evolution-from-v1-to-v3)
@@ -109,9 +110,9 @@ Step 3 — Grid cost reference
 Step 4 — Competitiveness gap
   gap = (LCOE - C_grid) / C_grid x 100%
 
-Step 5 — Action flags (8 flags, priority-ordered)
+Step 5 — Action flags (9 flags, priority-ordered)
   solar_now | invest_transmission | invest_substation | grid_first
-  invest_battery | invest_resilience | plan_late | not_competitive
+  invest_battery | invest_resilience | plan_late | not_competitive | no_solar_resource
 ```
 
 ### Key inputs and sources
@@ -314,7 +315,7 @@ Connection cost = 5 km x $5/kW-km + $80/kW = $105/kW
 Effective CAPEX = $960 + $105 + $45 = $1,110/kW
 ```
 
-**Global context note:** The $5/kW-km gen-tie cost translates to real-world figures as follows: at 25 MW and 5 km, the formula gives $105/kW x 25,000 kW = $2.625M, which is ~$0.5M/km, on the low end of industry benchmarks ($1-3M/mile or $0.6-1.9M/km). In Indonesian IPP practice, transmission corridors of 20-40 km from plant to nearest PLN substation are common (Norton Rose Fulbright). The 5 km screening threshold is therefore an optimistic cutoff for "grid-ready" sites, not the outer limit of what gets built.
+**Global context note:** The $5/kW-km gen-tie cost translates to real-world figures as follows: at 25 MW and 5 km, the formula gives $105/kW x 25,000 kW = $2.625M, which is ~$0.5M/km, on the low end of industry benchmarks ($1-3M/mile or $0.6-1.9M/km). In Indonesian IPP practice, transmission corridors of 20-40 km from plant to nearest PLN substation are common (practitioner benchmark, Norton Rose Fulbright, 2020). The 5 km screening threshold is therefore an optimistic cutoff for "grid-ready" sites, not the outer limit of what gets built.
 
 **Implementation:** `lcoe_solar_grid_connected()` and `grid_connection_cost_per_kw()` in `basic_model.py`
 
@@ -365,7 +366,7 @@ LCOE_with_battery = LCOE_solar + bess_storage_adder
 
 ### 6.5 WACC
 
-Default: 10% (ADB benchmark for SE Asia renewable energy). Dashboard slider: 4-20% in 1% steps.
+Default: 10% (ADB, 2020, SE Asia renewable energy benchmark; IRENA, 2023). Dashboard slider: 4-20% in 1% steps.
 
 **Precomputed snap range:** `fct_lcoe` stores LCOE at 9 WACC values: [4, 6, 8, 10, 12, 14, 16, 18, 20]%. This produces 450 rows (25 KEKs x 9 WACCs x 2 scenarios).
 
@@ -457,21 +458,23 @@ For each KEK:
 
 | Category | Condition | Meaning |
 |---|---|---|
-| `within_boundary` | Operational substation inside KEK polygon | No grid connection needed |
+| `within_boundary` | Operational substation inside KEK polygon, OR within-boundary solar coverage >= 100% of demand | No grid connection needed (behind-the-meter) |
 | `grid_ready` | d(A, B_solar) < 5km AND d(C, B_kek) < 15km | Both short distances, grid can absorb and deliver |
 | `invest_transmission` | d(A, B_solar) < 5km AND d(C, B_kek) >= 15km | Solar near substation but KEK far. **Build transmission to KEK.** |
 | `invest_substation` | d(C, B_kek) < 15km AND d(A, B_solar) >= 5km | KEK near grid but solar far. **Build substation near solar.** |
 | `grid_first` | Both distances exceed thresholds | No nearby grid infrastructure. Major grid expansion needed. |
 
-**Current results:** 17 `invest_substation`, 5 `grid_first`, 2 `within_boundary`, 1 `grid_ready`.
+**Within-boundary override (V3.2):** If buildable solar within the KEK boundary can generate >= 100% of the KEK's 2030 demand (using within-boundary PVOUT), the KEK is self-sufficient with on-site solar. It classifies as `within_boundary` regardless of substation distances, because the project can be deployed behind-the-meter without grid export. 9 KEKs qualify: Singhasari (201%), Lido (166%), Gresik (155%), Maloy Batuta (150%), Kendal (148%), Palu (142%), Industropolis Batang (138%), Tanjung Kelayang (136%), Galang Batang (103%).
 
-**Implementation:** `grid_integration_category()` in `basic_model.py`; proximity pipeline in `build_fct_substation_proximity.py`
+**Current results:** 11 `within_boundary` (2 internal substation + 9 coverage override), 10 `invest_substation`, 3 `grid_first`, 1 `grid_ready`.
+
+**Implementation:** `grid_integration_category()` in `basic_model.py`; proximity pipeline in `build_fct_substation_proximity.py`; coverage override in `build_fct_kek_scorecard.py`
 
 ### 8.3 Threshold values
 
 | Parameter | Default | Rationale |
 |---|---|---|
-| `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 5.0 km | V3.1: tightened from 10km. Gen-tie costs ~$1-3M/mile make longer connections uneconomic. Source: YSG Solar, IFC Utility-Scale Solar Guide. |
+| `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 5.0 km | V3.1: tightened from 10km. Gen-tie costs ~$1-3M/mile make longer connections uneconomic. Source: IFC (2015), industry benchmarks. |
 | `KEK_TO_SUBSTATION_THRESHOLD_KM` | 15.0 km | PLN distribution reach to industrial estates. Indonesia's grid density varies between Java (dense) and eastern islands (sparse). |
 | `SUBSTATION_MIN_CAPACITY_MVA` | 30 MVA | Minimum for viable grid injection. Allows ~21-24 MW solar at 70-80% utilization. |
 
@@ -610,7 +613,7 @@ Where:
 
 ## 10. Action Flags
 
-### 10.1 Flag definitions (8 flags)
+### 10.1 Flag definitions (9 flags)
 
 | Flag | Condition | Meaning | Primary audience |
 |---|---|---|---|
@@ -621,7 +624,8 @@ Where:
 | `invest_battery` | solar_attractive AND reliability_req >= 0.75 | High reliability needs, battery storage required alongside solar. | IPP, Tenant |
 | `invest_resilience` | 0 < gap <= 20% AND reliability_req >= 0.75 | Near parity. Investing builds resilience against grid cost increases. | IPP, Policy Maker |
 | `plan_late` | post2030_share >= 60% | Most planned solar additions slip past 2030. RUPTL needs acceleration. | Policy Maker, DFI |
-| `not_competitive` | None of the above | Solar LCOE exceeds grid cost by too wide a margin. | All |
+| `not_competitive` | None of the above AND buildable area > 0 | Solar LCOE exceeds grid cost by too wide a margin. | All |
+| `no_solar_resource` | Buildable area = 0 | No suitable land for solar within 50km after buildability filters. | Policy Maker |
 
 ### 10.2 Priority ordering
 
@@ -634,13 +638,16 @@ When multiple flags could apply, the dashboard displays the **first true** flag:
 5. `invest_battery`
 6. `invest_resilience`
 7. `plan_late`
-8. `not_competitive` (fallback)
+8. `not_competitive`
+9. `no_solar_resource` (lowest — no buildable land)
 
 ### 10.3 solar_attractive definition
 
-$$\text{solar\_attractive} = \bigl(\text{PVOUT}_{\text{best50km}} \geq 1{,}550\bigr) \;\wedge\; \bigl(LCOE_{\text{mid}} \leq C_{\text{grid}}\bigr)$$
+$$\text{solar\_attractive} = \bigl(\text{PVOUT}_{\text{best50km}} \geq 1{,}350\bigr) \;\wedge\; \bigl(LCOE_{\text{mid}} \leq C_{\text{grid}}\bigr)$$
 
 WACC-dependent. "Solar LCOE <= grid cost at current WACC AND resource is sufficient."
+
+**Threshold rationale:** Indonesia is equatorial with PVOUT range 1,300-1,700 kWh/kWp/yr. The mean across all 25 KEKs is ~1,518. A threshold of 1,350 (~15.4% CF) keeps all viable sites in analysis while excluding truly poor solar locations. User-adjustable via Tier 3 slider (range 1,200-1,800).
 
 **Implementation:** `is_solar_attractive()` in `basic_model.py`
 
@@ -840,7 +847,7 @@ Rationale: JETP Balmorel modeling shows BESS requirements vary by site and indus
 
 | Slider | Default | Range | Effect |
 |---|---|---|---|
-| PVOUT threshold | 1,550 kWh/kWp | 1,200-1,800 | Minimum for `solar_attractive` |
+| PVOUT threshold | 1,350 kWh/kWp | 1,200-1,800 | Minimum for `solar_attractive` |
 | Plan-late threshold | 0.60 | 0.30-1.00 | Post-2030 share cutoff |
 | GEAS threshold | 0.30 | 0.05-0.50 | Min green share for `solar_now` |
 | Resilience gap | 20% | 5-50% | Max LCOE gap for `invest_resilience` |
@@ -905,7 +912,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 | Assumption | Value | Source | Sensitivity |
 |---|---|---|---|
-| Default WACC | 10% | ADB benchmark | Slider: 4-20% |
+| Default WACC | 10% | ADB (2020), IRENA (2023) | Slider: 4-20% |
 | Grid connection cost | $5/kW-km + $80/kW | Industry estimates | Slider: $2-15/kW-km, $30-200/kW |
 | Land cost | $45/kW | $3/m2 x 1.5 ha/MW | Slider: $0-300/kW |
 | BESS CAPEX | $250/kWh | BNEF 2024 Asia | Slider: $100-500/kWh |
@@ -913,20 +920,28 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | Regional solar CF (GEAS) | 20% | Representative for Indonesia | Low sensitivity |
 | Plan-late threshold | post2030 >= 60% | Majority post-2030 = late | Low sensitivity |
 | Reliability threshold | >= 0.75 | Manufacturing/processing sectors | Per kek_grid_region_mapping.csv |
-| Solar PVOUT threshold | 1,550 kWh/kWp/yr | ~18% CF minimum | User-adjustable |
+| Solar PVOUT threshold | 1,350 kWh/kWp/yr | ~15.4% CF minimum | User-adjustable |
 | IDR/USD rate | 15,800 | 2024 reference | Slider: 14,000-18,000 |
 
 ---
 
 ## 18. Reproducibility
 
-All inputs are publicly available:
-- Global Solar Atlas GeoTIFFs: globalatlas.solargis.com
-- Global Wind Atlas: globalwindatlas.info
-- ESDM Technology Catalogue: ESDM website
-- PLN Statistik: PLN website
-- RUPTL 2025-2034: ESDM/PLN website
-- KEK data: OSS/KEK portal
+All primary inputs are publicly available. See the [References](#references) section for full citations, URLs, and access details.
+
+| Dataset | Access | License |
+|---|---|---|
+| Global Solar Atlas v2 GeoTIFFs | https://globalsolaratlas.info | CC BY 4.0 |
+| Global Wind Atlas v3 GeoTIFF | https://globalwindatlas.info | CC BY 4.0 |
+| ESDM Technology Catalogue 2023 | ESDM publications portal | Government publication |
+| PLN RUPTL 2025-2034 | ESDM/PLN publications | Government publication |
+| PLN SIMOL (substations, grid lines) | PLN geoportal | Government data |
+| KEK boundary polygons | OSS/KEK portal | Government data |
+| ESA WorldCover 10m v200 | https://worldcover2021.esa.int | CC BY 4.0 |
+| Copernicus DEM GLO-30 | https://spacedata.copernicus.eu | Open license |
+| GFW Peatland Map | https://data.globalforestwatch.org | CC BY 4.0 |
+| GEM Global Coal Plant Tracker | https://globalenergymonitor.org | CC BY 4.0 |
+| CGSP Nickel Tracker | https://chinaglobalsouth.com | CC BY 4.0 |
 
 Pipeline: `run_pipeline.py` -> `outputs/data/processed/` -> `src/model/` -> dashboard.
 
@@ -934,17 +949,20 @@ Pipeline: `run_pipeline.py` -> `outputs/data/processed/` -> `src/model/` -> dash
 
 ## 19. Regulatory References
 
-| Regulation | Relevance |
+See the [Indonesian Regulatory Framework](#indonesian-regulatory-framework) table in the References section for full regulation titles. Summary of regulations referenced in this methodology:
+
+| Regulation | Relevance to this model |
 |---|---|
 | UU No. 30/2009 | Electricity Law. PLN as sole grid operator, captive power provisions. |
 | PP No. 14/2012 | IUPTLS licensing for captive generation (>500 kW). |
-| PP No. 112/2022 | KEK-specific power procurement exemptions. |
+| PP No. 57/2016 | Peatland ecosystem protection (buildability filter). |
+| PP No. 112/2022 | KEK-specific power procurement exemptions. Captive coal phase-out by 2050. |
 | Permen ESDM No. 1/2015 | Authorizes grid wheeling (not implemented in practice). |
 | Permen ESDM No. 1/2017 | Grid connection standards for private generators. |
 | Permen ESDM No. 27/2017 | Connection standards. Gen-tie ownership transfers to PLN post-commissioning. |
 | Permen ESDM No. 11/2021 | IUPTLS licensing regime. |
-| Permen ESDM No. 7/2024 | I-4/TT industrial tariff. Updated renewable procurement framework. |
-| Kepmen ESDM 169/2021 | BPP Pembangkitan by grid region (FY2020). |
+| Permen ESDM No. 7/2024 | I-4/TT industrial tariff (996.74 Rp/kWh). Updated renewable procurement framework. |
+| Kepmen ESDM 169/2021 | BPP Pembangkitan (cost of supply) by grid region, FY2020 vintage. |
 
 ---
 
@@ -1007,7 +1025,7 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 | Transmission lease | $5-15/MWh operating adder | Removed (PLN system cost, in BPP/tariff) |
 | Land cost | Not modeled | $45/kW (grid-connected only, user-adjustable) |
 | Firming/battery | Flat $6/$11/$16 per MWh | BESS LCOE model (~$43/MWh at defaults) |
-| Action flags | 5 flags | 8 flags (split invest_grid, add not_competitive) |
+| Action flags | 5 flags | 9 flags (split invest_grid, add not_competitive, add no_solar_resource) |
 | Grid integration | Not present | 5 categories from 3-point proximity |
 | Solar site coordinates | Not stored | `best_solar_site_lat/lon` |
 | Substation connectivity | Not checked | Geometric check against PLN grid lines |
@@ -1028,3 +1046,64 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 ---
 
 *This document should be reviewed by an energy economist familiar with Indonesia's power sector before public release. Key review areas: Section 7 (grid cost reference), Section 10 (action flags), Section 11 (GEAS allocation).*
+
+---
+
+## References
+
+### Solar and Wind Resource Data
+
+- World Bank / Solargis. (2020). *Global Solar Atlas v2.0: Technical Report*. Washington, DC: World Bank Group. Available at: https://globalsolaratlas.info. Dataset: PVOUT (Photovoltaic Power Output), long-term average (LTAym), ~1 km resolution. License: CC BY 4.0.
+- DTU Wind Energy / World Bank. (2022). *Global Wind Atlas v3.0*. Technical University of Denmark. Available at: https://globalwindatlas.info. Dataset: wind speed at 100m hub height, ~1 km resolution. License: CC BY 4.0.
+
+### Technology Cost Parameters
+
+- Kementerian ESDM (Ministry of Energy and Mineral Resources). (2023). *Katalog Teknologi: Katalog Teknologi Energi Baru, Terbarukan, dan Konservasi Energi 2023* (Technology Catalogue for New, Renewable Energy and Energy Conservation). Jakarta: ESDM. Solar PV parameters from p. 66 (TECH006); wind parameters from p. 90.
+- BloombergNEF. (2024). *Energy Storage System Cost Survey 2024*. Battery pack price for Asia utility-scale Li-ion: $250/kWh (2024 central estimate). Used for BESS storage model (§6.3).
+
+### Grid Cost and Tariff Data
+
+- Kementerian ESDM. (2024). *Peraturan Menteri ESDM Nomor 7 Tahun 2024 tentang Tarif Tenaga Listrik* (Regulation on Electricity Tariffs). Jakarta. Lampiran IV: I-4/TT industrial tariff = 996.74 Rp/kWh.
+- Kementerian ESDM. (2021). *Keputusan Menteri ESDM Nomor 169.K/HK.02/MEM.L/2021 tentang Biaya Pokok Penyediaan Tenaga Listrik* (Ministerial Decree on Cost of Electricity Supply). Jakarta. BPP (Biaya Pokok Penyediaan) by PLN grid region, FY2020 vintage.
+
+### Geospatial and Buildability Data
+
+- European Space Agency. (2021). *ESA WorldCover 10m v200*. Available at: https://worldcover2021.esa.int. Land cover classification used for buildability exclusion (tree cover, cropland, urban, water). License: CC BY 4.0.
+- European Space Agency / Copernicus. (2021). *Copernicus DEM GLO-30*. Available at: https://spacedata.copernicus.eu. Digital elevation model at 30m resolution, used for slope and elevation filters.
+- Global Forest Watch. (2023). *GFW Peatland Map v20230315*. World Resources Institute. Available at: https://data.globalforestwatch.org. Peatland exclusion layer for Indonesia.
+- KLHK (Ministry of Environment and Forestry). (2017). *Kawasan Hutan* (Forest Zone) dataset, September 2017 vintage. Used for hard regulatory exclusion of conservation and protection forests.
+
+### Captive Power and Industrial Data
+
+- Global Energy Monitor. (2024). *Global Coal Plant Tracker (GCPT)*. Available at: https://globalenergymonitor.org/projects/global-coal-plant-tracker. Captive coal plants within 50km of each KEK. License: CC BY 4.0. Accessed April 2026.
+- China Global South Project. (2024). *CGSP Indonesia Nickel Tracker*. Available at: https://chinaglobalsouth.com. Nickel smelter locations, ownership, and process types. License: CC BY 4.0. Accessed April 2026.
+
+### Grid Infrastructure
+
+- PLN (Perusahaan Listrik Negara). (2024). *SIMOL: Sistem Informasi Monitoring Online*. Substation data (2,913 substations with capacity, voltage, PLN region, operational status) and transmission line data (1,595 lines). Accessed via public GeoJSON export.
+- PLN. (2024). *RUPTL 2025-2034: Rencana Usaha Penyediaan Tenaga Listrik* (Electricity Supply Business Plan). Jakarta. Planned generation capacity additions by region and year.
+
+### Emissions and Carbon Pricing
+
+- KESDM (Kementerian ESDM). (2019). *Grid Emission Factor: Operating Margin by PLN Grid Region*. Used for carbon breakeven price calculation (§9.2). Tier 2 OM factors by grid region.
+- IPCC. (2022). *Climate Change 2022: Mitigation of Climate Change. Contribution of Working Group III to the Sixth Assessment Report of the Intergovernmental Panel on Climate Change*. Cambridge University Press. doi:10.1017/9781009157926. Solar PV lifecycle emissions: ~40 gCO2/kWh.
+
+### Infrastructure Cost Benchmarks
+
+- IFC (International Finance Corporation). (2015). *Utility-Scale Solar Photovoltaic Power Plants: A Project Developer's Guide*. Washington, DC: IFC. Used for gen-tie and substation connection cost benchmarks.
+- IRENA (International Renewable Energy Agency). (2023). *Renewable Power Generation Costs in 2022*. Abu Dhabi: IRENA. Reference for substation upgrade cost ranges.
+
+### Indonesian Regulatory Framework
+
+| Regulation | Full Title | Relevance |
+|---|---|---|
+| UU No. 30/2009 | Undang-Undang tentang Ketenagalistrikan (Electricity Law) | PLN as sole grid operator, captive power provisions |
+| PP No. 14/2012 | Peraturan Pemerintah tentang IUPTLS | Licensing for captive generation (>500 kW) |
+| PP No. 57/2016 | Peraturan Pemerintah tentang Perlindungan Ekosistem Gambut | Peatland development restrictions |
+| PP No. 112/2022 | Peraturan Pemerintah tentang KEK | KEK-specific power procurement exemptions, captive coal phase-out by 2050 |
+| Permen ESDM No. 1/2015 | Peraturan Menteri tentang Wheeling | Authorizes grid wheeling (not implemented in practice) |
+| Permen ESDM No. 1/2017 | Peraturan Menteri tentang Koneksi Grid | Grid connection standards for private generators |
+| Permen ESDM No. 27/2017 | Peraturan Menteri tentang Sambungan Tenaga Listrik | Connection standards. Gen-tie ownership transfers to PLN post-commissioning |
+| Permen ESDM No. 11/2021 | Peraturan Menteri tentang IUPTLS | Updated IUPTLS licensing regime |
+| Permen ESDM No. 7/2024 | Peraturan Menteri tentang Tarif Tenaga Listrik | I-4/TT industrial tariff. Updated renewable procurement framework |
+| Kepmen ESDM 169/2021 | Keputusan Menteri tentang BPP | BPP Pembangkitan by grid region (FY2020) |

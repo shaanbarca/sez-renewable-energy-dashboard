@@ -359,11 +359,12 @@ LAND_COST_USD_PER_KW: float = 45.0
 
 # ─── ACTION FLAG THRESHOLDS ───────────────────────────────────────────────────
 
-FIRMING_PVOUT_THRESHOLD: float = 1_550.0
+FIRMING_PVOUT_THRESHOLD: float = 1_350.0
 # Minimum annual PVOUT (kWh/kWp/yr) for a zone to be considered solar-attractive.
 # Source: METHODOLOGY_CONSOLIDATED.md Section 5.2.
-# Rationale: Below ~1,550 kWh/kWp/yr (~18% CF), intermittency risk is high enough that
-# firming (BESS or hybrid) is typically required to meet industrial load profiles.
+# Rationale: Indonesia is equatorial with PVOUT range 1,300-1,700. The mean across
+# 25 KEKs is ~1,518. A threshold of 1,350 (~15.4% CF) keeps all viable sites in
+# analysis while excluding truly poor solar locations.
 
 PLAN_LATE_POST2030_SHARE_THRESHOLD: float = 0.60
 # Share of RUPTL solar additions post-2030 above which grid planning is flagged late.

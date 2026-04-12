@@ -222,6 +222,7 @@ def build_fct_kek_scorecard(
         "buildability_constraint",
         "pvout_within_boundary",
         "within_boundary_source",
+        "within_boundary_capacity_mwp",
     ]
     _resource_base = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
     _resource_cols = _resource_base + [c for c in _build_cols if c in resource.columns]
@@ -368,6 +369,18 @@ def build_fct_kek_scorecard(
     )
     df = df.merge(demand_2030, on="kek_id", how="left")
     df["green_share_geas"] = df["green_share_geas"].fillna(0.0)
+
+    # Within-boundary coverage: what % of demand can on-site solar meet?
+    # Used to override grid_integration_category for self-sufficient KEKs.
+    wb_cap = df["within_boundary_capacity_mwp"].fillna(0)
+    wb_pvout = df["pvout_within_boundary"].fillna(df["pvout_centroid"])
+    wb_gen_mwh = wb_cap * wb_pvout  # MWp × kWh/kWp/yr = MWh/yr
+    demand_mwh = df["demand_mwh_2030"].fillna(0)
+    df["within_boundary_coverage_pct"] = np.where(demand_mwh > 0, wb_gen_mwh / demand_mwh, 0.0)
+
+    # Override grid_integration_category for KEKs where within-boundary solar >= 100% of demand
+    wb_override = df["within_boundary_coverage_pct"] >= 1.0
+    df.loc[wb_override, "grid_integration_category"] = "within_boundary"
 
     # Project viability flag — True if buildable capacity meets minimum IPP threshold
     df["project_viable"] = df["max_captive_capacity_mwp"].fillna(0) >= PROJECT_VIABLE_MIN_MWP
@@ -549,6 +562,7 @@ def build_fct_kek_scorecard(
             "inter_substation_dist_km",
             "available_capacity_mva",
             "capacity_assessment",
+            "within_boundary_coverage_pct",
             "project_viable",
             "demand_mwh_2030",
             "lcoe_low_usd_mwh",

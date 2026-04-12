@@ -163,6 +163,26 @@ docs/*.jpeg
 data/~$*
 .gstack/
 
+# Claude Code (AI assistant config, not project content)
+.claude/
+
+# Developer-internal docs (not for publication)
+CLAUDE.md
+PLAN.md
+TODOS.md
+MIGRATION.md
+
+# Archived/superseded methodology drafts
+docs/archives/
+
+# Internal gap analyses
+docs/gap_analysis_existing_vs_conversation_spec.md
+docs/gap_analysis_jetp_captive_power.md
+docs/USER_JOURNEYS.md
+
+# Design mockup HTML exports
+docs/designs/
+
 # Frontend (React/Vite)
 frontend/node_modules/
 frontend/dist/

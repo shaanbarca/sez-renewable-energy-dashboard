@@ -53,7 +53,7 @@ src/pipeline/       Data pipeline builders (dim_kek, fct_lcoe, etc.)
 src/api/            FastAPI backend (routes, scorecard recomputation)
 src/dash/           Shared modules (data_loader, map_layers, logic, constants)
 frontend/src/       React SPA (components, store, hooks, lib)
-tests/              383 tests (model, pipeline, API)
+tests/              386 tests (model, pipeline, API)
 notebooks/          Jupyter notebooks for exploration
 data/               Input data (GeoTIFFs, GeoJSON, shapefiles)
 outputs/            Pipeline output CSVs
@@ -75,7 +75,7 @@ docs/               Design mockups, reference PDFs
 ## Tests
 
 ```bash
-uv run pytest tests/       # 383 tests
+uv run pytest tests/       # 386 tests
 uv run ruff check src/     # Python lint
 cd frontend && npm run lint # TypeScript lint (Biome)
 ```

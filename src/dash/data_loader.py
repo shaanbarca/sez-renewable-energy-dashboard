@@ -76,11 +76,13 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     if "reliability_req" not in resource.columns and "reliability_req" in dim_kek.columns:
         resource = resource.merge(dim_kek[["kek_id", "reliability_req"]], on="kek_id", how="left")
 
-    # Add green_share_geas from scorecard
-    if "green_share_geas" not in resource.columns and "green_share_geas" in scorecard.columns:
-        resource = resource.merge(
-            scorecard[["kek_id", "green_share_geas"]], on="kek_id", how="left"
-        )
+    # Add green_share_geas and within_boundary_coverage_pct from scorecard
+    scorecard_cols = ["kek_id"]
+    for col in ["green_share_geas", "within_boundary_coverage_pct"]:
+        if col not in resource.columns and col in scorecard.columns:
+            scorecard_cols.append(col)
+    if len(scorecard_cols) > 1:
+        resource = resource.merge(scorecard[scorecard_cols], on="kek_id", how="left")
 
     # Add grid_region_id if missing
     if "grid_region_id" not in resource.columns and "grid_region_id" in dim_kek.columns:

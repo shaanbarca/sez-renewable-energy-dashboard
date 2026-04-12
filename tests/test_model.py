@@ -615,6 +615,30 @@ class TestGridIntegrationCategory:
         )
         assert result == "grid_ready"
 
+    def test_within_boundary_coverage_override(self):
+        """KEK with >= 100% within-boundary solar coverage → within_boundary."""
+        from src.model.basic_model import grid_integration_category
+
+        # Without override: would be invest_substation (KEK near, solar far)
+        assert grid_integration_category(False, 15.0, 10.0) == "invest_substation"
+        # With 136% coverage: overrides to within_boundary
+        result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=1.36)
+        assert result == "within_boundary"
+
+    def test_within_boundary_coverage_below_threshold(self):
+        """KEK with < 100% within-boundary solar coverage → no override."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=0.90)
+        assert result == "invest_substation"
+
+    def test_within_boundary_coverage_none(self):
+        """None within_boundary_coverage_pct → no override (backwards compatible)."""
+        from src.model.basic_model import grid_integration_category
+
+        result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=None)
+        assert result == "invest_substation"
+
 
 class TestNewTransmissionCostPerKw:
     def test_basic_calculation(self):

@@ -452,6 +452,20 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
           tip="Negative = solar beats grid. Positive = solar is more expensive. Below -10% is a strong case."
         />
         <StatRow label="Best RE" value={row.best_re_technology} />
+        {row.grid_investment_needed_usd != null && (
+          <ColoredStatRow
+            label="Grid Investment"
+            value={`$${(row.grid_investment_needed_usd / 1_000_000).toFixed(0)}M`}
+            color={
+              row.grid_investment_needed_usd / 1_000_000 > 500
+                ? '#EF5350'
+                : row.grid_investment_needed_usd / 1_000_000 > 100
+                  ? '#FFC107'
+                  : '#4CAF50'
+            }
+            tip="Total grid infrastructure cost: gen-tie + transmission + substation upgrade. Green (<$100M), yellow ($100-500M), red (>$500M)."
+          />
+        )}
         {row.solar_supply_coverage_pct != null && (
           <ColoredStatRow
             label="RE Coverage"
