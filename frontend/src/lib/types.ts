@@ -97,6 +97,7 @@ export interface ScorecardRow {
   available_capacity_mva?: number;
   capacity_assessment?: 'green' | 'yellow' | 'red' | 'unknown';
   transmission_cost_per_kw?: number;
+  substation_upgrade_cost_per_kw?: number;
   grid_investment_needed_usd?: number;
 }
 
@@ -135,3 +136,12 @@ export type EnergyMode = 'solar' | 'wind' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
 export type BottomTab = 'table' | 'quadrant' | 'ruptl';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
+
+export interface SavedScenario {
+  id: string;
+  name: string;
+  assumptions: UserAssumptions;
+  thresholds: UserThresholds;
+  benchmarkMode: BenchmarkMode;
+  createdAt: string;
+}

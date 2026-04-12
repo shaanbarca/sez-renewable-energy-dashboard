@@ -283,6 +283,7 @@ def compute_lcoe_live(
         else:
             cf_gc = lcoe_c_gc = lcoe_l_gc = lcoe_h_gc = np.nan
             conn_cost = 0.0
+            trans_cost = 0.0
             upgrade_cost = 0.0
 
         rows.append(
@@ -293,6 +294,8 @@ def compute_lcoe_live(
                 "lcoe_mid_usd_mwh": _round(lcoe_c_gc),
                 "lcoe_high_usd_mwh": _round(lcoe_h_gc),
                 "connection_cost_per_kw": _round(conn_cost, 1),
+                "transmission_cost_per_kw": _round(trans_cost, 1),
+                "substation_upgrade_cost_per_kw": _round(upgrade_cost, 1),
                 "cf": _round(cf_gc, 4),
                 "pvout_used": pvout_gc,
             }
@@ -654,16 +657,30 @@ def compute_scorecard_live(
         row["line_connected"] = kek.get("line_connected", None)
         row["inter_substation_connected"] = kek.get("inter_substation_connected", None)
         row["inter_substation_dist_km"] = kek.get("inter_substation_dist_km", None)
-        row["transmission_cost_per_kw"] = kek.get("transmission_cost_per_kw", None)
+
+        # V3.2: Use live-computed transmission + upgrade costs from compute_lcoe_live
+        row["transmission_cost_per_kw"] = (
+            gc.loc[kek_id, "transmission_cost_per_kw"] if kek_id in gc.index else 0.0
+        )
+        row["substation_upgrade_cost_per_kw"] = (
+            gc.loc[kek_id, "substation_upgrade_cost_per_kw"] if kek_id in gc.index else 0.0
+        )
 
         # Grid investment needed (USD): total infra cost × capacity (kW)
-        conn_cost = kek.get("connection_cost_per_kw") or 0.0
-        trans_cost_val = kek.get("transmission_cost_per_kw") or 0.0
-        if pd.isna(conn_cost):
-            conn_cost = 0.0
-        if pd.isna(trans_cost_val):
-            trans_cost_val = 0.0
-        infra_cost = conn_cost + trans_cost_val
+        gc_conn = (
+            float(row["connection_cost_per_kw"]) if pd.notna(row["connection_cost_per_kw"]) else 0.0
+        )
+        gc_trans = (
+            float(row["transmission_cost_per_kw"])
+            if pd.notna(row["transmission_cost_per_kw"])
+            else 0.0
+        )
+        gc_upgrade = (
+            float(row["substation_upgrade_cost_per_kw"])
+            if pd.notna(row["substation_upgrade_cost_per_kw"])
+            else 0.0
+        )
+        infra_cost = gc_conn + gc_trans + gc_upgrade
         mwp = kek.get("max_captive_capacity_mwp", 0.0)
         if infra_cost > 0 and mwp and mwp > 0:
             row["grid_investment_needed_usd"] = round(infra_cost * mwp * 1000)

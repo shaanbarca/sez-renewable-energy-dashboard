@@ -74,7 +74,7 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'Ranked Table',
     description:
-      'Sort the table by competitive gap (ascending) to find KEKs closest to grid parity. These are the easiest wins for solar.',
+      'Sort the table by LCOE gap (ascending) to find KEKs closest to grid parity. These are the easiest wins for solar.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },

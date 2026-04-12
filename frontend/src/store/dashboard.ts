@@ -6,6 +6,7 @@ import type {
   DefaultsResponse,
   EnergyMode,
   MapStyleKey,
+  SavedScenario,
   ScorecardRow,
   UserAssumptions,
   UserThresholds,
@@ -33,6 +34,7 @@ interface DashboardStore {
   walkthroughPersona: string | null;
   walkthroughStep: number;
   walkthroughDismissed: boolean;
+  savedScenarios: SavedScenario[];
 
   // Cached layer data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +52,9 @@ interface DashboardStore {
   toggleLayer: (name: string) => void;
   recomputeScorecard: () => Promise<void>;
   resetDefaults: () => void;
+  saveScenario: (name: string) => void;
+  loadScenario: (id: string) => void;
+  deleteScenario: (id: string) => void;
   initialize: () => Promise<void>;
   setWalkthroughPersona: (p: string | null) => void;
   nextWalkthroughStep: () => void;
@@ -83,6 +88,13 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   walkthroughPersona: null,
   walkthroughStep: 0,
   walkthroughDismissed: localStorage.getItem('walkthrough_dismissed') === 'true',
+  savedScenarios: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('kek_saved_scenarios') || '[]');
+    } catch {
+      return [];
+    }
+  })(),
 
   // Cached layer data
   layers: {},
@@ -98,7 +110,14 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       thresholds: state.thresholds ? { ...state.thresholds, ...t } : null,
     })),
 
-  selectKek: (id) => set({ selectedKek: id, drawerOpen: id !== null }),
+  selectKek: (id) =>
+    set((state) => ({
+      selectedKek: id,
+      drawerOpen: id !== null,
+      layerVisibility: id
+        ? { ...state.layerVisibility, buildable_polygons: true }
+        : state.layerVisibility,
+    })),
 
   closeDrawer: () => set({ drawerOpen: false }),
 
@@ -157,6 +176,38 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   restartWalkthrough: () =>
     set({ walkthroughDismissed: false, walkthroughPersona: null, walkthroughStep: 0 }),
+
+  saveScenario: (name) => {
+    const { assumptions, thresholds, benchmarkMode, savedScenarios } = get();
+    if (!assumptions || !thresholds || savedScenarios.length >= 3) return;
+    const scenario: SavedScenario = {
+      id: crypto.randomUUID(),
+      name: name.slice(0, 30),
+      assumptions: { ...assumptions },
+      thresholds: { ...thresholds },
+      benchmarkMode,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...savedScenarios, scenario];
+    localStorage.setItem('kek_saved_scenarios', JSON.stringify(updated));
+    set({ savedScenarios: updated });
+  },
+
+  loadScenario: (id) => {
+    const scenario = get().savedScenarios.find((s) => s.id === id);
+    if (!scenario) return;
+    set({
+      assumptions: { ...scenario.assumptions },
+      thresholds: { ...scenario.thresholds },
+      benchmarkMode: scenario.benchmarkMode,
+    });
+  },
+
+  deleteScenario: (id) => {
+    const updated = get().savedScenarios.filter((s) => s.id !== id);
+    localStorage.setItem('kek_saved_scenarios', JSON.stringify(updated));
+    set({ savedScenarios: updated });
+  },
 
   initialize: async () => {
     set({ loading: true });

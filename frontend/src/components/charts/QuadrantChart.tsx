@@ -43,7 +43,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
       <div>LCOE: ${d.lcoe_mid_usd_mwh.toFixed(1)}/MWh</div>
       <div>Grid: ${d.dashboard_rate_usd_mwh.toFixed(1)}/MWh</div>
       <div>
-        Gap: {d.solar_competitive_gap_pct > 0 ? '+' : ''}
+        LCOE Gap: {d.solar_competitive_gap_pct > 0 ? '+' : ''}
         {d.solar_competitive_gap_pct.toFixed(1)}%
       </div>
     </div>

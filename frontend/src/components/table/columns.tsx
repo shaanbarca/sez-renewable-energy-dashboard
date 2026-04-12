@@ -24,7 +24,7 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   lcoe_mid_usd_mwh:
     'Levelized Cost of Energy for solar at mid-case WACC (USD per MWh). Lower = cheaper solar.',
   solar_competitive_gap_pct:
-    'How far solar LCOE is from grid cost. Negative = solar is cheaper. Positive = grid is cheaper.',
+    'LCOE gap to grid benchmark. Negative = solar is cheaper than grid. Positive = solar is more expensive. Benchmark is BPP or I-4/TT tariff depending on mode.',
   best_re_technology: 'Best available renewable energy technology for this KEK',
   dashboard_rate_usd_mwh:
     'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
@@ -202,7 +202,7 @@ export const columns = [
     cell: (info) => info.getValue().toFixed(1),
   }),
   col.accessor('solar_competitive_gap_pct', {
-    header: () => <HeaderWithTooltip label="Gap (%)" columnId="solar_competitive_gap_pct" />,
+    header: () => <HeaderWithTooltip label="LCOE Gap (%)" columnId="solar_competitive_gap_pct" />,
     filterFn: 'inRange',
     cell: (info) => {
       const val = info.getValue();

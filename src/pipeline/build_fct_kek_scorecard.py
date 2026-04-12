@@ -140,6 +140,7 @@ def build_fct_kek_scorecard(
                 "lcoe_high_usd_mwh",
                 "connection_cost_per_kw",
                 "transmission_cost_per_kw",
+                "substation_upgrade_cost_per_kw",
             ]
             if c in lcoe_all.columns
         ]
@@ -497,13 +498,18 @@ def build_fct_kek_scorecard(
         "available_capacity_mva",
         "capacity_assessment",
         "transmission_cost_per_kw",
+        "substation_upgrade_cost_per_kw",
     ]:
         if _opt_col not in df.columns:
             df[_opt_col] = np.nan
 
     # Grid investment needed (USD): total grid infrastructure cost × capacity (kW)
     # Includes gen-tie (connection_cost_per_kw) + new transmission line if needed
-    _infra_cost = df["connection_cost_per_kw"].fillna(0) + df["transmission_cost_per_kw"].fillna(0)
+    _infra_cost = (
+        df["connection_cost_per_kw"].fillna(0)
+        + df["transmission_cost_per_kw"].fillna(0)
+        + df["substation_upgrade_cost_per_kw"].fillna(0)
+    )
     df["grid_investment_needed_usd"] = np.where(
         (_infra_cost > 0) & (df["max_captive_capacity_mwp"] > 0),
         (_infra_cost * df["max_captive_capacity_mwp"] * 1000).round(0),
@@ -549,6 +555,7 @@ def build_fct_kek_scorecard(
             "lcoe_grid_connected_high_usd_mwh",
             "connection_cost_per_kw",
             "transmission_cost_per_kw",
+            "substation_upgrade_cost_per_kw",
             "grid_investment_needed_usd",
             "cf_used",
             "is_cf_provisional",

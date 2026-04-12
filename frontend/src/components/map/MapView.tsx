@@ -126,6 +126,103 @@ export default function MapView() {
       .catch(() => setWbBuildable(null));
   }, [selectedKek]);
 
+  // Radiate animation: buildable polygons pulse outward when KEK is selected
+  const radiateAnimRef = useRef<number>(0);
+  const radiateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!wbBuildable) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    cancelAnimationFrame(radiateAnimRef.current);
+    if (radiateTimeoutRef.current != null) clearTimeout(radiateTimeoutRef.current);
+
+    const DURATION = 4500;
+    const WB_DELAY = 600;
+    const OOB_DELAY = 1600;
+    const PULSE_CYCLES = 3;
+    const WB_REST_OPACITY = 0.35;
+    const WB_REST_LINE = 0.7;
+    const OOB_REST_OPACITY = 0.25;
+    const OOB_REST_LINE = 0.5;
+    const WB_PEAK_OPACITY = 0.7; // 2x resting — very visible flash
+    const OOB_PEAK_OPACITY = 0.5;
+
+    // Start invisible
+    if (map.getLayer('wb-buildable-fill')) {
+      map.setPaintProperty('wb-buildable-fill', 'fill-opacity', 0);
+      map.setPaintProperty('wb-buildable-outline', 'line-opacity', 0);
+      map.setPaintProperty('wb-buildable-outline', 'line-width', 0);
+    }
+    if (map.getLayer('overlay-buildable-polygons-fill')) {
+      map.setPaintProperty('overlay-buildable-polygons-fill', 'fill-opacity', 0);
+      map.setPaintProperty('overlay-buildable-polygons-outline', 'line-opacity', 0);
+    }
+
+    const start = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - start;
+      if (elapsed > DURATION + OOB_DELAY) {
+        // Settle to resting values
+        if (map.getLayer('wb-buildable-fill')) {
+          map.setPaintProperty('wb-buildable-fill', 'fill-opacity', WB_REST_OPACITY);
+          map.setPaintProperty('wb-buildable-outline', 'line-opacity', WB_REST_LINE);
+          map.setPaintProperty('wb-buildable-outline', 'line-width', 2);
+        }
+        if (map.getLayer('overlay-buildable-polygons-fill')) {
+          map.setPaintProperty('overlay-buildable-polygons-fill', 'fill-opacity', OOB_REST_OPACITY);
+          map.setPaintProperty('overlay-buildable-polygons-outline', 'line-opacity', OOB_REST_LINE);
+        }
+        return;
+      }
+
+      // Within-boundary buildable
+      const wbEl = elapsed - WB_DELAY;
+      if (wbEl > 0 && map.getLayer('wb-buildable-fill')) {
+        const t = Math.min(wbEl / DURATION, 1);
+        // Sharp sine pulse: abs(sin) gives distinct "heartbeat" peaks
+        const wave = Math.abs(Math.sin(t * PULSE_CYCLES * Math.PI));
+        const fadeIn = Math.min(t * 4, 1); // ramp up in first 25%
+        const decay = 1 - t * 0.6; // pulses shrink toward end
+        // Interpolate between peak and resting opacity
+        const fillOp = fadeIn * (WB_REST_OPACITY + (WB_PEAK_OPACITY - WB_REST_OPACITY) * wave * decay);
+        const lineOp = fadeIn * (WB_REST_LINE + (1.0 - WB_REST_LINE) * wave * decay);
+        const lineW = fadeIn * (2 + wave * 2 * decay);
+
+        map.setPaintProperty('wb-buildable-fill', 'fill-opacity', fillOp);
+        map.setPaintProperty('wb-buildable-outline', 'line-opacity', lineOp);
+        map.setPaintProperty('wb-buildable-outline', 'line-width', lineW);
+      }
+
+      // Out-of-boundary buildable (staggered)
+      const oobEl = elapsed - OOB_DELAY;
+      if (oobEl > 0 && map.getLayer('overlay-buildable-polygons-fill')) {
+        const t = Math.min(oobEl / DURATION, 1);
+        const wave = Math.abs(Math.sin(t * PULSE_CYCLES * Math.PI));
+        const fadeIn = Math.min(t * 4, 1);
+        const decay = 1 - t * 0.6;
+        const fillOp = fadeIn * (OOB_REST_OPACITY + (OOB_PEAK_OPACITY - OOB_REST_OPACITY) * wave * decay);
+        const lineOp = fadeIn * (OOB_REST_LINE + (0.9 - OOB_REST_LINE) * wave * decay);
+
+        map.setPaintProperty('overlay-buildable-polygons-fill', 'fill-opacity', fillOp);
+        map.setPaintProperty('overlay-buildable-polygons-outline', 'line-opacity', lineOp);
+      }
+
+      radiateAnimRef.current = requestAnimationFrame(animate);
+    };
+
+    radiateTimeoutRef.current = setTimeout(() => {
+      radiateAnimRef.current = requestAnimationFrame(animate);
+    }, 100);
+
+    return () => {
+      cancelAnimationFrame(radiateAnimRef.current);
+      if (radiateTimeoutRef.current != null) clearTimeout(radiateTimeoutRef.current);
+    };
+  }, [wbBuildable]);
+
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
       const feature = e.features?.[0];

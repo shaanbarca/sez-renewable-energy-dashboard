@@ -397,12 +397,12 @@ export default function VectorOverlay() {
               <Layer
                 id="overlay-buildable-polygons-fill"
                 type="fill"
-                paint={{ 'fill-color': '#66BB6A', 'fill-opacity': 0.25 }}
+                paint={{ 'fill-color': '#4DD0E1', 'fill-opacity': 0.25 }}
               />
               <Layer
                 id="overlay-buildable-polygons-outline"
                 type="line"
-                paint={{ 'line-color': '#388E3C', 'line-width': 1, 'line-opacity': 0.5 }}
+                paint={{ 'line-color': '#00ACC1', 'line-width': 1, 'line-opacity': 0.5 }}
               />
             </Source>
           );

@@ -4,6 +4,7 @@ import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type { ActionFlag, ScorecardRow, UserAssumptions } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import LcoeCurveChart from '../charts/LcoeCurveChart';
 import Slider from '../ui/Slider';
 
 /* ---------- Types ---------- */
@@ -319,6 +320,10 @@ function LCOETab({ row }: { row: ScorecardRow }) {
         </StatCard>
       )}
 
+      {row.max_captive_capacity_mwp != null && row.max_captive_capacity_mwp > 0 && (
+        <LcoeCurveChart row={row} />
+      )}
+
       {/* Substation capacity — slider + live traffic light */}
       {utilizationConfig && assumptions && (
         <StatCard>
@@ -363,7 +368,7 @@ function LCOETab({ row }: { row: ScorecardRow }) {
           unit="$/MWh"
           tip="PLN I-4/TT industrial tariff rate. This is the subsidized rate paid by KEK tenants, not the true cost of supply (BPP)."
         />
-        <StatRow label="Gap vs Tariff" value={row.gap_vs_tariff_pct?.toFixed(1)} unit="%" />
+        <StatRow label="LCOE Gap to Tariff" value={row.gap_vs_tariff_pct?.toFixed(1)} unit="%" />
       </StatCard>
       <StatCard>
         <StatRowWithTip
@@ -372,7 +377,7 @@ function LCOETab({ row }: { row: ScorecardRow }) {
           unit="$/MWh"
           tip="Biaya Pokok Penyediaan — PLN's unsubsidized cost of electricity supply for this grid region. Unlike the industrial tariff, BPP reflects the true generation + transmission cost."
         />
-        <StatRow label="Gap vs BPP" value={row.gap_vs_bpp_pct?.toFixed(1)} unit="%" />
+        <StatRow label="LCOE Gap to BPP" value={row.gap_vs_bpp_pct?.toFixed(1)} unit="%" />
       </StatCard>
     </>
   );
@@ -560,6 +565,19 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
             label="New Line Cost"
             value={row.transmission_cost_per_kw.toFixed(0)}
             unit="$/kW"
+          />
+        )}
+        {row.substation_upgrade_cost_per_kw != null && row.substation_upgrade_cost_per_kw > 0 && (
+          <StatRow
+            label="Sub Upgrade Cost"
+            value={row.substation_upgrade_cost_per_kw.toFixed(0)}
+            unit="$/kW"
+          />
+        )}
+        {row.grid_investment_needed_usd != null && (
+          <StatRow
+            label="Total Grid Investment"
+            value={`$${(row.grid_investment_needed_usd / 1_000_000).toFixed(1)}M`}
           />
         )}
       </StatCard>

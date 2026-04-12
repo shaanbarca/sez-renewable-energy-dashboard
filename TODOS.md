@@ -30,16 +30,16 @@ Items from the gap analysis that are documentation additions or trivial column d
 | M4 | **KEK operational status enrichment** | PERSONAS.md gap 7 | P4 | Distinguish operating (tenants present) vs. greenfield. Requires BKPM/KEK management data. |
 | ~~M5~~ | ~~**Custom CAPEX input for IPP**~~ | PERSONAS.md P4 audit | P4 | ✅ Done (2026-04-11) — `CapexInput.tsx` free-text input with slider, validates range, tab/enter commit. |
 | ~~M6~~ | ~~**Configurable assumptions — Phase D (UX polish)**~~ | DESIGN.md §3 | All | ✅ Done (2026-04-11) — URL state persistence (`urlState.ts`, `useUrlSync.ts`), "Modified" badge, reset-to-defaults. |
-| M7 | **Scenario save/compare** | Methodology audit | All | Save up to 3 named assumption sets, compare side-by-side. Zustand persist + local storage. |
+| ~~M7~~ | ~~**Scenario save/compare**~~ | Methodology audit | All | ✅ Done (2026-04-12) — Save up to 3 named scenarios to localStorage. `ScenarioManager.tsx` in AssumptionsPanel with save/load/delete. Comparison view deferred to v2. |
 | M8 | **Floating solar modelling** | User obs (2026-04-08) | P2, P4 | Water bodies excluded from buildable area. Floating PV on reservoirs/lagoons could unlock capacity for land-constrained KEKs. CAPEX ~20-30% higher ($1,100-1,400/kW). Requires new siting scenario. |
 | M9 | **Raster overlay bounds expansion** | UI bug (2026-04-09) | All | Raster overlays clip when map is pitched (3D terrain). Backend `map_layers.py` bounding box needs padding (+/-5 deg). Workaround: auto-pitch only at zoom > 7. |
 | M10 | **Substation-name-to-line-name matching** | V3.1 deferred | All | Grid line names encode endpoints but naming is inconsistent. Geometric check is more reliable. Nice-to-have refinement. |
 | M11 | **Night-time light proxy for utilization** | V3.1 deferred | P2 | VIIRS/DMSP satellite data as proxy for substation load. Improves `capacity_assessment` vs. fixed 65% assumption. |
-| M12 | **Substation upgrade cost in LCOE** | Gap analysis P1, V3.1 deferred | P2, P3 | When `capacity_assessment == "red"`, fold parametric upgrade cost (capacity_gap_mva x $/MVA) into grid-connected LCOE. Turns qualitative flag into quantitative impact. |
+| ~~M12~~ | ~~**Substation upgrade cost in LCOE**~~ | Gap analysis P1, V3.1 deferred | P2, P3 | ✅ Done (2026-04-12) — `substation_upgrade_cost_per_kw` added to precomputed LCOE pipeline (`build_fct_lcoe.py`). Deficit fraction × $80/kW folded into grid-connected effective CAPEX. Surfaced in scorecard + `grid_investment_needed_usd`. 4 new tests. |
 | M13 | **Sub-pixel buildable fraction from ESA WorldCover** | Buildability review (2026-04-10) | P2 | Current `Resampling.mode` at 10m→1km loses sub-pixel detail. Replace with binary-threshold + average resampling at 50%. |
 | ~~M14~~ | ~~**Buildable land polygons (in-boundary + remote)**~~ | Gap analysis P1 | P2, P4 | ✅ **Done (2026-04-12):** Remote/50km buildable polygons live as "Solar Buildable Areas" layer with clickable popups. Within-boundary polygons clipped to KEK boundary via `/api/kek/{id}/buildable` endpoint (`get_within_boundary_buildable` in `map_layers.py`). Displayed as green overlay on KEK zoom. Area capped at KEK polygon area to prevent raster pixel inflation. |
 | M15 | **Multi-substation comparison** | Gap analysis P2 | P4 | Evaluate top 3 substations within search radius. Compare total interconnection cost: closer-but-constrained vs. farther-but-available. Medium priority, becomes important for investment-grade analysis. |
-| M16 | **Capacity slider with LCOE curve** | Gap analysis P1 | P4 | Slider for "desired build capacity" (10 MW to max). Shows how LCOE changes with scale: fixed costs dominate at small sizes, grid constraints push cost up at large sizes. High value for IPP "how big should I build?" question. |
+| ~~M16~~ | ~~**Capacity slider with LCOE curve**~~ | Gap analysis P1 | P4 | ✅ Done (2026-04-12) — `LcoeCurveChart.tsx` renders LCOE vs. project scale (5 MW → max capacity). Recharts AreaChart with grid cost reference line and max capacity marker. Client-side CRF formula. Theme-aware. |
 
 ---
 
@@ -92,6 +92,9 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | Fix within-boundary 20% fallback | 2026-04-12 | Theoretical fallback zeroed: KEKs with no spatial buildable pixels report 0 area/capacity instead of fake 10% estimate. |
 | ✅ | Within-boundary buildable overlay | 2026-04-12 | `/api/kek/{id}/buildable` clips buildable polygons to KEK boundary with 220m buffer. Green fill overlay on map. Area capped at KEK polygon area to prevent raster inflation. |
 | ✅ | Light mode theme system | 2026-04-12 | 15+ CSS custom properties for theme-aware styling. All components migrated from hardcoded dark colors to `var(--*)`. Light mode glass opacity, contrast, and popup theming. LayerControl moved to header dropdown. |
+| ✅ | M12: Substation upgrade cost in LCOE | 2026-04-12 | `substation_upgrade_cost_per_kw` added to precomputed LCOE pipeline. Deficit fraction × $80/kW in grid-connected effective CAPEX. Surfaced in scorecard + `grid_investment_needed_usd`. |
+| ✅ | M16: LCOE vs capacity curve chart | 2026-04-12 | `LcoeCurveChart.tsx` — Recharts AreaChart showing LCOE vs project scale (5 MW → max). Grid cost reference line, max capacity marker, client-side CRF formula. |
+| ✅ | M7: Scenario save/compare | 2026-04-12 | `ScenarioManager.tsx` — save up to 3 named scenarios to localStorage. Zustand store actions for save/load/delete. Inline UI in AssumptionsPanel. |
 
 ---
 

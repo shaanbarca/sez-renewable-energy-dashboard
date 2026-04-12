@@ -45,11 +45,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.assumptions import LAND_COST_USD_PER_KW, TRANSMISSION_FALLBACK_CAPACITY_MWP
+from src.assumptions import (
+    LAND_COST_USD_PER_KW,
+    SUBSTATION_UTILIZATION_PCT,
+    TRANSMISSION_FALLBACK_CAPACITY_MWP,
+)
 from src.model.basic_model import (
     grid_connection_cost_per_kw,
     lcoe_solar,
     new_transmission_cost_per_kw,
+    substation_upgrade_cost_per_kw,
 )
 from src.pipeline.assumptions import (
     HOURS_PER_YEAR,
@@ -113,6 +118,7 @@ def build_fct_lcoe(
         "dist_solar_to_nearest_substation_km",
         "inter_substation_connected",
         "inter_substation_dist_km",
+        "nearest_substation_capacity_mva",
     ]:
         if col in prox_raw.columns:
             proximity_cols.append(col)
@@ -168,6 +174,16 @@ def build_fct_lcoe(
             else 0.0
         )
 
+        # V3.2: Extract solar capacity + substation capacity for upgrade cost
+        solar_mwp_val = kek_row.get("max_captive_capacity_mwp")
+        solar_mwp = (
+            float(solar_mwp_val)
+            if pd.notna(solar_mwp_val) and float(solar_mwp_val) > 0
+            else TRANSMISSION_FALLBACK_CAPACITY_MWP
+        )
+        sub_cap_val = kek_row.get("nearest_substation_capacity_mva")
+        sub_cap_mva = float(sub_cap_val) if pd.notna(sub_cap_val) else None
+
         for scenario, pvout_col in scenarios:
             pvout_val = kek_row.get(pvout_col)
             is_cf_provisional = pd.isna(pvout_val)
@@ -192,6 +208,7 @@ def build_fct_lcoe(
                 conn_cost = 0.0
                 land_cost = 0.0
                 trans_cost = 0.0
+                sub_upgrade_cost = 0.0
             else:
                 # V2: use solar-to-substation distance; fallback to KEK-to-substation
                 dist = dist_solar_to_sub if dist_solar_to_sub is not None else dist_kek_to_sub
@@ -199,19 +216,17 @@ def build_fct_lcoe(
                 land_cost = LAND_COST_USD_PER_KW
                 # V3.1: new transmission line cost if substations are not connected
                 if inter_connected is False and inter_sub_dist > 0:
-                    solar_mwp_val = kek_row.get("max_captive_capacity_mwp")
-                    solar_mwp = (
-                        float(solar_mwp_val)
-                        if pd.notna(solar_mwp_val) and float(solar_mwp_val) > 0
-                        else TRANSMISSION_FALLBACK_CAPACITY_MWP
-                    )
                     trans_cost = new_transmission_cost_per_kw(inter_sub_dist, solar_mwp)
                 else:
                     trans_cost = 0.0
+                # V3.2: substation upgrade cost when capacity is insufficient
+                sub_upgrade_cost = substation_upgrade_cost_per_kw(
+                    sub_cap_mva, solar_mwp, SUBSTATION_UTILIZATION_PCT
+                )
 
-            eff_capex_c = capex_c + conn_cost + land_cost + trans_cost
-            eff_capex_l = capex_l + conn_cost + land_cost + trans_cost
-            eff_capex_u = capex_u + conn_cost + land_cost + trans_cost
+            eff_capex_c = capex_c + conn_cost + land_cost + trans_cost + sub_upgrade_cost
+            eff_capex_l = capex_l + conn_cost + land_cost + trans_cost + sub_upgrade_cost
+            eff_capex_u = capex_u + conn_cost + land_cost + trans_cost + sub_upgrade_cost
 
             for wacc in wacc_values:
                 wacc_dec = wacc / 100.0
@@ -234,6 +249,7 @@ def build_fct_lcoe(
                         "cf_used": round(float(cf), 4) if cf is not None else np.nan,
                         "connection_cost_per_kw": round(conn_cost, 1),
                         "transmission_cost_per_kw": round(trans_cost, 1),
+                        "substation_upgrade_cost_per_kw": round(sub_upgrade_cost, 1),
                         "effective_capex_usd_per_kw": round(eff_capex_c, 1),
                         "lcoe_usd_mwh": _r(lcoe_c),
                         "lcoe_low_usd_mwh": _r(lcoe_l),

@@ -1446,3 +1446,36 @@ class TestAssumptions:
 
         for kek_type, ratio in BUILDING_FOOTPRINT_RATIO.items():
             assert 0 < ratio <= 1, f"{kek_type}: footprint ratio {ratio} must be (0, 1]"
+
+
+# ── M12: Substation upgrade cost in precomputed LCOE ──────────────────────────
+
+
+class TestFctLcoeSubstationUpgrade:
+    """M12: substation upgrade cost included in precomputed LCOE."""
+
+    def test_column_exists(self):
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        assert "substation_upgrade_cost_per_kw" in df.columns
+
+    def test_within_boundary_zero(self):
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        wb = df[df["scenario"] == "within_boundary"]
+        assert (wb["substation_upgrade_cost_per_kw"] == 0.0).all()
+
+    def test_grid_connected_non_negative(self):
+        from src.pipeline.build_fct_lcoe import build_fct_lcoe
+
+        df = build_fct_lcoe()
+        gc = df[df["scenario"] == "grid_connected_solar"]
+        assert (gc["substation_upgrade_cost_per_kw"] >= 0.0).all()
+
+    def test_scorecard_has_column(self):
+        from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
+
+        df = build_fct_kek_scorecard()
+        assert "substation_upgrade_cost_per_kw" in df.columns

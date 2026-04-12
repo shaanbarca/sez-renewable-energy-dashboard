@@ -6,6 +6,7 @@ import type { SliderConfig, UserAssumptions, UserThresholds } from '../../lib/ty
 import { hasChangedAssumptions } from '../../lib/urlState';
 import { useDashboardStore } from '../../store/dashboard';
 import CapexInput from '../ui/CapexInput';
+import ScenarioManager from '../ui/ScenarioManager';
 import Slider from '../ui/Slider';
 
 /* ---------- sub-components ---------- */
@@ -241,9 +242,7 @@ export default function AssumptionsPanel() {
           )}
         </div>
         <ChevronDown
-          className={`transition-transform duration-200 ${
-            collapsed ? '' : 'rotate-180'
-          }`}
+          className={`transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}
         />
       </div>
 
@@ -335,6 +334,8 @@ export default function AssumptionsPanel() {
           >
             Reset to Defaults
           </button>
+
+          <ScenarioManager />
         </div>
       </div>
     </div>

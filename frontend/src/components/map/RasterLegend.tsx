@@ -63,10 +63,10 @@ export default function RasterLegend() {
             </div>
           ))}
 
-          {/* 50km radius legend */}
+          {/* Spatial legends when KEK is selected */}
           {showRadius && (
             <div
-              className="rounded-lg px-3 py-2 flex items-center gap-2"
+              className="rounded-lg px-3 py-2 flex items-center gap-3"
               style={{
                 backdropFilter: 'var(--blur)',
                 WebkitBackdropFilter: 'var(--blur)',
@@ -74,19 +74,61 @@ export default function RasterLegend() {
                 border: '1px solid var(--glass-border)',
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <circle
-                  cx="9"
-                  cy="9"
-                  r="7"
-                  fill="rgba(144, 202, 249, 0.06)"
-                  stroke="#90CAF9"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 3"
-                  opacity="0.6"
-                />
-              </svg>
-              <span className="text-[10px] text-zinc-400">50 km radius</span>
+              <div className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <rect
+                    x="1"
+                    y="1"
+                    width="12"
+                    height="12"
+                    rx="2"
+                    fill="rgba(102, 187, 106, 0.45)"
+                    stroke="#43A047"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  In-boundary solar
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <rect
+                    x="1"
+                    y="1"
+                    width="12"
+                    height="12"
+                    rx="2"
+                    fill="rgba(77, 208, 225, 0.35)"
+                    stroke="#00ACC1"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Remote solar (50 km)
+                </span>
+              </div>
+              <div
+                className="h-4 mx-0.5"
+                style={{ width: 1, background: 'var(--border-subtle)' }}
+              />
+              <div className="flex items-center gap-1.5">
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <circle
+                    cx="9"
+                    cy="9"
+                    r="7"
+                    fill="rgba(144, 202, 249, 0.06)"
+                    stroke="#90CAF9"
+                    strokeWidth="1.5"
+                    strokeDasharray="4 3"
+                    opacity="0.6"
+                  />
+                </svg>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  50 km radius
+                </span>
+              </div>
             </div>
           )}
         </div>
