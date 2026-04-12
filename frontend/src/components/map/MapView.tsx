@@ -88,6 +88,19 @@ export default function MapView() {
     });
   }, [selectedKek, scorecard]);
 
+  // Fly to arbitrary target (e.g. substation clicked in comparison table)
+  const flyToTarget = useDashboardStore((s) => s.flyToTarget);
+  const clearFlyTo = useDashboardStore((s) => s.clearFlyTo);
+  useEffect(() => {
+    if (!flyToTarget) return;
+    mapRef.current?.flyTo({
+      center: [flyToTarget.lon, flyToTarget.lat],
+      zoom: flyToTarget.zoom ?? 13,
+      duration: 1200,
+    });
+    clearFlyTo();
+  }, [flyToTarget, clearFlyTo]);
+
   // Fetch KEK polygon when selected
   useEffect(() => {
     if (!selectedKek) {
@@ -187,7 +200,8 @@ export default function MapView() {
         const fadeIn = Math.min(t * 4, 1); // ramp up in first 25%
         const decay = 1 - t * 0.6; // pulses shrink toward end
         // Interpolate between peak and resting opacity
-        const fillOp = fadeIn * (WB_REST_OPACITY + (WB_PEAK_OPACITY - WB_REST_OPACITY) * wave * decay);
+        const fillOp =
+          fadeIn * (WB_REST_OPACITY + (WB_PEAK_OPACITY - WB_REST_OPACITY) * wave * decay);
         const lineOp = fadeIn * (WB_REST_LINE + (1.0 - WB_REST_LINE) * wave * decay);
         const lineW = fadeIn * (2 + wave * 2 * decay);
 
@@ -203,7 +217,8 @@ export default function MapView() {
         const wave = Math.abs(Math.sin(t * PULSE_CYCLES * Math.PI));
         const fadeIn = Math.min(t * 4, 1);
         const decay = 1 - t * 0.6;
-        const fillOp = fadeIn * (OOB_REST_OPACITY + (OOB_PEAK_OPACITY - OOB_REST_OPACITY) * wave * decay);
+        const fillOp =
+          fadeIn * (OOB_REST_OPACITY + (OOB_PEAK_OPACITY - OOB_REST_OPACITY) * wave * decay);
         const lineOp = fadeIn * (OOB_REST_LINE + (0.9 - OOB_REST_LINE) * wave * decay);
 
         map.setPaintProperty('overlay-buildable-polygons-fill', 'fill-opacity', fillOp);

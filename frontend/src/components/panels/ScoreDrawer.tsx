@@ -2,20 +2,16 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
-import type { ActionFlag, ScorecardRow, UserAssumptions } from '../../lib/types';
+import type {
+  ActionFlag,
+  ScorecardRow,
+  SubstationWithCosts,
+  UserAssumptions,
+} from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import LcoeCurveChart from '../charts/LcoeCurveChart';
 import Slider from '../ui/Slider';
-
-/* ---------- Types ---------- */
-
-interface SubstationInfo {
-  name: string;
-  dist_km: number;
-  is_nearest: boolean;
-  lat: number;
-  lon: number;
-}
+import SubstationComparison from '../ui/SubstationComparison';
 
 /* ---------- Helpers ---------- */
 
@@ -230,7 +226,7 @@ function ResourceTab({
   loadingSubs,
 }: {
   row: ScorecardRow;
-  substations: SubstationInfo[];
+  substations: SubstationWithCosts[];
   loadingSubs: boolean;
 }) {
   const pvoutCentroid = row.pvout_centroid_kwh_kwp_yr;
@@ -508,7 +504,13 @@ const CAPACITY_LABELS: Record<string, string> = {
   unknown: 'Unknown',
 };
 
-function PipelineTab({ row }: { row: ScorecardRow }) {
+function PipelineTab({
+  row,
+  substations,
+}: {
+  row: ScorecardRow;
+  substations: SubstationWithCosts[];
+}) {
   const gridUpgrade = row.grid_upgrade_planned;
   const ruptlSummary = row.ruptl_region_summary;
 
@@ -581,6 +583,9 @@ function PipelineTab({ row }: { row: ScorecardRow }) {
           />
         )}
       </StatCard>
+
+      {/* M15: Multi-substation cost comparison */}
+      {substations.length > 1 && <SubstationComparison substations={substations} />}
 
       {ruptlSummary && (
         <StatCard>
@@ -660,7 +665,7 @@ export default function ScoreDrawer() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const closeDrawer = useDashboardStore((s) => s.closeDrawer);
 
-  const [substations, setSubstations] = useState<SubstationInfo[]>([]);
+  const [substations, setSubstations] = useState<SubstationWithCosts[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
 
   const row = scorecard?.find((r) => r.kek_id === selectedKek) ?? null;
@@ -682,7 +687,7 @@ export default function ScoreDrawer() {
     fetchKekSubstations(selectedKek, 50)
       .then((data) => {
         if (!cancelled) {
-          const parsed = data as { substations: SubstationInfo[] };
+          const parsed = data as { substations: SubstationWithCosts[] };
           setSubstations(parsed.substations ?? []);
         }
       })
@@ -813,7 +818,7 @@ export default function ScoreDrawer() {
                 <DemandTab row={row} />
               </Tabs.Content>
               <Tabs.Content value="pipeline">
-                <PipelineTab row={row} />
+                <PipelineTab row={row} substations={substations} />
               </Tabs.Content>
               <Tabs.Content value="flags">
                 <FlagsTab row={row} />

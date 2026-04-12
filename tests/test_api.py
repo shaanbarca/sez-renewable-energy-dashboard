@@ -184,3 +184,72 @@ def test_scorecard_bpp_mode(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["scorecard"]) == 25
+
+
+# ---------------------------------------------------------------------------
+# M15: Multi-substation comparison tests
+# ---------------------------------------------------------------------------
+
+
+def test_kek_substations_top3_have_costs(client):
+    """14. Top 3 substations have cost breakdown fields."""
+    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    assert resp.status_code == 200
+    subs = resp.json()["substations"]
+    ranked = [s for s in subs if s.get("rank") is not None]
+    assert len(ranked) <= 3
+
+    for s in ranked:
+        assert "rank" in s and 1 <= s["rank"] <= 3
+        assert "connection_cost_per_kw" in s
+        assert "upgrade_cost_per_kw" in s
+        assert "transmission_cost_per_kw" in s
+        assert "total_grid_capex_per_kw" in s
+        assert "lcoe_estimate_usd_mwh" in s
+        assert "capacity_assessment" in s
+        assert "dist_solar_km" in s
+
+
+def test_kek_substations_total_equals_sum(client):
+    """15. total_grid_capex_per_kw = connection + upgrade + transmission for each ranked sub."""
+    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    subs = resp.json()["substations"]
+    ranked = [s for s in subs if s.get("rank") is not None]
+
+    for s in ranked:
+        conn = s["connection_cost_per_kw"] or 0
+        upgrade = s["upgrade_cost_per_kw"] or 0
+        trans = s["transmission_cost_per_kw"] or 0
+        total = s["total_grid_capex_per_kw"] or 0
+        assert abs(total - (conn + upgrade + trans)) < 1.0, (
+            f"Total {total} != conn {conn} + upgrade {upgrade} + trans {trans}"
+        )
+
+
+def test_kek_substations_rank1_is_nearest(client):
+    """16. Rank 1 substation is marked as nearest and has shortest distance."""
+    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    subs = resp.json()["substations"]
+    ranked = [s for s in subs if s.get("rank") is not None]
+    if not ranked:
+        return
+
+    rank1 = ranked[0]
+    assert rank1["rank"] == 1
+    assert rank1["is_nearest"] is True
+
+    # Rank 1 should have shortest dist_km
+    for s in ranked[1:]:
+        assert s["dist_km"] >= rank1["dist_km"]
+
+
+def test_kek_substations_unranked_have_nulls(client):
+    """17. Substations beyond top 3 have null cost fields."""
+    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    subs = resp.json()["substations"]
+    unranked = [s for s in subs if s.get("rank") is None]
+
+    for s in unranked:
+        assert s["connection_cost_per_kw"] is None
+        assert s["total_grid_capex_per_kw"] is None
+        assert s["lcoe_estimate_usd_mwh"] is None

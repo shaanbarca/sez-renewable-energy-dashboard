@@ -17,8 +17,12 @@ interface SubstationMarker {
   name: string;
   dist_km: number;
   is_nearest: boolean;
+  rank?: number | null;
   voltage?: string;
-  capacity_mva?: string;
+  capacity_mva?: string | number | null;
+  capacity_assessment?: string | null;
+  total_grid_capex_per_kw?: number | null;
+  lcoe_estimate_usd_mwh?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,13 +144,23 @@ function registerIcons(map: maplibregl.Map) {
       });
     }
   }
-  // Substation icons — blue (nearby) and yellow (nearest), both use lightning bolt
+  // Substation icons — rank-coded: gold (rank 1), silver (rank 2), cyan (rank 3), blue (other)
   const boltPath = ICON_PATHS.power;
   if (!map.hasImage('substation-nearby')) {
     map.addImage('substation-nearby', createIconImage(boltPath, '#42A5F5'), { pixelRatio: 2 });
   }
   if (!map.hasImage('substation-nearest')) {
     map.addImage('substation-nearest', createIconImage(boltPath, '#FFD600', 40), {
+      pixelRatio: 2,
+    });
+  }
+  if (!map.hasImage('substation-rank2')) {
+    map.addImage('substation-rank2', createIconImage(boltPath, '#B0BEC5', 36), {
+      pixelRatio: 2,
+    });
+  }
+  if (!map.hasImage('substation-rank3')) {
+    map.addImage('substation-rank3', createIconImage(boltPath, '#4DD0E1', 36), {
       pixelRatio: 2,
     });
   }
@@ -173,6 +187,13 @@ function infraToGeojson(markers: InfraMarker[]) {
   };
 }
 
+function substationIconId(m: SubstationMarker): string {
+  if (m.rank === 1) return 'substation-nearest';
+  if (m.rank === 2) return 'substation-rank2';
+  if (m.rank === 3) return 'substation-rank3';
+  return 'substation-nearby';
+}
+
 function substationsToGeojson(markers: SubstationMarker[]) {
   return {
     type: 'FeatureCollection' as const,
@@ -181,7 +202,7 @@ function substationsToGeojson(markers: SubstationMarker[]) {
       geometry: { type: 'Point' as const, coordinates: [m.lon, m.lat] },
       properties: {
         ...m,
-        icon_id: m.is_nearest ? 'substation-nearest' : 'substation-nearby',
+        icon_id: substationIconId(m),
       },
     })),
   };
@@ -197,6 +218,10 @@ interface HoverInfo {
   title: string;
   infraType: InfraType;
   subtitle?: string;
+  rank?: number | null;
+  capacityAssessment?: string | null;
+  totalGridCapex?: number | null;
+  lcoeEstimate?: number | null;
 }
 
 export default function InfraMarkers() {
@@ -249,15 +274,22 @@ export default function InfraMarkers() {
       const feature = e.features?.[0];
       if (!feature?.properties) return;
       const coords = (feature.geometry as GeoJSON.Point).coordinates;
-      const isNearest = feature.properties.is_nearest;
-      const name = (feature.properties.name as string) || 'Substation';
-      const dist = feature.properties.dist_km as number;
+      const props = feature.properties;
+      const rank = props.rank as number | null;
+      const name = (props.name as string) || 'Substation';
+      const dist = props.dist_km as number;
+      const rankLabel =
+        rank === 1 ? 'Rank #1' : rank === 2 ? 'Rank #2' : rank === 3 ? 'Rank #3' : null;
       setHoverInfo({
         longitude: coords[0],
         latitude: coords[1],
         title: `${name}${dist ? ` (${dist.toFixed(1)} km)` : ''}`,
         infraType: 'power',
-        subtitle: isNearest ? 'Nearest Substation' : 'Substation',
+        subtitle: rankLabel ? `${rankLabel} Substation` : 'Substation',
+        rank,
+        capacityAssessment: props.capacity_assessment as string | null,
+        totalGridCapex: props.total_grid_capex_per_kw as number | null,
+        lcoeEstimate: props.lcoe_estimate_usd_mwh as number | null,
       });
       map.getCanvas().style.cursor = 'pointer';
     };
@@ -359,7 +391,14 @@ export default function InfraMarkers() {
               maxWidth: 220,
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                marginBottom: 3,
+              }}
+            >
               {hoverInfo.title}
             </div>
             <span
@@ -373,6 +412,66 @@ export default function InfraMarkers() {
             >
               {hoverInfo.subtitle ?? INFRA_TYPES[hoverInfo.infraType].label}
             </span>
+            {/* Cost details for ranked substations */}
+            {hoverInfo.rank != null && (
+              <div
+                style={{ marginTop: 4, borderTop: '1px solid var(--border-subtle)', paddingTop: 4 }}
+              >
+                {hoverInfo.capacityAssessment && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
+                    <span>Capacity</span>
+                    <span
+                      style={{
+                        color:
+                          { green: '#4CAF50', yellow: '#FFC107', red: '#F44336', unknown: '#666' }[
+                            hoverInfo.capacityAssessment
+                          ] ?? '#666',
+                      }}
+                    >
+                      {hoverInfo.capacityAssessment}
+                    </span>
+                  </div>
+                )}
+                {hoverInfo.totalGridCapex != null && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
+                    <span>Grid Cost</span>
+                    <span style={{ color: 'var(--text-value)' }}>
+                      ${Math.round(hoverInfo.totalGridCapex)}/kW
+                    </span>
+                  </div>
+                )}
+                {hoverInfo.lcoeEstimate != null && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                    }}
+                  >
+                    <span>LCOE</span>
+                    <span style={{ color: '#4DD0E1' }}>${hoverInfo.lcoeEstimate}/MWh</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </Popup>
       )}

@@ -44,6 +44,7 @@ def load_substations() -> list[dict]:
                     "name": props.get("namobj", "Unknown"),
                     "voltage": props.get("teggi", ""),
                     "capacity_mva": props.get("kapgi", ""),
+                    "regpln": props.get("regpln", ""),
                 }
             )
     return stations

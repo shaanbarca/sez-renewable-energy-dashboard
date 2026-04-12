@@ -101,6 +101,26 @@ export interface ScorecardRow {
   grid_investment_needed_usd?: number;
 }
 
+export interface SubstationWithCosts {
+  name: string;
+  lat: number;
+  lon: number;
+  dist_km: number;
+  dist_solar_km?: number | null;
+  is_nearest: boolean;
+  rank?: number | null;
+  voltage?: string;
+  capacity_mva?: number | string | null;
+  regpln?: string;
+  available_capacity_mva?: number | null;
+  capacity_assessment?: 'green' | 'yellow' | 'red' | 'unknown' | null;
+  connection_cost_per_kw?: number | null;
+  upgrade_cost_per_kw?: number | null;
+  transmission_cost_per_kw?: number | null;
+  total_grid_capex_per_kw?: number | null;
+  lcoe_estimate_usd_mwh?: number | null;
+}
+
 export interface SliderConfig {
   min: number;
   max: number;

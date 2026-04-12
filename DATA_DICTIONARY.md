@@ -497,6 +497,22 @@ Intensity constants by `kek_type` (from `src/assumptions.py`):
 | `available_capacity_mva` | float | computed | ✅ V3.1: `capacity_mva × (1 − substation_utilization_pct)`. Default utilization = 65%. NaN if capacity unknown. |
 | `capacity_assessment` | str | computed | ✅ V3.1: Traffic light — `green` (available > 2× solar), `yellow` (0.5–2×), `red` (< 0.5×), `unknown` (data unavailable). See METHODOLOGY_CONSOLIDATED.md §7. |
 
+**M15: Multi-substation comparison (API-only, not stored in CSV)**
+
+`GET /api/kek/{id}/substations` extends the above with per-substation cost fields for the top 3 substations by distance. These are computed live using model functions from `src/model/basic_model.py`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rank` | int\|null | 1–3 for top 3 by distance, null for others |
+| `dist_solar_km` | float\|null | Haversine distance from best solar site to this substation (km) |
+| `available_capacity_mva` | float\|null | Rated capacity × (1 − utilization_pct) |
+| `capacity_assessment` | str\|null | Traffic light: green/yellow/red/unknown |
+| `connection_cost_per_kw` | float\|null | Grid connection: dist × $5/kW-km + $80/kW fixed |
+| `upgrade_cost_per_kw` | float\|null | Substation upgrade: deficit_fraction × $80/kW |
+| `transmission_cost_per_kw` | float\|null | New inter-substation line cost (rank 2+ only) |
+| `total_grid_capex_per_kw` | float\|null | Sum of connection + upgrade + transmission |
+| `lcoe_estimate_usd_mwh` | float\|null | LCOE at default assumptions with this substation's grid costs |
+
 ---
 
 ## 3.5 `outputs/data/processed/fct_lcoe.csv`

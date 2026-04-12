@@ -38,7 +38,7 @@ Items from the gap analysis that are documentation additions or trivial column d
 | ~~M12~~ | ~~**Substation upgrade cost in LCOE**~~ | Gap analysis P1, V3.1 deferred | P2, P3 | ✅ Done (2026-04-12) — `substation_upgrade_cost_per_kw` added to precomputed LCOE pipeline (`build_fct_lcoe.py`). Deficit fraction × $80/kW folded into grid-connected effective CAPEX. Surfaced in scorecard + `grid_investment_needed_usd`. 4 new tests. |
 | M13 | **Sub-pixel buildable fraction from ESA WorldCover** | Buildability review (2026-04-10) | P2 | Current `Resampling.mode` at 10m→1km loses sub-pixel detail. Replace with binary-threshold + average resampling at 50%. |
 | ~~M14~~ | ~~**Buildable land polygons (in-boundary + remote)**~~ | Gap analysis P1 | P2, P4 | ✅ **Done (2026-04-12):** Remote/50km buildable polygons live as "Solar Buildable Areas" layer with clickable popups. Within-boundary polygons clipped to KEK boundary via `/api/kek/{id}/buildable` endpoint (`get_within_boundary_buildable` in `map_layers.py`). Displayed as green overlay on KEK zoom. Area capped at KEK polygon area to prevent raster pixel inflation. |
-| M15 | **Multi-substation comparison** | Gap analysis P2 | P4 | Evaluate top 3 substations within search radius. Compare total interconnection cost: closer-but-constrained vs. farther-but-available. Medium priority, becomes important for investment-grade analysis. |
+| ~~M15~~ | ~~**Multi-substation comparison**~~ | Gap analysis P2 | P4 | ✅ **Done (2026-04-12):** `/api/kek/{id}/substations` now computes per-substation costs (connection, upgrade, transmission, total grid CAPEX, LCOE estimate) for top 3 by distance. `SubstationComparison.tsx` card in ScoreDrawer Pipeline tab shows side-by-side comparison with capacity traffic lights. Map markers rank-coded: gold (1st), silver (2nd), cyan (3rd). 4 new API tests. |
 | ~~M16~~ | ~~**Capacity slider with LCOE curve**~~ | Gap analysis P1 | P4 | ✅ Done (2026-04-12) — `LcoeCurveChart.tsx` renders LCOE vs. project scale (5 MW → max capacity). Recharts AreaChart with grid cost reference line and max capacity marker. Client-side CRF formula. Theme-aware. |
 
 ---
@@ -95,6 +95,7 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | M12: Substation upgrade cost in LCOE | 2026-04-12 | `substation_upgrade_cost_per_kw` added to precomputed LCOE pipeline. Deficit fraction × $80/kW in grid-connected effective CAPEX. Surfaced in scorecard + `grid_investment_needed_usd`. |
 | ✅ | M16: LCOE vs capacity curve chart | 2026-04-12 | `LcoeCurveChart.tsx` — Recharts AreaChart showing LCOE vs project scale (5 MW → max). Grid cost reference line, max capacity marker, client-side CRF formula. |
 | ✅ | M7: Scenario save/compare | 2026-04-12 | `ScenarioManager.tsx` — save up to 3 named scenarios to localStorage. Zustand store actions for save/load/delete. Inline UI in AssumptionsPanel. |
+| ✅ | M15: Multi-substation comparison | 2026-04-12 | `/api/kek/{id}/substations` extended with per-substation cost breakdown (top 3). `SubstationComparison.tsx` side-by-side table in ScoreDrawer Pipeline tab. Rank-coded map markers (gold/silver/cyan). 4 API tests. |
 
 ---
 

@@ -122,8 +122,27 @@ def get_kek_buildable(kek_id: str):
 
 @router.get("/kek/{kek_id}/substations")
 def get_kek_substations(kek_id: str, radius_km: float = Query(default=50.0, ge=0)):
-    """Return substations near a KEK, with nearest marked."""
-    from src.api.main import tables
+    """Return substations near a KEK, with nearest marked and top 3 costed."""
+    import math
+
+    import numpy as np
+    import pandas as pd
+
+    from src.api.main import resource_df, tables
+    from src.assumptions import (
+        BASE_WACC_DECIMAL,
+        TECH006_CAPEX_USD_PER_KW,
+        TECH006_FOM_USD_PER_KW_YR,
+        TECH006_LIFETIME_YR,
+    )
+    from src.model.basic_model import (
+        capacity_assessment,
+        capacity_factor_from_pvout,
+        grid_connection_cost_per_kw,
+        lcoe_solar,
+        new_transmission_cost_per_kw,
+        substation_upgrade_cost_per_kw,
+    )
 
     dim_kek = tables.get("dim_kek")
     if dim_kek is None:
@@ -138,11 +157,133 @@ def get_kek_substations(kek_id: str, radius_km: float = Query(default=50.0, ge=0
 
     nearby = filter_substations_near_point(lat, lon, radius_km)
 
-    # Mark the nearest one
-    if nearby:
-        nearest_idx = min(range(len(nearby)), key=lambda i: nearby[i]["dist_km"])
-        for i, s in enumerate(nearby):
-            s["is_nearest"] = i == nearest_idx
+    # Sort by distance and mark nearest
+    nearby.sort(key=lambda s: s["dist_km"])
+    for i, s in enumerate(nearby):
+        s["is_nearest"] = i == 0
+
+    # --- M15: Compute per-substation costs for top 3 ---
+    # Get KEK resource data for cost computation
+    res_row = (
+        resource_df[resource_df["kek_id"] == kek_id] if not resource_df.empty else pd.DataFrame()
+    )
+    solar_mwp = None
+    pvout_annual = None
+    solar_lat = None
+    solar_lon = None
+    utilization_pct = 0.65  # default
+
+    if not res_row.empty:
+        r = res_row.iloc[0]
+        solar_mwp = (
+            float(r["max_captive_capacity_mwp"])
+            if pd.notna(r.get("max_captive_capacity_mwp"))
+            else None
+        )
+        # Column is pvout_best_50km (annual kWh/kWp/yr), fallback to pvout_centroid
+        pvout_val = (
+            r.get("pvout_best_50km")
+            if pd.notna(r.get("pvout_best_50km"))
+            else r.get("pvout_centroid")
+        )
+        pvout_annual = float(pvout_val) if pd.notna(pvout_val) else None
+        solar_lat = (
+            float(r["best_solar_site_lat"]) if pd.notna(r.get("best_solar_site_lat")) else None
+        )
+        solar_lon = (
+            float(r["best_solar_site_lon"]) if pd.notna(r.get("best_solar_site_lon")) else None
+        )
+
+    def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Haversine distance in km."""
+        la1, lo1 = math.radians(lat1), math.radians(lon1)
+        la2, lo2 = math.radians(lat2), math.radians(lon2)
+        dlat, dlon = la2 - la1, lo2 - lo1
+        a = math.sin(dlat / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin(dlon / 2) ** 2
+        return 6371.0 * 2 * math.asin(math.sqrt(a))
+
+    for rank_idx, s in enumerate(nearby[:3]):
+        s["rank"] = rank_idx + 1
+
+        # Distance from solar site to this substation
+        if solar_lat is not None and solar_lon is not None:
+            dist_solar = round(_haversine(solar_lat, solar_lon, s["lat"], s["lon"]), 1)
+        else:
+            dist_solar = s["dist_km"]  # fallback: use KEK centroid distance
+        s["dist_solar_km"] = dist_solar
+
+        # Parse capacity_mva (may be string or number)
+        cap_mva_raw = s.get("capacity_mva")
+        cap_mva = None
+        if cap_mva_raw is not None and cap_mva_raw != "":
+            try:
+                cap_mva = float(cap_mva_raw)
+            except (ValueError, TypeError):
+                pass
+
+        # Capacity assessment
+        ca_result, available = capacity_assessment(cap_mva, solar_mwp, utilization_pct)
+        s["available_capacity_mva"] = available
+        s["capacity_assessment"] = ca_result
+
+        # Connection cost (solar → this substation)
+        conn_cost = grid_connection_cost_per_kw(dist_solar)
+        s["connection_cost_per_kw"] = round(conn_cost, 1)
+
+        # Upgrade cost
+        upgrade = substation_upgrade_cost_per_kw(cap_mva, solar_mwp, utilization_pct)
+        s["upgrade_cost_per_kw"] = round(upgrade, 1)
+
+        # Transmission cost: only if this substation differs from KEK's nearest
+        # and would require a new line
+        trans_cost = 0.0
+        if rank_idx > 0 and nearby[0].get("dist_km", 0) > 0:
+            # Inter-substation distance approximation: distance between this and nearest
+            inter_dist = _haversine(nearby[0]["lat"], nearby[0]["lon"], s["lat"], s["lon"])
+            if solar_mwp and solar_mwp > 0:
+                trans_cost = new_transmission_cost_per_kw(inter_dist, solar_mwp)
+        s["transmission_cost_per_kw"] = round(trans_cost, 1)
+
+        # Total grid CAPEX
+        total = conn_cost + upgrade + trans_cost
+        s["total_grid_capex_per_kw"] = round(total, 1)
+
+        # LCOE estimate with this substation's grid costs
+        if pvout_annual and pvout_annual > 0:
+            try:
+                cf = capacity_factor_from_pvout(pvout_annual)
+                # conn_cost already includes fixed $80/kW; don't double-count
+                effective_capex = TECH006_CAPEX_USD_PER_KW + total
+                lcoe_est = lcoe_solar(
+                    effective_capex,
+                    TECH006_FOM_USD_PER_KW_YR,
+                    BASE_WACC_DECIMAL,
+                    TECH006_LIFETIME_YR,
+                    cf,
+                )
+                s["lcoe_estimate_usd_mwh"] = round(lcoe_est, 1)
+            except (ValueError, ZeroDivisionError):
+                s["lcoe_estimate_usd_mwh"] = None
+        else:
+            s["lcoe_estimate_usd_mwh"] = None
+
+    # Substations beyond top 3 get rank=None
+    for s in nearby[3:]:
+        s["rank"] = None
+        s["dist_solar_km"] = None
+        s["available_capacity_mva"] = None
+        s["capacity_assessment"] = None
+        s["connection_cost_per_kw"] = None
+        s["upgrade_cost_per_kw"] = None
+        s["transmission_cost_per_kw"] = None
+        s["total_grid_capex_per_kw"] = None
+        s["lcoe_estimate_usd_mwh"] = None
+
+    # Clean any NaN/inf values for JSON serialization
+    for s in nearby:
+        for k, v in s.items():
+            if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                s[k] = None
 
     return {"substations": nearby}
 
