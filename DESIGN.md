@@ -487,3 +487,9 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-12 | — | Buildable polygons are clickable: popup shows area (ha), avg PVOUT, max capacity (MWp) | Users can inspect individual contiguous buildable sites on the map |
 | 2026-04-12 | — | Within-boundary theoretical fallback zeroed out | KEKs with no spatial buildable pixels now show 0% coverage instead of a fake 20% estimate |
 | 2026-04-12 | — | Methodology files consolidated: archived v0.4 + V2 + testing notes → `docs/archives/` | Single canonical methodology: `docs/METHODOLOGY_CONSOLIDATED.md` |
+| 2026-04-12 | — | M12: Substation upgrade cost in precomputed LCOE pipeline + live scorecard API | `substation_upgrade_cost_per_kw` and `transmission_cost_per_kw` now flow through live API; `grid_investment_needed_usd` includes all 3 cost components |
+| 2026-04-12 | — | M16: LCOE vs project scale curve chart (`LcoeCurveChart.tsx`) in ScoreDrawer LCOE tab | Shows how LCOE drops as capacity increases (transmission cost spreading). Client-side CRF formula. |
+| 2026-04-12 | — | M7: Scenario save/compare (`ScenarioManager.tsx`) in AssumptionsPanel | Save up to 3 named scenarios to localStorage. Load/delete inline UI. |
+| 2026-04-12 | — | Buildable radiate animation on KEK selection + auto-enable Solar Buildable Areas layer | Within-boundary (green) pulses first, then remote (teal) 1s later. 4.5s total. L10-adjacent spatial storytelling. |
+| 2026-04-12 | — | Buildable legend in RasterLegend: in-boundary green, remote teal, 50km radius | Color distinction: green = inside KEK (no grid cost), teal = remote 50km (needs connection) |
+| 2026-04-12 | — | Renamed "Gap" → "LCOE Gap" across ScoreDrawer, DataTable, QuadrantChart, walkthrough | Clearer labeling: "LCOE Gap to BPP", "LCOE Gap to Tariff", "LCOE Gap (%)" |

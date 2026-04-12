@@ -56,7 +56,7 @@ Items from the gap analysis that are documentation additions or trivial column d
 | L7 | **Mobile responsive layout** | DESIGN.md §6 Q3 | All | Primary users are analysts with laptops. |
 | L8 | **KEK Management persona (P6)** | Methodology/persona audit | — | Zone administrators (BKPM-appointed) who use the tool to attract tenants. |
 | L9 | **Carbon price trajectory modelling** | PERSONAS.md P3 gaps | P3 | Link `carbon_breakeven_usd_tco2` to Indonesia ETS trajectory. |
-| L10 | **Spatial story / SEZ-anchored map view** | Gap analysis P2 | P3 | Start from KEK, radiate outward to show solar, color-code by gap type. More of a UX change than data model. Backend data already supports this. |
+| L10 | **Spatial story / SEZ-anchored map view** | Gap analysis P2 | P3 | Partially done (2026-04-12): buildable polygons radiate outward on KEK click (green in-boundary → teal remote, 4.5s pulse animation). Auto-enables Solar Buildable Areas layer. Color-coding by gap type still deferred. |
 
 ---
 

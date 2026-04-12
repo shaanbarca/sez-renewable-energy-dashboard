@@ -614,7 +614,8 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `available_capacity_mva` | float | V3.1: Substation headroom = `capacity_mva × (1 − utilization_pct)`. |
 | `capacity_assessment` | str | V3.1: Traffic light — `green` / `yellow` / `red` / `unknown`. |
 | `transmission_cost_per_kw` | float | V3.1: New inter-substation line cost per kW (0 if connected). |
-| `grid_investment_needed_usd` | float | Total grid infrastructure cost: `(connection_cost_per_kw + transmission_cost_per_kw) × max_captive_capacity_mwp × 1000`. Screening estimate for DFI investment sizing. NaN if capacity is 0 or no infrastructure cost. |
+| `substation_upgrade_cost_per_kw` | float | V3.2: Additional $/kW when substation capacity insufficient. `deficit_fraction × $80/kW` where `deficit = (solar_mwp − available) / solar_mwp` and `available = rated_mva × (1 − utilization_pct)`. 0 if capacity sufficient or unknown. |
+| `grid_investment_needed_usd` | float | Total grid infrastructure cost: `(connection_cost_per_kw + transmission_cost_per_kw + substation_upgrade_cost_per_kw) × max_captive_capacity_mwp × 1000`. Screening estimate for DFI investment sizing. NaN if capacity is 0 or no infrastructure cost. |
 | `project_viable` | bool | `max_captive_capacity_mwp ≥ PROJECT_VIABLE_MIN_MWP (20 MWp)`. True = minimum viable IPP project size met. All 25 KEKs = True at current 1km buildability resolution. DFI threshold is stricter (≥ 33 MWp / ≥ 50 ha). |
 | `clean_power_advantage` | float | `−solar_competitive_gap_pct` — higher = more competitive |
 | `green_share_geas` | float | Pro-rata share of 2030 demand covered by pre-2030 RUPTL solar. Formula: `min(1, (pre2030_mw × 8760 × 0.20 × kek_demand_share) / kek_demand_mwh)`. See `geas_baseline_allocation()`. |
