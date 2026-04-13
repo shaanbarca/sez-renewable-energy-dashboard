@@ -761,39 +761,6 @@ function GridTab({
             subtitle="What does it cost to connect solar to the grid here?"
             tip="Estimated infrastructure cost to connect solar to the KEK. Scales with project capacity (MWp)."
           />
-          {assumptions && (
-            <label
-              className="flex items-center gap-2 text-[10px] px-1 py-1.5 mb-1 rounded cursor-pointer"
-              style={{
-                color: assumptions.grant_funded_transmission ? '#4CAF50' : 'var(--text-muted)',
-                background: assumptions.grant_funded_transmission
-                  ? 'rgba(76,175,80,0.10)'
-                  : 'transparent',
-                border: assumptions.grant_funded_transmission
-                  ? '1px solid rgba(76,175,80,0.3)'
-                  : '1px solid transparent',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={!!assumptions.grant_funded_transmission}
-                onChange={(e) =>
-                  setAssumptions({
-                    grant_funded_transmission: e.target.checked,
-                  } as Partial<UserAssumptions>)
-                }
-                className="accent-green-500"
-              />
-              DFI grant covers grid connection
-              <span
-                className="ml-auto text-[9px]"
-                style={{ color: 'var(--text-muted)' }}
-                title="Models a scenario where a development finance institution (e.g. UK MENTARI) funds the gen-tie, transmission, and substation costs. Sets all grid connection costs to $0."
-              >
-                ?
-              </span>
-            </label>
-          )}
           {row.connection_cost_per_kw != null && (
             <StatRowWithTip
               label="Gen-Tie Cost"
