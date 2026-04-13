@@ -19,9 +19,7 @@ export function formatGridRegion(id: string | null | undefined): string {
 /** snake_case → "Title Case" (e.g. invest_substation → "Invest Substation") */
 export function formatSnakeLabel(str: string | null | undefined): string {
   if (!str) return '—';
-  return str
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return str.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /** Capitalize first letter (e.g. "solar" → "Solar") */

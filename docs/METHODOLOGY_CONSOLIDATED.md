@@ -374,6 +374,8 @@ This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufact
 
 **Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Storage must bridge the gap between solar production hours and demand hours. At equatorial latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store 14h × load_MW / RTE of energy.
 
+**BESS competitive indicator (V3.5):** Battery economics (`battery_adder_usd_mwh`, `lcoe_with_battery_usd_mwh`) are computed for all KEKs with solar resource, not only those flagged `invest_battery`. This allows users to see the full cost of 24/7 solar+BESS for any KEK, regardless of reliability tier. A `bess_competitive` boolean indicates whether `lcoe_with_battery <= grid_cost`. This surfaces a previously hidden scenario: KEKs where daytime solar is competitive but 24/7 solar+BESS exceeds grid cost.
+
 ```
 LCOE_with_battery = LCOE_solar + bess_storage_adder
 ```

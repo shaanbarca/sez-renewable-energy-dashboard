@@ -576,6 +576,28 @@ def compute_scorecard_live(
         else:
             bess_sizing = BESS_SIZING_HOURS
 
+        # BESS economics for all KEKs with solar resource (not gated by invest_battery)
+        if primary_cf and primary_cf > 0:
+            _bess_adder = round(
+                bess_storage_adder(
+                    assumptions.bess_capex_usd_per_kwh,
+                    solar_cf=primary_cf,
+                    wacc=assumptions.wacc_decimal,
+                    sizing_hours=bess_sizing,
+                ),
+                2,
+            )
+            _lcoe_with_bess = round(lcoe_mid + _bess_adder, 2)
+        else:
+            _bess_adder = 0.0
+            _lcoe_with_bess = _round(lcoe_mid)
+
+        _bess_competitive = (
+            bool(_lcoe_with_bess <= grid_cost)
+            if pd.notna(_lcoe_with_bess) and grid_cost and grid_cost > 0
+            else None
+        )
+
         row = {
             "kek_id": kek_id,
             "action_flag": action_flag,
@@ -595,29 +617,9 @@ def compute_scorecard_live(
             "invest_substation": flags["invest_substation"],
             "invest_battery": flags["invest_battery"],
             "grid_first": flags["grid_first"],
-            "battery_adder_usd_mwh": round(
-                bess_storage_adder(
-                    assumptions.bess_capex_usd_per_kwh,
-                    solar_cf=primary_cf,
-                    wacc=assumptions.wacc_decimal,
-                    sizing_hours=bess_sizing,
-                ),
-                2,
-            )
-            if flags["invest_battery"] and primary_cf and primary_cf > 0
-            else 0.0,
-            "lcoe_with_battery_usd_mwh": round(
-                lcoe_mid
-                + bess_storage_adder(
-                    assumptions.bess_capex_usd_per_kwh,
-                    solar_cf=primary_cf,
-                    wacc=assumptions.wacc_decimal,
-                    sizing_hours=bess_sizing,
-                ),
-                2,
-            )
-            if flags["invest_battery"] and primary_cf and primary_cf > 0
-            else _round(lcoe_mid),
+            "battery_adder_usd_mwh": _bess_adder,
+            "lcoe_with_battery_usd_mwh": _lcoe_with_bess,
+            "bess_competitive": _bess_competitive,
             "bess_sizing_hours": bess_sizing,
             "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
             "demand_2030_gwh": round(demand_by_kek[kek_id] / 1000, 1)

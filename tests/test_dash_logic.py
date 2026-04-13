@@ -531,10 +531,10 @@ class TestInfrastructureCosts:
             f"low_util={low_lcoe}, high_util={high_lcoe}"
         )
 
-    def test_battery_adder_applied_when_invest_battery(
+    def test_battery_adder_computed_for_all_with_solar(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):
-        """KEKs with invest_battery=True should have non-zero battery adder."""
+        """All KEKs with solar resource should have non-zero battery adder, not just invest_battery."""
         result = compute_scorecard_live(
             sample_resource_df,
             get_default_assumptions(),
@@ -543,32 +543,16 @@ class TestInfrastructureCosts:
             sample_demand_df,
             sample_grid_df,
         )
-        battery_rows = result[result["invest_battery"]]
-        if len(battery_rows) > 0:
-            assert (battery_rows["battery_adder_usd_mwh"] > 0).all()
-            for _, row in battery_rows.iterrows():
-                if pd.notna(row["lcoe_mid_usd_mwh"]):
-                    assert row["lcoe_with_battery_usd_mwh"] > row["lcoe_mid_usd_mwh"]
-
-    def test_battery_adder_zero_when_not_needed(
-        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
-    ):
-        """KEKs with invest_battery=False should have zero battery adder."""
-        result = compute_scorecard_live(
-            sample_resource_df,
-            get_default_assumptions(),
-            get_default_thresholds(),
-            sample_ruptl_metrics,
-            sample_demand_df,
-            sample_grid_df,
-        )
-        no_battery = result[~result["invest_battery"]]
-        assert (no_battery["battery_adder_usd_mwh"] == 0.0).all()
+        # All sample KEKs have solar resource, so all should have battery adder > 0
+        has_lcoe = result[result["lcoe_mid_usd_mwh"].notna()]
+        if len(has_lcoe) > 0:
+            assert (has_lcoe["battery_adder_usd_mwh"] > 0).all()
+            assert (has_lcoe["lcoe_with_battery_usd_mwh"] > has_lcoe["lcoe_mid_usd_mwh"]).all()
 
     def test_scorecard_has_battery_columns(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
     ):
-        """Scorecard output should include battery adder columns."""
+        """Scorecard output should include battery adder and bess_competitive columns."""
         result = compute_scorecard_live(
             sample_resource_df,
             get_default_assumptions(),
@@ -579,6 +563,32 @@ class TestInfrastructureCosts:
         )
         assert "battery_adder_usd_mwh" in result.columns
         assert "lcoe_with_battery_usd_mwh" in result.columns
+        assert "bess_competitive" in result.columns
+
+    def test_bess_competitive_matches_grid_comparison(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """bess_competitive should be True when lcoe_with_battery <= grid_cost."""
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        for _, row in result.iterrows():
+            if (
+                pd.notna(row["lcoe_with_battery_usd_mwh"])
+                and pd.notna(row.get("grid_cost_usd_mwh"))
+                and row["grid_cost_usd_mwh"] > 0
+            ):
+                expected = row["lcoe_with_battery_usd_mwh"] <= row["grid_cost_usd_mwh"]
+                assert row["bess_competitive"] == expected, (
+                    f"bess_competitive mismatch for {row['kek_id']}: "
+                    f"lcoe_with_battery={row['lcoe_with_battery_usd_mwh']}, "
+                    f"grid_cost={row['grid_cost_usd_mwh']}"
+                )
 
     def test_scorecard_has_firm_solar_columns(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df

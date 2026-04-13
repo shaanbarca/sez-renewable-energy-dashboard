@@ -446,6 +446,22 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
             tip="Total annual solar generation / total annual demand. Does NOT account for day/night mismatch. See Firm Coverage below for physically grounded metric."
           />
         )}
+        {row.bess_competitive != null &&
+          row.battery_adder_usd_mwh != null &&
+          row.battery_adder_usd_mwh > 0 && (
+            <div
+              className="mt-1 px-3 py-1.5 rounded-md text-[11px] font-medium"
+              style={{
+                background: row.bess_competitive ? 'rgba(76,175,80,0.12)' : 'rgba(239,83,80,0.12)',
+                border: `1px solid ${row.bess_competitive ? 'rgba(76,175,80,0.25)' : 'rgba(239,83,80,0.25)'}`,
+                color: row.bess_competitive ? '#4CAF50' : '#EF5350',
+              }}
+            >
+              {row.bess_competitive
+                ? `Solar+BESS beats grid ($${row.lcoe_with_battery_usd_mwh?.toFixed(0)}/MWh)`
+                : `Solar+BESS exceeds grid (+$${row.battery_adder_usd_mwh?.toFixed(0)}/MWh storage)`}
+            </div>
+          )}
       </StatCard>
 
       {(row.demand_2030_gwh != null || row.captive_coal_count || row.nickel_smelter_count) && (
@@ -793,10 +809,7 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
     row.gap_vs_bpp_pct != null ? (row.gap_vs_bpp_pct < 0 ? '#4CAF50' : '#EF5350') : undefined;
 
   const sizingHrs = row.bess_sizing_hours ?? 2;
-  const batteryStillCompetitive =
-    row.lcoe_with_battery_usd_mwh != null && row.grid_cost_usd_mwh != null
-      ? row.lcoe_with_battery_usd_mwh <= row.grid_cost_usd_mwh
-      : null;
+  const bessCompetitive = row.bess_competitive ?? null;
 
   return (
     <>
@@ -847,8 +860,8 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
         />
       </StatCard>
 
-      {/* Battery storage impact */}
-      {(row.battery_adder_usd_mwh != null || row.lcoe_with_battery_usd_mwh != null) && (
+      {/* Battery storage impact — shown for all KEKs with solar resource */}
+      {row.battery_adder_usd_mwh != null && row.battery_adder_usd_mwh > 0 && (
         <StatCard>
           <SectionHeader
             title="Battery Storage Impact"
@@ -875,11 +888,19 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
             value={`${sizingHrs}h${sizingHrs >= 14 ? ' (bridge)' : sizingHrs > 2 ? ' (RKEF)' : ''}`}
             tip={`Hours of battery storage per kW of solar. ${sizingHrs >= 14 ? 'Bridge-hours: sized to cover the 14h overnight gap when solar produces nothing. This is the physically grounded sizing for 24/7 industrial loads.' : sizingHrs > 2 ? 'Doubled for RKEF smelters (24/7 baseload demand).' : '2h default for cloud-firming and early evening ramp.'}`}
           />
-          {batteryStillCompetitive != null && (
+          {bessCompetitive != null && (
             <ColoredStatRow
               label="Still Competitive"
-              value={batteryStillCompetitive ? 'Yes' : 'No'}
-              color={batteryStillCompetitive ? '#4CAF50' : '#EF5350'}
+              value={
+                bessCompetitive
+                  ? 'Yes'
+                  : row.lcoe_with_battery_usd_mwh != null &&
+                      row.grid_cost_usd_mwh != null &&
+                      row.grid_cost_usd_mwh > 0
+                    ? `No (+${(((row.lcoe_with_battery_usd_mwh - row.grid_cost_usd_mwh) / row.grid_cost_usd_mwh) * 100).toFixed(0)}%)`
+                    : 'No'
+              }
+              color={bessCompetitive ? '#4CAF50' : '#EF5350'}
               tip="Whether solar + battery is still cheaper than grid cost. If yes, the project works even with storage."
             />
           )}

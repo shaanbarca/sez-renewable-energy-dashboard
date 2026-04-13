@@ -87,6 +87,7 @@ export interface ScorecardRow {
   invest_battery?: boolean;
   battery_adder_usd_mwh?: number;
   lcoe_with_battery_usd_mwh?: number;
+  bess_competitive?: boolean | null;
   land_cost_usd_per_kw?: number;
   dist_to_nearest_substation_km?: number;
   dist_solar_to_nearest_substation_km?: number;

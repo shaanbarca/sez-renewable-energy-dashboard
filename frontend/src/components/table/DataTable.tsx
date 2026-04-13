@@ -8,8 +8,8 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { formatFilterValue } from '../../lib/format';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { formatFilterValue } from '../../lib/format';
 import type { ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import { columns } from './columns';
