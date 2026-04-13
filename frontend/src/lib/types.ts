@@ -74,6 +74,7 @@ export interface ScorecardRow {
   cf_wind?: number;
   wind_speed_ms?: number;
   best_re_lcoe_mid_usd_mwh?: number;
+  wind_competitive_gap_pct?: number;
   lcoe_within_boundary_usd_mwh?: number;
   lcoe_within_boundary_low_usd_mwh?: number;
   lcoe_within_boundary_high_usd_mwh?: number;

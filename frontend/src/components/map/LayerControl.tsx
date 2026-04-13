@@ -9,6 +9,7 @@ const LAYER_ITEMS = [
   { name: 'pvout', label: 'Solar Potential (PVOUT)' },
   { name: 'wind', label: 'Wind Speed (100m)' },
   { name: 'buildable_polygons', label: 'Solar Buildable Areas' },
+  { name: 'wind_buildable_polygons', label: 'Wind Buildable Areas' },
   { name: 'peatland', label: 'Peatland' },
   { name: 'protected_forest', label: 'Protected Forest' },
   { name: 'industrial', label: 'Industrial Facilities' },

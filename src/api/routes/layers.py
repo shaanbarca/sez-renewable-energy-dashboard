@@ -22,6 +22,7 @@ _GEOJSON_LAYERS = {
     "protected_forest",
     "grid_lines",
     "buildable_polygons",
+    "wind_buildable_polygons",
 }
 _RASTER_LAYERS = {"pvout", "wind"}
 _ALL_LAYERS = _POINT_LAYERS | _GEOJSON_LAYERS | _RASTER_LAYERS

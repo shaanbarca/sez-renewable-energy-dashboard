@@ -134,9 +134,12 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         lv.wind = true;
         lv.pvout = false;
         lv.buildable_polygons = false;
+        lv.wind_buildable_polygons = true;
       } else if (mode === 'solar') {
         lv.pvout = true;
         lv.wind = false;
+        lv.buildable_polygons = true;
+        lv.wind_buildable_polygons = false;
       }
       // 'overall' — leave layers as-is, user controls via LayerControl
       return { energyMode: mode, layerVisibility: lv };

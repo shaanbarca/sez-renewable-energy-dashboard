@@ -20,6 +20,7 @@ from src.dash.data_loader import (
     compute_ruptl_region_metrics,
     load_all_data,
     load_kek_infrastructure,
+    load_wind_tech_defaults,
     prepare_resource_df,
 )
 from src.dash.map_layers import get_all_layers
@@ -31,6 +32,7 @@ from src.dash.map_layers import get_all_layers
 tables: dict[str, pd.DataFrame] = {}
 resource_df: pd.DataFrame = pd.DataFrame()
 ruptl_metrics_df: pd.DataFrame = pd.DataFrame()
+wind_tech: dict = {}
 layers: dict = {}
 infrastructure: dict[str, list[dict]] = {}
 
@@ -38,12 +40,13 @@ infrastructure: dict[str, list[dict]] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load all data and map layers once at startup."""
-    global tables, resource_df, ruptl_metrics_df, layers, infrastructure
+    global tables, resource_df, ruptl_metrics_df, wind_tech, layers, infrastructure
 
     print("Loading pipeline data...")
     tables.update(load_all_data())
     resource_df = prepare_resource_df(tables)
     ruptl_metrics_df = compute_ruptl_region_metrics(tables["fct_ruptl_pipeline"])
+    wind_tech.update(load_wind_tech_defaults())
 
     print("Loading map layers...")
     layers.update(get_all_layers())

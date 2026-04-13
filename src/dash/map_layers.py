@@ -475,8 +475,17 @@ def load_wind_raster() -> tuple[str, list[list[float]]] | None:
 
 
 def load_buildable_polygons() -> dict | None:
-    """Load buildable area polygons (M14: raster-to-polygon conversion)."""
+    """Load solar buildable area polygons (M14: raster-to-polygon conversion)."""
     path = REPO_ROOT / "outputs" / "assets" / "buildable_polygons.geojson"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def load_wind_buildable_polygons() -> dict | None:
+    """Load wind buildable area polygons (from build_wind_buildable_polygons)."""
+    path = REPO_ROOT / "outputs" / "assets" / "wind_buildable_polygons.geojson"
     if not path.exists():
         return None
     with open(path) as f:
@@ -626,6 +635,18 @@ def get_all_layers() -> dict:
         layers["buildable_polygons"] = None
 
     try:
+        layers["wind_buildable_polygons"] = load_wind_buildable_polygons()
+        n_wbp = (
+            len(layers["wind_buildable_polygons"]["features"])
+            if layers["wind_buildable_polygons"]
+            else 0
+        )
+        print(f"    Wind buildable polygons: {n_wbp} polygons")
+    except Exception as e:
+        print(f"    Wind buildable polygons: failed ({e})")
+        layers["wind_buildable_polygons"] = None
+
+    try:
         layers["peatland"] = load_peatland()
         print(f"    Peatland: {'loaded' if layers['peatland'] else 'not found'}")
     except Exception as e:
@@ -678,5 +699,6 @@ LAYER_OPTIONS = [
     {"label": "KEK Boundaries", "value": "kek_polygons"},
     {"label": "Solar Potential (PVOUT)", "value": "pvout"},
     {"label": "Solar Buildable Areas", "value": "buildable_polygons"},
+    {"label": "Wind Buildable Areas", "value": "wind_buildable_polygons"},
     {"label": "Wind Speed (100m)", "value": "wind"},
 ]

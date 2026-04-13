@@ -125,7 +125,7 @@ def get_defaults():
 @router.post("/scorecard")
 def post_scorecard(req: ScorecardRequest):
     """Recompute LCOE + action flags for all 25 KEKs."""
-    from src.api.main import resource_df, ruptl_metrics_df, tables
+    from src.api.main import resource_df, ruptl_metrics_df, tables, wind_tech
 
     assumptions = UserAssumptions.from_dict(req.assumptions.model_dump())
     thresholds = UserThresholds.from_dict(req.thresholds.model_dump())
@@ -144,6 +144,7 @@ def post_scorecard(req: ScorecardRequest):
         demand_df=tables["fct_kek_demand"],
         grid_df=tables["fct_grid_cost_proxy"],
         grid_cost_by_region=grid_cost_by_region,
+        wind_tech=wind_tech,
     )
 
     # Merge dim_kek columns
@@ -166,30 +167,18 @@ def post_scorecard(req: ScorecardRequest):
     if len(merge_cols_kek) > 1:
         scorecard_df = scorecard_df.merge(dim_kek[merge_cols_kek], on="kek_id", how="left")
 
-    # Merge resource/demand/wind columns
+    # Merge resource/grid columns (wind columns now come from compute_scorecard_live)
     for source_name, source_cols in [
         (
             "fct_kek_resource",
             [
                 "buildable_area_ha",
                 "max_captive_capacity_mwp",
-                "best_re_technology",
                 "pvout_centroid",
                 "pvout_best_50km",
             ],
         ),
         ("fct_grid_cost_proxy", ["dashboard_rate_usd_mwh", "bpp_usd_mwh"]),
-        (
-            "fct_kek_scorecard",
-            [
-                "lcoe_wind_mid_usd_mwh",
-                "lcoe_wind_allin_mid_usd_mwh",
-                "cf_wind",
-                "wind_speed_ms",
-                "best_re_technology",
-                "best_re_lcoe_mid_usd_mwh",
-            ],
-        ),
     ]:
         source_df = tables.get(source_name)
         if source_df is None:

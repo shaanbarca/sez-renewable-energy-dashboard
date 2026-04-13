@@ -97,6 +97,15 @@ interface BuildableClick {
   capacity_mwp: number;
 }
 
+interface WindBuildableClick {
+  longitude: number;
+  latitude: number;
+  area_ha: number;
+  avg_wind_speed_ms: number;
+  avg_cf_wind: number;
+  capacity_mwp: number;
+}
+
 interface NickelHover {
   longitude: number;
   latitude: number;
@@ -130,6 +139,7 @@ export default function VectorOverlay() {
   const [subHover, setSubHover] = useState<SubHover | null>(null);
   const [gridHover, setGridHover] = useState<GridLineHover | null>(null);
   const [buildableClick, setBuildableClick] = useState<BuildableClick | null>(null);
+  const [windBuildableClick, setWindBuildableClick] = useState<WindBuildableClick | null>(null);
   const [nickelHover, setNickelHover] = useState<NickelHover | null>(null);
   const [coalHover, setCoalHover] = useState<CoalHover | null>(null);
 
@@ -229,6 +239,39 @@ export default function VectorOverlay() {
       map.off('mouseenter', 'overlay-buildable-polygons-fill', onEnter);
       map.off('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
       map.off('click', 'overlay-buildable-polygons-fill', onClick);
+    };
+  }, [mapRef]);
+
+  // Wind buildable polygon click + hover cursor
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = () => {
+      map.getCanvas().style.cursor = 'pointer';
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+    };
+    const onClick = (e: maplibregl.MapLayerMouseEvent) => {
+      const feat = e.features?.[0];
+      if (feat) {
+        setWindBuildableClick({
+          longitude: e.lngLat.lng,
+          latitude: e.lngLat.lat,
+          area_ha: feat.properties?.area_ha ?? 0,
+          avg_wind_speed_ms: feat.properties?.avg_wind_speed_ms ?? 0,
+          avg_cf_wind: feat.properties?.avg_cf_wind ?? 0,
+          capacity_mwp: feat.properties?.capacity_mwp ?? 0,
+        });
+      }
+    };
+    map.on('mouseenter', 'overlay-wind-buildable-fill', onEnter);
+    map.on('mouseleave', 'overlay-wind-buildable-fill', onLeave);
+    map.on('click', 'overlay-wind-buildable-fill', onClick);
+    return () => {
+      map.off('mouseenter', 'overlay-wind-buildable-fill', onEnter);
+      map.off('mouseleave', 'overlay-wind-buildable-fill', onLeave);
+      map.off('click', 'overlay-wind-buildable-fill', onClick);
     };
   }, [mapRef]);
 
@@ -549,6 +592,63 @@ export default function VectorOverlay() {
             </Source>
           );
         })()}
+
+      {/* Wind Buildable Areas (Polygons) */}
+      {layerVisibility.wind_buildable_polygons &&
+        layers.wind_buildable_polygons &&
+        !layers.wind_buildable_polygons._loading &&
+        (() => {
+          const data = layers.wind_buildable_polygons;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-wind-buildable" type="geojson" data={data}>
+              <Layer
+                id="overlay-wind-buildable-fill"
+                type="fill"
+                paint={{ 'fill-color': '#81D4FA', 'fill-opacity': 0.25 }}
+              />
+              <Layer
+                id="overlay-wind-buildable-outline"
+                type="line"
+                paint={{ 'line-color': '#039BE5', 'line-width': 1, 'line-opacity': 0.5 }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* Wind buildable polygon click popup */}
+      {windBuildableClick && (
+        <Popup
+          longitude={windBuildableClick.longitude}
+          latitude={windBuildableClick.latitude}
+          closeButton={true}
+          closeOnClick={false}
+          onClose={() => setWindBuildableClick(null)}
+          anchor="bottom"
+          offset={12}
+          className="wind-buildable-popup"
+        >
+          <div
+            style={{
+              background: 'var(--popup-bg)',
+              color: 'var(--text-primary)',
+              padding: '10px 16px',
+              borderRadius: 6,
+              fontSize: 12,
+              lineHeight: 1.6,
+              minWidth: 260,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 4, color: '#039BE5' }}>
+              Wind Buildable Area
+            </div>
+            <div>Area: {windBuildableClick.area_ha.toLocaleString()} ha</div>
+            <div>Avg Wind Speed: {windBuildableClick.avg_wind_speed_ms} m/s</div>
+            <div>Avg CF: {(windBuildableClick.avg_cf_wind * 100).toFixed(1)}%</div>
+            <div>Max Capacity: {windBuildableClick.capacity_mwp.toLocaleString()} MWp</div>
+          </div>
+        </Popup>
+      )}
 
       {/* PLN Grid Lines */}
       {layerVisibility.grid_lines &&

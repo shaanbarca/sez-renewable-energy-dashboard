@@ -340,6 +340,79 @@ def compute_lcoe_live(
 
 
 # ---------------------------------------------------------------------------
+# Live wind LCOE computation
+# ---------------------------------------------------------------------------
+
+
+def compute_lcoe_wind_live(
+    resource_df: pd.DataFrame,
+    wacc_pct: float,
+    wind_capex: float = 1650.0,
+    wind_fom: float = 40.0,
+    wind_lifetime: int = 27,
+) -> pd.DataFrame:
+    """Compute wind LCOE for all KEKs at user-specified WACC.
+
+    Uses precomputed CF from fct_kek_wind_resource and the same CRF annuity
+    formula as solar (lcoe_solar is technology-agnostic).
+
+    Parameters
+    ----------
+    resource_df:
+        Must have wind columns from fct_kek_wind_resource merge:
+        cf_wind_best_50km, cf_wind_centroid, wind_speed_best_50km_ms,
+        wind_speed_centroid_ms.
+    wacc_pct:
+        WACC percentage (e.g. 10.0 for 10%).
+    wind_capex, wind_fom, wind_lifetime:
+        Wind technology cost parameters from dim_tech_cost_wind.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per KEK: kek_id, lcoe_wind_mid_usd_mwh, cf_wind, wind_speed_ms.
+    """
+    wacc = wacc_pct / 100.0
+    rows = []
+
+    for _, kek in resource_df.iterrows():
+        kek_id = kek["kek_id"]
+
+        # Use precomputed CF (best 50km, fallback centroid)
+        cf_best = kek.get("cf_wind_best_50km")
+        cf_centroid = kek.get("cf_wind_centroid")
+        ws_best = kek.get("wind_speed_best_50km_ms")
+        ws_centroid = kek.get("wind_speed_centroid_ms")
+
+        cf = (
+            float(cf_best)
+            if pd.notna(cf_best) and cf_best > 0
+            else (float(cf_centroid) if pd.notna(cf_centroid) and cf_centroid > 0 else 0.0)
+        )
+        ws = (
+            float(ws_best)
+            if pd.notna(ws_best)
+            else (float(ws_centroid) if pd.notna(ws_centroid) else 0.0)
+        )
+
+        if cf > 0:
+            lcoe_wind = lcoe_solar(wind_capex, wind_fom, wacc, wind_lifetime, cf)
+        else:
+            lcoe_wind = np.nan
+
+        rows.append(
+            {
+                "kek_id": kek_id,
+                "lcoe_wind_mid_usd_mwh": _round(lcoe_wind),
+                "cf_wind": _round(cf, 4),
+                "wind_speed_ms": _round(ws, 2),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # Live scorecard computation (flags, gap, carbon breakeven)
 # ---------------------------------------------------------------------------
 
@@ -352,6 +425,7 @@ def compute_scorecard_live(
     demand_df: pd.DataFrame,
     grid_df: pd.DataFrame,
     grid_cost_by_region: dict[str, float] | None = None,
+    wind_tech: dict | None = None,
 ) -> pd.DataFrame:
     """Full live scorecard: LCOE + competitive gap + action flags + carbon breakeven.
 
@@ -373,8 +447,26 @@ def compute_scorecard_live(
         fct_kek_demand filtered to target year. Columns: kek_id, demand_mwh.
     grid_df:
         fct_grid_cost_proxy. Columns: grid_region_id, grid_emission_factor_t_co2_mwh.
+    wind_tech:
+        Wind technology cost parameters: capex_usd_per_kw, fom_usd_per_kw_yr,
+        lifetime_yr. If None, uses defaults ($1,650/kW, $40/kW-yr, 27yr).
     """
     lcoe_df = compute_lcoe_live(resource_df, assumptions)
+
+    # Wind LCOE (shares WACC with solar, uses wind-specific tech costs)
+    wind_defaults = wind_tech or {
+        "capex_usd_per_kw": 1650.0,
+        "fom_usd_per_kw_yr": 40.0,
+        "lifetime_yr": 27,
+    }
+    wind_lcoe_df = compute_lcoe_wind_live(
+        resource_df,
+        wacc_pct=assumptions.wacc_pct,
+        wind_capex=wind_defaults["capex_usd_per_kw"],
+        wind_fom=wind_defaults["fom_usd_per_kw_yr"],
+        wind_lifetime=wind_defaults["lifetime_yr"],
+    )
+    wind_by_kek = wind_lcoe_df.set_index("kek_id")
 
     # Extract within_boundary rows for primary comparison
     wb = lcoe_df[lcoe_df["scenario"] == "within_boundary"].set_index("kek_id")
@@ -705,6 +797,39 @@ def compute_scorecard_live(
             "wacc_pct": assumptions.wacc_pct,
             "capex_usd_per_kw": assumptions.capex_usd_per_kw,
         }
+
+        # Wind LCOE (live-computed, responds to WACC slider)
+        if kek_id in wind_by_kek.index:
+            w = wind_by_kek.loc[kek_id]
+            row["lcoe_wind_mid_usd_mwh"] = w["lcoe_wind_mid_usd_mwh"]
+            row["cf_wind"] = w["cf_wind"]
+            row["wind_speed_ms"] = w["wind_speed_ms"]
+        else:
+            row["lcoe_wind_mid_usd_mwh"] = np.nan
+            row["cf_wind"] = 0.0
+            row["wind_speed_ms"] = 0.0
+
+        # Best RE technology: compare solar vs wind LCOE at current WACC
+        wind_lcoe_val = row.get("lcoe_wind_mid_usd_mwh")
+        solar_lcoe_val = row.get("lcoe_mid_usd_mwh")
+        if pd.notna(wind_lcoe_val) and pd.notna(solar_lcoe_val):
+            row["best_re_technology"] = "wind" if wind_lcoe_val < solar_lcoe_val else "solar"
+            row["best_re_lcoe_mid_usd_mwh"] = min(wind_lcoe_val, solar_lcoe_val)
+        elif pd.notna(solar_lcoe_val):
+            row["best_re_technology"] = "solar"
+            row["best_re_lcoe_mid_usd_mwh"] = solar_lcoe_val
+        elif pd.notna(wind_lcoe_val):
+            row["best_re_technology"] = "wind"
+            row["best_re_lcoe_mid_usd_mwh"] = wind_lcoe_val
+        else:
+            row["best_re_technology"] = "solar"
+            row["best_re_lcoe_mid_usd_mwh"] = np.nan
+
+        # Wind competitive gap vs BPP
+        if pd.notna(wind_lcoe_val) and pd.notna(bpp_rate) and bpp_rate > 0:
+            row["wind_competitive_gap_pct"] = _round(solar_competitive_gap(wind_lcoe_val, bpp_rate))
+        else:
+            row["wind_competitive_gap_pct"] = np.nan
 
         # V3.3: Firm solar metrics — temporal mismatch awareness
         solar_gen_mwh = (
