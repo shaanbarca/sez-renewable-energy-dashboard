@@ -10,6 +10,7 @@ export interface UserAssumptions {
   land_cost_usd_per_kw: number;
   substation_utilization_pct: number;
   idr_usd_rate: number;
+  grant_funded_transmission?: boolean;
   target_capacity_mwp?: number | null;
 }
 

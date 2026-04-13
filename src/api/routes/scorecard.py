@@ -51,6 +51,9 @@ class AssumptionsInput(BaseModel):
     substation_utilization_pct: float = Field(ge=0.0, le=1.0, default=0.65)
     idr_usd_rate: float = Field(gt=0)
     grid_benchmark_usd_mwh: float = Field(ge=0)
+    grant_funded_transmission: bool = Field(
+        default=False, description="DFI grant scenario: zero out all grid connection costs."
+    )
     target_capacity_mwp: float | None = Field(
         default=None, ge=1, description="Target build size (MWp). None = use max buildable."
     )

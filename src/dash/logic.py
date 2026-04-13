@@ -94,6 +94,9 @@ class UserAssumptions:
     # BESS sizing override — None = auto (2h/4h/14h by reliability), set = fixed hours
     bess_sizing_hours_override: float | None = None
 
+    # M18: DFI grant scenario — zero out grid connection costs
+    grant_funded_transmission: bool = False
+
     # Project sizing — optional capacity override (H10)
     target_capacity_mwp: float | None = None
 
@@ -130,6 +133,8 @@ class UserAssumptions:
             d["bess_sizing_hours_override"] = self.bess_sizing_hours_override
         if self.target_capacity_mwp is not None:
             d["target_capacity_mwp"] = self.target_capacity_mwp
+        if self.grant_funded_transmission:
+            d["grant_funded_transmission"] = True
         return d
 
     @classmethod
@@ -255,11 +260,14 @@ def compute_lcoe_live(
 
         if pd.notna(pvout_gc) and pvout_gc > 0:
             cf_gc = capacity_factor_from_pvout(pvout_gc)
-            conn_cost = grid_connection_cost_per_kw(
-                dist_km,
-                assumptions.connection_cost_per_kw_km,
-                assumptions.grid_connection_fixed_per_kw,
-            )
+            if assumptions.grant_funded_transmission:
+                conn_cost = 0.0
+            else:
+                conn_cost = grid_connection_cost_per_kw(
+                    dist_km,
+                    assumptions.connection_cost_per_kw_km,
+                    assumptions.grid_connection_fixed_per_kw,
+                )
             land_cost = assumptions.land_cost_usd_per_kw
 
             # H10: effective capacity = min(user target, max buildable)
@@ -282,7 +290,9 @@ def compute_lcoe_live(
                 inter_connected = None
             if pd.isna(inter_sub_dist):
                 inter_sub_dist = 0.0
-            if inter_connected is False and inter_sub_dist > 0:
+            if assumptions.grant_funded_transmission:
+                trans_cost = 0.0
+            elif inter_connected is False and inter_sub_dist > 0:
                 trans_cost = new_transmission_cost_per_kw(inter_sub_dist, effective_mwp)
             else:
                 trans_cost = 0.0
@@ -290,9 +300,12 @@ def compute_lcoe_live(
             # V3.2: substation upgrade cost when capacity is insufficient
             sub_cap = kek.get("nearest_substation_capacity_mva")
             sub_cap = float(sub_cap) if pd.notna(sub_cap) else None
-            upgrade_cost = substation_upgrade_cost_per_kw(
-                sub_cap, effective_mwp, assumptions.substation_utilization_pct
-            )
+            if assumptions.grant_funded_transmission:
+                upgrade_cost = 0.0
+            else:
+                upgrade_cost = substation_upgrade_cost_per_kw(
+                    sub_cap, effective_mwp, assumptions.substation_utilization_pct
+                )
 
             eff_c = capex_c + conn_cost + land_cost + trans_cost + upgrade_cost
             eff_l = capex_l + conn_cost + land_cost + trans_cost + upgrade_cost
