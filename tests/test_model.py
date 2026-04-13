@@ -311,6 +311,88 @@ class TestBessStorageAdder:
         bundled = lcoe_solar_with_battery(700, 12, 0.09, 25, cf)
         assert bundled > base
 
+    def test_bridge_hours_default(self):
+        """Bridge hours = 24 - 10 = 14h for equatorial Indonesia."""
+        from src.model.basic_model import bess_bridge_hours
+
+        assert bess_bridge_hours() == 14.0
+
+    def test_bridge_hours_custom(self):
+        from src.model.basic_model import bess_bridge_hours
+
+        assert bess_bridge_hours(solar_production_hours=12.0) == 12.0
+
+    def test_bridge_hours_sizing_much_larger_than_default(self):
+        """14h bridge sizing produces ~5-7x higher adder than 2h default."""
+        from src.model.basic_model import bess_bridge_hours, bess_storage_adder
+
+        adder_2h = bess_storage_adder(sizing_hours=2.0)
+        adder_bridge = bess_storage_adder(sizing_hours=bess_bridge_hours())
+        ratio = adder_bridge / adder_2h
+        assert 4.0 < ratio < 10.0, f"Bridge/2h ratio = {ratio:.1f}, expected 5-7x"
+
+    def test_round_trip_efficiency_increases_adder(self):
+        """Lower RTE (more losses) should increase the battery adder."""
+        from src.model.basic_model import bess_storage_adder
+
+        good_rte = bess_storage_adder(round_trip_efficiency=0.95)
+        bad_rte = bess_storage_adder(round_trip_efficiency=0.75)
+        assert bad_rte > good_rte
+
+    def test_rte_1_0_no_losses(self):
+        """Perfect RTE should produce a lower adder than default 0.87."""
+        from src.model.basic_model import bess_storage_adder
+
+        perfect = bess_storage_adder(round_trip_efficiency=1.0)
+        default = bess_storage_adder()  # 0.87
+        assert perfect < default
+
+
+class TestFirmSolarMetrics:
+    def test_basic_firm_metrics(self):
+        """100% annual coverage with 10h solar → ~240% daytime coverage."""
+        from src.model.basic_model import firm_solar_metrics
+
+        # 1000 MWh solar, 1000 MWh demand = 100% annual coverage
+        m = firm_solar_metrics(1000.0, 1000.0)
+        assert m["daytime_fraction"] == pytest.approx(10 / 24, abs=0.01)
+        assert m["nighttime_fraction"] == pytest.approx(14 / 24, abs=0.01)
+        # Daytime demand = 1000 × (10/24) = 416.7 MWh
+        # Firm coverage = 1000 / 416.7 = 2.4x
+        assert m["firm_solar_coverage_pct"] > 2.0
+        assert m["storage_gap_pct"] == pytest.approx(14 / 24, abs=0.01)
+
+    def test_zero_demand_returns_none(self):
+        from src.model.basic_model import firm_solar_metrics
+
+        m = firm_solar_metrics(100.0, 0.0)
+        assert m["firm_solar_coverage_pct"] is None
+
+    def test_zero_generation_returns_none(self):
+        from src.model.basic_model import firm_solar_metrics
+
+        m = firm_solar_metrics(0.0, 100.0)
+        assert m["firm_solar_coverage_pct"] is None
+
+    def test_storage_required_accounts_for_rte(self):
+        """Storage throughput must exceed nighttime demand by 1/RTE."""
+        from src.model.basic_model import firm_solar_metrics
+
+        m = firm_solar_metrics(1000.0, 1000.0, round_trip_efficiency=0.87)
+        nighttime_demand = m["nighttime_demand_mwh"]
+        storage = m["storage_required_mwh"]
+        # storage = nighttime_demand / 0.87 > nighttime_demand
+        assert storage > nighttime_demand
+
+    def test_firm_coverage_always_higher_than_annual(self):
+        """Firm coverage (daytime only) > annual coverage when coverage < ~2.4x."""
+        from src.model.basic_model import firm_solar_metrics
+
+        # 50% annual coverage → firm coverage should be higher (solar serves smaller window)
+        m = firm_solar_metrics(500.0, 1000.0)
+        annual_coverage = 0.5
+        assert m["firm_solar_coverage_pct"] > annual_coverage
+
 
 # ---------------------------------------------------------------------------
 # 6. Gen-tie cost and remote captive LCOE

@@ -580,6 +580,44 @@ class TestInfrastructureCosts:
         assert "battery_adder_usd_mwh" in result.columns
         assert "lcoe_with_battery_usd_mwh" in result.columns
 
+    def test_scorecard_has_firm_solar_columns(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """Scorecard output should include firm solar metrics."""
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        assert "firm_solar_coverage_pct" in result.columns
+        assert "storage_gap_pct" in result.columns
+        assert "storage_required_mwh" in result.columns
+        assert "nighttime_demand_mwh" in result.columns
+
+    def test_bess_sizing_uses_bridge_hours_for_high_reliability(
+        self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
+    ):
+        """High-reliability KEKs should get bridge-hours BESS sizing (14h)."""
+        result = compute_scorecard_live(
+            sample_resource_df,
+            get_default_assumptions(),
+            get_default_thresholds(),
+            sample_ruptl_metrics,
+            sample_demand_df,
+            sample_grid_df,
+        )
+        # Check that at least some rows have sizing > 2h
+        battery_rows = result[result["invest_battery"]]
+        if len(battery_rows) > 0:
+            max_sizing = battery_rows["bess_sizing_hours"].max()
+            # Bridge hours = 14h, should be greater than legacy 4h RKEF
+            assert max_sizing >= 14.0, (
+                f"Max BESS sizing = {max_sizing}h, expected ≥14h for bridge-hours"
+            )
+
 
 # ---------------------------------------------------------------------------
 # H5: Flag threshold wiring tests

@@ -2,7 +2,7 @@
 
 Five primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
 
-*Updated for Methodology V3.1 — grid-connected solar model, 9 action flags, BESS storage model, three-point proximity with grid connectivity check, captive power context. See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
+*Updated for Methodology V3.3 — grid-connected solar model, 9 action flags, BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context. See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
 
 **Related:** [DESIGN.md](DESIGN.md) | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
 
@@ -43,14 +43,14 @@ At the current default assumptions, 7 of 25 KEKs flip to solar-competitive under
 
 ## Readiness Summary
 
-*Last assessed: 2026-04-11 (V3.1 consolidated methodology + BESS storage model + wind LCOE + BPP sourced). Re-assess after each major pipeline change.*
+*Last assessed: 2026-04-13 (V3.3 physics model fixes: bridge-hours BESS, round-trip efficiency, firm solar coverage). Re-assess after each major pipeline change.*
 
 | Persona | Score | Status | Top blocking gap |
 |---------|-------|--------|-----------------|
-| Energy Economist | **80%** | Full WACC spectrum (4-20%), carbon breakeven, BPP sourced (Kepmen ESDM 169/2021), `solar_vs_bpp_gap_pct` computed, V3.1 capacity assessment | Grid emission factor is 2019 vintage; CAPEX from ESDM catalogue (not market data) |
-| DFI Infrastructure Investor | **80%** | V3.1 grid connectivity check, capacity traffic light, transmission cost estimate, inter-substation distance, BPP sourced for procurement economics | `grid_investment_needed_usd` (aggregate per KEK) not yet a first-class column |
-| Policy Maker *(primary)* | **80%** | 9 action flags with `invest_transmission` + `invest_substation` split; grid connectivity + capacity assessment; wind LCOE included; captive power context | `reliability_req` is type-based proxy, not PLN SAIDI/SAIFI |
-| IPP / Solar Developer | **80%** | Buildability + resource screening solid; V3.1 solar-to-substation distance, grid readiness, capacity assessment; BPP gap computed | Custom CAPEX input still slider-only (3 bands) |
+| Energy Economist | **85%** | Full WACC spectrum (4-20%), carbon breakeven, BPP sourced, V3.3 physically grounded BESS costs (bridge-hours + RTE), firm solar coverage metric | Grid emission factor is 2019 vintage; CAPEX from ESDM catalogue (not market data) |
+| DFI Infrastructure Investor | **85%** | V3.1 grid connectivity, capacity traffic light, transmission cost; V3.2 `grid_investment_needed_usd`; V3.3 honest storage economics | Panel degradation not in LCOE (~6-7% understatement) |
+| Policy Maker *(primary)* | **85%** | 9 action flags; V3.3 firm solar coverage shows daytime-direct vs storage-dependent demand split; honest BESS costs for 24/7 industrial loads | `reliability_req` is type-based proxy, not PLN SAIDI/SAIFI |
+| IPP / Solar Developer | **85%** | Buildability + resource screening solid; V3.3 bridge-hours BESS sizing + RTE makes `lcoe_with_battery` credible for project finance | Power factor not in capacity assessment (~10-15% overstatement, rarely changes traffic light) |
 | Industrial Investor / KEK Tenant | **65%** | I-4 tariff + BPP (FY2020) available; V3.1 grid infrastructure quality signals (capacity assessment, connectivity) | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
 
 ---
@@ -88,7 +88,7 @@ Ranked by impact across personas × implementation effort. See each persona's `#
 
 This is the first site-level evidence base showing that concessional finance directly changes outcomes for Indonesian industrial zones. Move the WACC slider from 10% to 8% and watch 7 of 25 KEKs flip to solar-competitive. That number *is* the DFI lending program's impact, quantified, at site level, with transparent assumptions anyone can reproduce. The carbon breakeven column ($X/tCO2 per KEK) sizes the carbon pricing opportunity — where even modest pricing ($10-15/tCO2) closes the gap. IRENA publishes country-level LCOE ranges for Indonesia. This shows it for each of 25 industrial zones, at 9 financing rates, with a CSV export that drops straight into an investment memo annex. No other public tool does this.
 
-### Readiness — 80%
+### Readiness — 85%
 
 **What works:**
 - Full LCOE bands (low/mid/high) at WACC 4/6/8/10/12/14/16/18/20% — full concessional-to-equity spectrum; the 4-6% DFI policy argument is directly modelable
@@ -99,11 +99,14 @@ This is the first site-level evidence base showing that concessional finance dir
 - `bpp_usd_mwh` sourced (Kepmen ESDM 169/2021, FY2020) for all 7 grid regions. Java-Bali ~$57/MWh, Papua ~$133/MWh
 - `solar_vs_bpp_gap_pct` computed as a first-class metric — shows where solar undercuts PLN's cost of supply
 - Wind LCOE computed per KEK; `best_re_technology` selects cheaper of solar vs wind
+- ✅ V3.3: BESS costs now physically grounded — 14h bridge-hours for high-reliability loads (not the old 2h default), with 87% round-trip efficiency. An energy economist reviewing `lcoe_with_battery_usd_mwh` can defend the storage cost estimate to peer reviewers.
+- ✅ V3.3: `firm_solar_coverage_pct` alongside `solar_supply_coverage_pct` — the first is daytime-direct, the second is total annual. The distinction is the core temporal mismatch that MacKay (Ch. 26) highlights.
 
 **What's missing:**
-- **Grid emission factor is 2019 vintage** — `carbon_breakeven_usd_tco2` uses KESDM data now 7 years old (Gap priority 🟠 5)
-- **BPP is FY2020 vintage** — Kepmen ESDM 169/2021 data sourced, but more recent PLN Statistik 2024 values would be preferable (Gap priority 🟠 4)
+- **Grid emission factor is 2019 vintage** — `carbon_breakeven_usd_tco2` uses KESDM data now 7 years old (Gap priority 5)
+- **BPP is FY2020 vintage** — Kepmen ESDM 169/2021 data sourced, but more recent PLN Statistik 2024 values would be preferable (Gap priority 4)
 - **CAPEX from ESDM catalogue** — $960/kW may be +/-15-20% from current Indonesian EPC market pricing
+- **Panel degradation not in LCOE** — ~6-7% understatement; standard IEA/IRENA simplification but should be noted in economic analysis
 
 ### Key data needs
 
@@ -156,7 +159,7 @@ The biggest bottleneck to clean industrial power in Indonesia isn't solar econom
 
 **V2 note:** This persona was fundamentally reframed from V1. The V1 "DFI Investor" screened captive solar projects with private gen-tie infrastructure — an approach with no global precedent at 50km scale. V2 reframes the DFI as an infrastructure investor, which aligns with how DFIs actually operate in the power sector.
 
-### Readiness — 80%
+### Readiness — 85%
 
 **What works:**
 - Full 4-layer buildability filter: `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` all populated for all 25 KEKs
@@ -168,10 +171,12 @@ The biggest bottleneck to clean industrial power in Indonesia isn't solar econom
 - ✅ V3.1: Geometric grid line connectivity check (1,595 PLN transmission lines) + PLN region fallback
 - ✅ V3.1: Substation capacity traffic light (`capacity_assessment`: green/yellow/red/unknown) with `available_capacity_mva`
 - ✅ V3.1: `transmission_cost_per_kw` — inter-substation new line cost estimate when connectivity is missing
+- ✅ V3.2: `grid_investment_needed_usd` — aggregate grid infrastructure cost per KEK ($8M to $2.4B). Surfaced in DataTable and ScoreDrawer.
+- ✅ V3.3: Honest BESS economics with bridge-hours (14h) and round-trip efficiency (87%). `lcoe_with_battery_usd_mwh` is now credible for DFI investment committee presentations.
 
 **What's missing:**
-- ✅ `grid_investment_needed_usd` computed as aggregate — order-of-magnitude total investment estimate per KEK. 18/25 KEKs have values ($8M to $2.4B). Surfaced in DataTable (sortable, filterable column) and ScoreDrawer Grid + Overview tabs.
 - **BPP partially sourced** — regional BPP from Kepmen ESDM 169/2021 (FY2020 vintage). More recent PLN Statistik 2024 data would strengthen the procurement economics case.
+- **Panel degradation not in LCOE** — ~6-7% understatement; standard for screening but should be flagged for detailed investment cases.
 
 ### Key data needs
 
@@ -231,7 +236,7 @@ Ranked CSV of `invest_transmission`/`invest_substation` KEKs with investment est
 
 No other public tool crosses solar economics, grid topology, captive coal exposure, RUPTL pipeline timing, and nickel smelter locations at KEK level. A KESDM official can see in one screen: "Galang Batang has a 2,880 MW captive coal plant within 50km. Solar is 34% above grid cost today, but at 8% WACC the gap narrows to single digits. The substation needs capacity, and RUPTL solar additions for this region are mostly post-2030 — accelerate the pipeline." The 9 action flags are not labels — they are the policy playbook. Each one names the specific intervention: build a substation, extend a transmission line, accelerate RUPTL, invest in battery storage. The dashboard maps exactly where Indonesia's industrial ambitions and decarbonization goals align, and where they need a specific policy lever to close the gap. A policymaker preparing input for a RUPTL review or KEK electricity regulation update gets site-by-site, evidence-based recommendations that would take weeks to assemble manually.
 
-### Readiness — 80%
+### Readiness — 85%
 
 **What works:**
 - Action flags now include 9 categories: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`. V3 split `invest_grid` into actionable sub-flags.
@@ -241,6 +246,8 @@ No other public tool crosses solar economics, grid topology, captive coal exposu
 - ✅ V3.1: `grid_integration_category` built with geometric grid line connectivity check and capacity utilization assessment
 - ✅ V3.1: Substation capacity traffic light helps identify where grid reinforcement is needed
 - ✅ V3.1: `transmission_cost_per_kw` quantifies inter-substation infrastructure gap
+- ✅ V3.3: `firm_solar_coverage_pct` and `storage_gap_pct` show what fraction of demand solar can serve directly (daytime) vs what requires storage (nighttime ~58%). Grounds the "100% RE coverage" claim in physical reality.
+- ✅ V3.3: BESS costs now reflect bridge-hours sizing (14h for 24/7 industrial loads) with round-trip efficiency. `invest_battery` flag carries honest economics, not understated 2h sizing.
 
 **Note on technology scope:** Wind LCOE is now included (Global Wind Atlas v3, ESDM TECH_WIND_ONSHORE parameters). `best_re_technology` selects the cheaper of solar vs wind per KEK. Geothermal remains deferred. A KESDM adviser reviewing Sulawesi KEKs (which have known geothermal resources) should note that geothermal is not yet in the model.
 
@@ -317,7 +324,7 @@ The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — no
 
 **V2 note:** V1 framed the IPP as selling captive power directly to KEK tenants via PPA. V2 reframes the offtake model: IPP sells to PLN, PLN delivers to KEK tenants. This is the standard Indonesian model.
 
-### Readiness — 80%
+### Readiness — 85%
 
 **What works:**
 - Full buildability screening: `max_captive_capacity_mwp`, `buildable_area_ha`, `pvout_buildable_best_50km` all populated
@@ -327,11 +334,13 @@ The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — no
 - `solar_vs_bpp_gap_pct` computed — shows where solar undercuts PLN's cost of supply, the core argument for procurement prioritization
 - `dist_solar_to_nearest_substation_km` computed — grid injection distance for 18/25 KEKs with solar site coordinates
 - `grid_integration_category` built (V3.1) — `within_boundary` / `grid_ready` / `invest_transmission` / `invest_substation` / `grid_first` with connectivity check and capacity traffic light
+- ✅ V3.3: `lcoe_with_battery_usd_mwh` now uses bridge-hours sizing (14h for high-reliability loads) with round-trip efficiency (87%) — credible for project finance screening
+- ✅ V3.3: `firm_solar_coverage_pct` shows daytime-direct coverage vs storage-dependent demand — honest metric for PPA sizing
 
 **What's missing:**
 - **`demand_mwh_2030` is a proxy** — area x intensity estimate, not actual tenant consumption (fundamental limitation)
-- **KEK operational status is coarse** — doesn't distinguish operating KEKs with tenants from greenfield development (Gap priority 🟡 7)
-- **Custom CAPEX input** — slider gives 3 bands ($840/$960/$1,080), but IPPs know their own EPC costs. Exported CSV with CF values allows recomputation in their own models.
+- **KEK operational status is coarse** — doesn't distinguish operating KEKs with tenants from greenfield development (Gap priority 7)
+- **Panel degradation not in LCOE** — ~6-7% understatement; standard for screening models but IPPs doing detailed project finance should adjust
 
 ### Key data needs
 

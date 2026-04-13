@@ -24,6 +24,7 @@ import pandas as pd
 
 from src.assumptions import (
     BASE_WACC,
+    BESS_BRIDGE_HOURS_ENABLED,
     BESS_CAPEX_USD_PER_KWH,
     BESS_SIZING_HOURS,
     CONNECTION_COST_PER_KW_KM,
@@ -44,9 +45,11 @@ from src.assumptions import (
 from src.model.basic_model import (
     ActionFlag,
     action_flags,
+    bess_bridge_hours,
     bess_storage_adder,
     capacity_factor_from_pvout,
     carbon_breakeven_price,
+    firm_solar_metrics,
     grid_connection_cost_per_kw,
     is_solar_attractive,
     lcoe_solar,
@@ -557,10 +560,21 @@ def compute_scorecard_live(
                     action_flag = flag_name
                     break
 
-        # M19: RKEF high-reliability multiplier — double BESS sizing for 24/7 loads
+        # BESS sizing: bridge-hours for high-reliability loads, else cloud-firming
         dominant_process = str(kek.get("dominant_process_type", "")).strip().upper()
         is_rkef = dominant_process == "RKEF"
-        bess_sizing = BESS_SIZING_HOURS * 2.0 if is_rkef else BESS_SIZING_HOURS
+        reliability = (
+            float(kek.get("reliability_req", 0.6)) if pd.notna(kek.get("reliability_req")) else 0.6
+        )
+        high_reliability = reliability >= thresholds.reliability_threshold
+        if BESS_BRIDGE_HOURS_ENABLED and high_reliability:
+            # Physics-based: bridge overnight gap (14h for 10h solar)
+            bess_sizing = bess_bridge_hours()
+        elif is_rkef:
+            # M19 legacy: double default for RKEF (4h)
+            bess_sizing = BESS_SIZING_HOURS * 2.0
+        else:
+            bess_sizing = BESS_SIZING_HOURS
 
         row = {
             "kek_id": kek_id,
@@ -668,6 +682,20 @@ def compute_scorecard_live(
             "wacc_pct": assumptions.wacc_pct,
             "capex_usd_per_kw": assumptions.capex_usd_per_kw,
         }
+
+        # V3.3: Firm solar metrics — temporal mismatch awareness
+        solar_gen_mwh = (
+            (float(kek.get("max_captive_capacity_mwp", 0)) * float(kek.get("pvout_best_50km", 0)))
+            if pd.notna(kek.get("max_captive_capacity_mwp"))
+            and pd.notna(kek.get("pvout_best_50km"))
+            else 0.0
+        )
+        demand_mwh_val = demand_by_kek.get(kek_id, 0.0)
+        firm_metrics = firm_solar_metrics(solar_gen_mwh, demand_mwh_val)
+        row["firm_solar_coverage_pct"] = firm_metrics["firm_solar_coverage_pct"]
+        row["nighttime_demand_mwh"] = firm_metrics["nighttime_demand_mwh"]
+        row["storage_required_mwh"] = firm_metrics["storage_required_mwh"]
+        row["storage_gap_pct"] = firm_metrics["storage_gap_pct"]
 
         # Within-boundary LCOE (secondary, for reference — captive solar, no connection costs)
         if kek_id in wb.index:

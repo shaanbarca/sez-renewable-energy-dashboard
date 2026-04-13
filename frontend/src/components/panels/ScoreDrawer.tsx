@@ -9,6 +9,7 @@ import type {
   UserAssumptions,
 } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import EnergyBalanceChart from '../charts/EnergyBalanceChart';
 import LcoeCurveChart from '../charts/LcoeCurveChart';
 import Slider from '../ui/Slider';
 import SubstationComparison from '../ui/SubstationComparison';
@@ -169,33 +170,51 @@ function StatCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SectionHeader({ title, tip }: { title: string; tip?: string }) {
+function SectionHeader({
+  title,
+  tip,
+  subtitle,
+}: {
+  title: string;
+  tip?: string;
+  subtitle?: string;
+}) {
   const [showTip, setShowTip] = useState(false);
   return (
-    <div className="text-[11px] font-medium mb-1.5 relative" style={{ color: 'var(--text-muted)' }}>
-      {title}
-      {tip && (
-        <span
-          className="ml-1 cursor-help inline-block"
-          style={{ color: 'var(--text-muted)' }}
-          onMouseEnter={() => setShowTip(true)}
-          onMouseLeave={() => setShowTip(false)}
+    <div className="mb-1.5 relative">
+      <div className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+        {title}
+        {tip && (
+          <span
+            className="ml-1 cursor-help inline-block"
+            style={{ color: 'var(--text-muted)' }}
+            onMouseEnter={() => setShowTip(true)}
+            onMouseLeave={() => setShowTip(false)}
+          >
+            ?
+            {showTip && (
+              <span
+                className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-52"
+                style={{
+                  background: 'var(--popup-bg)',
+                  color: 'var(--text-value)',
+                  border: '1px solid var(--popup-border)',
+                  boxShadow: 'var(--popup-shadow)',
+                }}
+              >
+                {tip}
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+      {subtitle && (
+        <div
+          className="text-[10px] leading-snug mt-0.5"
+          style={{ color: 'var(--text-muted)', opacity: 0.7 }}
         >
-          ?
-          {showTip && (
-            <span
-              className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-52"
-              style={{
-                background: 'var(--popup-bg)',
-                color: 'var(--text-value)',
-                border: '1px solid var(--popup-border)',
-                boxShadow: 'var(--popup-shadow)',
-              }}
-            >
-              {tip}
-            </span>
-          )}
-        </span>
+          {subtitle}
+        </div>
       )}
     </div>
   );
@@ -300,7 +319,7 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
       const sizingHrs = row.bess_sizing_hours ?? 2;
       if (row.battery_adder_usd_mwh)
         parts.push(
-          `Battery adds +$${row.battery_adder_usd_mwh.toFixed(0)}/MWh (${sizingHrs}h Li-ion storage${sizingHrs > 2 ? ', RKEF 24/7 sizing' : ''}).`,
+          `Battery adds +$${row.battery_adder_usd_mwh.toFixed(0)}/MWh (${sizingHrs}h Li-ion storage${sizingHrs >= 14 ? ', bridge-hours for overnight gap' : sizingHrs > 2 ? ', RKEF 24/7 sizing' : ''}).`,
         );
       if (row.lcoe_with_battery_usd_mwh)
         parts.push(`Solar + battery: $${row.lcoe_with_battery_usd_mwh.toFixed(1)}/MWh.`);
@@ -321,63 +340,6 @@ function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
     default:
       return '';
   }
-}
-
-/* ---------- Coverage bar ---------- */
-
-function CoverageBar({
-  label,
-  coverage,
-  subtitle,
-}: {
-  label: string;
-  coverage: number | null | undefined;
-  subtitle?: string;
-}) {
-  const color =
-    coverage != null
-      ? coverage >= 1.0
-        ? '#4CAF50'
-        : coverage >= 0.5
-          ? '#FFC107'
-          : '#F44336'
-      : undefined;
-
-  return (
-    <StatCard>
-      <div className="text-[11px] mb-1.5" style={{ color: 'var(--text-muted)' }}>
-        {label}
-      </div>
-      {coverage != null ? (
-        <>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg font-semibold tabular-nums" style={{ color }}>
-              {(coverage * 100).toFixed(0)}%
-            </span>
-            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-              {subtitle ?? 'of demand coverable by RE'}
-            </span>
-          </div>
-          <div
-            className="w-full h-1.5 rounded-full overflow-hidden"
-            style={{ background: 'var(--bar-bg)' }}
-          >
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min(coverage * 100, 100)}%`,
-                backgroundColor: color,
-              }}
-            />
-          </div>
-        </>
-      ) : (
-        <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          Data unavailable
-        </div>
-      )}
-    </StatCard>
-  );
 }
 
 const CAPACITY_COLORS: Record<string, string> = {
@@ -403,7 +365,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
   return (
     <>
       <StatCard>
-        <SectionHeader title="KEK Identity" />
+        <SectionHeader title="KEK Identity" subtitle="Zone classification, size, and location" />
         <StatRowWithTip
           label="Type"
           value={row.kek_type ?? null}
@@ -428,9 +390,12 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         <StatRow label="Grid Region" value={row.grid_region_id} />
       </StatCard>
 
+      <EnergyBalanceChart row={row} />
+
       <StatCard>
         <SectionHeader
           title="At a Glance"
+          subtitle="Is solar competitive here, and what's the gap?"
           tip="Key numbers that tell you whether solar makes sense here. Green gap = solar is cheaper than grid."
         />
         <StatRowWithTip
@@ -468,7 +433,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         )}
         {row.solar_supply_coverage_pct != null && (
           <ColoredStatRow
-            label="RE Coverage"
+            label="RE Coverage (Annual)"
             value={`${(row.solar_supply_coverage_pct * 100).toFixed(0)}%`}
             color={
               row.solar_supply_coverage_pct >= 1.0
@@ -477,14 +442,17 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
                   ? '#FFC107'
                   : '#F44336'
             }
-            tip="How much of this KEK's demand could renewable energy cover. Green (100%+) = full coverage possible."
+            tip="Total annual solar generation / total annual demand. Does NOT account for day/night mismatch. See Firm Coverage below for physically grounded metric."
           />
         )}
       </StatCard>
 
       {(row.demand_2030_gwh != null || row.captive_coal_count || row.nickel_smelter_count) && (
         <StatCard>
-          <SectionHeader title="Demand Context" />
+          <SectionHeader
+            title="Demand Context"
+            subtitle="Projected load and existing fossil infrastructure"
+          />
           {row.demand_2030_gwh != null && (
             <StatRowWithTip
               label="Est. 2030 Demand"
@@ -520,7 +488,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
 
       {(row.developer || row.legal_basis) && (
         <StatCard>
-          <SectionHeader title="Developer & Legal" />
+          <SectionHeader title="Developer & Legal" subtitle="Zone operator and regulatory basis" />
           <StatRow label="Developer" value={row.developer ?? null} />
           <StatRow label="Legal Basis" value={row.legal_basis ?? null} />
         </StatCard>
@@ -548,6 +516,7 @@ function SolarTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title="Solar Resource Quality"
+          subtitle="Is the sun strong enough to justify a project here?"
           tip="Higher PVOUT = more sun = cheaper solar. Above 1,400 kWh/kWp/yr is good for Indonesia."
         />
         <StatRowWithTip
@@ -573,6 +542,7 @@ function SolarTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title="Buildable Land"
+          subtitle="How much suitable land exists after excluding forests, peat, and slopes?"
           tip="Land within 50km that passes slope, land cover, forest, and peatland filters."
         />
         <StatRowWithTip
@@ -602,6 +572,7 @@ function SolarTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title="LCOE Breakdown"
+          subtitle="What does solar electricity cost at different financing rates?"
           tip="Levelized Cost of Energy at three discount rates. Low = concessional finance, Mid = market rate, High = high-risk."
         />
         <StatRow label="LCOE Low (4%)" value={row.lcoe_low_usd_mwh?.toFixed(1)} unit="$/MWh" />
@@ -652,6 +623,7 @@ function GridTab({
       <StatCard>
         <SectionHeader
           title="Grid Integration"
+          subtitle="Is existing infrastructure ready for solar, or does it need upgrades?"
           tip="How ready is the grid for solar at this KEK. Determines what investment is needed to connect."
         />
         <StatRowWithTip
@@ -670,7 +642,10 @@ function GridTab({
       </StatCard>
 
       <StatCard>
-        <SectionHeader title="Substation Proximity" />
+        <SectionHeader
+          title="Substation Proximity"
+          subtitle="How far does power need to travel from solar site to KEK?"
+        />
         {loadingSubs ? (
           <div className="text-[11px] py-2 text-center" style={{ color: 'var(--text-muted)' }}>
             Loading substations...
@@ -694,6 +669,7 @@ function GridTab({
       <StatCard>
         <SectionHeader
           title="Grid Connectivity"
+          subtitle="Is there an existing transmission path between key substations?"
           tip="Whether existing PLN transmission lines connect the substations near the KEK and the solar site."
         />
         <StatRowWithTip
@@ -720,6 +696,7 @@ function GridTab({
         <StatCard>
           <SectionHeader
             title="Substation Capacity"
+            subtitle="Can the local substation absorb new solar output without upgrades?"
             tip="Can the nearest substation handle the solar output? Green = sufficient headroom. Red = upgrade needed."
           />
           <Slider
@@ -764,6 +741,7 @@ function GridTab({
         <StatCard>
           <SectionHeader
             title="Connection Costs"
+            subtitle="What does it cost to connect solar to the grid here?"
             tip="Estimated infrastructure cost to connect solar to the KEK. Scales with project capacity (MWp)."
           />
           {row.connection_cost_per_kw != null && (
@@ -823,32 +801,11 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
     <>
       <StatCard>
         <SectionHeader
-          title="Solar vs Tariff"
-          tip="Compares solar LCOE to the PLN industrial tariff. This is what a KEK tenant actually pays today."
-        />
-        <StatRow label="Solar LCOE" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
-        <StatRowWithTip
-          label="Tariff (I-4/TT)"
-          value={row.dashboard_rate_usd_mwh?.toFixed(1)}
-          unit="$/MWh"
-          tip="PLN industrial tariff rate paid by KEK tenants. Often subsidized below PLN's actual cost (BPP). This is what a tenant actually pays today."
-        />
-        <ColoredStatRow
-          label="Gap to Tariff"
-          value={
-            row.gap_vs_tariff_pct != null
-              ? `${row.gap_vs_tariff_pct > 0 ? '+' : ''}${row.gap_vs_tariff_pct.toFixed(1)}%`
-              : null
-          }
-          color={gapTariffColor}
-        />
-      </StatCard>
-
-      <StatCard>
-        <SectionHeader
           title="Solar vs BPP"
+          subtitle="Does solar save PLN money versus their actual cost of supply?"
           tip="Compares solar LCOE to PLN's true cost of supply. If solar beats BPP, PLN saves money buying solar. This is the IPP benchmark."
         />
+        <StatRow label="Solar LCOE" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
         <StatRowWithTip
           label="BPP"
           value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}
@@ -866,11 +823,35 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
         />
       </StatCard>
 
+      <StatCard>
+        <SectionHeader
+          title="Solar vs Tariff"
+          subtitle="Does solar beat what KEK tenants currently pay?"
+          tip="Compares solar LCOE to the PLN industrial tariff. This is what a KEK tenant actually pays today."
+        />
+        <StatRowWithTip
+          label="Tariff (I-4/TT)"
+          value={row.dashboard_rate_usd_mwh?.toFixed(1)}
+          unit="$/MWh"
+          tip="PLN industrial tariff rate paid by KEK tenants. Often subsidized below PLN's actual cost (BPP). This is what a tenant actually pays today."
+        />
+        <ColoredStatRow
+          label="Gap to Tariff"
+          value={
+            row.gap_vs_tariff_pct != null
+              ? `${row.gap_vs_tariff_pct > 0 ? '+' : ''}${row.gap_vs_tariff_pct.toFixed(1)}%`
+              : null
+          }
+          color={gapTariffColor}
+        />
+      </StatCard>
+
       {/* Battery storage impact */}
       {(row.battery_adder_usd_mwh != null || row.lcoe_with_battery_usd_mwh != null) && (
         <StatCard>
           <SectionHeader
             title="Battery Storage Impact"
+            subtitle="What does 24/7 solar-only power cost with batteries?"
             tip="What happens to economics when you add Li-ion battery storage for reliability."
           />
           {row.battery_adder_usd_mwh != null && (
@@ -878,7 +859,7 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
               label="Battery Adder"
               value={`+$${row.battery_adder_usd_mwh.toFixed(0)}`}
               unit="/MWh"
-              tip="Li-ion storage cost added to solar LCOE. RKEF nickel smelters need 4h (24/7 baseload), others default to 2h."
+              tip="Li-ion storage cost added to solar LCOE. Includes round-trip efficiency loss (87% RTE). High-reliability loads (≥75%) use 14h bridge-hours sizing to cover overnight gap."
             />
           )}
           {row.lcoe_with_battery_usd_mwh != null && (
@@ -890,8 +871,8 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
           )}
           <StatRowWithTip
             label="BESS Sizing"
-            value={`${sizingHrs}h${sizingHrs > 2 ? ' (RKEF)' : ''}`}
-            tip={`Hours of battery storage. 2h default. 4h for KEKs with RKEF nickel (24/7 demand). ${sizingHrs > 2 ? 'This KEK has RKEF smelters nearby, so sizing is doubled.' : 'Adjustable via BESS CAPEX slider.'}`}
+            value={`${sizingHrs}h${sizingHrs >= 14 ? ' (bridge)' : sizingHrs > 2 ? ' (RKEF)' : ''}`}
+            tip={`Hours of battery storage per kW of solar. ${sizingHrs >= 14 ? 'Bridge-hours: sized to cover the 14h overnight gap when solar produces nothing. This is the physically grounded sizing for 24/7 industrial loads.' : sizingHrs > 2 ? 'Doubled for RKEF smelters (24/7 baseload demand).' : '2h default for cloud-firming and early evening ramp.'}`}
           />
           {batteryStillCompetitive != null && (
             <ColoredStatRow
@@ -907,6 +888,7 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title="Carbon & Policy"
+          subtitle="What carbon price or policy change tips the balance?"
           tip="Carbon economics and policy support metrics. Low carbon breakeven = strong decarbonization case."
         />
         <StatRowWithTip
@@ -940,7 +922,10 @@ function DemandTab({ row }: { row: ScorecardRow }) {
   return (
     <>
       <StatCard>
-        <SectionHeader title="Electricity Demand" />
+        <SectionHeader
+          title="Electricity Demand"
+          subtitle="How much power does this KEK need by 2030?"
+        />
         <StatRowWithTip
           label="2030 Demand Estimate"
           value={demand2030 != null ? demand2030.toFixed(1) : null}
@@ -961,17 +946,192 @@ function DemandTab({ row }: { row: ScorecardRow }) {
         />
       </StatCard>
 
-      <CoverageBar label="RE Coverage (50km radius)" coverage={coverage} />
-      <CoverageBar
-        label="Within-Boundary RE Coverage"
-        coverage={wbCoverage}
-        subtitle="of demand coverable inside KEK"
-      />
-      {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
-        <div className="text-[9px] text-[var(--text-muted)] -mt-1 px-1">
-          Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
-          generation
+      <StatCard>
+        <SectionHeader
+          title="Supply Coverage"
+          subtitle="Can available solar generation meet the demand?"
+        />
+        <div className="space-y-3">
+          <div>
+            <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+              RE Coverage (50km radius)
+            </div>
+            {coverage != null ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="text-base font-semibold tabular-nums"
+                    style={{
+                      color: coverage >= 1.0 ? '#4CAF50' : coverage >= 0.5 ? '#FFC107' : '#F44336',
+                    }}
+                  >
+                    {(coverage * 100).toFixed(0)}%
+                  </span>
+                  <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                    of annual demand (ignores day/night mismatch)
+                  </span>
+                </div>
+                <div
+                  className="w-full h-1.5 rounded-full overflow-hidden"
+                  style={{ background: 'var(--bar-bg)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(coverage * 100, 100)}%`,
+                      backgroundColor:
+                        coverage >= 1.0 ? '#4CAF50' : coverage >= 0.5 ? '#FFC107' : '#F44336',
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Data unavailable
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+              Within-Boundary RE Coverage
+            </div>
+            {wbCoverage != null ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="text-base font-semibold tabular-nums"
+                    style={{
+                      color:
+                        wbCoverage >= 1.0 ? '#4CAF50' : wbCoverage >= 0.5 ? '#FFC107' : '#F44336',
+                    }}
+                  >
+                    {(wbCoverage * 100).toFixed(0)}%
+                  </span>
+                  <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                    of demand coverable inside KEK
+                  </span>
+                </div>
+                <div
+                  className="w-full h-1.5 rounded-full overflow-hidden"
+                  style={{ background: 'var(--bar-bg)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(wbCoverage * 100, 100)}%`,
+                      backgroundColor:
+                        wbCoverage >= 1.0 ? '#4CAF50' : wbCoverage >= 0.5 ? '#FFC107' : '#F44336',
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Data unavailable
+              </div>
+            )}
+          </div>
+          {row.firm_solar_coverage_pct != null && (
+            <div>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                Firm Coverage (Daytime Only)
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className="text-base font-semibold tabular-nums"
+                  style={{
+                    color:
+                      row.firm_solar_coverage_pct >= 1.0
+                        ? '#4CAF50'
+                        : row.firm_solar_coverage_pct >= 0.5
+                          ? '#FFC107'
+                          : '#F44336',
+                  }}
+                >
+                  {(row.firm_solar_coverage_pct * 100).toFixed(0)}%
+                </span>
+                <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                  of daytime demand coverable without storage
+                </span>
+              </div>
+              <div
+                className="w-full h-1.5 rounded-full overflow-hidden"
+                style={{ background: 'var(--bar-bg)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(row.firm_solar_coverage_pct * 100, 100)}%`,
+                    backgroundColor:
+                      row.firm_solar_coverage_pct >= 1.0
+                        ? '#4CAF50'
+                        : row.firm_solar_coverage_pct >= 0.5
+                          ? '#FFC107'
+                          : '#F44336',
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
+        {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
+          <div className="text-[9px] text-[var(--text-muted)] mt-2">
+            Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
+            generation
+          </div>
+        )}
+      </StatCard>
+      {row.storage_gap_pct != null && (
+        <StatCard>
+          <SectionHeader
+            title="Temporal Reality"
+            subtitle="How much demand falls at night when the sun isn't shining?"
+            tip="Solar produces during ~10h of daylight. Industrial loads run 24h. This shows what needs battery storage."
+          />
+          <div>
+            <div
+              className="flex items-center justify-between text-[10px] mb-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <span>Needs Storage (Nighttime)</span>
+              <span className="font-semibold" style={{ color: '#FFC107' }}>
+                {(row.storage_gap_pct * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div
+              className="w-full h-1.5 rounded-full overflow-hidden"
+              style={{ background: 'var(--bar-bg)' }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(row.storage_gap_pct * 100, 100)}%`,
+                  backgroundColor: '#FFC107',
+                }}
+              />
+            </div>
+            <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>
+              ~58% of demand occurs at night when solar produces nothing. This energy must pass
+              through battery storage (87% round-trip efficiency).
+            </div>
+          </div>
+          {row.nighttime_demand_mwh != null && row.storage_required_mwh != null && (
+            <div className="mt-2 flex flex-col gap-0.5">
+              <StatRowWithTip
+                label="Nighttime Demand"
+                value={(row.nighttime_demand_mwh / 1000).toFixed(1)}
+                unit="GWh/yr"
+                tip="Annual electricity demand during non-solar hours (~14h/day). This is the energy that must be stored or sourced from the grid."
+              />
+              <StatRowWithTip
+                label="Storage Throughput"
+                value={(row.storage_required_mwh / 1000).toFixed(1)}
+                unit="GWh/yr"
+                tip="Total battery throughput needed per year to serve nighttime demand. Larger than nighttime demand because 13% is lost to round-trip efficiency (87% RTE)."
+              />
+            </div>
+          )}
+        </StatCard>
       )}
 
       {/* Captive Power Context */}
@@ -979,6 +1139,7 @@ function DemandTab({ row }: { row: ScorecardRow }) {
         <StatCard>
           <SectionHeader
             title="Captive Power"
+            subtitle="What fossil generation exists nearby that solar could replace?"
             tip="Coal plants and nickel smelters within 50km. These are transition targets — existing fossil power that solar could displace."
           />
           {!!row.captive_coal_count && (
@@ -1060,25 +1221,13 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           )}
         </StatCard>
       )}
-
-      {row.ruptl_region_summary && (
-        <StatCard>
-          <SectionHeader
-            title="RUPTL Pipeline"
-            tip="RUPTL = PLN's 10-year grid expansion plan. Shows planned generation additions by technology in this KEK's grid region."
-          />
-          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
-            {row.ruptl_region_summary}
-          </div>
-        </StatCard>
-      )}
     </>
   );
 }
 
-/* ---------- Tab 6: Flags ---------- */
+/* ---------- Tab 6: Action (was Flags) ---------- */
 
-function FlagsTab({ row }: { row: ScorecardRow }) {
+function ActionTab({ row }: { row: ScorecardRow }) {
   const activeFlag = row.action_flag;
   const activeIdx = ACTION_FLAG_HIERARCHY.indexOf(activeFlag as ActionFlag);
 
@@ -1087,6 +1236,7 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title="Solar Readiness"
+          subtitle="Where this KEK sits on the path from analysis to deployment"
           tip="Flags are ranked best to worst. The active flag (highlighted) is this KEK's primary action recommendation based on solar economics, grid readiness, and pipeline status."
         />
         {ACTION_FLAG_HIERARCHY.map((flag, i) => {
@@ -1107,7 +1257,7 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
         })}
       </StatCard>
       <StatCard>
-        <SectionHeader title="Supporting Context" />
+        <SectionHeader title="Key Numbers" subtitle="The metrics behind this recommendation" />
         <StatRowWithTip
           label="Grid Cost Proxy"
           value={row.grid_cost_usd_mwh?.toFixed(1)}
@@ -1126,6 +1276,19 @@ function FlagsTab({ row }: { row: ScorecardRow }) {
           tip="Whether a solar project meets minimum thresholds: PVOUT above cutoff, buildable area exists, and capacity above minimum viable size."
         />
       </StatCard>
+
+      {row.ruptl_region_summary && (
+        <StatCard>
+          <SectionHeader
+            title="RUPTL Pipeline"
+            subtitle="What grid and generation additions is PLN planning for this region?"
+            tip="RUPTL = PLN's 10-year grid expansion plan. Shows planned generation additions by technology in this KEK's grid region."
+          />
+          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
+            {row.ruptl_region_summary}
+          </div>
+        </StatCard>
+      )}
     </>
   );
 }
@@ -1138,7 +1301,7 @@ const TABS = [
   { value: 'grid', label: 'Grid' },
   { value: 'economics', label: 'Economics' },
   { value: 'demand', label: 'Demand' },
-  { value: 'flags', label: 'Flags' },
+  { value: 'action', label: 'Action' },
 ] as const;
 
 export default function ScoreDrawer() {
@@ -1302,8 +1465,8 @@ export default function ScoreDrawer() {
               <Tabs.Content value="demand">
                 <DemandTab row={row} />
               </Tabs.Content>
-              <Tabs.Content value="flags">
-                <FlagsTab row={row} />
+              <Tabs.Content value="action">
+                <ActionTab row={row} />
               </Tabs.Content>
             </div>
           </Tabs.Root>

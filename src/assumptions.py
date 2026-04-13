@@ -332,6 +332,27 @@ BESS_SIZING_HOURS: float = 2.0
 # Hours of battery per kW of solar for industrial firming applications.
 # 2h = enough to bridge cloud events and early evening ramp.
 # This determines battery kWh per kW-solar: 2h × $250/kWh = $500/kW-solar CAPEX.
+# NOTE: For 24/7 industrial loads, use bridge-hours scaling (see BESS_BRIDGE_HOURS_ENABLED).
+
+BESS_BRIDGE_HOURS_ENABLED: bool = True
+# When True, BESS sizing scales to bridge the overnight gap for high-reliability loads.
+# bridge_hours = 24 - SOLAR_PRODUCTION_HOURS = 14h for equatorial Indonesia.
+# When False, falls back to fixed BESS_SIZING_HOURS (legacy 2h behaviour).
+# Source: MacKay "Sustainable Energy Without the Hot Air" Ch. 26 — storage must bridge
+# the gap between solar production hours and demand hours.
+
+SOLAR_PRODUCTION_HOURS: float = 10.0
+# Effective solar production hours per day at equatorial Indonesian latitudes.
+# At ~18% CF and ~12h daylight, weighted production window is ~10h.
+# Used for: (1) bridge-hours BESS sizing, (2) firm solar coverage metric.
+# Nighttime gap = 24 - 10 = 14 hours.
+
+BESS_ROUND_TRIP_EFFICIENCY: float = 0.87
+# Round-trip AC-to-AC efficiency of BESS (fraction).
+# Source: BNEF 2024 — utility-scale Li-ion LFP: 85-90%. 87% = mid-range.
+# Energy stored overnight loses 13%: 100 MWh in → 87 MWh out.
+# Affects: (1) effective solar output when storage is needed, (2) BESS sizing
+# must be oversized by 1/RTE to deliver required night-time energy.
 
 BESS_LIFETIME_YR: int = 15
 # Calendar lifetime of BESS (years). Li-ion NMC/LFP warranty period.

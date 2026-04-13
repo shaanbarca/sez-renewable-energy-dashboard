@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
-**Version:** 3.1 (Consolidated, April 2026)
-**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 386 tests passing.
+**Version:** 3.3 (Consolidated, April 2026)
+**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 398 tests passing.
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -45,6 +45,8 @@ This document is the single authoritative methodology reference for the Indonesi
   - [9.1 Solar competitive gap](#91-solar-competitive-gap)
   - [9.2 Carbon breakeven price](#92-carbon-breakeven-price)
   - [9.3 Flip scenario](#93-flip-scenario)
+  - [9.4 Solar supply coverage](#94-solar-supply-coverage)
+  - [9.5 Firm solar coverage (V3.3)](#95-firm-solar-coverage-v33)
 - [10. Action Flags](#10-action-flags)
   - [10.1 Flag definitions (9 flags)](#101-flag-definitions-9-flags)
   - [10.2 Priority ordering](#102-priority-ordering)
@@ -321,11 +323,16 @@ Effective CAPEX = $960 + $105 + $45 = $1,110/kW
 
 ### 6.3 BESS storage model
 
-V3 replaces the flat firming adder ($6/$11/$16 per MWh) with a proper BESS storage cost model.
+V3 replaces the flat firming adder ($6/$11/$16 per MWh) with a proper BESS storage cost model. V3.3 adds physically grounded bridge-hours sizing and round-trip efficiency.
 
-**Formula:**
+**Formula (V3.3):**
 ```
-bess_storage_adder = (BESS_CAPEX_per_kWh x sizing_hours x CRF_bess + FOM_bess_adj) / (CF_solar x 8760 / 1000)
+effective_sizing_hours = sizing_hours / round_trip_efficiency
+bess_capex_per_kw_solar = BESS_CAPEX_per_kWh × effective_sizing_hours
+nighttime_fraction = (24 - SOLAR_PRODUCTION_HOURS) / 24
+efficiency_loss = nighttime_fraction × (1 - round_trip_efficiency)
+effective_CF = CF_solar × (1 - efficiency_loss)
+bess_storage_adder = (bess_capex_per_kw_solar × CRF_bess + FOM_bess_adj) / (effective_CF × 8760 / 1000)
 ```
 
 **Parameters:**
@@ -334,19 +341,40 @@ bess_storage_adder = (BESS_CAPEX_per_kWh x sizing_hours x CRF_bess + FOM_bess_ad
 |---|---|---|---|
 | `BESS_CAPEX_USD_PER_KWH` | $250/kWh | $100-500/kWh | BNEF 2024 Asia utility-scale Li-ion |
 | `BESS_DISCHARGE_HOURS` | 4.0h | - | Standard 4-hour system |
-| `BESS_SIZING_HOURS` | 2.0h | - | Hours of battery per kW-solar |
+| `BESS_SIZING_HOURS` | 2.0h | - | Cloud-firming default (low-reliability loads) |
+| `BESS_ROUND_TRIP_EFFICIENCY` | 0.87 | 0.75-0.95 | BNEF 2024, utility-scale Li-ion LFP AC-to-AC |
+| `SOLAR_PRODUCTION_HOURS` | 10.0h | - | Effective solar hours/day at equatorial Indonesia |
+| `BESS_BRIDGE_HOURS_ENABLED` | True | - | Enables physics-based bridge-hours sizing |
 | `BESS_LIFETIME_YR` | 15 years | - | Li-ion warranty period |
 | `BESS_FOM_USD_PER_KW_YR` | $5/kW-yr | - | Monitoring, HVAC, insurance |
 
-**Result at defaults ($250/kWh, 2h sizing, 10% WACC, CF=0.18):** ~$43/MWh battery adder.
+**Bridge-hours sizing (V3.3):** For high-reliability loads (reliability_req >= 0.75), BESS is sized to bridge the overnight gap when solar produces nothing:
 
-This is higher than the old flat $11/MWh adder because that value was unrealistically low. User-adjustable BESS CAPEX slider ($100-500/kWh) produces a range of ~$17-86/MWh.
+```
+bridge_hours = 24 - SOLAR_PRODUCTION_HOURS = 14h
+```
+
+This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufacturing, smelting). The 2h default remains for low-reliability loads where BESS only needs to smooth cloud events and early evening ramp.
+
+**Round-trip efficiency (V3.3):** Battery storage has 85-90% AC-to-AC round-trip efficiency. Energy stored overnight loses ~13%. Two adjustments: (1) BESS capacity must be oversized by 1/RTE to deliver required nighttime energy after losses; (2) the effective solar output (denominator) is reduced by the fraction of energy that passes through storage multiplied by the efficiency loss.
+
+**Sizing logic:**
+
+| Load type | Condition | BESS sizing | Rationale |
+|---|---|---|---|
+| High-reliability industrial | reliability_req >= 0.75 | 14h (bridge) | Covers 14h overnight gap for 24/7 loads |
+| RKEF nickel (legacy) | dominant_process_type = "RKEF" | 4h | M19 multiplier, applies when bridge-hours disabled |
+| Standard/tourism | All others | 2h | Cloud-firming and early evening ramp |
+
+**Result at defaults ($250/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~$290/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~$45/MWh.
+
+**Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Storage must bridge the gap between solar production hours and demand hours. At equatorial latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store 14h × load_MW / RTE of energy.
 
 ```
 LCOE_with_battery = LCOE_solar + bess_storage_adder
 ```
 
-**Implementation:** `bess_storage_adder()` and `lcoe_solar_with_battery()` in `basic_model.py`
+**Implementation:** `bess_bridge_hours()`, `bess_storage_adder()`, and `lcoe_solar_with_battery()` in `basic_model.py`
 
 ### 6.4 Technology parameters
 
@@ -606,8 +634,40 @@ Where:
 **Caveats:**
 - Demand is estimated from KEK area x intensity proxy, not actual metered consumption
 - Solar generation assumes the entire buildable capacity is built at best-resource sites
-- Does not account for temporal mismatch (solar is daytime-only without storage)
+- Annual coverage does not account for temporal mismatch (see §9.5 Firm Solar Coverage below)
 - Coverage > 100% does not mean grid-independent (intermittency, night-time demand)
+
+### 9.5 Firm solar coverage (V3.3)
+
+Annual supply coverage (§9.4) overstates solar's ability to serve 24/7 industrial loads because it ignores the day/night mismatch. A KEK showing "100% coverage" actually needs ~58% of that energy stored and time-shifted to nighttime via battery storage.
+
+V3.3 adds four companion metrics that ground solar coverage in physical reality:
+
+**Temporal split (flat demand profile assumption):**
+```
+daytime_fraction = SOLAR_PRODUCTION_HOURS / 24 = 10/24 = 0.417
+nighttime_fraction = 1 - daytime_fraction = 14/24 = 0.583
+daytime_demand = demand_mwh × daytime_fraction
+nighttime_demand = demand_mwh × nighttime_fraction
+```
+
+**Firm solar coverage:** What fraction of daytime-only demand can solar serve directly, without storage:
+```
+firm_solar_coverage = solar_generation_mwh / daytime_demand
+```
+
+At 100% annual coverage, firm_solar_coverage = 1.0 / 0.417 = 2.4x. Solar overproduces during the day. The surplus must be stored for nighttime use.
+
+**Storage required:** Total MWh of battery throughput needed per year to serve nighttime demand, accounting for round-trip efficiency losses:
+```
+storage_required_mwh = nighttime_demand / BESS_ROUND_TRIP_EFFICIENCY
+```
+
+**Storage gap:** Fixed at ~58% for equatorial Indonesia (14h night / 24h day). This is the fraction of total demand that physically cannot be served by solar without storage.
+
+**Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Solar produces during ~10 hours of daylight. Industrial smelters consume 24 hours. Matching total energy is necessary but not sufficient. You must also match the timing. The firm coverage metric addresses this by only counting what solar can deliver directly during production hours.
+
+**Implementation:** `firm_solar_metrics()` in `basic_model.py`. Output fields: `firm_solar_coverage_pct`, `nighttime_demand_mwh`, `storage_required_mwh`, `storage_gap_pct`.
 
 ---
 
@@ -806,20 +866,18 @@ solar_replacement_pct = max_solar_generation_gwh / captive_coal_generation_gwh �
 
 Where 0.40 is a typical capacity factor for Indonesian captive coal plants. This gives a concrete signal: "buildable solar near this KEK could replace X% of existing captive coal output." Displayed in the Captive Power card in the ScoreDrawer Pipeline tab.
 
-### 13.7 BESS high-reliability multiplier for RKEF (M19)
+### 13.7 BESS sizing for industrial loads (M19 + V3.3)
 
-Nickel smelters using the RKEF (Rotary Kiln Electric Furnace) process require 24/7 baseload power. The standard 2-hour BESS sizing (enough to bridge cloud events and evening ramp) is insufficient for continuous industrial loads.
+**V3.3 bridge-hours model supersedes the M19 RKEF-only multiplier.** All high-reliability loads (reliability_req >= 0.75) now use physics-based bridge-hours sizing (14h), regardless of process type. See §6.3 for the full BESS storage model.
 
-When `dominant_process_type == "RKEF"` for a KEK's nearest nickel facilities, the BESS sizing automatically doubles from 2h to 4h:
+The M19 RKEF 2x multiplier (2h → 4h) is retained as a fallback when `BESS_BRIDGE_HOURS_ENABLED = False`, for backward compatibility testing.
 
-```
-bess_sizing_hours = BESS_SIZING_HOURS × 2.0    (if RKEF)
-bess_sizing_hours = BESS_SIZING_HOURS           (otherwise)
-```
+**Sizing hierarchy:**
+1. If `BESS_BRIDGE_HOURS_ENABLED` and `reliability_req >= 0.75`: **14h bridge-hours** (24 - 10h solar)
+2. Else if `dominant_process_type == "RKEF"`: **4h** (M19 legacy)
+3. Else: **2h** (cloud-firming default)
 
-This doubles the battery CAPEX component (from $500/kW-solar to $1,000/kW-solar at $250/kWh) and proportionally increases the battery adder on LCOE. The effect is visible in the `invest_battery` action flag description and `lcoe_with_battery_usd_mwh` value.
-
-Rationale: JETP Balmorel modeling shows BESS requirements vary by site and industrial load profile. RKEF is the most power-intensive nickel process, operating electric arc furnaces continuously. 4h storage provides evening-to-morning bridging for solar-only supply.
+Rationale: The 2h/4h defaults were identified as the tool's biggest physics vulnerability (see `docs/physics_vs_tool_technical_gaps.md`, Gaps 1-2). A 24/7 industrial load requires ~14h of overnight bridging. At 2h sizing, LCOE with battery was understated by $170-250/MWh. The bridge-hours model produces honest storage economics without requiring hourly dispatch simulation.
 
 ---
 
@@ -863,7 +921,7 @@ Rationale: JETP Balmorel modeling shows BESS requirements vary by site and indus
 | Limitation | Impact | Mitigation |
 |---|---|---|
 | PVOUT from Global Solar Atlas, not site measurement | +/- 5-10% LCOE uncertainty | Use `pvout_best_50km` not centroid; show LCOE bands |
-| Panel degradation not modeled | LCOE understated ~6-7% (0.5%/yr over 27yr) | Standard for screening models (IEA, IRENA) |
+| Panel degradation not modeled | LCOE understated ~6-7% (0.5%/yr over 27yr) | Standard for screening models (IEA, IRENA). Fix: midpoint approximation `CF × 8760 × (1 - degradation/2 × lifetime)` |
 | Solar lifecycle emissions excluded from carbon breakeven | Breakeven ~5-8% too optimistic | Corrected formula: gap / (grid_EF - 0.040) |
 | Grid emission factors are 2019 vintage | Indonesia grid mix has shifted | Update when KESDM publishes newer Tier 2 factors |
 | Grid-connected solar requires PLN partnership | PLN controls procurement | Dashboard reads as "if procurement enabled, here are the economics" |
@@ -1024,7 +1082,7 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 | Distance used | KEK-to-substation | Solar-to-substation (3-point proximity) |
 | Transmission lease | $5-15/MWh operating adder | Removed (PLN system cost, in BPP/tariff) |
 | Land cost | Not modeled | $45/kW (grid-connected only, user-adjustable) |
-| Firming/battery | Flat $6/$11/$16 per MWh | BESS LCOE model (~$43/MWh at defaults) |
+| Firming/battery | Flat $6/$11/$16 per MWh | BESS LCOE model: 14h bridge-hours + 87% RTE for high-reliability loads (~$290/MWh); 2h cloud-firming for others (~$45/MWh) |
 | Action flags | 5 flags | 9 flags (split invest_grid, add not_competitive, add no_solar_resource) |
 | Grid integration | Not present | 5 categories from 3-point proximity |
 | Solar site coordinates | Not stored | `best_solar_site_lat/lon` |
@@ -1040,6 +1098,9 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 | `SUBSTATION_WORKS_PER_KW` | `GRID_CONNECTION_FIXED_PER_KW` | $150.0 | $80.0 |
 | `TRANSMISSION_LEASE_*` | Deprecated | $5-15/MWh | Removed |
 | `FIRMING_ADDER_MID_USD_MWH` | `BESS_CAPEX_USD_PER_KWH` | $11 flat | $250/kWh |
+| - | `BESS_ROUND_TRIP_EFFICIENCY` (V3.3) | - | 0.87 |
+| - | `SOLAR_PRODUCTION_HOURS` (V3.3) | - | 10.0h |
+| - | `BESS_BRIDGE_HOURS_ENABLED` (V3.3) | - | True |
 | `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM` | `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 10.0 km | 5.0 km |
 | - | `LAND_COST_USD_PER_KW` (new) | - | $45.0 |
 

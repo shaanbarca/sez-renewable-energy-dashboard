@@ -43,6 +43,7 @@ import pandas as pd
 from src.model.basic_model import (
     action_flags,
     carbon_breakeven_price,
+    firm_solar_metrics,
     geas_baseline_allocation,
     invest_resilience,
     resolve_demand,
@@ -382,6 +383,16 @@ def build_fct_kek_scorecard(
     wb_override = df["within_boundary_coverage_pct"] >= 1.0
     df.loc[wb_override, "grid_integration_category"] = "within_boundary"
 
+    # V3.3: Firm solar metrics — temporal mismatch awareness (MacKay balance sheet)
+    _solar_gen = df["max_captive_capacity_mwp"].fillna(0) * df["pvout_best_50km"].fillna(0)
+    _firm_results = [
+        firm_solar_metrics(float(gen), float(dem)) for gen, dem in zip(_solar_gen, demand_mwh)
+    ]
+    df["firm_solar_coverage_pct"] = [r["firm_solar_coverage_pct"] for r in _firm_results]
+    df["nighttime_demand_mwh"] = [r["nighttime_demand_mwh"] for r in _firm_results]
+    df["storage_required_mwh"] = [r["storage_required_mwh"] for r in _firm_results]
+    df["storage_gap_pct"] = [r["storage_gap_pct"] for r in _firm_results]
+
     # Project viability flag — True if buildable capacity meets minimum IPP threshold
     df["project_viable"] = df["max_captive_capacity_mwp"].fillna(0) >= PROJECT_VIABLE_MIN_MWP
 
@@ -563,6 +574,10 @@ def build_fct_kek_scorecard(
             "available_capacity_mva",
             "capacity_assessment",
             "within_boundary_coverage_pct",
+            "firm_solar_coverage_pct",
+            "nighttime_demand_mwh",
+            "storage_required_mwh",
+            "storage_gap_pct",
             "project_viable",
             "demand_mwh_2030",
             "lcoe_low_usd_mwh",

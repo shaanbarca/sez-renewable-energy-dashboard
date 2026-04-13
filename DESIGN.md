@@ -44,7 +44,7 @@ Six named views arranged in a **map-forward layout**. The map is always visible.
 | 1 | **Overview Map** | Full-screen (always visible) | Spatial distribution of clean power competitiveness across all 25 KEKs | `fct_kek_scorecard.action_flag`, `solar_competitive_gap_wacc10_pct` | Click marker → zoom to KEK + show Scorecard |
 | 2 | **Quadrant Chart** | Bottom drawer (tab 2) | LCOE vs. grid cost proxy for all KEKs simultaneously — four zones visible at once | `fct_lcoe` (WACC-filtered) + `fct_grid_cost_proxy` | WACC selector updates positions live |
 | 3 | **Ranked Table** | Bottom drawer (tab 1) | Sortable, filterable comparison of all 25 KEKs | `fct_kek_scorecard` | Column sort; action flag filter; CSV export |
-| 4 | **KEK Scorecard** | Right side panel (slides in on KEK click) | Single-zone deep-dive: LCOE bands, resource, demand, grid context, action flag | All joined tables (one row per KEK) | Tab between Overview / Solar / Grid / Economics / Demand / Flags |
+| 4 | **KEK Scorecard** | Right side panel (slides in on KEK click) | Single-zone deep-dive: LCOE bands, resource, demand, grid context, action flag | All joined tables (one row per KEK) | Tab between Overview / Solar / Grid / Economics / Demand / Action |
 | 5 | **Flip Scenario Panel** | Bottom drawer (tab 4) | "Which KEKs become competitive under changed assumptions?" | `fct_lcoe` WACC=8% columns + threshold slider | WACC selector + competitive-gap threshold slider |
 | 6 | **RUPTL Context** | Bottom drawer (tab 3) | Regional grid pipeline timing — when does PLN's solar come online near each KEK? | `fct_ruptl_pipeline` | Region filter; scenario toggle (RE Base / ARED) |
 
@@ -103,7 +103,7 @@ Triggered by clicking a KEK `dl.CircleMarker` on map or a row in the ranked tabl
 - Selected KEK marker enlarged (radius 14, yellow border) to indicate selection
 - "Back to National View" button appears (top-center, `dmc.Button`) to exit zoomed state
 - Scorecard panel slides in from right (`dmc.Drawer`, 380px, title "KEK Scorecard", visible close X button)
-  - 6 tabs: Overview / Solar / Grid / Economics / Demand / Flags
+  - 6 tabs: Overview / Solar / Grid / Economics / Demand / Action
   - Close (X) or click outside → zoom back to national view, return to State 1
 - Bottom drawer still available — RUPTL tab auto-filters to this KEK's grid region
 - Click a different KEK in table → transitions directly (no return to State 1 first)
@@ -495,3 +495,6 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-12 | — | Renamed "Gap" → "LCOE Gap" across ScoreDrawer, DataTable, QuadrantChart, walkthrough | Clearer labeling: "LCOE Gap to BPP", "LCOE Gap to Tariff", "LCOE Gap (%)" |
 | 2026-04-12 | — | M15: Multi-substation comparison in ScoreDrawer Grid tab | `/api/kek/{id}/substations` computes per-substation costs (connection, upgrade, transmission, LCOE) for top 3. `SubstationComparison.tsx` side-by-side table. Map markers rank-coded: gold (rank 1), silver (rank 2), cyan (rank 3). |
 | 2026-04-12 | — | ScoreDrawer tab reorganization: 6 story-focused tabs with ~35 info badges | Renamed: KEK Info→Overview, Resource→Solar, LCOE→Economics, Pipeline→Grid. Each tab answers one question. Content reshuffled: LCOE bands→Solar, grid infra→Grid, captive power→Demand, carbon/GEAS→Economics. SectionHeader + ColoredStatRow components. WalkthroughModal updated. |
+| 2026-04-13 | — | V3.3 physics: BESS bridge-hours (14h), round-trip efficiency (87%), firm solar coverage metrics | MacKay-grounded storage model: `bess_bridge_hours()`, `firm_solar_metrics()`. 4 new scorecard fields. 12 new tests. |
+| 2026-04-13 | — | P4 Energy Balance chart in ScoreDrawer Overview tab | MacKay-style dual stacked bars (demand day/night vs supply solar/gap) with dynamic summary. `EnergyBalanceChart.tsx`. |
+| 2026-04-13 | — | ScoreDrawer UX reorg: "so what" subtitles, Flags→Action, BPP before Tariff, RUPTL moved to Action tab | Every SectionHeader gets decision-relevant subtitle. Coverage bars consolidated. Firm coverage metrics removed from Overview At a Glance (now in Energy Balance). |

@@ -29,6 +29,7 @@ from src.assumptions import (
     BESS_DISCHARGE_HOURS,
     BESS_FOM_USD_PER_KW_YR,
     BESS_LIFETIME_YR,
+    BESS_ROUND_TRIP_EFFICIENCY,
     BESS_SIZING_HOURS,
     CAPEX_USD_PER_KW_MAX,
     CAPEX_USD_PER_KW_MIN,
@@ -49,6 +50,7 @@ from src.assumptions import (
     REGION_CF_DEFAULT,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
     RUPTL_PRE2030_END,
+    SOLAR_PRODUCTION_HOURS,
     SOLAR_TO_SUBSTATION_THRESHOLD_KM,
     SUBSTATION_MIN_CAPACITY_MVA,
     SUBSTATION_UPGRADE_COST_PER_KW,
@@ -301,6 +303,20 @@ def lcoe_solar_with_firming(
     return base + adder_map[firming_adder]
 
 
+def bess_bridge_hours(
+    solar_production_hours: float = SOLAR_PRODUCTION_HOURS,
+) -> float:
+    """Hours of BESS needed to bridge overnight gap for 24/7 industrial loads.
+
+    bridge_hours = 24 - solar_production_hours
+
+    At equatorial Indonesian latitudes with ~10h effective solar production,
+    the bridge is 14h. This is the physically grounded BESS sizing for
+    high-reliability loads (MacKay Ch. 26).
+    """
+    return 24.0 - solar_production_hours
+
+
 def bess_storage_adder(
     bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
     solar_cf: float = 0.18,
@@ -309,12 +325,17 @@ def bess_storage_adder(
     bess_lifetime_yr: int = BESS_LIFETIME_YR,
     bess_fom_usd_per_kw_yr: float = BESS_FOM_USD_PER_KW_YR,
     bess_discharge_hours: float = BESS_DISCHARGE_HOURS,
+    round_trip_efficiency: float = BESS_ROUND_TRIP_EFFICIENCY,
 ) -> float:
     """Battery storage cost adder per MWh of solar generation (USD/MWh).
 
     Computes the incremental cost of adding battery storage to a solar plant,
     expressed per MWh of total solar generation. Uses battery-specific CRF
     (15yr lifetime) separate from the solar plant's 25yr lifetime.
+
+    V3.3: Includes round-trip efficiency loss. Energy passing through storage
+    loses (1 - RTE) per cycle. The denominator is reduced by the storage
+    fraction × efficiency loss to reflect that less net energy is delivered.
 
     Parameters
     ----------
@@ -325,13 +346,18 @@ def bess_storage_adder(
     wacc:
         Weighted average cost of capital (decimal).
     sizing_hours:
-        Hours of battery per kW of solar (default 2h for firming).
+        Hours of battery per kW of solar. Use bess_bridge_hours() for
+        physically grounded sizing of 24/7 loads, or BESS_SIZING_HOURS
+        for cloud-firming only.
     bess_lifetime_yr:
         Battery calendar lifetime (default 15 years).
     bess_fom_usd_per_kw_yr:
         Battery fixed O&M per kW of battery power capacity per year.
     bess_discharge_hours:
         Battery system discharge duration (for FOM pro-rating).
+    round_trip_efficiency:
+        AC-to-AC round-trip efficiency (0-1). Default 0.87.
+        Energy loss = storage_fraction × (1 - RTE).
 
     Returns
     -------
@@ -339,10 +365,16 @@ def bess_storage_adder(
         USD/MWh adder to solar LCOE.
     """
     crf = capital_recovery_factor(wacc, bess_lifetime_yr)
-    bess_capex_per_kw_solar = bess_capex_usd_per_kwh * sizing_hours
-    fom_adj = bess_fom_usd_per_kw_yr * (sizing_hours / bess_discharge_hours)
+    # BESS must be oversized by 1/RTE to deliver required energy after losses
+    effective_sizing_hours = sizing_hours / round_trip_efficiency
+    bess_capex_per_kw_solar = bess_capex_usd_per_kwh * effective_sizing_hours
+    fom_adj = bess_fom_usd_per_kw_yr * (effective_sizing_hours / bess_discharge_hours)
     annual_cost_per_kw = bess_capex_per_kw_solar * crf + fom_adj
-    annual_solar_mwh = solar_cf * HOURS_PER_YEAR / 1000
+    # Denominator: net delivered solar MWh (reduced by RTE loss on stored fraction)
+    nighttime_fraction = (24.0 - SOLAR_PRODUCTION_HOURS) / 24.0
+    efficiency_loss = nighttime_fraction * (1.0 - round_trip_efficiency)
+    effective_cf = solar_cf * (1.0 - efficiency_loss)
+    annual_solar_mwh = effective_cf * HOURS_PER_YEAR / 1000
     return annual_cost_per_kw / annual_solar_mwh
 
 
@@ -361,6 +393,79 @@ def lcoe_solar_with_battery(
     base = lcoe_solar(capex_usd_per_kw, fixed_om_usd_per_kw_yr, wacc, lifetime_yr, cf)
     storage = bess_storage_adder(bess_capex_usd_per_kwh, solar_cf=cf, wacc=wacc)
     return base + storage
+
+
+def firm_solar_metrics(
+    solar_generation_mwh: float,
+    demand_mwh: float,
+    solar_production_hours: float = SOLAR_PRODUCTION_HOURS,
+    round_trip_efficiency: float = BESS_ROUND_TRIP_EFFICIENCY,
+) -> dict[str, float | None]:
+    """Temporal-aware solar coverage metrics (MacKay balance sheet).
+
+    Splits total annual solar supply coverage into daytime-direct and
+    nighttime-requires-storage components. Provides the companion metrics
+    that make solar_supply_coverage_pct physically honest.
+
+    Parameters
+    ----------
+    solar_generation_mwh:
+        Total annual solar generation (MWh/yr) from buildable area.
+    demand_mwh:
+        Total annual demand (MWh/yr) for the KEK.
+    solar_production_hours:
+        Effective hours/day of solar production (default 10h equatorial).
+    round_trip_efficiency:
+        BESS round-trip efficiency (default 0.87).
+
+    Returns
+    -------
+    dict with keys:
+        daytime_fraction: fraction of daily hours with solar (0.42 for 10h)
+        nighttime_fraction: fraction of daily hours without solar (0.58 for 14h)
+        daytime_demand_mwh: annual demand during solar hours
+        nighttime_demand_mwh: annual demand during non-solar hours
+        firm_solar_coverage_pct: solar generation / daytime demand only
+        storage_required_mwh: MWh of storage throughput needed per year
+            (nighttime demand / RTE, accounts for round-trip losses)
+        storage_gap_pct: fraction of total demand that requires storage to serve
+    """
+    if demand_mwh <= 0 or solar_generation_mwh <= 0:
+        return {
+            "daytime_fraction": None,
+            "nighttime_fraction": None,
+            "daytime_demand_mwh": None,
+            "nighttime_demand_mwh": None,
+            "firm_solar_coverage_pct": None,
+            "storage_required_mwh": None,
+            "storage_gap_pct": None,
+        }
+
+    daytime_frac = solar_production_hours / 24.0
+    nighttime_frac = 1.0 - daytime_frac
+
+    # Assume flat industrial demand profile (24/7 loads)
+    daytime_demand = demand_mwh * daytime_frac
+    nighttime_demand = demand_mwh * nighttime_frac
+
+    # Firm coverage: solar can directly serve daytime demand without storage
+    firm_coverage = solar_generation_mwh / daytime_demand if daytime_demand > 0 else 0.0
+
+    # Storage needed: nighttime demand must pass through BESS, losing (1-RTE)
+    storage_throughput = nighttime_demand / round_trip_efficiency
+
+    # What fraction of total demand needs storage to be served?
+    storage_gap = nighttime_frac  # 58% for 14h night / 24h
+
+    return {
+        "daytime_fraction": round(daytime_frac, 3),
+        "nighttime_fraction": round(nighttime_frac, 3),
+        "daytime_demand_mwh": round(daytime_demand, 1),
+        "nighttime_demand_mwh": round(nighttime_demand, 1),
+        "firm_solar_coverage_pct": round(firm_coverage, 3),
+        "storage_required_mwh": round(storage_throughput, 1),
+        "storage_gap_pct": round(storage_gap, 3),
+    }
 
 
 def grid_connection_cost_per_kw(

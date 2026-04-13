@@ -118,6 +118,12 @@ export interface ScorecardRow {
   captive_coal_generation_gwh?: number | null;
   solar_replacement_pct?: number | null;
   bess_sizing_hours?: number | null;
+
+  // V3.3: Firm solar metrics (temporal mismatch)
+  firm_solar_coverage_pct?: number | null;
+  nighttime_demand_mwh?: number | null;
+  storage_required_mwh?: number | null;
+  storage_gap_pct?: number | null;
 }
 
 export interface SubstationWithCosts {
