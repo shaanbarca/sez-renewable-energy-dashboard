@@ -24,6 +24,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'Recommended action based on solar economics, grid readiness, and RUPTL pipeline status',
   lcoe_mid_usd_mwh:
     'Levelized Cost of Energy for solar at mid-case WACC (USD per MWh). Lower = cheaper solar.',
+  lcoe_wind_mid_usd_mwh:
+    'Levelized Cost of Energy for onshore wind at 10% WACC. CAPEX $1,650/kW (ESDM 2024), FOM $40/kW-yr, 27yr. Lower = cheaper wind.',
   solar_competitive_gap_pct:
     'LCOE gap to grid benchmark. Negative = solar is cheaper than grid. Positive = solar is more expensive. Benchmark is BPP or I-4/TT tariff depending on mode.',
   best_re_technology: 'Best available renewable energy technology for this KEK',
@@ -286,9 +288,17 @@ export const columns = [
     },
   }),
   col.accessor('lcoe_mid_usd_mwh', {
-    header: () => <HeaderWithTooltip label="LCOE ($/MWh)" columnId="lcoe_mid_usd_mwh" />,
+    header: () => <HeaderWithTooltip label="Solar LCOE" columnId="lcoe_mid_usd_mwh" />,
     filterFn: 'inRange',
     cell: (info) => info.getValue().toFixed(1),
+  }),
+  col.accessor('lcoe_wind_mid_usd_mwh', {
+    header: () => <HeaderWithTooltip label="Wind LCOE" columnId="lcoe_wind_mid_usd_mwh" />,
+    filterFn: 'inRange',
+    cell: (info) => {
+      const v = info.getValue();
+      return v != null ? v.toFixed(1) : '—';
+    },
   }),
   col.accessor('solar_competitive_gap_pct', {
     header: () => <HeaderWithTooltip label="LCOE Gap (%)" columnId="solar_competitive_gap_pct" />,

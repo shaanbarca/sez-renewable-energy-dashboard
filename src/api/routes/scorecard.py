@@ -166,7 +166,7 @@ def post_scorecard(req: ScorecardRequest):
     if len(merge_cols_kek) > 1:
         scorecard_df = scorecard_df.merge(dim_kek[merge_cols_kek], on="kek_id", how="left")
 
-    # Merge resource/demand columns
+    # Merge resource/demand/wind columns
     for source_name, source_cols in [
         (
             "fct_kek_resource",
@@ -179,6 +179,17 @@ def post_scorecard(req: ScorecardRequest):
             ],
         ),
         ("fct_grid_cost_proxy", ["dashboard_rate_usd_mwh", "bpp_usd_mwh"]),
+        (
+            "fct_kek_scorecard",
+            [
+                "lcoe_wind_mid_usd_mwh",
+                "lcoe_wind_allin_mid_usd_mwh",
+                "cf_wind",
+                "wind_speed_ms",
+                "best_re_technology",
+                "best_re_lcoe_mid_usd_mwh",
+            ],
+        ),
     ]:
         source_df = tables.get(source_name)
         if source_df is None:

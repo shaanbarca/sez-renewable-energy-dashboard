@@ -67,6 +67,13 @@ export interface ScorecardRow {
   // Optional fields that may be present depending on pipeline data
   pvout_centroid_kwh_kwp_yr?: number;
   pvout_best_50km_kwh_kwp_yr?: number;
+
+  // Wind resource fields (from precomputed scorecard)
+  lcoe_wind_mid_usd_mwh?: number;
+  lcoe_wind_allin_mid_usd_mwh?: number;
+  cf_wind?: number;
+  wind_speed_ms?: number;
+  best_re_lcoe_mid_usd_mwh?: number;
   lcoe_within_boundary_usd_mwh?: number;
   lcoe_within_boundary_low_usd_mwh?: number;
   lcoe_within_boundary_high_usd_mwh?: number;
