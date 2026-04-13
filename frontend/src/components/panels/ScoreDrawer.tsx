@@ -2,6 +2,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_HIERARCHY, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { capitalize, formatGridRegion, formatSnakeLabel } from '../../lib/format';
 import type {
   ActionFlag,
   ScorecardRow,
@@ -387,7 +388,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
           tip="Larger KEKs have more space for on-site solar. >1,000 ha is significant."
         />
         <StatRow label="Province" value={row.province} />
-        <StatRow label="Grid Region" value={row.grid_region_id} />
+        <StatRow label="Grid Region" value={formatGridRegion(row.grid_region_id)} />
       </StatCard>
 
       <EnergyBalanceChart row={row} />
@@ -416,7 +417,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
           color={gapColor}
           tip="Negative = solar beats grid. Positive = solar is more expensive. Below -10% is a strong case."
         />
-        <StatRow label="Best RE" value={row.best_re_technology} />
+        <StatRow label="Best RE" value={capitalize(row.best_re_technology)} />
         {row.grid_investment_needed_usd != null && (
           <ColoredStatRow
             label="Grid Investment"
@@ -536,7 +537,7 @@ function SolarTab({ row }: { row: ScorecardRow }) {
           value={cf}
           tip="Fraction of time solar produces at full power. 0.15-0.20 is typical for Indonesia. Higher = cheaper LCOE."
         />
-        <StatRow label="Best RE" value={row.best_re_technology} />
+        <StatRow label="Best RE" value={capitalize(row.best_re_technology)} />
       </StatCard>
 
       <StatCard>
@@ -628,7 +629,7 @@ function GridTab({
         />
         <StatRowWithTip
           label="Category"
-          value={row.grid_integration_category?.replace(/_/g, ' ') ?? 'N/A'}
+          value={formatSnakeLabel(row.grid_integration_category) ?? 'N/A'}
           tip="within_boundary = solar inside KEK. grid_ready = substation nearby. invest_transmission = build line from sub to KEK. invest_substation = build sub near solar. grid_first = major grid expansion needed."
         />
         <StatRowWithTip
@@ -638,7 +639,7 @@ function GridTab({
           }
           tip="Whether RUPTL includes grid capacity additions in this region before 2030. 'No' + competitive solar = 'grid_first' flag."
         />
-        <StatRow label="Grid Region" value={row.grid_region_id} />
+        <StatRow label="Grid Region" value={formatGridRegion(row.grid_region_id)} />
       </StatCard>
 
       <StatCard>
@@ -1391,7 +1392,7 @@ export default function ScoreDrawer() {
                   {row.kek_name}
                 </h2>
                 <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                  {row.province} &middot; {row.grid_region_id}
+                  {row.province} &middot; {formatGridRegion(row.grid_region_id)}
                 </div>
               </div>
               <button

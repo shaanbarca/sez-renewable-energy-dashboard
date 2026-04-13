@@ -1,5 +1,6 @@
 import { type CellContext, createColumnHelper, type FilterFn } from '@tanstack/react-table';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { capitalize, formatSnakeLabel } from '../../lib/format';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
@@ -205,7 +206,7 @@ export const columns = [
     ),
     cell: (info) => {
       const val = info.getValue();
-      return val ? val.replace(/_/g, ' ') : '—';
+      return val ? formatSnakeLabel(val) : '—';
     },
   }),
   col.accessor('grid_investment_needed_usd', {
@@ -317,7 +318,7 @@ export const columns = [
   }),
   col.accessor('best_re_technology', {
     header: () => <HeaderWithTooltip label="Best RE" columnId="best_re_technology" />,
-    cell: (info) => info.getValue(),
+    cell: (info) => capitalize(info.getValue()),
   }),
   col.accessor('dashboard_rate_usd_mwh', {
     header: () => <GridRateHeader />,

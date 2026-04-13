@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fetchRuptlMetrics } from '../../lib/api';
 import { RUPTL_REGION_COLORS } from '../../lib/constants';
+import { formatGridRegion } from '../../lib/format';
 
 interface RuptlRow {
   grid_region_id: string;
@@ -138,7 +139,7 @@ export default function RuptlChart() {
               fill={RUPTL_REGION_COLORS[region] ?? '#666'}
               stroke={RUPTL_REGION_COLORS[region] ?? '#666'}
               fillOpacity={0.6}
-              name={region}
+              name={formatGridRegion(region)}
             />
           ))}
         </AreaChart>

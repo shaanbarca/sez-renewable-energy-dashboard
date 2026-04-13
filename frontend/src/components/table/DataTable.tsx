@@ -8,6 +8,7 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
+import { formatFilterValue } from '../../lib/format';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -95,7 +96,7 @@ function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: 
       <option value="">All</option>
       {options.map((opt) => (
         <option key={opt} value={opt}>
-          {opt}
+          {formatFilterValue(column.id, opt)}
         </option>
       ))}
     </select>
