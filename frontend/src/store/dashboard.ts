@@ -127,7 +127,20 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
-  setEnergyMode: (mode) => set({ energyMode: mode }),
+  setEnergyMode: (mode) =>
+    set((state) => {
+      const lv = { ...state.layerVisibility };
+      if (mode === 'wind') {
+        lv.wind = true;
+        lv.pvout = false;
+        lv.buildable_polygons = false;
+      } else if (mode === 'solar') {
+        lv.pvout = true;
+        lv.wind = false;
+      }
+      // 'overall' — leave layers as-is, user controls via LayerControl
+      return { energyMode: mode, layerVisibility: lv };
+    }),
 
   setBenchmarkMode: (mode) => set({ benchmarkMode: mode }),
 

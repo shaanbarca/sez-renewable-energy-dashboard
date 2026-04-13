@@ -47,6 +47,7 @@ export default function Header() {
           </h1>
           <ActionFlagLegend />
           <LayerControl />
+          <EnergyToggle />
         </div>
 
         <div className="flex items-center gap-4">
@@ -61,7 +62,6 @@ export default function Header() {
           >
             Methodology
           </button>
-          <EnergyToggle />
           <span
             className="px-2.5 py-1 rounded-full text-xs font-medium border"
             style={{

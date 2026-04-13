@@ -856,32 +856,84 @@ function GridTab({
   );
 }
 
+/* ---------- helpers ---------- */
+
+function computeGapPct(
+  lcoe: number | null | undefined,
+  ref: number | null | undefined,
+): number | null {
+  if (lcoe == null || ref == null || ref <= 0) return null;
+  return ((lcoe - ref) / ref) * 100;
+}
+
+function formatGap(gap: number | null | undefined): string | null {
+  if (gap == null) return null;
+  return `${gap > 0 ? '+' : ''}${gap.toFixed(1)}%`;
+}
+
+function gapColor(gap: number | null | undefined): string | undefined {
+  if (gap == null) return undefined;
+  return gap < 0 ? '#4CAF50' : '#EF5350';
+}
+
 /* ---------- Tab 4: Economics (was LCOE) ---------- */
 
 function EconomicsTab({ row }: { row: ScorecardRow }) {
   const assumptions = useDashboardStore((s) => s.assumptions);
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
+  const energyMode = useDashboardStore((s) => s.energyMode);
   const bessCapexConfig = sliderConfigs?.tier2?.bess_capex_usd_per_kwh;
   const bessSizingConfig = sliderConfigs?.tier2?.bess_sizing_hours_override;
 
-  const gapTariffColor =
-    row.gap_vs_tariff_pct != null ? (row.gap_vs_tariff_pct < 0 ? '#4CAF50' : '#EF5350') : undefined;
-  const gapBppColor =
-    row.gap_vs_bpp_pct != null ? (row.gap_vs_bpp_pct < 0 ? '#4CAF50' : '#EF5350') : undefined;
-
   const sizingHrs = row.bess_sizing_hours ?? 2;
   const bessCompetitive = row.bess_competitive ?? null;
+
+  // Derive active LCOE and gaps per mode
+  const activeLcoe =
+    energyMode === 'wind'
+      ? row.lcoe_wind_mid_usd_mwh
+      : energyMode === 'overall'
+        ? row.best_re_lcoe_mid_usd_mwh
+        : row.lcoe_mid_usd_mwh;
+
+  const activeGapBpp =
+    energyMode === 'solar' ? row.gap_vs_bpp_pct : computeGapPct(activeLcoe, row.bpp_usd_mwh);
+
+  const activeGapTariff =
+    energyMode === 'solar'
+      ? row.gap_vs_tariff_pct
+      : computeGapPct(activeLcoe, row.dashboard_rate_usd_mwh);
+
+  const techLabel =
+    energyMode === 'wind'
+      ? 'Wind'
+      : energyMode === 'overall'
+        ? capitalize(row.best_re_technology)
+        : 'Solar';
+
+  // Wind mode early return when wind data is missing (Palu, Sei Mangkei)
+  if (energyMode === 'wind' && row.lcoe_wind_mid_usd_mwh == null) {
+    return (
+      <StatCard>
+        <SectionHeader title="Wind Economics" subtitle="Not available for this KEK" />
+        <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          Wind speed at this location ({row.wind_speed_ms?.toFixed(1) ?? '< 3'} m/s) is below the
+          viable threshold. Wind LCOE cannot be computed.
+        </div>
+      </StatCard>
+    );
+  }
 
   return (
     <>
       <StatCard>
         <SectionHeader
-          title="Solar vs BPP"
-          subtitle="Does solar save PLN money versus their actual cost of supply?"
-          tip="Compares solar LCOE to PLN's true cost of supply. If solar beats BPP, PLN saves money buying solar. This is the IPP benchmark."
+          title={`${techLabel} vs BPP`}
+          subtitle={`Does ${techLabel.toLowerCase()} save PLN money versus their actual cost of supply?`}
+          tip={`Compares ${techLabel.toLowerCase()} LCOE to PLN's true cost of supply. If ${techLabel.toLowerCase()} beats BPP, PLN saves money. This is the IPP benchmark.`}
         />
-        <StatRow label="Solar LCOE" value={row.lcoe_mid_usd_mwh?.toFixed(1)} unit="$/MWh" />
+        <StatRow label={`${techLabel} LCOE`} value={activeLcoe?.toFixed(1)} unit="$/MWh" />
         <StatRowWithTip
           label="BPP"
           value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}
@@ -890,20 +942,27 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
         />
         <ColoredStatRow
           label="Gap to BPP"
-          value={
-            row.gap_vs_bpp_pct != null
-              ? `${row.gap_vs_bpp_pct > 0 ? '+' : ''}${row.gap_vs_bpp_pct.toFixed(1)}%`
-              : null
-          }
-          color={gapBppColor}
+          value={formatGap(activeGapBpp)}
+          color={gapColor(activeGapBpp)}
         />
+        {energyMode === 'overall' &&
+          row.lcoe_mid_usd_mwh != null &&
+          row.lcoe_wind_mid_usd_mwh != null && (
+            <div
+              className="text-[10px] mt-1.5 pt-1.5"
+              style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)' }}
+            >
+              Solar: ${row.lcoe_mid_usd_mwh.toFixed(0)}/MWh &nbsp;|&nbsp; Wind: $
+              {row.lcoe_wind_mid_usd_mwh.toFixed(0)}/MWh
+            </div>
+          )}
       </StatCard>
 
       <StatCard>
         <SectionHeader
-          title="Solar vs Tariff"
-          subtitle="Does solar beat what KEK tenants currently pay?"
-          tip="Compares solar LCOE to the PLN industrial tariff. This is what a KEK tenant actually pays today."
+          title={`${techLabel} vs Tariff`}
+          subtitle={`Does ${techLabel.toLowerCase()} beat what KEK tenants currently pay?`}
+          tip={`Compares ${techLabel.toLowerCase()} LCOE to the PLN industrial tariff. This is what a KEK tenant actually pays today.`}
         />
         <StatRowWithTip
           label="Tariff (I-4/TT)"
@@ -913,105 +972,103 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
         />
         <ColoredStatRow
           label="Gap to Tariff"
-          value={
-            row.gap_vs_tariff_pct != null
-              ? `${row.gap_vs_tariff_pct > 0 ? '+' : ''}${row.gap_vs_tariff_pct.toFixed(1)}%`
-              : null
-          }
-          color={gapTariffColor}
+          value={formatGap(activeGapTariff)}
+          color={gapColor(activeGapTariff)}
         />
       </StatCard>
 
-      {/* Battery storage impact — shown for all KEKs with solar resource */}
-      {row.battery_adder_usd_mwh != null && row.battery_adder_usd_mwh > 0 && (
-        <StatCard>
-          <SectionHeader
-            title="Battery Storage Impact"
-            subtitle="What does 24/7 solar-only power cost with batteries?"
-            tip="What happens to economics when you add Li-ion battery storage for reliability."
-          />
-          {assumptions && bessCapexConfig && (
-            <Slider
-              value={assumptions.bess_capex_usd_per_kwh}
-              onChange={(v) =>
-                setAssumptions({ bess_capex_usd_per_kwh: v } as Partial<UserAssumptions>)
-              }
-              min={bessCapexConfig.min}
-              max={bessCapexConfig.max}
-              step={bessCapexConfig.step}
-              label={bessCapexConfig.label}
-              unit={bessCapexConfig.unit}
-              description={bessCapexConfig.description}
+      {/* Battery storage impact — solar-specific, hidden in wind mode */}
+      {energyMode !== 'wind' &&
+        row.battery_adder_usd_mwh != null &&
+        row.battery_adder_usd_mwh > 0 && (
+          <StatCard>
+            <SectionHeader
+              title={energyMode === 'overall' ? 'Solar + Battery Impact' : 'Battery Storage Impact'}
+              subtitle="What does 24/7 solar-only power cost with batteries?"
+              tip="What happens to economics when you add Li-ion battery storage for reliability."
             />
-          )}
-          {assumptions && bessSizingConfig && (
-            <div>
+            {assumptions && bessCapexConfig && (
               <Slider
-                value={assumptions.bess_sizing_hours_override ?? sizingHrs}
+                value={assumptions.bess_capex_usd_per_kwh}
                 onChange={(v) =>
-                  setAssumptions({
-                    bess_sizing_hours_override: v,
-                  } as Partial<UserAssumptions>)
+                  setAssumptions({ bess_capex_usd_per_kwh: v } as Partial<UserAssumptions>)
                 }
-                min={bessSizingConfig.min}
-                max={bessSizingConfig.max}
-                step={bessSizingConfig.step}
-                label={bessSizingConfig.label}
-                unit={bessSizingConfig.unit}
-                description={bessSizingConfig.description}
+                min={bessCapexConfig.min}
+                max={bessCapexConfig.max}
+                step={bessCapexConfig.step}
+                label={bessCapexConfig.label}
+                unit={bessCapexConfig.unit}
+                description={bessCapexConfig.description}
               />
-              {assumptions.bess_sizing_hours_override != null && (
-                <button
-                  type="button"
-                  onClick={() =>
+            )}
+            {assumptions && bessSizingConfig && (
+              <div>
+                <Slider
+                  value={assumptions.bess_sizing_hours_override ?? sizingHrs}
+                  onChange={(v) =>
                     setAssumptions({
-                      bess_sizing_hours_override: null,
+                      bess_sizing_hours_override: v,
                     } as Partial<UserAssumptions>)
                   }
-                  className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer mt-0.5"
-                  style={{
-                    color: 'var(--text-muted)',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  Reset to auto ({sizingHrs}h)
-                </button>
-              )}
-            </div>
-          )}
-          {row.battery_adder_usd_mwh != null && (
-            <StatRowWithTip
-              label="Battery Adder"
-              value={`+$${row.battery_adder_usd_mwh.toFixed(0)}`}
-              unit="/MWh"
-              tip="Li-ion storage cost added to solar LCOE. Includes round-trip efficiency loss (87% RTE). Sizing determines the bulk of this cost."
-            />
-          )}
-          {row.lcoe_with_battery_usd_mwh != null && (
-            <StatRow
-              label="Solar + Battery"
-              value={row.lcoe_with_battery_usd_mwh.toFixed(1)}
-              unit="$/MWh"
-            />
-          )}
-          {bessCompetitive != null && (
-            <ColoredStatRow
-              label="Still Competitive"
-              value={
-                bessCompetitive
-                  ? 'Yes'
-                  : row.lcoe_with_battery_usd_mwh != null &&
-                      row.grid_cost_usd_mwh != null &&
-                      row.grid_cost_usd_mwh > 0
-                    ? `No (+${(((row.lcoe_with_battery_usd_mwh - row.grid_cost_usd_mwh) / row.grid_cost_usd_mwh) * 100).toFixed(0)}%)`
-                    : 'No'
-              }
-              color={bessCompetitive ? '#4CAF50' : '#EF5350'}
-              tip="Whether solar + battery is still cheaper than grid cost. If yes, the project works even with storage."
-            />
-          )}
-        </StatCard>
-      )}
+                  min={bessSizingConfig.min}
+                  max={bessSizingConfig.max}
+                  step={bessSizingConfig.step}
+                  label={bessSizingConfig.label}
+                  unit={bessSizingConfig.unit}
+                  description={bessSizingConfig.description}
+                />
+                {assumptions.bess_sizing_hours_override != null && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAssumptions({
+                        bess_sizing_hours_override: null,
+                      } as Partial<UserAssumptions>)
+                    }
+                    className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer mt-0.5"
+                    style={{
+                      color: 'var(--text-muted)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    Reset to auto ({sizingHrs}h)
+                  </button>
+                )}
+              </div>
+            )}
+            {row.battery_adder_usd_mwh != null && (
+              <StatRowWithTip
+                label="Battery Adder"
+                value={`+$${row.battery_adder_usd_mwh.toFixed(0)}`}
+                unit="/MWh"
+                tip="Li-ion storage cost added to solar LCOE. Includes round-trip efficiency loss (87% RTE). Sizing determines the bulk of this cost."
+              />
+            )}
+            {row.lcoe_with_battery_usd_mwh != null && (
+              <StatRow
+                label="Solar + Battery"
+                value={row.lcoe_with_battery_usd_mwh.toFixed(1)}
+                unit="$/MWh"
+              />
+            )}
+            {bessCompetitive != null && (
+              <ColoredStatRow
+                label="Still Competitive"
+                value={
+                  bessCompetitive
+                    ? 'Yes'
+                    : row.lcoe_with_battery_usd_mwh != null &&
+                        row.grid_cost_usd_mwh != null &&
+                        row.grid_cost_usd_mwh > 0
+                      ? `No (+${(((row.lcoe_with_battery_usd_mwh - row.grid_cost_usd_mwh) / row.grid_cost_usd_mwh) * 100).toFixed(0)}%)`
+                      : 'No'
+                }
+                color={bessCompetitive ? '#4CAF50' : '#EF5350'}
+                tip="Whether solar + battery is still cheaper than grid cost. If yes, the project works even with storage."
+              />
+            )}
+          </StatCard>
+        )}
 
       <StatCard>
         <SectionHeader
@@ -1019,14 +1076,18 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
           subtitle="What carbon price or policy change tips the balance?"
           tip="Carbon economics and policy support metrics. Low carbon breakeven = strong decarbonization case."
         />
-        <StatRowWithTip
-          label="Carbon Breakeven"
-          value={
-            row.carbon_breakeven_usd_tco2 != null ? row.carbon_breakeven_usd_tco2.toFixed(1) : null
-          }
-          unit="$/tCO2"
-          tip="Carbon price that makes solar cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
-        />
+        {energyMode !== 'wind' && (
+          <StatRowWithTip
+            label="Carbon Breakeven"
+            value={
+              row.carbon_breakeven_usd_tco2 != null
+                ? row.carbon_breakeven_usd_tco2.toFixed(1)
+                : null
+            }
+            unit="$/tCO2"
+            tip="Carbon price that makes solar cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
+          />
+        )}
         <StatRowWithTip
           label="GEAS Green Share"
           value={row.green_share_geas != null ? `${(row.green_share_geas * 100).toFixed(1)}` : null}
@@ -1041,6 +1102,7 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
 /* ---------- Tab 5: Demand ---------- */
 
 function DemandTab({ row }: { row: ScorecardRow }) {
+  const energyMode = useDashboardStore((s) => s.energyMode);
   const demand2030 = row.demand_2030_gwh;
   const solarGen = row.max_solar_generation_gwh;
   const coverage = row.solar_supply_coverage_pct;
@@ -1049,6 +1111,19 @@ function DemandTab({ row }: { row: ScorecardRow }) {
 
   return (
     <>
+      {energyMode !== 'solar' && (
+        <div
+          className="px-3 py-2 rounded-md text-[10px] leading-snug mb-2"
+          style={{
+            background: 'rgba(255,193,7,0.08)',
+            border: '1px solid rgba(255,193,7,0.15)',
+            color: '#FFC107',
+          }}
+        >
+          Supply coverage uses solar generation estimates. Wind-specific coverage not yet available.
+        </div>
+      )}
+
       <StatCard>
         <SectionHeader
           title="Electricity Demand"
@@ -1061,7 +1136,7 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           tip="Estimated from zone area x energy intensity by KEK type. Provisional — actual metered demand not available."
         />
         <StatRowWithTip
-          label="Max RE Generation (50km)"
+          label="Max Solar Gen (50km)"
           value={solarGen != null ? solarGen.toFixed(1) : null}
           unit="GWh/yr"
           tip="Annual GWh from max buildable solar within 50km at best PVOUT. Upper bound, not a project proposal."
@@ -1076,8 +1151,12 @@ function DemandTab({ row }: { row: ScorecardRow }) {
 
       <StatCard>
         <SectionHeader
-          title="Supply Coverage"
-          subtitle="Can available solar generation meet the demand?"
+          title={energyMode !== 'solar' ? 'Supply Coverage (Solar-Based)' : 'Supply Coverage'}
+          subtitle={
+            energyMode !== 'solar'
+              ? 'Solar generation vs demand. Wind coverage not yet computed.'
+              : 'Can available solar generation meet the demand?'
+          }
         />
         <div className="space-y-3">
           <div>
@@ -1209,10 +1288,10 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           </div>
         )}
       </StatCard>
-      {row.storage_gap_pct != null && (
+      {row.storage_gap_pct != null && energyMode !== 'wind' && (
         <StatCard>
           <SectionHeader
-            title="Temporal Reality"
+            title={energyMode === 'overall' ? 'Temporal Reality (Solar)' : 'Temporal Reality'}
             subtitle="How much demand falls at night when the sun isn't shining?"
             tip="Solar produces during ~10h of daylight. Industrial loads run 24h. This shows what needs battery storage."
           />
