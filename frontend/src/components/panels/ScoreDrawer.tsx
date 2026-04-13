@@ -359,9 +359,26 @@ const CAPACITY_LABELS: Record<string, string> = {
 /* ---------- Tab 1: Overview (was Info) ---------- */
 
 function OverviewTab({ row }: { row: ScorecardRow }) {
-  const gapPct = row.solar_competitive_gap_pct;
-  const gapColor = gapPct < 0 ? '#4CAF50' : gapPct > 0 ? '#EF5350' : '#e0e0e0';
-  const gapSign = gapPct > 0 ? '+' : '';
+  const energyMode = useDashboardStore((s) => s.energyMode);
+
+  const activeLcoe =
+    energyMode === 'wind'
+      ? row.lcoe_wind_mid_usd_mwh
+      : energyMode === 'overall'
+        ? row.best_re_lcoe_mid_usd_mwh
+        : row.lcoe_mid_usd_mwh;
+
+  const activeGap = computeGapPct(activeLcoe, row.grid_cost_usd_mwh);
+  const gapPct = energyMode === 'solar' ? row.solar_competitive_gap_pct : activeGap;
+  const gapColorVal =
+    gapPct != null ? (gapPct < 0 ? '#4CAF50' : gapPct > 0 ? '#EF5350' : '#e0e0e0') : '#e0e0e0';
+
+  const techLabel =
+    energyMode === 'wind'
+      ? 'Wind'
+      : energyMode === 'overall'
+        ? capitalize(row.best_re_technology)
+        : 'Solar';
 
   return (
     <>
@@ -391,33 +408,43 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         <StatRow label="Grid Region" value={formatGridRegion(row.grid_region_id)} />
       </StatCard>
 
-      <EnergyBalanceChart row={row} />
+      {energyMode !== 'wind' && <EnergyBalanceChart row={row} />}
 
       <StatCard>
         <SectionHeader
           title="At a Glance"
-          subtitle="Is solar competitive here, and what's the gap?"
-          tip="Key numbers that tell you whether solar makes sense here. Green gap = solar is cheaper than grid."
+          subtitle={`Is ${techLabel.toLowerCase()} competitive here, and what's the gap?`}
+          tip={`Key numbers that tell you whether ${techLabel.toLowerCase()} makes sense here. Green gap = RE is cheaper than grid.`}
         />
         <StatRowWithTip
-          label="Solar LCOE"
-          value={row.lcoe_mid_usd_mwh?.toFixed(1)}
+          label={`${techLabel} LCOE`}
+          value={activeLcoe?.toFixed(1)}
           unit="$/MWh"
-          tip="Solar cost per MWh at current assumptions (10% WACC default). Compare to grid cost below."
+          tip={`${techLabel} cost per MWh at current assumptions. Compare to grid cost below.`}
         />
         <StatRowWithTip
           label="Grid Cost"
           value={row.grid_cost_usd_mwh?.toFixed(1)}
           unit="$/MWh"
-          tip="PLN's cost to supply power here. If LCOE is lower, solar is already cheaper."
+          tip="PLN's cost to supply power here. If LCOE is lower, RE is already cheaper."
         />
-        <ColoredStatRow
-          label="Competitive Gap"
-          value={`${gapSign}${gapPct.toFixed(1)}%`}
-          color={gapColor}
-          tip="Negative = solar beats grid. Positive = solar is more expensive. Below -10% is a strong case."
-        />
+        {gapPct != null && (
+          <ColoredStatRow
+            label="Competitive Gap"
+            value={formatGap(gapPct)}
+            color={gapColorVal}
+            tip="Negative = RE beats grid. Positive = RE is more expensive. Below -10% is a strong case."
+          />
+        )}
         <StatRow label="Best RE" value={capitalize(row.best_re_technology)} />
+        {energyMode === 'overall' &&
+          row.lcoe_mid_usd_mwh != null &&
+          row.lcoe_wind_mid_usd_mwh != null && (
+            <div className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+              Solar: ${row.lcoe_mid_usd_mwh.toFixed(0)}/MWh &nbsp;|&nbsp; Wind: $
+              {row.lcoe_wind_mid_usd_mwh.toFixed(0)}/MWh
+            </div>
+          )}
         {row.grid_investment_needed_usd != null && (
           <ColoredStatRow
             label="Grid Investment"
@@ -434,7 +461,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         )}
         {row.solar_supply_coverage_pct != null && (
           <ColoredStatRow
-            label="RE Coverage (Annual)"
+            label={energyMode !== 'solar' ? 'Solar Coverage (Annual)' : 'RE Coverage (Annual)'}
             value={`${(row.solar_supply_coverage_pct * 100).toFixed(0)}%`}
             color={
               row.solar_supply_coverage_pct >= 1.0
@@ -443,10 +470,11 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
                   ? '#FFC107'
                   : '#F44336'
             }
-            tip="Total annual solar generation / total annual demand. Does NOT account for day/night mismatch. See Firm Coverage below for physically grounded metric."
+            tip="Total annual solar generation / total annual demand. Does NOT account for day/night mismatch."
           />
         )}
-        {row.bess_competitive != null &&
+        {energyMode !== 'wind' &&
+          row.bess_competitive != null &&
           row.battery_adder_usd_mwh != null &&
           row.battery_adder_usd_mwh > 0 && (
             <div
