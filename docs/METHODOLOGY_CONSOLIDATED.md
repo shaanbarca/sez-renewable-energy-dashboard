@@ -362,10 +362,11 @@ This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufact
 
 **Round-trip efficiency (V3.3):** Battery storage has 85-90% AC-to-AC round-trip efficiency. Energy stored overnight loses ~13%. Two adjustments: (1) BESS capacity must be oversized by 1/RTE to deliver required nighttime energy after losses; (2) the effective solar output (denominator) is reduced by the fraction of energy that passes through storage multiplied by the efficiency loss.
 
-**Sizing logic:**
+**Sizing logic (V3.6):**
 
 | Load type | Condition | BESS sizing | Rationale |
 |---|---|---|---|
+| **User override** | `bess_sizing_hours_override` is set | 1-16h (user-set) | Explore cost tradeoffs at different storage durations via ScoreDrawer slider |
 | High-reliability industrial | reliability_req >= 0.75 | 14h (bridge) | Covers 14h overnight gap for 24/7 loads |
 | RKEF nickel (legacy) | dominant_process_type = "RKEF" | 4h | M19 multiplier, applies when bridge-hours disabled |
 | Standard/tourism | All others | 2h | Cloud-firming and early evening ramp |
@@ -885,7 +886,8 @@ Where 0.40 is a typical capacity factor for Indonesian captive coal plants. This
 
 The M19 RKEF 2x multiplier (2h → 4h) is retained as a fallback when `BESS_BRIDGE_HOURS_ENABLED = False`, for backward compatibility testing.
 
-**Sizing hierarchy:**
+**Sizing hierarchy (V3.6):**
+0. If `bess_sizing_hours_override` is set: **use that value** (user exploring tradeoffs via ScoreDrawer slider, range 1-16h)
 1. If `BESS_BRIDGE_HOURS_ENABLED` and `reliability_req >= 0.75`: **14h bridge-hours** (24 - 10h solar)
 2. Else if `dominant_process_type == "RKEF"`: **4h** (M19 legacy)
 3. Else: **2h** (cloud-firming default)
@@ -912,6 +914,7 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 | Connection cost | 5 $/kW-km | 2-15 | Solar-to-substation line |
 | Grid connection fixed | 80 $/kW | 30-200 | Substation interconnection |
 | BESS CAPEX | 250 $/kWh | 100-500 | Battery storage cost |
+| BESS Sizing Override | None (auto) | 1-16h | Override auto sizing (2h/4h/14h) to explore tradeoffs |
 | IDR/USD rate | 15,800 | 14,000-18,000 | Exchange rate |
 
 **Tier 3 (thresholds):**
@@ -925,7 +928,7 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 | Min viable capacity | 20 MWp | 5-50 | Project viability floor |
 | Reliability threshold | 0.75 | 0.30-1.00 | Reliability req for `invest_battery` |
 
-**Implementation:** Slider configs in `src/dash/constants.py` (TIER1_SLIDERS, TIER2_SLIDERS, TIER3_SLIDERS). Served via `GET /api/defaults`. Changes trigger `POST /api/scorecard` recomputation.
+**Implementation:** Slider configs in `src/dash/constants.py` (TIER1_SLIDERS, TIER2_SLIDERS, TIER3_SLIDERS). Served via `GET /api/defaults`. Changes trigger `POST /api/scorecard` recomputation. V3.6: BESS CAPEX and BESS Sizing sliders are co-located with battery output in the ScoreDrawer Economics tab (not the Assumptions panel), so the user sees cost impact immediately next to the slider.
 
 ---
 

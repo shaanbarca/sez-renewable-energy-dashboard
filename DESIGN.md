@@ -271,6 +271,15 @@ Fields sourced from `fct_kek_scorecard` (57 columns). See [DATA_DICTIONARY.md](D
 | `invest_resilience` | Resilience investment case? | boolean |
 | `carbon_breakeven_usd_tco2` | Carbon breakeven price | USD/tCO2 |
 
+**Battery Storage Impact** (V3.6, in Economics tab, co-located with battery output):
+| Control | Type | Range | Notes |
+|---------|------|-------|-------|
+| BESS CAPEX | Slider | 100-500 $/kWh | Triggers live recomputation of `battery_adder_usd_mwh` |
+| BESS Sizing | Slider | 1-16h | Override auto sizing (2h/4h/14h). "Reset to auto" button restores per-KEK logic |
+| Battery Adder | Display | $/MWh | Li-ion storage cost added to solar LCOE |
+| LCOE with Battery | Display | $/MWh | Solar LCOE + battery adder |
+| Still Competitive | Display | Yes/No | `bess_competitive`: whether solar+BESS beats grid cost |
+
 **Demand tab:**
 | Field | Display label | Unit |
 |-------|--------------|------|

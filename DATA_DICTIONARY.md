@@ -693,7 +693,8 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `effective_capacity_mwp` | float/null | User input (H10) | User-selected project capacity for LCOE recalculation. When set, overrides `max_captive_capacity_mwp` for gen-tie cost and substation capacity assessment. Null = use max buildable. |
 | `captive_coal_generation_gwh` | float/null | Derived | Estimated annual coal generation: `captive_coal_mw × 8.76 × 0.40` (40% CF assumption for Indonesian captive coal). |
 | `solar_replacement_pct` | float/null | Derived | `max_solar_generation_gwh / captive_coal_generation_gwh × 100`. What % of captive coal output is replaceable by buildable solar. |
-| `bess_sizing_hours` | float | Derived (M19) | BESS storage sizing: 4h if `dominant_process_type == "RKEF"` (24/7 baseload), 2h otherwise. Drives `battery_adder_usd_mwh` and `lcoe_with_battery_usd_mwh`. |
+| `bess_sizing_hours` | float | Derived | BESS storage sizing (hours). V3.6 hierarchy: user override > bridge-hours 14h (reliability >= 0.75) > RKEF 4h > cloud-firming 2h. Drives `battery_adder_usd_mwh` and `lcoe_with_battery_usd_mwh`. |
+| `bess_sizing_hours_override` | float/null | User input | Optional BESS sizing override (1-16h). When set, overrides the auto-computed sizing for all KEKs. None = auto (2h/4h/14h by load type). Adjustable via ScoreDrawer Economics tab slider. |
 
 ---
 
