@@ -50,9 +50,11 @@ from src.assumptions import (
     REGION_CF_DEFAULT,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
     RUPTL_PRE2030_END,
+    SOLAR_DEGRADATION_ANNUAL_PCT,
     SOLAR_PRODUCTION_HOURS,
     SOLAR_TO_SUBSTATION_THRESHOLD_KM,
     SUBSTATION_MIN_CAPACITY_MVA,
+    SUBSTATION_POWER_FACTOR,
     SUBSTATION_UPGRADE_COST_PER_KW,
     SUBSTATION_UTILIZATION_PCT,
     SUBSTATION_WORKS_PER_KW,
@@ -225,12 +227,18 @@ def lcoe_solar(
     wacc: float,
     lifetime_yr: int,
     cf: float,
+    degradation_annual_pct: float = SOLAR_DEGRADATION_ANNUAL_PCT,
 ) -> float:
     """Levelised Cost of Energy for utility-scale solar PV.
 
-    LCOE = (CAPEX × CRF + FOM) / (CF × 8.76)
+    LCOE = (CAPEX × CRF + FOM) / (CF × 8.76 × degradation_factor)
 
-    where 8.76 = 8760 h/yr ÷ 1000 (converts kW-based costs to MWh).
+    where:
+        8.76 = 8760 h/yr ÷ 1000 (converts kW-based costs to MWh)
+        degradation_factor = 1 − (degradation_rate × lifetime / 2)
+
+    The degradation factor uses a midpoint linear approximation of annual
+    panel output loss (~0.5%/yr). Over 27yr: factor ≈ 0.9325.
 
     Parameters
     ----------
@@ -246,6 +254,9 @@ def lcoe_solar(
         Asset lifetime (years).
     cf:
         Capacity factor (0–1). Derive from pvout via capacity_factor_from_pvout().
+    degradation_annual_pct:
+        Annual panel output degradation (%, e.g. 0.5 for 0.5%/yr).
+        Default from SOLAR_DEGRADATION_ANNUAL_PCT.
 
     Returns
     -------
@@ -267,7 +278,8 @@ def lcoe_solar(
         raise ValueError(f"cf must be > 0, got {cf}")
     crf = capital_recovery_factor(wacc, lifetime_yr)
     annual_cost_per_kw = capex_usd_per_kw * crf + fixed_om_usd_per_kw_yr
-    annual_mwh_per_kw = cf * HOURS_PER_YEAR / 1000.0
+    degradation_factor = 1.0 - (degradation_annual_pct / 100.0) * lifetime_yr / 2.0
+    annual_mwh_per_kw = cf * HOURS_PER_YEAR / 1000.0 * degradation_factor
     return annual_cost_per_kw / annual_mwh_per_kw
 
 
@@ -955,13 +967,17 @@ def capacity_assessment(
     substation_capacity_mva: float | None,
     solar_capacity_mwp: float | None,
     utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
+    power_factor: float = SUBSTATION_POWER_FACTOR,
 ) -> tuple[str, float | None]:
     """Classify substation capacity adequacy for proposed solar injection.
 
+    Converts available MVA to MW via power factor before comparing to solar MWp.
+    The returned available value remains in MVA (for display purposes).
+
     Returns (traffic_light, available_mva):
-        'green'   — available capacity > 2× solar potential
-        'yellow'  — available capacity between 0.5× and 2× solar potential
-        'red'     — available capacity < 0.5× solar potential (upgrade needed)
+        'green'   — available real power > 2× solar potential
+        'yellow'  — available real power between 0.5× and 2× solar potential
+        'red'     — available real power < 0.5× solar potential (upgrade needed)
         'unknown' — capacity data unavailable
     """
     if substation_capacity_mva is None or substation_capacity_mva <= 0:
@@ -969,7 +985,8 @@ def capacity_assessment(
     available = substation_capacity_mva * (1 - utilization_pct)
     if solar_capacity_mwp is None or solar_capacity_mwp <= 0:
         return "unknown", round(available, 1)
-    ratio = available / solar_capacity_mwp
+    available_mw = available * power_factor
+    ratio = available_mw / solar_capacity_mwp
     if ratio > 2.0:
         return "green", round(available, 1)
     elif ratio >= 0.5:
@@ -983,10 +1000,12 @@ def substation_upgrade_cost_per_kw(
     solar_capacity_mwp: float | None,
     utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
     upgrade_cost_per_kw: float = SUBSTATION_UPGRADE_COST_PER_KW,
+    power_factor: float = SUBSTATION_POWER_FACTOR,
 ) -> float:
     """Additional cost ($/kW) when substation capacity is insufficient for solar injection.
 
-    When available capacity < solar capacity, the deficit fraction determines
+    Converts available MVA to MW via power factor before comparing to solar MWp.
+    When available real power < solar capacity, the deficit fraction determines
     the upgrade cost. Covers transformer expansion, new bays, buswork, and
     protection upgrades at the substation.
 
@@ -996,10 +1015,10 @@ def substation_upgrade_cost_per_kw(
         return 0.0
     if solar_capacity_mwp is None or solar_capacity_mwp <= 0:
         return 0.0
-    available = substation_capacity_mva * (1 - utilization_pct)
-    if available >= solar_capacity_mwp:
+    available_mw = substation_capacity_mva * (1 - utilization_pct) * power_factor
+    if available_mw >= solar_capacity_mwp:
         return 0.0
-    deficit_fraction = (solar_capacity_mwp - max(0.0, available)) / solar_capacity_mwp
+    deficit_fraction = (solar_capacity_mwp - max(0.0, available_mw)) / solar_capacity_mwp
     return round(deficit_fraction * upgrade_cost_per_kw, 2)
 
 

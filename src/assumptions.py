@@ -127,6 +127,13 @@ TECH006_FOM_USD_PER_KW_YR: float = 7.5
 TECH006_LIFETIME_YR: int = 27
 # Source: ESDM Technology Catalogue 2023, p.66. Central value = 27 years.
 
+SOLAR_DEGRADATION_ANNUAL_PCT: float = 0.5
+# Annual panel output degradation (%). Median ~0.5%/yr for crystalline silicon.
+# Source: NREL "Photovoltaic Degradation Rates" (Jordan & Kurtz, 2013).
+# Applied as midpoint linear approximation in lcoe_solar():
+#   degradation_factor = 1 - (rate × lifetime / 2)
+# Over 27yr: factor = 0.9325, LCOE increases ~7.2%.
+
 # ─── WIND TECH ─────────────────────────────────────────────────────────────────
 
 WIND_TECH_ID: str = "TECH_WIND_ONSHORE"
@@ -246,6 +253,13 @@ SUBSTATION_UPGRADE_COST_PER_KW: float = 80.0
 # $50–150/kW depending on scope. $80/kW = mid-range for Indonesian conditions.
 # Applied proportionally to the capacity deficit: if available capacity covers 60% of solar,
 # only 40% of the upgrade cost is added (you only upgrade what's missing).
+
+SUBSTATION_POWER_FACTOR: float = 0.85
+# Power factor for converting substation apparent power (MVA) to real power (MW).
+# MW = MVA × power_factor. Industrial loads in Indonesia typically PF 0.85–0.90.
+# Source: PLN grid code requires minimum PF 0.85 for industrial connections.
+# Without PF correction, a 60 MVA substation appears to deliver 60 MW but only delivers 51 MW.
+# Used by capacity_assessment() and substation_upgrade_cost_per_kw().
 
 # ─── INTER-SUBSTATION TRANSMISSION (V3.1: new line cost) ─────────────────────
 # When the solar site's nearest substation (B_solar) differs from the KEK's

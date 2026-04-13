@@ -168,7 +168,11 @@ $$CF = \frac{\text{PVOUT}_{\text{annual}}}{8{,}760}$$
 
 The formula assumes PVOUT represents a fixed-tilt, grid-connected PV system at standard conditions (Global Solar Atlas definition). Global Solar Atlas uses the Faiman thermal model for temperature-dependent efficiency, so a ~3-5% production reduction from Indonesia's ambient temperatures (27-33C) is already reflected.
 
-**Degradation note:** Panel output degrades ~0.5%/yr. Over 27 years, cumulative output is ~93-94% of the constant-CF assumption. LCOE is understated by ~6-7%. Standard for screening models (IEA, IRENA use the same simplification).
+**Degradation (V3.4):** Panel output degrades ~0.5%/yr (`SOLAR_DEGRADATION_ANNUAL_PCT`). The LCOE formula applies a midpoint linear approximation:
+
+$$\text{degradation\_factor} = 1 - \frac{\text{rate} \times \text{lifetime}}{2}$$
+
+Over 27yr at 0.5%/yr: factor = 0.9325, LCOE increases ~7.2%. This is more accurate than the constant-CF assumption while avoiding year-by-year geometric degradation (which yields a nearly identical result for screening purposes). Source: NREL "Photovoltaic Degradation Rates" (Jordan & Kurtz, 2013), median 0.5%/yr for crystalline silicon.
 
 ### 3.3 Buildability filters
 
@@ -516,17 +520,22 @@ Distance alone is insufficient. A substation 2km away but rated at 20 MVA cannot
 
 ```
 available_capacity_mva = rated_capacity_mva x (1 - utilization_pct)
+available_capacity_mw  = available_capacity_mva x power_factor
 ```
 
 Default `utilization_pct`: 65% (user-adjustable, range 30-95%).
+
+**Power factor (V3.4):** Substation capacity is rated in MVA (apparent power), but solar output is measured in MWp (real power). The model applies a power factor of 0.85 (`SUBSTATION_POWER_FACTOR`) to convert MVA to MW before comparing to solar capacity. Industrial loads in Indonesia typically operate at PF 0.85-0.90 (PLN grid code minimum: 0.85). Without this correction, a 60 MVA substation appears to deliver 60 MW but only delivers 51 MW real power, overstating capacity by ~15%.
+
+The returned `available_capacity_mva` column retains the MVA value for display. The PF correction is applied internally for the traffic light classification and upgrade cost calculation.
 
 **Traffic light display:**
 
 | Status | Criteria |
 |---|---|
-| Green | Available capacity > 2x solar potential |
-| Yellow | Available capacity 0.5-2x solar potential |
-| Red | Available capacity < 0.5x solar potential (upgrade needed) |
+| Green | Available real power (MW) > 2x solar potential |
+| Yellow | Available real power (MW) 0.5-2x solar potential |
+| Red | Available real power (MW) < 0.5x solar potential (upgrade needed) |
 | Unknown | Capacity data unavailable |
 
 **Implementation:** `capacity_assessment()` in `basic_model.py`
@@ -560,11 +569,13 @@ If `inter_substation_connected == False`, the category becomes `invest_transmiss
 
 **Substation upgrade cost (V3.2).** When available substation capacity is less than the solar capacity to be injected, a proportional upgrade cost is added to the grid-connected LCOE effective CAPEX. The formula:
 
-$$\text{deficit\_fraction} = \frac{\text{solar\_mwp} - \max(0, \text{available\_mva})}{\text{solar\_mwp}}$$
+$$\text{available\_mw} = \text{capacity\_mva} \times (1 - \text{utilization\_pct}) \times \text{power\_factor}$$
+
+$$\text{deficit\_fraction} = \frac{\text{solar\_mwp} - \max(0, \text{available\_mw})}{\text{solar\_mwp}}$$
 
 $$\text{upgrade\_cost} = \text{deficit\_fraction} \times \$80/\text{kW}$$
 
-Where available_mva = substation_capacity_mva x (1 - utilization_pct). Cost is $0 when available capacity exceeds solar capacity, and scales linearly to $80/kW when the substation has zero available capacity. The $80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: $50-150/kW range). Returns $0 when capacity data is unknown (conservative).
+The power factor conversion (0.85, see §8.4) ensures the comparison is between real power quantities. Cost is $0 when available real power exceeds solar capacity, and scales linearly to $80/kW when the substation has zero available capacity. The $80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: $50-150/kW range). Returns $0 when capacity data is unknown (conservative).
 
 **Deferred: multi-substation comparison.** The current model finds the single nearest substation to each point. For investment-grade analysis, evaluating the top 3 substations within a search radius and comparing total interconnection cost (closer-but-constrained vs. farther-but-available) would improve site recommendations. Tracked as TODOS.md M15.
 

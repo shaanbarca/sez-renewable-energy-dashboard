@@ -241,6 +241,24 @@ class TestLcoeSolar:
         result = lcoe_solar(capex_usd_kw, 12, 0.09, 25, cf)
         assert 40.0 < result < 80.0
 
+    def test_degradation_increases_lcoe(self):
+        cf = capacity_factor_from_pvout(1600.0)
+        no_deg = lcoe_solar(700, 12, 0.09, 25, cf, degradation_annual_pct=0.0)
+        with_deg = lcoe_solar(700, 12, 0.09, 25, cf, degradation_annual_pct=0.5)
+        assert with_deg > no_deg
+        # ~6.7% increase from 0.5%/yr over 25yr
+        ratio = with_deg / no_deg
+        assert 1.05 < ratio < 1.10
+
+    def test_degradation_zero_matches_old_formula(self):
+        from src.model.basic_model import capital_recovery_factor
+
+        cf = capacity_factor_from_pvout(1600.0)
+        result = lcoe_solar(700, 12, 0.09, 25, cf, degradation_annual_pct=0.0)
+        crf = capital_recovery_factor(0.09, 25)
+        expected = (700 * crf + 12) / (cf * 8760 / 1000)
+        assert math.isclose(result, expected, rel_tol=1e-9)
+
 
 # ---------------------------------------------------------------------------
 # 5. LCOE with firming adder
@@ -800,11 +818,11 @@ class TestSubstationUpgradeCost:
     def test_insufficient_capacity_adds_cost(self):
         from src.model.basic_model import substation_upgrade_cost_per_kw
 
-        # 60 MVA × 0.35 = 21 available, solar = 50 MWp
-        # deficit = (50 - 21) / 50 = 0.58
+        # 60 MVA × 0.35 = 21 available MVA, × 0.85 PF = 17.85 MW
+        # deficit = (50 - 17.85) / 50 = 0.643
         cost = substation_upgrade_cost_per_kw(60.0, 50.0, utilization_pct=0.65)
         assert cost > 0
-        assert math.isclose(cost, 0.58 * 80.0, rel_tol=0.01)
+        assert math.isclose(cost, 0.643 * 80.0, rel_tol=0.01)
 
     def test_high_utilization_higher_cost(self):
         from src.model.basic_model import substation_upgrade_cost_per_kw
@@ -823,6 +841,28 @@ class TestSubstationUpgradeCost:
         from src.model.basic_model import substation_upgrade_cost_per_kw
 
         assert substation_upgrade_cost_per_kw(100.0, None) == 0.0
+
+    def test_power_factor_increases_deficit(self):
+        from src.model.basic_model import substation_upgrade_cost_per_kw
+
+        cost_no_pf = substation_upgrade_cost_per_kw(
+            60.0, 50.0, utilization_pct=0.65, power_factor=1.0
+        )
+        cost_with_pf = substation_upgrade_cost_per_kw(
+            60.0, 50.0, utilization_pct=0.65, power_factor=0.85
+        )
+        assert cost_with_pf > cost_no_pf
+
+    def test_power_factor_affects_traffic_light(self):
+        from src.model.basic_model import capacity_assessment
+
+        # 100 MVA, 15 MWp, util=0.65: available=35 MVA
+        # PF=1.0: ratio = 35/15 = 2.33 -> green
+        # PF=0.85: ratio = 29.75/15 = 1.98 -> yellow (below 2.0 threshold)
+        light_no_pf, _ = capacity_assessment(100.0, 15.0, utilization_pct=0.65, power_factor=1.0)
+        light_with_pf, _ = capacity_assessment(100.0, 15.0, utilization_pct=0.65, power_factor=0.85)
+        assert light_no_pf == "green"
+        assert light_with_pf == "yellow"
 
 
 # ---------------------------------------------------------------------------

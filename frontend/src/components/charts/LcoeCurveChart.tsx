@@ -77,7 +77,6 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
 
     // Substation capacity for upgrade cost
     const availMva = row.available_capacity_mva ?? null;
-    const util = assumptions.substation_utilization_pct;
 
     // CRF
     const crf = (wacc * (1 + wacc) ** n) / ((1 + wacc) ** n - 1);
@@ -98,15 +97,17 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
       // Transmission: fixed total / capacity (only if needed)
       const transPerKw = needsTransLine ? (interSubDist * 1_250_000) / capKw : 0;
 
-      // Substation upgrade: deficit grows with capacity
+      // Substation upgrade: deficit grows with capacity (PF 0.85 converts MVA→MW)
       let upgradePerKw = 0;
       if (availMva != null && availMva > 0) {
-        const deficit = Math.max(0, 1 - availMva / (cap * util));
+        const deficit = Math.max(0, 1 - (availMva * 0.85) / cap);
         upgradePerKw = deficit * 80;
       }
 
       const effCapex = capex + connPerKw + landCost + transPerKw + upgradePerKw;
-      const lcoe = (effCapex * crf + fom) / (cf * 8.76);
+      // Degradation midpoint approx: 0.5%/yr over n years
+      const degradationFactor = 1 - (0.005 * n) / 2;
+      const lcoe = (effCapex * crf + fom) / (cf * 8.76 * degradationFactor);
       points.push({
         capacity_mw: Math.round(cap * 10) / 10,
         lcoe: Math.round(lcoe * 100) / 100,
