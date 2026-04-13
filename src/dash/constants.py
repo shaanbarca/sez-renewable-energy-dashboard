@@ -159,6 +159,14 @@ TIER2_SLIDERS = {
         "unit": "$/kWh",
         "description": "Battery storage installed cost per kWh (4h Li-ion system, 2h sizing for firming)",
     },
+    "bess_sizing_hours_override": {
+        "min": 1,
+        "max": 16,
+        "step": 1,
+        "label": "BESS Sizing",
+        "unit": "hours",
+        "description": "Hours of battery storage per kW of solar. Auto = 2h cloud-firming / 14h bridge for 24/7 loads. Override to explore tradeoffs.",
+    },
     "land_cost_usd_per_kw": {
         "min": 0,
         "max": 300,

@@ -6,6 +6,7 @@ export interface UserAssumptions {
   connection_cost_per_kw_km: number;
   grid_connection_fixed_per_kw: number;
   bess_capex_usd_per_kwh: number;
+  bess_sizing_hours_override?: number | null;
   land_cost_usd_per_kw: number;
   substation_utilization_pct: number;
   idr_usd_rate: number;

@@ -44,6 +44,9 @@ class AssumptionsInput(BaseModel):
     connection_cost_per_kw_km: float = Field(ge=0)
     grid_connection_fixed_per_kw: float = Field(ge=0)
     bess_capex_usd_per_kwh: float = Field(gt=0)
+    bess_sizing_hours_override: float | None = Field(
+        default=None, ge=1, le=24, description="BESS sizing override (hours). None = auto."
+    )
     land_cost_usd_per_kw: float = Field(ge=0)
     substation_utilization_pct: float = Field(ge=0.0, le=1.0, default=0.65)
     idr_usd_rate: float = Field(gt=0)

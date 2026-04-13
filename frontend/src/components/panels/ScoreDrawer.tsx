@@ -803,6 +803,12 @@ function GridTab({
 /* ---------- Tab 4: Economics (was LCOE) ---------- */
 
 function EconomicsTab({ row }: { row: ScorecardRow }) {
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
+  const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
+  const bessCapexConfig = sliderConfigs?.tier2?.bess_capex_usd_per_kwh;
+  const bessSizingConfig = sliderConfigs?.tier2?.bess_sizing_hours_override;
+
   const gapTariffColor =
     row.gap_vs_tariff_pct != null ? (row.gap_vs_tariff_pct < 0 ? '#4CAF50' : '#EF5350') : undefined;
   const gapBppColor =
@@ -868,12 +874,61 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
             subtitle="What does 24/7 solar-only power cost with batteries?"
             tip="What happens to economics when you add Li-ion battery storage for reliability."
           />
+          {assumptions && bessCapexConfig && (
+            <Slider
+              value={assumptions.bess_capex_usd_per_kwh}
+              onChange={(v) =>
+                setAssumptions({ bess_capex_usd_per_kwh: v } as Partial<UserAssumptions>)
+              }
+              min={bessCapexConfig.min}
+              max={bessCapexConfig.max}
+              step={bessCapexConfig.step}
+              label={bessCapexConfig.label}
+              unit={bessCapexConfig.unit}
+              description={bessCapexConfig.description}
+            />
+          )}
+          {assumptions && bessSizingConfig && (
+            <div>
+              <Slider
+                value={assumptions.bess_sizing_hours_override ?? sizingHrs}
+                onChange={(v) =>
+                  setAssumptions({
+                    bess_sizing_hours_override: v,
+                  } as Partial<UserAssumptions>)
+                }
+                min={bessSizingConfig.min}
+                max={bessSizingConfig.max}
+                step={bessSizingConfig.step}
+                label={bessSizingConfig.label}
+                unit={bessSizingConfig.unit}
+                description={bessSizingConfig.description}
+              />
+              {assumptions.bess_sizing_hours_override != null && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAssumptions({
+                      bess_sizing_hours_override: null,
+                    } as Partial<UserAssumptions>)
+                  }
+                  className="text-[9px] px-1.5 py-0.5 rounded cursor-pointer mt-0.5"
+                  style={{
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  Reset to auto ({sizingHrs}h)
+                </button>
+              )}
+            </div>
+          )}
           {row.battery_adder_usd_mwh != null && (
             <StatRowWithTip
               label="Battery Adder"
               value={`+$${row.battery_adder_usd_mwh.toFixed(0)}`}
               unit="/MWh"
-              tip="Li-ion storage cost added to solar LCOE. Includes round-trip efficiency loss (87% RTE). High-reliability loads (≥75%) use 14h bridge-hours sizing to cover overnight gap."
+              tip="Li-ion storage cost added to solar LCOE. Includes round-trip efficiency loss (87% RTE). Sizing determines the bulk of this cost."
             />
           )}
           {row.lcoe_with_battery_usd_mwh != null && (
@@ -883,11 +938,6 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
               unit="$/MWh"
             />
           )}
-          <StatRowWithTip
-            label="BESS Sizing"
-            value={`${sizingHrs}h${sizingHrs >= 14 ? ' (bridge)' : sizingHrs > 2 ? ' (RKEF)' : ''}`}
-            tip={`Hours of battery storage per kW of solar. ${sizingHrs >= 14 ? 'Bridge-hours: sized to cover the 14h overnight gap when solar produces nothing. This is the physically grounded sizing for 24/7 industrial loads.' : sizingHrs > 2 ? 'Doubled for RKEF smelters (24/7 baseload demand).' : '2h default for cloud-firming and early evening ramp.'}`}
-          />
           {bessCompetitive != null && (
             <ColoredStatRow
               label="Still Competitive"

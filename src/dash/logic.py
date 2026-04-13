@@ -91,6 +91,9 @@ class UserAssumptions:
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
 
+    # BESS sizing override — None = auto (2h/4h/14h by reliability), set = fixed hours
+    bess_sizing_hours_override: float | None = None
+
     # Project sizing — optional capacity override (H10)
     target_capacity_mwp: float | None = None
 
@@ -123,6 +126,8 @@ class UserAssumptions:
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
         }
+        if self.bess_sizing_hours_override is not None:
+            d["bess_sizing_hours_override"] = self.bess_sizing_hours_override
         if self.target_capacity_mwp is not None:
             d["target_capacity_mwp"] = self.target_capacity_mwp
         return d
@@ -560,21 +565,24 @@ def compute_scorecard_live(
                     action_flag = flag_name
                     break
 
-        # BESS sizing: bridge-hours for high-reliability loads, else cloud-firming
-        dominant_process = str(kek.get("dominant_process_type", "")).strip().upper()
-        is_rkef = dominant_process == "RKEF"
-        reliability = (
-            float(kek.get("reliability_req", 0.6)) if pd.notna(kek.get("reliability_req")) else 0.6
-        )
-        high_reliability = reliability >= thresholds.reliability_threshold
-        if BESS_BRIDGE_HOURS_ENABLED and high_reliability:
-            # Physics-based: bridge overnight gap (14h for 10h solar)
-            bess_sizing = bess_bridge_hours()
-        elif is_rkef:
-            # M19 legacy: double default for RKEF (4h)
-            bess_sizing = BESS_SIZING_HOURS * 2.0
+        # BESS sizing: user override > bridge-hours for high-reliability > cloud-firming
+        if assumptions.bess_sizing_hours_override is not None:
+            bess_sizing = assumptions.bess_sizing_hours_override
         else:
-            bess_sizing = BESS_SIZING_HOURS
+            dominant_process = str(kek.get("dominant_process_type", "")).strip().upper()
+            is_rkef = dominant_process == "RKEF"
+            reliability = (
+                float(kek.get("reliability_req", 0.6))
+                if pd.notna(kek.get("reliability_req"))
+                else 0.6
+            )
+            high_reliability = reliability >= thresholds.reliability_threshold
+            if BESS_BRIDGE_HOURS_ENABLED and high_reliability:
+                bess_sizing = bess_bridge_hours()
+            elif is_rkef:
+                bess_sizing = BESS_SIZING_HOURS * 2.0
+            else:
+                bess_sizing = BESS_SIZING_HOURS
 
         # BESS economics for all KEKs with solar resource (not gated by invest_battery)
         if primary_cf and primary_cf > 0:
