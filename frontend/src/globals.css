@@ -117,8 +117,21 @@ body {
   background: var(--popup-bg);
   border: 1px solid var(--popup-border);
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 10px 14px;
   box-shadow: var(--popup-shadow);
+}
+
+.maplibregl-popup-close-button {
+  font-size: 16px;
+  padding: 4px 8px;
+  color: var(--text-muted);
+  right: 2px;
+  top: 2px;
+}
+
+.maplibregl-popup-close-button:hover {
+  color: var(--text-primary);
+  background: transparent;
 }
 
 .maplibregl-popup-tip {

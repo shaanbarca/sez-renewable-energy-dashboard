@@ -436,10 +436,7 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: 'var(--popup-bg)',
               color: 'var(--text-primary)',
-              padding: '6px 10px',
-              borderRadius: 4,
               fontSize: 11,
               lineHeight: 1.5,
             }}
@@ -464,10 +461,7 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: 'var(--popup-bg)',
               color: 'var(--text-primary)',
-              padding: '6px 10px',
-              borderRadius: 4,
               fontSize: 11,
               lineHeight: 1.5,
             }}
@@ -494,13 +488,10 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: 'var(--popup-bg)',
               color: 'var(--text-primary)',
-              padding: '10px 16px',
-              borderRadius: 6,
               fontSize: 12,
               lineHeight: 1.6,
-              minWidth: 260,
+              minWidth: 220,
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: 4, color: '#2E7D32' }}>
@@ -632,13 +623,10 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: 'var(--popup-bg)',
               color: 'var(--text-primary)',
-              padding: '10px 16px',
-              borderRadius: 6,
               fontSize: 12,
               lineHeight: 1.6,
-              minWidth: 300,
+              minWidth: 220,
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: 4, color: '#B39DDB' }}>
@@ -769,14 +757,9 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: 'var(--popup-bg)',
               color: 'var(--text-primary)',
-              padding: '8px 12px',
-              borderRadius: 6,
               fontSize: 11,
               lineHeight: 1.5,
-              backdropFilter: 'blur(12px)',
-              border: '1px solid var(--popup-border)',
               maxWidth: 240,
             }}
           >
@@ -895,14 +878,9 @@ export default function VectorOverlay() {
         >
           <div
             style={{
-              background: 'var(--popup-bg)',
               color: 'var(--text-primary)',
-              padding: '8px 12px',
-              borderRadius: 6,
               fontSize: 11,
               lineHeight: 1.5,
-              backdropFilter: 'blur(12px)',
-              border: '1px solid var(--popup-border)',
               maxWidth: 240,
             }}
           >
