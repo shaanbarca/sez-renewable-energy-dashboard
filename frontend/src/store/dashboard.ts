@@ -116,7 +116,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   selectKek: (id) =>
     set((state) => {
-      if (!id) return { selectedKek: null, drawerOpen: false, layerVisibility: state.layerVisibility };
+      if (!id)
+        return { selectedKek: null, drawerOpen: false, layerVisibility: state.layerVisibility };
       const lv = { ...state.layerVisibility };
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;

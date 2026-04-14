@@ -32,7 +32,6 @@ export const ACTION_FLAG_LABELS: Record<ActionFlag, string> = {
   no_re_resource: 'No RE Resource',
 };
 
-
 export const MAP_STYLES: Record<MapStyleKey, { label: string; style: string | object }> = {
   dark: {
     label: 'Dark',

@@ -1,9 +1,11 @@
 [project]
 name = "eez"
-version = "0.1.1"
+version = "1.0.0"
 description = "Indonesia KEK Power Competitiveness model and dashboard"
 readme = "README.md"
 requires-python = ">=3.13"
+license = {text = "MIT WITH Commons-Clause"}
+authors = [{name = "Shaan Barca"}]
 dependencies = [
     "boto3",
     "numpy>=1.26",

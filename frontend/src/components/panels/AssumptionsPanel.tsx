@@ -398,9 +398,7 @@ export default function AssumptionsPanel() {
                 <label
                   className="flex items-center gap-2 text-[10px] px-1 py-1.5 mt-1 mb-1 rounded cursor-pointer"
                   style={{
-                    color: assumptions.grant_funded_transmission
-                      ? '#4CAF50'
-                      : 'var(--text-muted)',
+                    color: assumptions.grant_funded_transmission ? '#4CAF50' : 'var(--text-muted)',
                     background: assumptions.grant_funded_transmission
                       ? 'rgba(76,175,80,0.10)'
                       : 'transparent',

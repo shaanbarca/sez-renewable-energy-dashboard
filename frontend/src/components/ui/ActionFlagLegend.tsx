@@ -21,14 +21,12 @@ const FLAG_DESCRIPTIONS: Record<string, string> = {
     'No substation near the KEK or the RE site. New grid infrastructure must be built before RE can connect.',
   plan_late:
     'Over 60% of planned RE additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
-  not_competitive:
-    'RE LCOE exceeds grid cost under current assumptions.',
+  not_competitive: 'RE LCOE exceeds grid cost under current assumptions.',
   no_solar_resource:
     'All land within the search radius is protected forest, peatland, or unbuildable. No area available for solar.',
   no_wind_resource:
     'No viable wind resource within 50 km. Wind speeds below cut-in threshold or all land is unbuildable.',
-  no_re_resource:
-    'No viable renewable resource (solar or wind) within 50 km.',
+  no_re_resource: 'No viable renewable resource (solar or wind) within 50 km.',
 };
 
 export default function ActionFlagLegend() {

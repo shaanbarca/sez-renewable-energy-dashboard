@@ -57,10 +57,7 @@ export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
  * Solar mode returns the backend-computed flag directly. Other modes derive
  * the flag from mode-specific LCOE, resource availability, and grid readiness.
  */
-export function getEffectiveActionFlag(
-  row: ScorecardRow,
-  energyMode: EnergyMode,
-): ActionFlag {
+export function getEffectiveActionFlag(row: ScorecardRow, energyMode: EnergyMode): ActionFlag {
   if (energyMode === 'solar') return row.action_flag;
 
   let lcoe: number | null;
@@ -81,7 +78,6 @@ export function getEffectiveActionFlag(
       deployFlag = 'hybrid_now';
       noResourceFlag = 'no_re_resource';
       break;
-    case 'overall':
     default:
       lcoe = row.best_re_lcoe_mid_usd_mwh ?? null;
       hasResource = row.buildable_area_ha > 0 || (row.wind_buildable_area_ha ?? 0) > 0;
@@ -169,7 +165,8 @@ export function getEffectiveFlagExplanation(
 
     case 'hybrid_now': {
       const bessHrs = row.hybrid_bess_hours?.toFixed(1) ?? '?';
-      const reduction = row.hybrid_bess_reduction_pct != null ? Math.round(row.hybrid_bess_reduction_pct) : '?';
+      const reduction =
+        row.hybrid_bess_reduction_pct != null ? Math.round(row.hybrid_bess_reduction_pct) : '?';
       return `${techDesc} all-in cost ($${lcoeStr}/MWh) beats grid ($${gridCost}/MWh). Wind reduces storage from 14h to ${bessHrs}h (${reduction}% reduction).`;
     }
 
@@ -191,9 +188,13 @@ export function getEffectiveFlagExplanation(
       return `Solar economics work, but reliability needs require battery storage (${row.bess_sizing_hours ?? 14}h). Solar + battery: $${row.lcoe_with_battery_usd_mwh?.toFixed(0) ?? '?'}/MWh.`;
 
     case 'invest_resilience': {
-      const gap = row.grid_cost_usd_mwh > 0
-        ? (((Number(lcoeStr) || 0) - row.grid_cost_usd_mwh) / row.grid_cost_usd_mwh * 100).toFixed(0)
-        : '~20';
+      const gap =
+        row.grid_cost_usd_mwh > 0
+          ? (
+              (((Number(lcoeStr) || 0) - row.grid_cost_usd_mwh) / row.grid_cost_usd_mwh) *
+              100
+            ).toFixed(0)
+          : '~20';
       return `${techDesc} is within ${gap}% of grid parity ($${lcoeStr} vs $${gridCost}/MWh). Investing now builds resilience against future grid cost increases.`;
     }
 

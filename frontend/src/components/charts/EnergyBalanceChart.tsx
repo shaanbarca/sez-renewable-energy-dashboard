@@ -54,7 +54,10 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 export default function EnergyBalanceChart({
   row,
   energyMode = 'solar',
-}: { row: ScorecardRow; energyMode?: EnergyMode }) {
+}: {
+  row: ScorecardRow;
+  energyMode?: EnergyMode;
+}) {
   if (row.demand_2030_gwh == null || row.max_solar_generation_gwh == null) return null;
 
   const totalDemand = row.demand_2030_gwh;
@@ -94,9 +97,10 @@ export default function EnergyBalanceChart({
   // Summary line
   let summary: string;
   if (isHybrid) {
-    const nightCov = row.hybrid_nighttime_coverage_pct != null
-      ? Math.round(row.hybrid_nighttime_coverage_pct * 100)
-      : 0;
+    const nightCov =
+      row.hybrid_nighttime_coverage_pct != null
+        ? Math.round(row.hybrid_nighttime_coverage_pct * 100)
+        : 0;
     const bessHrs = row.hybrid_bess_hours?.toFixed(1) ?? '?';
     summary = `Hybrid: wind covers ${nightCov}% of nighttime demand, reducing BESS from 14h to ${bessHrs}h.`;
   } else if (coveragePct >= 1.0) {
@@ -176,13 +180,28 @@ export default function EnergyBalanceChart({
         <div className="flex rounded overflow-hidden" style={{ background: 'var(--bar-bg)' }}>
           {isHybrid ? (
             <>
-              <BarSegment widthPct={Math.min(solarPct, 100)} color={COLORS.solar} label="Solar" gwh={scaledSolar} />
+              <BarSegment
+                widthPct={Math.min(solarPct, 100)}
+                color={COLORS.solar}
+                label="Solar"
+                gwh={scaledSolar}
+              />
               {scaledWind > 0 && (
-                <BarSegment widthPct={Math.min(windPct, 100 - Math.min(solarPct, 100))} color={COLORS.wind} label="Wind" gwh={scaledWind} />
+                <BarSegment
+                  widthPct={Math.min(windPct, 100 - Math.min(solarPct, 100))}
+                  color={COLORS.wind}
+                  label="Wind"
+                  gwh={scaledWind}
+                />
               )}
             </>
           ) : (
-            <BarSegment widthPct={totalSupplyPct} color={COLORS.solar} label="Solar" gwh={totalSupply} />
+            <BarSegment
+              widthPct={totalSupplyPct}
+              color={COLORS.solar}
+              label="Solar"
+              gwh={totalSupply}
+            />
           )}
           {gapPct > 2 && (
             <div

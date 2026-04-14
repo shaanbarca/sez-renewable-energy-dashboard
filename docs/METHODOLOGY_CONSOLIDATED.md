@@ -718,7 +718,7 @@ $$\text{upgrade\_cost} = \text{deficit\_fraction} \times \$80/\text{kW}$$
 
 The power factor conversion (0.85, see §8.4) ensures the comparison is between real power quantities. Cost is $0 when available real power exceeds solar capacity, and scales linearly to $80/kW when the substation has zero available capacity. The $80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: $50-150/kW range). Returns $0 when capacity data is unknown (conservative).
 
-**Deferred: multi-substation comparison.** The current model finds the single nearest substation to each point. For investment-grade analysis, evaluating the top 3 substations within a search radius and comparing total interconnection cost (closer-but-constrained vs. farther-but-available) would improve site recommendations. Tracked as TODOS.md M15.
+**Multi-substation comparison (implemented V3.1).** The `/kek/{id}/substations` API endpoint evaluates the top 3 substations within search radius and compares total interconnection cost per substation (connection + upgrade + transmission). Displayed in the ScoreDrawer Grid tab as a side-by-side comparison with capacity traffic lights and rank-coded map markers (gold/silver/cyan).
 
 ---
 

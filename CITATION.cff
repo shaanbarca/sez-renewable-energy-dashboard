@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software or dataset, please cite it as below."
+authors:
+  - family-names: Barca
+    given-names: Shaan
+title: "Indonesia KEK Power Competitiveness Dashboard"
+abstract: >-
+  An analytical model and interactive dashboard assessing clean energy
+  competitiveness across Indonesia's 25 Special Economic Zones (KEKs).
+  Computes solar and wind LCOE, grid integration costs, BESS storage
+  requirements, and action flags for each KEK under user-adjustable
+  financing and cost assumptions. Built for development bank analysts,
+  energy investors, and policy advisors.
+version: 1.0.0
+date-released: 2026-04-14
+license: MIT
+type: software
+keywords:
+  - indonesia
+  - special-economic-zones
+  - renewable-energy
+  - solar
+  - wind
+  - lcoe
+  - energy-economics
+  - cbam
+  - industrial-decarbonization

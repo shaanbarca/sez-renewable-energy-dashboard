@@ -1,19 +1,15 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
-import { fetchKekSubstations } from '../../lib/api';
 import {
   ACTION_FLAG_HIERARCHY_BY_MODE,
   getActionSectionTitle,
   getEffectiveActionFlag,
   getEffectiveFlagExplanation,
 } from '../../lib/actionFlags';
+import { fetchKekSubstations } from '../../lib/api';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import { capitalize, formatGridRegion, formatSnakeLabel } from '../../lib/format';
-import type {
-  ScorecardRow,
-  SubstationWithCosts,
-  UserAssumptions,
-} from '../../lib/types';
+import type { ScorecardRow, SubstationWithCosts, UserAssumptions } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import EnergyBalanceChart from '../charts/EnergyBalanceChart';
 import LcoeCurveChart from '../charts/LcoeCurveChart';
@@ -643,7 +639,9 @@ function ResourceTab({ row }: { row: ScorecardRow }) {
           <>
             <StatRowWithTip
               label={energyMode === 'overall' ? 'Wind Buildable' : 'Buildable Area'}
-              value={row.wind_buildable_area_ha != null ? row.wind_buildable_area_ha.toFixed(0) : null}
+              value={
+                row.wind_buildable_area_ha != null ? row.wind_buildable_area_ha.toFixed(0) : null
+              }
               unit="ha"
               tip="Sum of suitable ~1km pixels within 50km for wind (slope <20°, wind >3 m/s, cropland allowed)."
             />
@@ -1103,7 +1101,11 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
           />
           <StatRowWithTip
             label="Optimal Mix"
-            value={row.hybrid_solar_share != null ? `${Math.round(row.hybrid_solar_share * 100)}% Solar / ${Math.round((1 - row.hybrid_solar_share) * 100)}% Wind` : null}
+            value={
+              row.hybrid_solar_share != null
+                ? `${Math.round(row.hybrid_solar_share * 100)}% Solar / ${Math.round((1 - row.hybrid_solar_share) * 100)}% Wind`
+                : null
+            }
             tip="Auto-optimized capacity mix that minimizes total cost (LCOE + battery storage)."
           />
           <StatRowWithTip
@@ -1120,7 +1122,11 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
           />
           <StatRowWithTip
             label="BESS Adder"
-            value={row.hybrid_bess_adder_usd_mwh != null ? `+$${row.hybrid_bess_adder_usd_mwh.toFixed(0)}` : null}
+            value={
+              row.hybrid_bess_adder_usd_mwh != null
+                ? `+$${row.hybrid_bess_adder_usd_mwh.toFixed(0)}`
+                : null
+            }
             unit="/MWh"
             tip="Battery cost at reduced hybrid sizing. Compare to solar-only BESS adder."
           />
@@ -1132,11 +1138,7 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
               tip="How much less battery storage is needed vs solar-only (14h bridge)."
             />
           )}
-          <StatRow
-            label="All-In LCOE"
-            value={row.hybrid_allin_usd_mwh.toFixed(1)}
-            unit="$/MWh"
-          />
+          <StatRow label="All-In LCOE" value={row.hybrid_allin_usd_mwh.toFixed(1)} unit="$/MWh" />
         </StatCard>
       )}
 
@@ -1217,7 +1219,6 @@ function DemandTab({ row }: { row: ScorecardRow }) {
 
   return (
     <>
-
       <StatCard>
         <SectionHeader
           title="Electricity Demand"
@@ -1288,7 +1289,9 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                   </span>
                   <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
                     of annual demand
-                    {energyMode === 'wind' ? ' (ignores intermittency)' : ' (ignores day/night mismatch)'}
+                    {energyMode === 'wind'
+                      ? ' (ignores intermittency)'
+                      : ' (ignores day/night mismatch)'}
                   </span>
                 </div>
                 <div
@@ -1366,11 +1369,7 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                       className="text-base font-semibold tabular-nums"
                       style={{
                         color:
-                          wbCoverage >= 1.0
-                            ? '#4CAF50'
-                            : wbCoverage >= 0.5
-                              ? '#FFC107'
-                              : '#F44336',
+                          wbCoverage >= 1.0 ? '#4CAF50' : wbCoverage >= 0.5 ? '#FFC107' : '#F44336',
                       }}
                     >
                       {(wbCoverage * 100).toFixed(0)}%
@@ -1388,11 +1387,7 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                       style={{
                         width: `${Math.min(wbCoverage * 100, 100)}%`,
                         backgroundColor:
-                          wbCoverage >= 1.0
-                            ? '#4CAF50'
-                            : wbCoverage >= 0.5
-                              ? '#FFC107'
-                              : '#F44336',
+                          wbCoverage >= 1.0 ? '#4CAF50' : wbCoverage >= 0.5 ? '#FFC107' : '#F44336',
                       }}
                     />
                   </div>
@@ -1490,12 +1485,16 @@ function DemandTab({ row }: { row: ScorecardRow }) {
             </div>
           )}
         </div>
-        {showSolar && coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
-          <div className="text-[9px] text-[var(--text-muted)] mt-2">
-            Solar shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
-            generation
-          </div>
-        )}
+        {showSolar &&
+          coverage != null &&
+          coverage < 1.0 &&
+          demand2030 != null &&
+          solarGen != null && (
+            <div className="text-[9px] text-[var(--text-muted)] mt-2">
+              Solar shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or
+              other generation
+            </div>
+          )}
         {showWind && windGen != null && demand2030 != null && windGen < demand2030 && (
           <div className="text-[9px] text-[var(--text-muted)] mt-2">
             Wind shortfall: {(demand2030 - windGen).toFixed(1)} GWh/yr must come from grid or other
@@ -1587,9 +1586,9 @@ function DemandTab({ row }: { row: ScorecardRow }) {
               />
             </div>
             <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>
-              Wind output drops to near-zero ~{(row.wind_firming_gap_pct * 100).toFixed(0)}% of hours.
-              Firming gaps are typically ~{row.wind_firming_hours ?? 3}h (vs solar's 14h overnight gap),
-              requiring smaller BESS or grid backup.
+              Wind output drops to near-zero ~{(row.wind_firming_gap_pct * 100).toFixed(0)}% of
+              hours. Firming gaps are typically ~{row.wind_firming_hours ?? 3}h (vs solar's 14h
+              overnight gap), requiring smaller BESS or grid backup.
             </div>
           </div>
         </StatCard>
@@ -1722,7 +1721,9 @@ function ActionTab({ row }: { row: ScorecardRow }) {
               above={isAbove}
               isFirst={i === 0}
               isLast={i === hierarchy.length - 1}
-              explanation={isActive ? getEffectiveFlagExplanation(flag, row, energyMode) : undefined}
+              explanation={
+                isActive ? getEffectiveFlagExplanation(flag, row, energyMode) : undefined
+              }
             />
           );
         })}
@@ -1834,7 +1835,8 @@ export default function ScoreDrawer() {
   const effectiveFlag = row ? getEffectiveActionFlag(row, energyMode) : null;
   const flagColor = effectiveFlag ? (ACTION_FLAG_COLORS[effectiveFlag] ?? '#666') : '#666';
   const flagLabel = effectiveFlag ? (ACTION_FLAG_LABELS[effectiveFlag] ?? effectiveFlag) : '';
-  const flagDescription = row && effectiveFlag ? getEffectiveFlagExplanation(effectiveFlag, row, energyMode) : '';
+  const flagDescription =
+    row && effectiveFlag ? getEffectiveFlagExplanation(effectiveFlag, row, energyMode) : '';
 
   return (
     <div
