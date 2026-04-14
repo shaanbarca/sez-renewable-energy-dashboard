@@ -1,96 +1,138 @@
 # SEZ Renewable Energy Dashboard
 
-Interactive dashboard that answers: **"Which of Indonesia's 25 Special Economic Zones (KEKs) can offer low-cost, low-carbon, reliable electricity, and what must change to get there?"**
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://python.org)
+[![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![MapLibre GL](https://img.shields.io/badge/MapLibre_GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT_+_Commons_Clause-yellow)](LICENSE)
+[![Tests: 421](https://img.shields.io/badge/Tests-421_passing-brightgreen)](tests/)
 
-Combines satellite solar and wind resource data (Global Solar Atlas, Global Wind Atlas), PLN grid costs, RUPTL pipeline plans, CBAM exposure analysis, and geospatial buildability filters into a single, transparent scorecard.
+An analytical model and interactive dashboard assessing renewable energy competitiveness across Indonesia's 25 Special Economic Zones (KEKs). Computes solar and wind LCOE, grid integration costs, BESS storage requirements, CBAM exposure, and action flags under user-adjustable assumptions.
+
+Built for development bank analysts, energy investors, and policy advisors.
+
+---
+
+## Features
+
+**Analytical Model**
+- Solar and wind LCOE via CRF annuity method with panel degradation and firming costs
+- Hybrid solar+wind optimization (sweeps blended mix to minimize all-in cost)
+- BESS storage sizing with bridge-hour model (round-trip efficiency, overnight gap)
+- 5-layer geospatial buildability filter (forest, peatland, slope, land cover, road proximity)
+- Grid integration assessment (3-point proximity: solar site, substation, KEK)
+- EU CBAM exposure flagging for nickel smelter zones
+
+**Dashboard**
+- Interactive map with 25 KEK markers, color-coded by action flag
+- Solar PVOUT and wind speed raster overlays with buildable area polygons
+- Adjustable assumptions panel (WACC, CAPEX, lifetime, grid benchmark, BESS sizing)
+- Sortable/filterable scorecard table with CSV export
+- Per-KEK detail drawer with 6 analysis tabs
+- Quadrant chart, LCOE curve, energy balance, and RUPTL pipeline visualizations
+- 5 guided walkthrough tours (one per persona)
+- Light, dark, and satellite map themes
 
 ## Quick Start
 
 ```bash
-# Backend (Python)
+# Backend
 uv sync
-
-# Copy .env_template to .env and set MAPBOX_TOKEN if you want 3D terrain.
+cp .env_template .env   # set MAPBOX_TOKEN for 3D terrain (optional)
 uv run uvicorn src.api.main:app --port 8000
 
-# Frontend (React)
+# Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The API loads pipeline data at startup (~10s), then the dashboard is ready.
-
-## What It Does
-
-For each KEK, the model computes:
-
-1. **Solar LCOE** from CRF annuity method (CAPEX, FOM, WACC, capacity factor from PVOUT)
-2. **Competitiveness gap** vs PLN grid cost (I-4 industrial tariff or BPP by region)
-3. **Action flags**: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`
-4. **Buildable area** within 50km (filtered by forest, peat, slope, land cover)
-5. **Carbon breakeven price** (USD/tCO2 at which solar wins)
-
-All assumptions are adjustable via sliders in the dashboard.
+Open [http://localhost:5173](http://localhost:5173). The API loads pipeline data at startup (~10s), then the dashboard is ready.
 
 ## Architecture
 
 ```
 Data Pipeline (Python)          API (FastAPI)           Frontend (React + Vite)
---------------------           ----------------        ----------------------
-GeoTIFF + PDFs + CSVs          7 REST endpoints        MapLibre GL map
-  -> dim/fct tables              /api/defaults          TanStack Table
+----------------------         ----------------        -----------------------
+GeoTIFF + PDFs + CSVs          7 REST endpoints        MapLibre GL JS map
+  -> dim/fct star schema         /api/defaults          TanStack Table v8
   -> outputs/data/processed/     /api/scorecard         Recharts charts
                                  /api/layers/{name}     Zustand state
-                                 /api/methodology       Tailwind CSS
+                                 /api/kek/{id}/*        Tailwind CSS
+                                 /api/methodology
 ```
+
+## Data Sources
+
+| Source | What it provides |
+|--------|-----------------|
+| [Global Solar Atlas](https://globalsolaratlas.info/) | PVOUT GeoTIFF (kWh/kWp/day) at 250m resolution |
+| [Global Wind Atlas](https://globalwindatlas.info/) | Wind speed at 100m hub height |
+| [PLN RUPTL 2021-2030](https://web.pln.co.id/) | Grid capacity pipeline by region |
+| ESDM Technology Catalogue 2023 | Solar CAPEX, FOM, lifetime parameters |
+| PLN BPP 2023 | Regional cost of supply (grid benchmark) |
+| [GEM Coal Plant Tracker](https://globalenergymonitor.org/) | Captive coal plants within 50km of each KEK |
+| [CGSP Nickel Tracker](https://www.cgsp.or.id/) | Nickel smelters, process types, CBAM exposure |
+| OpenStreetMap | Road network for buildability filtering |
 
 ## Project Structure
 
 ```
-src/model/          Pure Python model (LCOE, action flags, GEAS allocation)
-src/pipeline/       Data pipeline builders (dim_kek, fct_lcoe, etc.)
-src/api/            FastAPI backend (routes, scorecard recomputation)
-src/dash/           Shared modules (data_loader, map_layers, logic, constants)
-frontend/src/       React SPA (components, store, hooks, lib)
-tests/              386 tests (model, pipeline, API)
-notebooks/          Jupyter notebooks for exploration
-data/               Input data (GeoTIFFs, GeoJSON, shapefiles)
-outputs/            Pipeline output CSVs
-docs/               Design mockups, reference PDFs
+src/
+  model/             Pure Python model (LCOE, action flags, GEAS allocation)
+  pipeline/          Data pipeline builders (dim_kek, fct_lcoe, fct_captive_coal, etc.)
+  api/               FastAPI backend (routes, scorecard recomputation)
+  dash/              Shared modules (data_loader, map_layers, logic, constants)
+frontend/
+  src/components/    Map, panels, charts, table, UI components
+  src/store/         Zustand state management
+  src/lib/           API client, types, formatting utilities
+tests/               421 tests across model, pipeline, and API
+notebooks/           Jupyter notebooks for exploration and data pipeline
+docs/                Methodology, design specs, reference documents
+data/                Input data (GeoTIFFs, GeoJSON, shapefiles)
+outputs/             Pipeline output CSVs
 ```
 
 ## Documentation
 
-| File | Purpose |
-|------|---------|
-| [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | Plain-language project overview |
-| [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | LCOE formulas, PVOUT conversion, action flags, GEAS allocation |
-| [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Every column in every pipeline table |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, pipeline dependency graph |
-| [DESIGN.md](DESIGN.md) | Dashboard UX spec, component architecture, color system |
-| [PERSONAS.md](PERSONAS.md) | User journeys (Energy Economist, DFI Investor, Policy Maker, IPP/RE Developer, Industrial Investor) |
-| [TODOS.md](TODOS.md) | Deferred items with priority tiers |
+| Document | Description |
+|----------|-------------|
+| [Executive Summary](EXECUTIVE_SUMMARY.md) | Plain-language project overview |
+| [Methodology](docs/METHODOLOGY_CONSOLIDATED.md) | LCOE formulas, PVOUT conversion, action flag logic, GEAS allocation |
+| [Data Dictionary](DATA_DICTIONARY.md) | Every column in every pipeline table with source attribution |
+| [Architecture](ARCHITECTURE.md) | System diagram, pipeline dependency graph, design decisions |
+| [Design Spec](DESIGN.md) | Dashboard UX spec, component architecture, color system |
+| [Personas](PERSONAS.md) | User journeys for 5 target personas |
 
-## Tests
+## Testing
 
 ```bash
-uv run pytest tests/       # 386 tests
-uv run ruff check src/     # Python lint
-cd frontend && npm run lint # TypeScript lint (Biome)
+uv run pytest tests/            # 421 tests
+uv run ruff check src/ tests/   # Python lint
+cd frontend && npm run lint     # TypeScript lint (Biome)
+cd frontend && npx tsc --noEmit # Type check
 ```
 
 ## License
 
-This project is licensed under the **MIT License** with the **Commons Clause** restriction.
+MIT License with [Commons Clause](LICENSE). Free to use, modify, and redistribute with attribution. Commercial resale of the software itself is restricted.
 
-**In plain terms:**
-- **Free to use** — you can use, copy, modify, and redistribute this software freely
-- **Attribution required** — you must keep the copyright notice and credit the original author in all copies
-- **No selling** — you may not sell the software or any product/service whose value derives substantially from it
+## Citation
 
-See [LICENSE](LICENSE) and [NOTICE](NOTICE) for full terms.
+If you use this software or dataset in your research, please cite:
+
+```bibtex
+@software{barca2026sez,
+  author    = {Barca, Shaan},
+  title     = {SEZ Renewable Energy Dashboard},
+  year      = {2026},
+  version   = {1.0.0},
+  url       = {https://github.com/shaanbarca/sez-renewable-energy-dashboard}
+}
+```
 
 ## Author
 
-Shaan Barca (shaan.b1223@gmail.com)
+**Shaan Barca** — [shaan.b1223@gmail.com](mailto:shaan.b1223@gmail.com)
