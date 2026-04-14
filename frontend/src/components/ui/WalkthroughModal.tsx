@@ -331,9 +331,10 @@ function PersonaSelector() {
       <div
         className="relative z-10 max-w-lg w-full mx-4 rounded-2xl p-8"
         style={{
-          background: 'rgba(20, 20, 24, 0.92)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          backdropFilter: 'blur(40px)',
+          background: 'var(--glass-heavy)',
+          border: '1px solid var(--glass-border-bright)',
+          backdropFilter: 'var(--blur-heavy)',
+          WebkitBackdropFilter: 'var(--blur-heavy)',
           boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
         }}
       >
@@ -478,9 +479,10 @@ function StepOverlay() {
         style={{
           ...tooltipStyle,
           width: 340,
-          background: 'rgba(20, 20, 24, 0.95)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          backdropFilter: 'blur(24px)',
+          background: 'var(--glass-heavy)',
+          border: '1px solid var(--glass-border-bright)',
+          backdropFilter: 'var(--blur-heavy)',
+          WebkitBackdropFilter: 'var(--blur-heavy)',
           boxShadow: '0 16px 64px rgba(0,0,0,0.5)',
           pointerEvents: 'auto',
         }}
