@@ -223,6 +223,7 @@ export default function VectorOverlay() {
     const onClick = (e: maplibregl.MapLayerMouseEvent) => {
       const feat = e.features?.[0];
       if (feat) {
+        setWindBuildableClick(null);
         setBuildableClick({
           longitude: e.lngLat.lng,
           latitude: e.lngLat.lat,
@@ -255,6 +256,7 @@ export default function VectorOverlay() {
     const onClick = (e: maplibregl.MapLayerMouseEvent) => {
       const feat = e.features?.[0];
       if (feat) {
+        setBuildableClick(null);
         setWindBuildableClick({
           longitude: e.lngLat.lng,
           latitude: e.lngLat.lat,
@@ -636,7 +638,7 @@ export default function VectorOverlay() {
               borderRadius: 6,
               fontSize: 12,
               lineHeight: 1.6,
-              minWidth: 260,
+              minWidth: 300,
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: 4, color: '#039BE5' }}>

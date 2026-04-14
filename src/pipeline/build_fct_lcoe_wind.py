@@ -133,9 +133,16 @@ def build_fct_lcoe_wind(
                     lcoe_c = lcoe_l = lcoe_u = np.nan
                 else:
                     # lcoe_solar is technology-agnostic — same CRF formula
-                    lcoe_c = lcoe_solar(eff_capex_c, fom, wacc_dec, lifetime, cf)
-                    lcoe_l = lcoe_solar(eff_capex_l, fom, wacc_dec, lifetime, cf)
-                    lcoe_u = lcoe_solar(eff_capex_u, fom, wacc_dec, lifetime, cf)
+                    # Wind: no panel degradation (0.0), unlike solar (0.5%/yr)
+                    lcoe_c = lcoe_solar(
+                        eff_capex_c, fom, wacc_dec, lifetime, cf, degradation_annual_pct=0.0
+                    )
+                    lcoe_l = lcoe_solar(
+                        eff_capex_l, fom, wacc_dec, lifetime, cf, degradation_annual_pct=0.0
+                    )
+                    lcoe_u = lcoe_solar(
+                        eff_capex_u, fom, wacc_dec, lifetime, cf, degradation_annual_pct=0.0
+                    )
 
                 def _r(v: float, adder: float = 0.0) -> float:
                     return round(v + adder, 2) if not np.isnan(v) else np.nan

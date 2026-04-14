@@ -115,13 +115,21 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     })),
 
   selectKek: (id) =>
-    set((state) => ({
-      selectedKek: id,
-      drawerOpen: id !== null,
-      layerVisibility: id
-        ? { ...state.layerVisibility, buildable_polygons: true }
-        : state.layerVisibility,
-    })),
+    set((state) => {
+      if (!id) return { selectedKek: null, drawerOpen: false, layerVisibility: state.layerVisibility };
+      const lv = { ...state.layerVisibility };
+      if (state.energyMode === 'wind') {
+        lv.wind_buildable_polygons = true;
+        lv.wind = true;
+      } else if (state.energyMode === 'solar') {
+        lv.buildable_polygons = true;
+        lv.pvout = true;
+      } else {
+        lv.buildable_polygons = true;
+        lv.wind_buildable_polygons = true;
+      }
+      return { selectedKek: id, drawerOpen: true, layerVisibility: lv };
+    }),
 
   closeDrawer: () => set({ drawerOpen: false }),
 

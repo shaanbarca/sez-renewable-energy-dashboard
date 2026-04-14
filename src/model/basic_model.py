@@ -532,7 +532,7 @@ def firm_wind_metrics(
         gap_hours = 4.0
 
     return {
-        "firm_wind_coverage_pct": round(min(raw_coverage, 1.0), 3),
+        "firm_wind_coverage_pct": round(raw_coverage, 3),
         "wind_firming_gap_pct": round(intermittency_gap, 3),
         "wind_firming_hours": gap_hours,
     }

@@ -1787,7 +1787,7 @@ export default function ScoreDrawer() {
   return (
     <div
       data-tour="drawer"
-      className={`absolute top-0 right-0 z-30 h-full w-[380px] flex flex-col
+      className={`absolute top-0 right-0 z-30 h-full w-[420px] flex flex-col
                   transition-transform duration-300 ease-in-out ${
                     drawerOpen && row ? 'translate-x-0' : 'translate-x-full'
                   }`}

@@ -231,9 +231,11 @@ Same 50km radius extraction as solar. Two values per KEK: `wind_speed_centroid_m
 
 **Reference turbine:** Vestas V126/3.45 MW (IEC Class III, low-wind). Calibrated to ESDM Technology Catalogue 2024, p.90.
 
-Wind LCOE uses the same CRF annuity formula as solar with wind-specific CAPEX/FOM/lifetime from `dim_tech_cost_wind`.
+Wind LCOE uses the same CRF annuity formula as solar with wind-specific CAPEX/FOM/lifetime from `dim_tech_cost_wind`. **No panel degradation is applied to wind** (`degradation_annual_pct=0.0`); mechanical wear is captured in FOM.
 
 The scorecard compares solar and wind LCOE per KEK. The cheaper technology is stored as `best_re_technology` (`"solar"` or `"wind"`).
+
+**CF source distinction:** Wind LCOE uses `cf_wind_best_50km` (theoretical best site within 50km, regardless of buildability), while wind supply coverage uses `cf_wind_buildable_best` (best site that passes land-use filters). These can differ by 2-3x when the best wind pixel falls on protected forest or steep terrain. This parallels solar, where LCOE uses `pvout_best_50km` and supply coverage uses buildable capacity. The LCOE represents theoretical potential at the best accessible site; supply coverage represents what's actually deployable.
 
 **Implementation:** `wind_speed_to_cf()` in `basic_model.py`; `build_fct_kek_wind_resource.py`; `build_fct_lcoe_wind.py`
 
@@ -379,7 +381,11 @@ bridge_hours = 24 - SOLAR_PRODUCTION_HOURS = 14h
 
 This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufacturing, smelting). The 2h default remains for low-reliability loads where BESS only needs to smooth cloud events and early evening ramp.
 
-**Round-trip efficiency (V3.3):** Battery storage has 85-90% AC-to-AC round-trip efficiency. Energy stored overnight loses ~13%. Two adjustments: (1) BESS capacity must be oversized by 1/RTE to deliver required nighttime energy after losses; (2) the effective solar output (denominator) is reduced by the fraction of energy that passes through storage multiplied by the efficiency loss.
+**Round-trip efficiency (V3.3):** Battery storage has 85-90% AC-to-AC round-trip efficiency. Energy stored overnight loses ~13%. Two adjustments:
+
+1. **BESS capacity oversizing:** To deliver X MWh overnight, you must store X / RTE MWh. At RTE=0.87, a 14h bridge requires 14/0.87 = 16.1h of effective storage capacity. This is reflected in `effective_sizing_hours = sizing_hours / RTE`.
+
+2. **Effective output reduction:** The BESS adder denominates against the solar energy actually available after storage losses, not the raw panel output. For a system where 58% of energy must pass through storage (14h/24h nighttime fraction), the effective CF drops: `effective_CF = CF_solar x (1 - 0.583 x 0.13) = CF_solar x 0.924`. At CF=0.18, this means the denominator uses 0.166 instead of 0.18, a ~7.6% reduction that makes the per-MWh adder higher. This is physically correct: you are paying for storage infrastructure but getting less usable energy out of it.
 
 **Sizing logic (V3.6):**
 
@@ -659,6 +665,8 @@ Where:
 - `demand_2030_gwh` = estimated KEK annual electricity demand (from area x industrial intensity)
 - Generation formula: capacity x yield converts MWp to MWh/yr, then /1000 for GWh
 
+**Capacity factor is already embedded:** PVOUT = CF x 8,760, so the generation formula is equivalent to `capacity_mwp x CF x 8,760 / 1000`. Supply coverage is not comparing nameplate capacity to demand; it compares expected energy output (accounting for solar intermittency, temperature losses, and system efficiency already baked into the Global Solar Atlas PVOUT value) to energy demand. A 100 MWp array with CF=0.18 produces 157.7 GWh/yr, not 876 GWh/yr.
+
 **Interpretation:**
 - Coverage >= 100%: solar can fully supply the KEK's demand (excess capacity available)
 - 50-99%: partial coverage, grid or other sources needed for the remainder
@@ -714,6 +722,8 @@ Where:
 - `max_wind_capacity_mwp` = buildable wind capacity from wind buildability filters (§4.1)
 - `cf_wind_buildable_best` = capacity factor at best buildable wind site within 50km
 - `demand_2030_gwh` = estimated KEK annual electricity demand
+
+**Capacity factor is explicit here** (unlike solar where CF is embedded in PVOUT). The formula multiplies capacity x CF x 8760 directly, so generation reflects actual expected output from wind intermittency, not nameplate capacity.
 
 **Implementation:** Live-computed in `logic.py` (not precomputed in CSV). Uses `max_wind_capacity_mwp` and `cf_wind_buildable_best` from `fct_kek_wind_resource`, merged into `resource_df` at API startup.
 

@@ -134,6 +134,11 @@ SOLAR_DEGRADATION_ANNUAL_PCT: float = 0.5
 #   degradation_factor = 1 - (rate × lifetime / 2)
 # Over 27yr: factor = 0.9325, LCOE increases ~7.2%.
 
+WIND_DEGRADATION_ANNUAL_PCT: float = 0.0
+# Wind turbines do not degrade like solar panels. Mechanical wear exists but is
+# captured in FOM (gearbox overhaul, blade inspections). No output degradation
+# factor applied to the LCOE formula.
+
 # ─── WIND TECH ─────────────────────────────────────────────────────────────────
 
 WIND_TECH_ID: str = "TECH_WIND_ONSHORE"

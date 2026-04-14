@@ -397,7 +397,14 @@ def compute_lcoe_wind_live(
         )
 
         if cf > 0:
-            lcoe_wind = lcoe_solar(wind_capex, wind_fom, wacc, wind_lifetime, cf)
+            lcoe_wind = lcoe_solar(
+                wind_capex,
+                wind_fom,
+                wacc,
+                wind_lifetime,
+                cf,
+                degradation_annual_pct=0.0,
+            )
         else:
             lcoe_wind = np.nan
 
