@@ -12,6 +12,8 @@ An analytical model and interactive dashboard assessing renewable energy competi
 
 Built for development bank analysts, energy investors, and policy advisors.
 
+![SEZ Renewable Energy Dashboard](docs/dashboard_ss.png)
+
 ---
 
 ## Features
