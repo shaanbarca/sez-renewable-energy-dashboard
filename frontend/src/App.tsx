@@ -1,15 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import MapView from './components/map/MapView';
 import RasterLegend from './components/map/RasterLegend';
 import AssumptionsPanel from './components/panels/AssumptionsPanel';
 import ScoreDrawer from './components/panels/ScoreDrawer';
 import BottomPanel from './components/ui/BottomPanel';
 import Header from './components/ui/Header';
+import LoginPage from './components/ui/LoginPage';
 import WalkthroughModal from './components/ui/WalkthroughModal';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useDashboardStore } from './store/dashboard';
 
-function App() {
+function Dashboard() {
   const initialize = useDashboardStore((s) => s.initialize);
   const mapStyle = useDashboardStore((s) => s.mapStyle);
 
@@ -55,6 +56,27 @@ function App() {
       <WalkthroughModal />
     </div>
   );
+}
+
+function App() {
+  const [authed, setAuthed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/check')
+      .then((r) => r.json())
+      .then((data) => setAuthed(data.authenticated))
+      .catch(() => setAuthed(true)); // If auth check fails (dev mode), let through
+  }, []);
+
+  if (authed === null) {
+    return <div className="h-screen w-screen bg-[#0a0a0c]" />;
+  }
+
+  if (!authed) {
+    return <LoginPage onSuccess={() => setAuthed(true)} />;
+  }
+
+  return <Dashboard />;
 }
 
 export default App;

@@ -12,9 +12,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.dash.data_loader import (
     compute_ruptl_region_metrics,
@@ -80,13 +81,40 @@ app.add_middleware(
 # Mount route modules
 # ---------------------------------------------------------------------------
 
+from src.api.auth import is_authenticated  # noqa: E402
+from src.api.auth import router as auth_router  # noqa: E402
 from src.api.routes.layers import router as layers_router  # noqa: E402
 from src.api.routes.scorecard import router as scorecard_router  # noqa: E402
 
+app.include_router(auth_router)
 app.include_router(scorecard_router, prefix="/api")
 app.include_router(layers_router, prefix="/api")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+
+
+@app.get("/api/health")
+async def health():
+    """Health check for Render / load balancers."""
+    return {"status": "ok", "keks": len(tables.get("dim_kek", []))}
+
+
+# ---------------------------------------------------------------------------
+# Auth middleware — protect /api routes (except /api/auth/*)
+# ---------------------------------------------------------------------------
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    # Allow auth endpoints, static assets, and the root page through
+    if path.startswith("/api/auth/") or path.startswith("/assets/") or not path.startswith("/api/"):
+        return await call_next(request)
+    # All other /api routes require auth
+    if not is_authenticated(request):
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+    return await call_next(request)
 
 
 @app.get("/api/methodology", response_class=PlainTextResponse)
@@ -96,3 +124,22 @@ async def get_methodology():
     if not md_path.exists():
         return PlainTextResponse("Methodology document not found.", status_code=404)
     return PlainTextResponse(md_path.read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# Serve frontend build (production only — in dev, Vite handles this)
+# ---------------------------------------------------------------------------
+
+if FRONTEND_DIST.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    # SPA fallback: serve index.html for all non-API routes
+    @app.get("/{path:path}")
+    async def spa_fallback(path: str):
+        # Try to serve the exact file first
+        file_path = FRONTEND_DIST / path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        # Otherwise serve index.html (SPA routing)
+        return FileResponse(FRONTEND_DIST / "index.html")

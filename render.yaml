@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: sez-dashboard
+    runtime: docker
+    healthCheckPath: /api/health
+    envVars:
+      - key: ACCESS_CODE
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MAPBOX_TOKEN
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: NODE_VERSION
+        value: "20"
