@@ -27,6 +27,11 @@ from src.assumptions import (
     BESS_BRIDGE_HOURS_ENABLED,
     BESS_CAPEX_USD_PER_KWH,
     BESS_SIZING_HOURS,
+    CBAM_CERTIFICATE_PRICE_EUR_TCO2,
+    CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
+    CBAM_EUR_USD_RATE,
+    CBAM_FREE_ALLOCATION,
+    CBAM_SCOPE1_TCO2_PER_TONNE,
     CONNECTION_COST_PER_KW_KM,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
@@ -1071,15 +1076,62 @@ def compute_scorecard_live(
             row["perpres_112_status"] = None
 
         # CBAM exposure: EU Carbon Border Adjustment Mechanism (2026+)
-        # RKEF nickel (Nickel Pig Iron, Ferro Nickel) falls under iron/steel CN codes
+        # Two signals: (1) nickel pipeline process types, (2) KEK business sectors
+        cbam_types: list[str] = []
+
+        # Signal 1: RKEF nickel process → iron/steel CN codes
         process = str(row.get("dominant_process_type") or "").strip()
-        cbam_processes = {"Nickel Pig Iron", "Ferro Nickel"}
-        if process in cbam_processes:
-            row["cbam_exposed"] = True
-            row["cbam_product_type"] = "iron_steel"
+        if process in {"Nickel Pig Iron", "Ferro Nickel"}:
+            cbam_types.append("iron_steel")
+
+        # Signal 2: KEK business sectors → CBAM categories
+        # Mapping: KEK sector name → CBAM product type
+        _SECTOR_CBAM_MAP = {
+            "Base Metal Industry": "iron_steel",
+            "Nickel Smelter Industry": "iron_steel",
+            "Bauxite Industry": "aluminium",
+            "Petrochemical Industry": "fertilizer",
+        }
+        sectors_str = str(kek.get("business_sectors") or "")
+        for sector_name, cbam_type in _SECTOR_CBAM_MAP.items():
+            if sector_name in sectors_str and cbam_type not in cbam_types:
+                cbam_types.append(cbam_type)
+
+        row["cbam_exposed"] = len(cbam_types) > 0
+        row["cbam_product_type"] = ",".join(cbam_types) if cbam_types else None
+
+        # CBAM cost trajectory: compute costs at key years (2026, 2030, 2034)
+        # Uses grid emission factor + sector electricity intensity + scope 1 process emissions
+        if cbam_types:
+            # Use the first (primary) CBAM type for cost estimates
+            primary_type = cbam_types[0]
+            elec_intensity = CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE.get(primary_type, 0)
+            scope1 = CBAM_SCOPE1_TCO2_PER_TONNE.get(primary_type, 0)
+            grid_ef = row.get("grid_emission_factor_t_co2_mwh") or 0.8  # fallback: Indonesia avg
+
+            # Total emission intensity (tCO₂/tonne product) = scope2 + scope1
+            scope2 = elec_intensity * grid_ef
+            total_ei = scope2 + scope1
+            row["cbam_emission_intensity_current"] = round(total_ei, 1)
+
+            # Emission intensity if renewables adopted (scope 1 remains, scope 2 ≈ 0)
+            row["cbam_emission_intensity_solar"] = round(scope1, 1)
+
+            # Cost per tonne at key years (USD)
+            price_usd = CBAM_CERTIFICATE_PRICE_EUR_TCO2 * CBAM_EUR_USD_RATE
+            for year in [2026, 2030, 2034]:
+                free_alloc = CBAM_FREE_ALLOCATION.get(year, 0.0)
+                effective_rate = price_usd * (1 - free_alloc)
+                row[f"cbam_cost_{year}_usd_per_tonne"] = round(total_ei * effective_rate, 0)
+                row[f"cbam_savings_{year}_usd_per_tonne"] = round(
+                    scope2 * effective_rate, 0
+                )  # savings from eliminating scope 2
         else:
-            row["cbam_exposed"] = False
-            row["cbam_product_type"] = None
+            row["cbam_emission_intensity_current"] = None
+            row["cbam_emission_intensity_solar"] = None
+            for year in [2026, 2030, 2034]:
+                row[f"cbam_cost_{year}_usd_per_tonne"] = None
+                row[f"cbam_savings_{year}_usd_per_tonne"] = None
 
         # Solar replacement potential: what % of captive coal generation can solar replace?
         # Assumes 40% capacity factor for coal (Indonesian captive coal typical)

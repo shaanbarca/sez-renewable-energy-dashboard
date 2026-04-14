@@ -494,9 +494,16 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
           {row.cbam_exposed && (
             <ColoredStatRow
               label="EU CBAM"
-              value="Exposed"
+              value={
+                row.cbam_product_type
+                  ? row.cbam_product_type
+                      .split(',')
+                      .map((t) => t.replace('_', '/'))
+                      .join(', ')
+                  : 'Exposed'
+              }
               color="#FF7043"
-              tip="Nickel Pig Iron / Ferro Nickel exports face EU carbon border pricing from 2026, escalating to full EU ETS price by 2034."
+              tip="EU Carbon Border Adjustment Mechanism. Covers iron/steel, aluminium, and fertilizer exports. Carbon pricing escalates from ~€2/tCO₂ (2026) to full EU ETS price (~€80/tCO₂) by 2034."
             />
           )}
         </StatCard>
@@ -1678,12 +1685,52 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                 />
               )}
               {row.cbam_exposed && (
-                <ColoredStatRow
-                  label="EU CBAM Exposure"
-                  value="Exposed (Iron/Steel)"
-                  color="#FF7043"
-                  tip="This KEK has nickel smelters producing Nickel Pig Iron or Ferro Nickel, which fall under EU CBAM iron/steel codes (HS 7202). Exports to EU face carbon border pricing: ~€2/tCO₂ in 2026, escalating to full EU ETS price (~€80/tCO₂) by 2034 as free allocation phases out. Switching to renewable energy eliminates Scope 2 CBAM costs."
-                />
+                <>
+                  <ColoredStatRow
+                    label="EU CBAM Exposure"
+                    value={
+                      row.cbam_product_type
+                        ? row.cbam_product_type
+                            .split(',')
+                            .map((t) => {
+                              const labels: Record<string, string> = {
+                                iron_steel: 'Iron/Steel',
+                                aluminium: 'Aluminium',
+                                fertilizer: 'Fertilizer',
+                                cement: 'Cement',
+                              };
+                              return labels[t] ?? t;
+                            })
+                            .join(', ')
+                        : 'Exposed'
+                    }
+                    color="#FF7043"
+                    tip="EU CBAM covers iron/steel (nickel RKEF, base metals), aluminium (bauxite processing), and fertilizer (petrochemical). Exports to EU face carbon border pricing from 2026, escalating to full EU ETS price by 2034."
+                  />
+                  {row.cbam_emission_intensity_current != null && (
+                    <StatRowWithTip
+                      label="Emission Intensity"
+                      value={`${row.cbam_emission_intensity_current} tCO₂/t`}
+                      tip={`Current: ${row.cbam_emission_intensity_current} tCO₂/tonne (grid electricity + process). With solar: ${row.cbam_emission_intensity_solar ?? '?'} tCO₂/tonne (process only, Scope 2 eliminated).`}
+                    />
+                  )}
+                  {row.cbam_cost_2030_usd_per_tonne != null && (
+                    <StatRowWithTip
+                      label="CBAM Cost 2030"
+                      value={`$${row.cbam_cost_2030_usd_per_tonne?.toLocaleString()}/t`}
+                      tip={`CBAM cost per tonne of product at 2030 rates (51.5% free allocation phased out). 2026: $${row.cbam_cost_2026_usd_per_tonne?.toLocaleString()}/t. 2034: $${row.cbam_cost_2034_usd_per_tonne?.toLocaleString()}/t (full exposure).`}
+                    />
+                  )}
+                  {row.cbam_savings_2030_usd_per_tonne != null &&
+                    row.cbam_savings_2030_usd_per_tonne > 0 && (
+                      <ColoredStatRow
+                        label="RE Savings 2030"
+                        value={`$${row.cbam_savings_2030_usd_per_tonne.toLocaleString()}/t`}
+                        color="#4CAF50"
+                        tip={`CBAM cost avoided per tonne by switching to renewable energy (eliminates Scope 2 emissions). By 2034: $${row.cbam_savings_2034_usd_per_tonne?.toLocaleString()}/t saved. Switching to RE doesn't just lower energy cost, it removes the carbon border tax.`}
+                      />
+                    )}
+                </>
               )}
             </div>
           )}

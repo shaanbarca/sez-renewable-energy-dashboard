@@ -49,7 +49,7 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   solar_replacement_pct:
     'What % of captive coal generation could be replaced by buildable solar within 50km. Assumes 40% coal capacity factor.',
   cbam_exposed:
-    'EU Carbon Border Adjustment Mechanism exposure. Nickel Pig Iron and Ferro Nickel fall under iron/steel codes. Exports to EU face escalating carbon pricing: ~€2/tCO₂ (2026) → €80/tCO₂ (2034).',
+    'EU Carbon Border Adjustment Mechanism exposure. Covers iron/steel (nickel RKEF, base metals), aluminium (bauxite), and fertilizer (petrochemical). Exports to EU face escalating carbon pricing: ~€2/tCO₂ (2026) → €80/tCO₂ (2034).',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -285,10 +285,18 @@ export const columns = [
       if (!info.row.original.cbam_exposed) {
         return <span style={{ color: 'var(--text-muted)' }}>—</span>;
       }
+      const productType = info.row.original.cbam_product_type;
+      const label = productType
+        ? productType
+            .split(',')
+            .map((t: string) => t.replace('_', '/'))
+            .join(', ')
+        : 'exposed';
       return (
         <span
           className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
           style={{ background: '#FF704433', color: '#FF7043' }}
+          title={`CBAM: ${label}`}
         >
           EU CBAM
         </span>

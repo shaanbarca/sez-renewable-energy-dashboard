@@ -557,6 +557,50 @@ DEMAND_TARGET_YEAR: int = 2030
 # Target year for demand estimation. Matches the RUPTL and LCOE horizon.
 # Source: consistent with RUPTL_PRE2030_END and model target_year default.
 
+# ─── EU CBAM (Carbon Border Adjustment Mechanism) ────────────────────────────
+
+CBAM_CERTIFICATE_PRICE_EUR_TCO2: float = 80.0
+# Default EU ETS / CBAM certificate price in EUR per tonne CO₂.
+# Source: EU ETS Q1 2026 price, ~€75-100 range. Using €80 as central estimate.
+# Rationale: user-adjustable in spec (range 50-150), this is the default.
+
+CBAM_EUR_USD_RATE: float = 1.10
+# EUR/USD exchange rate for CBAM cost conversion.
+# Source: average 2024-2025. Update annually.
+
+# Free allocation phase-out schedule (EU Regulation 2023/956, Art. 31)
+# As free allocation declines, the effective CBAM rate rises.
+CBAM_FREE_ALLOCATION: dict[int, float] = {
+    2026: 0.975,
+    2027: 0.950,
+    2028: 0.900,
+    2029: 0.775,
+    2030: 0.515,
+    2031: 0.390,
+    2032: 0.265,
+    2033: 0.140,
+    2034: 0.000,
+}
+
+# Electricity intensity by CBAM sector (MWh per tonne of product)
+# Source: JETP Captive Power Study Ch.2 (nickel), IEA (cement/aluminium/fertilizer)
+CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE: dict[str, float] = {
+    "iron_steel": 37.5,  # Nickel RKEF: 30-45 MWh/t, midpoint. Steel EAF ~0.4-0.5
+    "aluminium": 15.0,  # Primary aluminium smelting: 13-17 MWh/t
+    "fertilizer": 10.0,  # Ammonia/urea: 8-12 MWh/t
+    "cement": 0.9,  # Cement: 0.8-1.0 MWh/t (low electricity, high process emissions)
+}
+
+# Process emissions (Scope 1) per tonne — not eliminated by switching to renewables
+# Source: IPCC defaults, JETP report
+CBAM_SCOPE1_TCO2_PER_TONNE: dict[str, float] = {
+    "iron_steel": 3.0,  # RKEF process CO₂ (carbon reduction agent)
+    "aluminium": 1.5,  # Anode consumption
+    "fertilizer": 1.2,  # NH₃ synthesis process CO₂
+    "cement": 0.52,  # Calcination (CaCO₃ → CaO + CO₂) — ~60% of total cement emissions
+}
+
+
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 
 

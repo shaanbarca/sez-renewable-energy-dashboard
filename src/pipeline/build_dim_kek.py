@@ -28,6 +28,7 @@ Output columns:
 
 from __future__ import annotations
 
+import ast
 import json
 from datetime import date
 from pathlib import Path
@@ -88,9 +89,24 @@ def build_dim_kek(
     mapping_raw = pd.read_csv(mapping_csv)
     poly_raw = _load_polygon_attrs(polygons_geojson)
 
+    # ─── EXTRACT BUSINESS SECTORS ─────────────────────────────────────────────
+    def _extract_sectors(inv_str):
+        """Parse the investments JSON column (JS-style single quotes) into a
+        semicolon-separated list of sector titles."""
+        if pd.isna(inv_str) or not str(inv_str).strip():
+            return ""
+        try:
+            sectors = ast.literal_eval(str(inv_str))
+            titles = [s.get("title", "") for s in sectors if s.get("title")]
+            return ";".join(titles)
+        except (ValueError, SyntaxError):
+            return ""
+
+    markers_raw["business_sectors"] = markers_raw["investments"].apply(_extract_sectors)
+
     # ─── STAGING ──────────────────────────────────────────────────────────────
     markers = markers_raw[
-        ["slug", "title", "latitude", "longitude", "legalBasis", "developer"]
+        ["slug", "title", "latitude", "longitude", "legalBasis", "developer", "business_sectors"]
     ].rename(
         columns={
             "slug": "kek_id",
@@ -136,6 +152,7 @@ def build_dim_kek(
             "reliability_notes",
             "latitude",
             "longitude",
+            "business_sectors",
             "data_vintage",
         ]
     ]

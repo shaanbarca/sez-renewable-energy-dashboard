@@ -137,6 +137,14 @@ export interface ScorecardRow {
   // CBAM exposure (EU Carbon Border Adjustment Mechanism)
   cbam_exposed?: boolean;
   cbam_product_type?: string | null;
+  cbam_emission_intensity_current?: number | null;
+  cbam_emission_intensity_solar?: number | null;
+  cbam_cost_2026_usd_per_tonne?: number | null;
+  cbam_cost_2030_usd_per_tonne?: number | null;
+  cbam_cost_2034_usd_per_tonne?: number | null;
+  cbam_savings_2026_usd_per_tonne?: number | null;
+  cbam_savings_2030_usd_per_tonne?: number | null;
+  cbam_savings_2034_usd_per_tonne?: number | null;
   bess_sizing_hours?: number | null;
 
   // V3.3: Firm solar metrics (temporal mismatch)

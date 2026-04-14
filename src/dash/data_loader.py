@@ -72,9 +72,13 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     dim_kek = tables["dim_kek"]
     scorecard = tables["fct_kek_scorecard"]
 
-    # Add reliability_req from dim_kek
-    if "reliability_req" not in resource.columns and "reliability_req" in dim_kek.columns:
-        resource = resource.merge(dim_kek[["kek_id", "reliability_req"]], on="kek_id", how="left")
+    # Add reliability_req and business_sectors from dim_kek
+    dim_kek_cols = ["kek_id"]
+    for col in ["reliability_req", "business_sectors"]:
+        if col not in resource.columns and col in dim_kek.columns:
+            dim_kek_cols.append(col)
+    if len(dim_kek_cols) > 1:
+        resource = resource.merge(dim_kek[dim_kek_cols], on="kek_id", how="left")
 
     # Add green_share_geas and within_boundary_coverage_pct from scorecard
     scorecard_cols = ["kek_id"]
