@@ -7,6 +7,7 @@
 [![MapLibre GL](https://img.shields.io/badge/MapLibre_GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT_+_Commons_Clause-yellow)](LICENSE)
 [![Tests: 421](https://img.shields.io/badge/Tests-421_passing-brightgreen)](tests/)
+[![DOI](https://zenodo.org/badge/1210467818.svg)](https://doi.org/10.5281/zenodo.19570541)
 
 An analytical model and interactive dashboard assessing renewable energy competitiveness across Indonesia's 25 Special Economic Zones (KEKs). Computes solar and wind LCOE, grid integration costs, BESS storage requirements, CBAM exposure, and action flags under user-adjustable assumptions.
 
