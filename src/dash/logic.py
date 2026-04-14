@@ -50,6 +50,7 @@ from src.model.basic_model import (
     capacity_factor_from_pvout,
     carbon_breakeven_price,
     firm_solar_metrics,
+    firm_wind_metrics,
     grid_connection_cost_per_kw,
     is_solar_attractive,
     lcoe_solar,
@@ -831,6 +832,46 @@ def compute_scorecard_live(
         else:
             row["wind_competitive_gap_pct"] = np.nan
 
+        # Wind buildability + supply coverage (from pipeline data)
+        wind_cap = (
+            float(kek.get("max_wind_capacity_mwp", 0))
+            if pd.notna(kek.get("max_wind_capacity_mwp"))
+            else 0.0
+        )
+        wind_cf_best = (
+            float(kek.get("cf_wind_buildable_best", 0))
+            if pd.notna(kek.get("cf_wind_buildable_best"))
+            else row.get("cf_wind", 0.0)
+        )
+        wind_gen_gwh = (
+            wind_cap * wind_cf_best * 8760 / 1000 if wind_cap > 0 and wind_cf_best > 0 else 0.0
+        )
+        _demand_mwh = demand_by_kek.get(kek_id, 0.0)
+        demand_gwh = _demand_mwh / 1000 if _demand_mwh > 0 else 0.0
+
+        row["max_wind_capacity_mwp"] = _round(wind_cap, 1)
+        row["wind_buildable_area_ha"] = (
+            _round(float(kek.get("wind_buildable_area_ha", 0)))
+            if pd.notna(kek.get("wind_buildable_area_ha"))
+            else 0.0
+        )
+        row["wind_buildability_constraint"] = (
+            str(kek.get("wind_buildability_constraint", "unknown"))
+            if pd.notna(kek.get("wind_buildability_constraint"))
+            else "unknown"
+        )
+        row["max_wind_generation_gwh"] = _round(wind_gen_gwh, 1)
+        row["wind_supply_coverage_pct"] = (
+            round(wind_gen_gwh / demand_gwh, 3) if demand_gwh > 0 and wind_gen_gwh > 0 else None
+        )
+
+        # Wind carbon breakeven (same formula as solar, different LCOE input)
+        row["wind_carbon_breakeven_usd_tco2"] = (
+            carbon_breakeven_price(wind_lcoe_val, grid_cost, emission_factor)
+            if pd.notna(wind_lcoe_val) and emission_factor > 0
+            else None
+        )
+
         # V3.3: Firm solar metrics — temporal mismatch awareness
         solar_gen_mwh = (
             (float(kek.get("max_captive_capacity_mwp", 0)) * float(kek.get("pvout_best_50km", 0)))
@@ -844,6 +885,13 @@ def compute_scorecard_live(
         row["nighttime_demand_mwh"] = firm_metrics["nighttime_demand_mwh"]
         row["storage_required_mwh"] = firm_metrics["storage_required_mwh"]
         row["storage_gap_pct"] = firm_metrics["storage_gap_pct"]
+
+        # Wind temporal metrics (intermittency-based, not day/night)
+        wind_gen_mwh = wind_gen_gwh * 1000
+        wind_firm = firm_wind_metrics(wind_gen_mwh, demand_mwh_val, wind_cf_best)
+        row["firm_wind_coverage_pct"] = wind_firm["firm_wind_coverage_pct"]
+        row["wind_firming_gap_pct"] = wind_firm["wind_firming_gap_pct"]
+        row["wind_firming_hours"] = wind_firm["wind_firming_hours"]
 
         # Within-boundary LCOE (secondary, for reference — captive solar, no connection costs)
         if kek_id in wb.index:

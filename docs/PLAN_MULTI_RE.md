@@ -84,21 +84,21 @@ All three sub-phases shipped on `feature/multi-re-integration`:
 - `wind_competitive_gap_pct` computed by backend
 - Removed precomputed wind merge from fct_kek_scorecard
 
-### Phase 1D: Wind Analytical Parity (estimated 2-3 sessions)
+### Phase 1D: Wind Analytical Parity — ✅ COMPLETE
 
-Wind frontend is wired, but the analysis is shallow compared to solar. Solar has 4-layer buildability filtering, capacity constraints, supply coverage, within-boundary analysis, and buildable polygon map overlays. Wind has none of that. This phase brings wind to the same analytical depth.
+Wind now has the same analytical depth as solar: buildability filtering, capacity constraints, supply coverage, temporal intermittency metrics, carbon breakeven, and buildable polygon map overlays.
 
-#### What Solar Has That Wind Doesn't
+#### Parity Achieved
 
 | Analysis | Solar | Wind |
 |----------|-------|------|
-| Buildable area (land-use filtered) | `buildable_area_ha` via 4-layer cascade | Raw wind speed, no filtering |
-| Capacity constraint | `max_captive_capacity_mwp = area / 1.5` | Unconstrained (infinite) |
-| Buildable polygon map layer | `buildable_polygons.geojson` | Nothing |
-| Within-boundary analysis | `within_boundary_capacity_mwp`, `pvout_within_boundary` | Nothing |
-| Supply coverage | `solar_supply_coverage_pct = generation / demand` | Nothing |
-| Temporal coverage | `firm_solar_coverage_pct`, `storage_gap_pct` | Nothing |
-| Buildability constraint label | `"kawasan_hutan"`, `"slope"`, `"peat"`, etc. | Nothing |
+| Buildable area (land-use filtered) | `buildable_area_ha` via 4-layer cascade | ✅ `wind_buildable_area_ha` via wind-adapted cascade |
+| Capacity constraint | `max_captive_capacity_mwp = area / 1.5` | ✅ `max_wind_capacity_mwp = area / 25` |
+| Buildable polygon map layer | `buildable_polygons.geojson` | ✅ `wind_buildable_polygons.geojson` (3,402 polygons) |
+| Supply coverage | `solar_supply_coverage_pct = generation / demand` | ✅ `wind_supply_coverage_pct` |
+| Temporal coverage | `firm_solar_coverage_pct`, `storage_gap_pct` | ✅ `firm_wind_coverage_pct`, `wind_firming_gap_pct`, `wind_firming_hours` |
+| Buildability constraint label | `"kawasan_hutan"`, `"slope"`, `"peat"`, etc. | ✅ `wind_buildability_constraint` |
+| Carbon breakeven | `carbon_breakeven_usd_tco2` | ✅ `wind_carbon_breakeven_usd_tco2` |
 
 #### 1D-1. Wind Buildability Filters
 
@@ -383,7 +383,7 @@ This is the big conceptual shift. Instead of "which single RE source wins?", the
 | Phase | Work | Depends On | Sessions | Status |
 |-------|------|------------|----------|--------|
 | **1a-c: Activate Wind** | Frontend + live LCOE | Nothing | 3 | ✅ COMPLETE |
-| **1D: Wind Analytical Parity** | Buildability, capacity, coverage, polygons | Phase 1 | 2-3 | **NEXT** |
+| **1D: Wind Analytical Parity** | Buildability, capacity, coverage, polygons | Phase 1 | 2-3 | ✅ COMPLETE |
 | **2: Hydro Layer** | Pipeline + map + ScoreDrawer card | Nothing (GeoJSON exists) | 1 | Pending |
 | **3: Hybrid RE** | New model + scorecard + chart rewrite | Phase 1D + 2 | 2-3 | Pending |
 | **4: Geothermal** | Same as Phase 2 pattern | MEMR data sourcing | 1-2 | Blocked on data |

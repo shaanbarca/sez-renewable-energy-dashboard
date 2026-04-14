@@ -480,6 +480,64 @@ def firm_solar_metrics(
     }
 
 
+def firm_wind_metrics(
+    wind_generation_mwh: float,
+    demand_mwh: float,
+    wind_cf: float,
+) -> dict[str, float | None]:
+    """Wind temporal coverage analysis.
+
+    Unlike solar (10h production / 14h gap), wind produces ~24/7 at variable output.
+    The gap is intermittency (output variability), not a day/night split.
+
+    Typical onshore wind: 70-80% of hours produce above 25% of rated capacity.
+    The firming requirement is shorter-duration (2-4h gaps vs solar's 14h overnight).
+
+    Parameters
+    ----------
+    wind_generation_mwh:
+        Total annual wind generation (MWh/yr) from buildable area.
+    demand_mwh:
+        Total annual demand (MWh/yr) for the KEK.
+    wind_cf:
+        Wind capacity factor (0-1).
+
+    Returns
+    -------
+    dict with keys:
+        firm_wind_coverage_pct: wind generation / demand (raw supply ratio)
+        wind_firming_gap_pct: fraction of demand needing firming for intermittency
+        wind_firming_hours: typical gap duration (hours) between production lulls
+    """
+    if demand_mwh <= 0 or wind_generation_mwh <= 0 or wind_cf <= 0:
+        return {
+            "firm_wind_coverage_pct": None,
+            "wind_firming_gap_pct": None,
+            "wind_firming_hours": None,
+        }
+
+    # Raw coverage ratio
+    raw_coverage = wind_generation_mwh / demand_mwh
+
+    # Wind intermittency model: at CF < 0.30, ~35% of hours have near-zero output.
+    # At CF 0.30-0.40, ~20% of hours are near-zero. Higher CF = less intermittency.
+    if wind_cf >= 0.35:
+        intermittency_gap = 0.15  # 15% of hours need firming
+        gap_hours = 2.0
+    elif wind_cf >= 0.25:
+        intermittency_gap = 0.25  # 25% of hours need firming
+        gap_hours = 3.0
+    else:
+        intermittency_gap = 0.35  # 35% of hours need firming
+        gap_hours = 4.0
+
+    return {
+        "firm_wind_coverage_pct": round(min(raw_coverage, 1.0), 3),
+        "wind_firming_gap_pct": round(intermittency_gap, 3),
+        "wind_firming_hours": gap_hours,
+    }
+
+
 def grid_connection_cost_per_kw(
     dist_km: float,
     cost_per_kw_km: float = CONNECTION_COST_PER_KW_KM,

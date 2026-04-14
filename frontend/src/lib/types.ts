@@ -135,6 +135,17 @@ export interface ScorecardRow {
   nighttime_demand_mwh?: number | null;
   storage_required_mwh?: number | null;
   storage_gap_pct?: number | null;
+
+  // Wind parity: buildability, supply coverage, temporal
+  max_wind_capacity_mwp?: number;
+  wind_buildable_area_ha?: number;
+  wind_buildability_constraint?: string;
+  max_wind_generation_gwh?: number;
+  wind_supply_coverage_pct?: number | null;
+  wind_carbon_breakeven_usd_tco2?: number | null;
+  firm_wind_coverage_pct?: number | null;
+  wind_firming_gap_pct?: number | null;
+  wind_firming_hours?: number | null;
 }
 
 export interface SubstationWithCosts {

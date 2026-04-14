@@ -642,30 +642,46 @@ function ResourceTab({ row }: { row: ScorecardRow }) {
         <SectionHeader
           title="Buildable Land"
           subtitle="How much suitable land exists after excluding forests, peat, and slopes?"
-          tip="Land within 50km that passes slope, land cover, forest, and peatland filters."
+          tip="Land within 50km that passes slope, land cover, forest, and peatland filters. Wind allows steeper slopes and cropland."
         />
-        <StatRowWithTip
-          label="Buildable Area"
-          value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null}
-          unit="ha"
-          tip="Sum of suitable ~1km pixels within 50km. Actual contiguous sites may be smaller."
-        />
-        <StatRowWithTip
-          label="Max Capacity"
-          value={
-            row.max_captive_capacity_mwp != null ? row.max_captive_capacity_mwp.toFixed(0) : null
-          }
-          unit="MWp"
-          tip="MWp buildable at 5 ha/MWp density. This is the upper bound, not a recommended project size."
-        />
-        {row.buildable_area_ha != null &&
-          row.buildable_area_ha > 0 &&
-          row.buildable_area_ha < 2000 && (
-            <div className="text-[10px] text-amber-400/70 leading-tight mt-1">
-              Note: buildable area is the sum of suitable pixels within 50km at ~1km resolution.
-              Actual contiguous land may be smaller.
-            </div>
-          )}
+        {showSolar && (
+          <>
+            <StatRowWithTip
+              label={energyMode === 'overall' ? 'Solar Buildable' : 'Buildable Area'}
+              value={row.buildable_area_ha != null ? row.buildable_area_ha.toFixed(0) : null}
+              unit="ha"
+              tip="Sum of suitable ~1km pixels within 50km for solar (slope <8°, no forest/peat/cropland)."
+            />
+            <StatRowWithTip
+              label={energyMode === 'overall' ? 'Solar Capacity' : 'Max Capacity'}
+              value={
+                row.max_captive_capacity_mwp != null
+                  ? row.max_captive_capacity_mwp.toFixed(0)
+                  : null
+              }
+              unit="MWp"
+              tip="MWp buildable at 1.5 ha/MWp density."
+            />
+          </>
+        )}
+        {showWind && (
+          <>
+            <StatRowWithTip
+              label={energyMode === 'overall' ? 'Wind Buildable' : 'Buildable Area'}
+              value={row.wind_buildable_area_ha != null ? row.wind_buildable_area_ha.toFixed(0) : null}
+              unit="ha"
+              tip="Sum of suitable ~1km pixels within 50km for wind (slope <20°, wind >3 m/s, cropland allowed)."
+            />
+            <StatRowWithTip
+              label={energyMode === 'overall' ? 'Wind Capacity' : 'Max Capacity'}
+              value={
+                row.max_wind_capacity_mwp != null ? row.max_wind_capacity_mwp.toFixed(0) : null
+              }
+              unit="MWp"
+              tip="MWp buildable at 25 ha/MWp density (wind turbine spacing)."
+            />
+          </>
+        )}
       </StatCard>
 
       {showSolar && (
@@ -1104,9 +1120,9 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
           subtitle="What carbon price or policy change tips the balance?"
           tip="Carbon economics and policy support metrics. Low carbon breakeven = strong decarbonization case."
         />
-        {energyMode !== 'wind' && (
+        {(energyMode === 'solar' || energyMode === 'overall') && (
           <StatRowWithTip
-            label="Carbon Breakeven"
+            label={energyMode === 'overall' ? 'Carbon Breakeven (Solar)' : 'Carbon Breakeven'}
             value={
               row.carbon_breakeven_usd_tco2 != null
                 ? row.carbon_breakeven_usd_tco2.toFixed(1)
@@ -1114,6 +1130,18 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
             }
             unit="$/tCO2"
             tip="Carbon price that makes solar cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
+          />
+        )}
+        {(energyMode === 'wind' || energyMode === 'overall') && (
+          <StatRowWithTip
+            label={energyMode === 'overall' ? 'Carbon Breakeven (Wind)' : 'Carbon Breakeven'}
+            value={
+              row.wind_carbon_breakeven_usd_tco2 != null
+                ? row.wind_carbon_breakeven_usd_tco2.toFixed(1)
+                : null
+            }
+            unit="$/tCO2"
+            tip="Carbon price that makes wind cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
           />
         )}
         <StatRowWithTip
@@ -1133,24 +1161,22 @@ function DemandTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
   const demand2030 = row.demand_2030_gwh;
   const solarGen = row.max_solar_generation_gwh;
-  const coverage = row.solar_supply_coverage_pct;
+  const windGen = row.max_wind_generation_gwh;
+  const showSolar = energyMode === 'solar' || energyMode === 'overall';
+  const showWind = energyMode === 'wind' || energyMode === 'overall';
+
+  // Pick active coverage based on energy mode
+  const coverage =
+    energyMode === 'wind'
+      ? row.wind_supply_coverage_pct
+      : energyMode === 'overall'
+        ? row.solar_supply_coverage_pct
+        : row.solar_supply_coverage_pct;
   const wbGen = row.within_boundary_generation_gwh;
   const wbCoverage = row.within_boundary_coverage_pct;
 
   return (
     <>
-      {energyMode !== 'solar' && (
-        <div
-          className="px-3 py-2 rounded-md text-[10px] leading-snug mb-2"
-          style={{
-            background: 'rgba(255,193,7,0.08)',
-            border: '1px solid rgba(255,193,7,0.15)',
-            color: '#FFC107',
-          }}
-        >
-          Supply coverage uses solar generation estimates. Wind-specific coverage not yet available.
-        </div>
-      )}
 
       <StatCard>
         <SectionHeader
@@ -1163,33 +1189,51 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           unit="GWh"
           tip="Estimated from zone area x energy intensity by KEK type. Provisional — actual metered demand not available."
         />
-        <StatRowWithTip
-          label="Max Solar Gen (50km)"
-          value={solarGen != null ? solarGen.toFixed(1) : null}
-          unit="GWh/yr"
-          tip="Annual GWh from max buildable solar within 50km at best PVOUT. Upper bound, not a project proposal."
-        />
-        <StatRowWithTip
-          label="Within-Boundary Gen"
-          value={wbGen != null ? wbGen.toFixed(1) : null}
-          unit="GWh/yr"
-          tip="GWh from solar built inside the KEK boundary only. Limited by KEK area and centroid PVOUT."
-        />
+        {showSolar && (
+          <StatRowWithTip
+            label="Max Solar Gen (50km)"
+            value={solarGen != null ? solarGen.toFixed(1) : null}
+            unit="GWh/yr"
+            tip="Annual GWh from max buildable solar within 50km at best PVOUT. Upper bound, not a project proposal."
+          />
+        )}
+        {showWind && (
+          <StatRowWithTip
+            label="Max Wind Gen (50km)"
+            value={windGen != null ? windGen.toFixed(1) : null}
+            unit="GWh/yr"
+            tip="Annual GWh from max buildable wind within 50km at best wind CF. Upper bound, not a project proposal."
+          />
+        )}
+        {showSolar && (
+          <StatRowWithTip
+            label="Within-Boundary Gen"
+            value={wbGen != null ? wbGen.toFixed(1) : null}
+            unit="GWh/yr"
+            tip="GWh from solar built inside the KEK boundary only. Limited by KEK area and centroid PVOUT."
+          />
+        )}
       </StatCard>
 
       <StatCard>
         <SectionHeader
-          title={energyMode !== 'solar' ? 'Supply Coverage (Solar-Based)' : 'Supply Coverage'}
+          title={
+            energyMode === 'wind'
+              ? 'Supply Coverage (Wind)'
+              : energyMode === 'overall'
+                ? 'Supply Coverage'
+                : 'Supply Coverage'
+          }
           subtitle={
-            energyMode !== 'solar'
-              ? 'Solar generation vs demand. Wind coverage not yet computed.'
-              : 'Can available solar generation meet the demand?'
+            energyMode === 'wind'
+              ? 'Can available wind generation meet the demand?'
+              : 'Can available RE generation meet the demand?'
           }
         />
         <div className="space-y-3">
           <div>
             <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
-              RE Coverage (50km radius)
+              {energyMode === 'wind' ? 'Wind' : 'RE'} Coverage (50km radius)
             </div>
             {coverage != null ? (
               <>
@@ -1203,7 +1247,8 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                     {(coverage * 100).toFixed(0)}%
                   </span>
                   <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                    of annual demand (ignores day/night mismatch)
+                    of annual demand
+                    {energyMode === 'wind' ? ' (ignores intermittency)' : ' (ignores day/night mismatch)'}
                   </span>
                 </div>
                 <div
@@ -1226,50 +1271,104 @@ function DemandTab({ row }: { row: ScorecardRow }) {
               </div>
             )}
           </div>
-          <div>
-            <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
-              Within-Boundary RE Coverage
-            </div>
-            {wbCoverage != null ? (
-              <>
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className="text-base font-semibold tabular-nums"
-                    style={{
-                      color:
-                        wbCoverage >= 1.0 ? '#4CAF50' : wbCoverage >= 0.5 ? '#FFC107' : '#F44336',
-                    }}
-                  >
-                    {(wbCoverage * 100).toFixed(0)}%
-                  </span>
-                  <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                    of demand coverable inside KEK
-                  </span>
-                </div>
-                <div
-                  className="w-full h-1.5 rounded-full overflow-hidden"
-                  style={{ background: 'var(--bar-bg)' }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(wbCoverage * 100, 100)}%`,
-                      backgroundColor:
-                        wbCoverage >= 1.0 ? '#4CAF50' : wbCoverage >= 0.5 ? '#FFC107' : '#F44336',
-                    }}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                Data unavailable
-              </div>
-            )}
-          </div>
-          {row.firm_solar_coverage_pct != null && (
+          {/* Wind mode: show wind supply coverage in overall mode too */}
+          {energyMode === 'overall' && row.wind_supply_coverage_pct != null && (
             <div>
               <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
-                Firm Coverage (Daytime Only)
+                Wind Coverage (50km radius)
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className="text-base font-semibold tabular-nums"
+                  style={{
+                    color:
+                      row.wind_supply_coverage_pct >= 1.0
+                        ? '#4CAF50'
+                        : row.wind_supply_coverage_pct >= 0.5
+                          ? '#FFC107'
+                          : '#F44336',
+                  }}
+                >
+                  {(row.wind_supply_coverage_pct * 100).toFixed(0)}%
+                </span>
+                <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                  of annual demand (wind only)
+                </span>
+              </div>
+              <div
+                className="w-full h-1.5 rounded-full overflow-hidden"
+                style={{ background: 'var(--bar-bg)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(row.wind_supply_coverage_pct * 100, 100)}%`,
+                    backgroundColor:
+                      row.wind_supply_coverage_pct >= 1.0
+                        ? '#4CAF50'
+                        : row.wind_supply_coverage_pct >= 0.5
+                          ? '#FFC107'
+                          : '#F44336',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          {showSolar && (
+            <div>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                Within-Boundary Solar Coverage
+              </div>
+              {wbCoverage != null ? (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className="text-base font-semibold tabular-nums"
+                      style={{
+                        color:
+                          wbCoverage >= 1.0
+                            ? '#4CAF50'
+                            : wbCoverage >= 0.5
+                              ? '#FFC107'
+                              : '#F44336',
+                      }}
+                    >
+                      {(wbCoverage * 100).toFixed(0)}%
+                    </span>
+                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                      of demand coverable inside KEK
+                    </span>
+                  </div>
+                  <div
+                    className="w-full h-1.5 rounded-full overflow-hidden"
+                    style={{ background: 'var(--bar-bg)' }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(wbCoverage * 100, 100)}%`,
+                        backgroundColor:
+                          wbCoverage >= 1.0
+                            ? '#4CAF50'
+                            : wbCoverage >= 0.5
+                              ? '#FFC107'
+                              : '#F44336',
+                      }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Data unavailable
+                </div>
+              )}
+            </div>
+          )}
+          {/* Firm coverage: solar daytime or wind intermittency */}
+          {showSolar && row.firm_solar_coverage_pct != null && (
+            <div>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                Firm Solar Coverage (Daytime Only)
               </div>
               <div className="flex items-center gap-2 mb-1">
                 <span
@@ -1308,15 +1407,64 @@ function DemandTab({ row }: { row: ScorecardRow }) {
               </div>
             </div>
           )}
+          {showWind && row.firm_wind_coverage_pct != null && (
+            <div>
+              <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                Firm Wind Coverage
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className="text-base font-semibold tabular-nums"
+                  style={{
+                    color:
+                      row.firm_wind_coverage_pct >= 1.0
+                        ? '#4CAF50'
+                        : row.firm_wind_coverage_pct >= 0.5
+                          ? '#FFC107'
+                          : '#F44336',
+                  }}
+                >
+                  {(row.firm_wind_coverage_pct * 100).toFixed(0)}%
+                </span>
+                <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                  of demand (variable output, ~{row.wind_firming_hours ?? 3}h firming gaps)
+                </span>
+              </div>
+              <div
+                className="w-full h-1.5 rounded-full overflow-hidden"
+                style={{ background: 'var(--bar-bg)' }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(row.firm_wind_coverage_pct * 100, 100)}%`,
+                    backgroundColor:
+                      row.firm_wind_coverage_pct >= 1.0
+                        ? '#4CAF50'
+                        : row.firm_wind_coverage_pct >= 0.5
+                          ? '#FFC107'
+                          : '#F44336',
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
-        {coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
+        {showSolar && coverage != null && coverage < 1.0 && demand2030 != null && solarGen != null && (
           <div className="text-[9px] text-[var(--text-muted)] mt-2">
-            Shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
+            Solar shortfall: {(demand2030 - solarGen).toFixed(1)} GWh/yr must come from grid or other
+            generation
+          </div>
+        )}
+        {showWind && windGen != null && demand2030 != null && windGen < demand2030 && (
+          <div className="text-[9px] text-[var(--text-muted)] mt-2">
+            Wind shortfall: {(demand2030 - windGen).toFixed(1)} GWh/yr must come from grid or other
             generation
           </div>
         )}
       </StatCard>
-      {row.storage_gap_pct != null && energyMode !== 'wind' && (
+      {/* Temporal Reality — solar or wind */}
+      {row.storage_gap_pct != null && showSolar && (
         <StatCard>
           <SectionHeader
             title={energyMode === 'overall' ? 'Temporal Reality (Solar)' : 'Temporal Reality'}
@@ -1368,14 +1516,52 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           )}
         </StatCard>
       )}
+      {/* Wind Temporal Reality */}
+      {showWind && row.wind_firming_gap_pct != null && (
+        <StatCard>
+          <SectionHeader
+            title={energyMode === 'overall' ? 'Temporal Reality (Wind)' : 'Wind Intermittency'}
+            subtitle="How much output is lost to wind variability?"
+            tip="Wind produces ~24/7 but at variable output. Unlike solar's 14h overnight gap, wind gaps are shorter (2-4h) but less predictable."
+          />
+          <div>
+            <div
+              className="flex items-center justify-between text-[10px] mb-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <span>Needs Firming (Intermittency)</span>
+              <span className="font-semibold" style={{ color: '#81D4FA' }}>
+                {(row.wind_firming_gap_pct * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div
+              className="w-full h-1.5 rounded-full overflow-hidden"
+              style={{ background: 'var(--bar-bg)' }}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(row.wind_firming_gap_pct * 100, 100)}%`,
+                  backgroundColor: '#81D4FA',
+                }}
+              />
+            </div>
+            <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>
+              Wind output drops to near-zero ~{(row.wind_firming_gap_pct * 100).toFixed(0)}% of hours.
+              Firming gaps are typically ~{row.wind_firming_hours ?? 3}h (vs solar's 14h overnight gap),
+              requiring smaller BESS or grid backup.
+            </div>
+          </div>
+        </StatCard>
+      )}
 
       {/* Captive Power Context */}
       {(row.captive_coal_count || row.nickel_smelter_count) && (
         <StatCard>
           <SectionHeader
             title="Captive Power"
-            subtitle="What fossil generation exists nearby that solar could replace?"
-            tip="Coal plants and nickel smelters within 50km. These are transition targets — existing fossil power that solar could displace."
+            subtitle="What fossil generation exists nearby that RE could replace?"
+            tip="Coal plants and nickel smelters within 50km. These are transition targets — existing fossil power that renewables could displace."
           />
           {!!row.captive_coal_count && (
             <>

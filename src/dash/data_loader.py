@@ -130,6 +130,11 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
             "cf_wind_centroid",
             "cf_wind_best_50km",
             "wind_class",
+            "wind_buildable_area_ha",
+            "max_wind_capacity_mwp",
+            "wind_buildability_constraint",
+            "wind_speed_buildable_best_ms",
+            "cf_wind_buildable_best",
         ]:
             if col in wind_res.columns and col not in resource.columns:
                 wind_cols.append(col)
