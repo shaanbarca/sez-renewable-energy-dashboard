@@ -242,59 +242,120 @@
           <section id="modelling-template-documentation">
 <h1>Modelling Template documentation<a class="headerlink" href="#modelling-template-documentation" title="Link to this heading">¶</a></h1>
 <p>Welcome to the Modelling Template documentation!</p>
-<p>Combines satellite solar and wind resource data (Global Solar Atlas, Global Wind Atlas), PLN grid costs, RUPTL pipeline plans, CBAM exposure analysis, and geospatial buildability filters into a single, transparent scorecard.</p>
+<p><a class="reference external" href="https://react.dev"><img alt="React 18" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&amp;logoColor=black" /></a>
+<a class="reference external" href="https://typescriptlang.org"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&amp;logoColor=white" /></a>
+<a class="reference external" href="https://fastapi.tiangolo.com"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&amp;logoColor=white" /></a>
+<a class="reference external" href="https://maplibre.org"><img alt="MapLibre GL" src="https://img.shields.io/badge/MapLibre_GL-4-396CB2?logo=maplibre&amp;logoColor=white" /></a>
+<a class="reference internal" href="#LICENSE"><span class="xref myst"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT_+_Commons_Clause-yellow" /></span></a>
+<a class="reference internal" href="#tests/"><span class="xref myst"><img alt="Tests: 421" src="https://img.shields.io/badge/Tests-421_passing-brightgreen" /></span></a></p>
+<p>An analytical model and interactive dashboard assessing renewable energy competitiveness across Indonesia’s 25 Special Economic Zones (KEKs). Computes solar and wind LCOE, grid integration costs, BESS storage requirements, CBAM exposure, and action flags under user-adjustable assumptions.</p>
+<p>Built for development bank analysts, energy investors, and policy advisors.</p>
+<hr class="docutils" />
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">¶</a></h2>
+<p><strong>Analytical Model</strong></p>
+<ul class="simple">
+<li><p>Solar and wind LCOE via CRF annuity method with panel degradation and firming costs</p></li>
+<li><p>Hybrid solar+wind optimization (sweeps blended mix to minimize all-in cost)</p></li>
+<li><p>BESS storage sizing with bridge-hour model (round-trip efficiency, overnight gap)</p></li>
+<li><p>5-layer geospatial buildability filter (forest, peatland, slope, land cover, road proximity)</p></li>
+<li><p>Grid integration assessment (3-point proximity: solar site, substation, KEK)</p></li>
+<li><p>EU CBAM exposure flagging for nickel smelter zones</p></li>
+</ul>
+<p><strong>Dashboard</strong></p>
+<ul class="simple">
+<li><p>Interactive map with 25 KEK markers, color-coded by action flag</p></li>
+<li><p>Solar PVOUT and wind speed raster overlays with buildable area polygons</p></li>
+<li><p>Adjustable assumptions panel (WACC, CAPEX, lifetime, grid benchmark, BESS sizing)</p></li>
+<li><p>Sortable/filterable scorecard table with CSV export</p></li>
+<li><p>Per-KEK detail drawer with 6 analysis tabs</p></li>
+<li><p>Quadrant chart, LCOE curve, energy balance, and RUPTL pipeline visualizations</p></li>
+<li><p>5 guided walkthrough tours (one per persona)</p></li>
+<li><p>Light, dark, and satellite map themes</p></li>
+</ul>
+</section>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Backend (Python)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Backend</span>
 uv<span class="w"> </span>sync
-
-<span class="c1"># Copy .env_template to .env and set MAPBOX_TOKEN if you want 3D terrain.</span>
+cp<span class="w"> </span>.env_template<span class="w"> </span>.env<span class="w">   </span><span class="c1"># set MAPBOX_TOKEN for 3D terrain (optional)</span>
 uv<span class="w"> </span>run<span class="w"> </span>uvicorn<span class="w"> </span>src.api.main:app<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
 
-<span class="c1"># Frontend (React)</span>
+<span class="c1"># Frontend</span>
 <span class="nb">cd</span><span class="w"> </span>frontend
 npm<span class="w"> </span>install
 npm<span class="w"> </span>run<span class="w"> </span>dev
 </pre></div>
 </div>
-<p>Open <code class="docutils literal notranslate"><span class="pre">http://localhost:5173</span></code>. The API loads pipeline data at startup (~10s), then the dashboard is ready.</p>
-</section>
-<section id="what-it-does">
-<h2>What It Does<a class="headerlink" href="#what-it-does" title="Link to this heading">¶</a></h2>
-<p>For each KEK, the model computes:</p>
-<ol class="arabic simple">
-<li><p><strong>Solar LCOE</strong> from CRF annuity method (CAPEX, FOM, WACC, capacity factor from PVOUT)</p></li>
-<li><p><strong>Competitiveness gap</strong> vs PLN grid cost (I-4 industrial tariff or BPP by region)</p></li>
-<li><p><strong>Action flags</strong>: <code class="docutils literal notranslate"><span class="pre">solar_now</span></code>, <code class="docutils literal notranslate"><span class="pre">invest_transmission</span></code>, <code class="docutils literal notranslate"><span class="pre">invest_substation</span></code>, <code class="docutils literal notranslate"><span class="pre">grid_first</span></code>, <code class="docutils literal notranslate"><span class="pre">invest_battery</span></code>, <code class="docutils literal notranslate"><span class="pre">invest_resilience</span></code>, <code class="docutils literal notranslate"><span class="pre">plan_late</span></code>, <code class="docutils literal notranslate"><span class="pre">not_competitive</span></code>, <code class="docutils literal notranslate"><span class="pre">no_solar_resource</span></code></p></li>
-<li><p><strong>Buildable area</strong> within 50km (filtered by forest, peat, slope, land cover)</p></li>
-<li><p><strong>Carbon breakeven price</strong> (USD/tCO2 at which solar wins)</p></li>
-</ol>
-<p>All assumptions are adjustable via sliders in the dashboard.</p>
+<p>Open <a class="reference external" href="http://localhost:5173">http://localhost:5173</a>. The API loads pipeline data at startup (~10s), then the dashboard is ready.</p>
 </section>
 <section id="architecture">
 <h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">¶</a></h2>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Data</span> <span class="n">Pipeline</span> <span class="p">(</span><span class="n">Python</span><span class="p">)</span>          <span class="n">API</span> <span class="p">(</span><span class="n">FastAPI</span><span class="p">)</span>           <span class="n">Frontend</span> <span class="p">(</span><span class="n">React</span> <span class="o">+</span> <span class="n">Vite</span><span class="p">)</span>
-<span class="o">--------------------</span>           <span class="o">----------------</span>        <span class="o">----------------------</span>
-<span class="n">GeoTIFF</span> <span class="o">+</span> <span class="n">PDFs</span> <span class="o">+</span> <span class="n">CSVs</span>          <span class="mi">7</span> <span class="n">REST</span> <span class="n">endpoints</span>        <span class="n">MapLibre</span> <span class="n">GL</span> <span class="nb">map</span>
-  <span class="o">-&gt;</span> <span class="n">dim</span><span class="o">/</span><span class="n">fct</span> <span class="n">tables</span>              <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">defaults</span>          <span class="n">TanStack</span> <span class="n">Table</span>
+<span class="o">----------------------</span>         <span class="o">----------------</span>        <span class="o">-----------------------</span>
+<span class="n">GeoTIFF</span> <span class="o">+</span> <span class="n">PDFs</span> <span class="o">+</span> <span class="n">CSVs</span>          <span class="mi">7</span> <span class="n">REST</span> <span class="n">endpoints</span>        <span class="n">MapLibre</span> <span class="n">GL</span> <span class="n">JS</span> <span class="nb">map</span>
+  <span class="o">-&gt;</span> <span class="n">dim</span><span class="o">/</span><span class="n">fct</span> <span class="n">star</span> <span class="n">schema</span>         <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">defaults</span>          <span class="n">TanStack</span> <span class="n">Table</span> <span class="n">v8</span>
   <span class="o">-&gt;</span> <span class="n">outputs</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">processed</span><span class="o">/</span>     <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">scorecard</span>         <span class="n">Recharts</span> <span class="n">charts</span>
                                  <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">layers</span><span class="o">/</span><span class="p">{</span><span class="n">name</span><span class="p">}</span>     <span class="n">Zustand</span> <span class="n">state</span>
-                                 <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">methodology</span>       <span class="n">Tailwind</span> <span class="n">CSS</span>
+                                 <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">kek</span><span class="o">/</span><span class="p">{</span><span class="nb">id</span><span class="p">}</span><span class="o">/*</span>        <span class="n">Tailwind</span> <span class="n">CSS</span>
+                                 <span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">methodology</span>
 </pre></div>
+</div>
+</section>
+<section id="data-sources">
+<h2>Data Sources<a class="headerlink" href="#data-sources" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Source</p></th>
+<th class="head"><p>What it provides</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference external" href="https://globalsolaratlas.info/">Global Solar Atlas</a></p></td>
+<td><p>PVOUT GeoTIFF (kWh/kWp/day) at 250m resolution</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://globalwindatlas.info/">Global Wind Atlas</a></p></td>
+<td><p>Wind speed at 100m hub height</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://web.pln.co.id/">PLN RUPTL 2021-2030</a></p></td>
+<td><p>Grid capacity pipeline by region</p></td>
+</tr>
+<tr class="row-odd"><td><p>ESDM Technology Catalogue 2023</p></td>
+<td><p>Solar CAPEX, FOM, lifetime parameters</p></td>
+</tr>
+<tr class="row-even"><td><p>PLN BPP 2023</p></td>
+<td><p>Regional cost of supply (grid benchmark)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="https://globalenergymonitor.org/">GEM Coal Plant Tracker</a></p></td>
+<td><p>Captive coal plants within 50km of each KEK</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="https://www.cgsp.or.id/">CGSP Nickel Tracker</a></p></td>
+<td><p>Nickel smelters, process types, CBAM exposure</p></td>
+</tr>
+<tr class="row-odd"><td><p>OpenStreetMap</p></td>
+<td><p>Road network for buildability filtering</p></td>
+</tr>
+</tbody>
+</table>
 </div>
 </section>
 <section id="project-structure">
 <h2>Project Structure<a class="headerlink" href="#project-structure" title="Link to this heading">¶</a></h2>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">src</span><span class="o">/</span><span class="n">model</span><span class="o">/</span>          <span class="n">Pure</span> <span class="n">Python</span> <span class="n">model</span> <span class="p">(</span><span class="n">LCOE</span><span class="p">,</span> <span class="n">action</span> <span class="n">flags</span><span class="p">,</span> <span class="n">GEAS</span> <span class="n">allocation</span><span class="p">)</span>
-<span class="n">src</span><span class="o">/</span><span class="n">pipeline</span><span class="o">/</span>       <span class="n">Data</span> <span class="n">pipeline</span> <span class="n">builders</span> <span class="p">(</span><span class="n">dim_kek</span><span class="p">,</span> <span class="n">fct_lcoe</span><span class="p">,</span> <span class="n">etc</span><span class="o">.</span><span class="p">)</span>
-<span class="n">src</span><span class="o">/</span><span class="n">api</span><span class="o">/</span>            <span class="n">FastAPI</span> <span class="n">backend</span> <span class="p">(</span><span class="n">routes</span><span class="p">,</span> <span class="n">scorecard</span> <span class="n">recomputation</span><span class="p">)</span>
-<span class="n">src</span><span class="o">/</span><span class="n">dash</span><span class="o">/</span>           <span class="n">Shared</span> <span class="n">modules</span> <span class="p">(</span><span class="n">data_loader</span><span class="p">,</span> <span class="n">map_layers</span><span class="p">,</span> <span class="n">logic</span><span class="p">,</span> <span class="n">constants</span><span class="p">)</span>
-<span class="n">frontend</span><span class="o">/</span><span class="n">src</span><span class="o">/</span>       <span class="n">React</span> <span class="n">SPA</span> <span class="p">(</span><span class="n">components</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">hooks</span><span class="p">,</span> <span class="n">lib</span><span class="p">)</span>
-<span class="n">tests</span><span class="o">/</span>              <span class="mi">386</span> <span class="n">tests</span> <span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">pipeline</span><span class="p">,</span> <span class="n">API</span><span class="p">)</span>
-<span class="n">notebooks</span><span class="o">/</span>          <span class="n">Jupyter</span> <span class="n">notebooks</span> <span class="k">for</span> <span class="n">exploration</span>
-<span class="n">data</span><span class="o">/</span>               <span class="n">Input</span> <span class="n">data</span> <span class="p">(</span><span class="n">GeoTIFFs</span><span class="p">,</span> <span class="n">GeoJSON</span><span class="p">,</span> <span class="n">shapefiles</span><span class="p">)</span>
-<span class="n">outputs</span><span class="o">/</span>            <span class="n">Pipeline</span> <span class="n">output</span> <span class="n">CSVs</span>
-<span class="n">docs</span><span class="o">/</span>               <span class="n">Design</span> <span class="n">mockups</span><span class="p">,</span> <span class="n">reference</span> <span class="n">PDFs</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">src</span><span class="o">/</span>
+  <span class="n">model</span><span class="o">/</span>             <span class="n">Pure</span> <span class="n">Python</span> <span class="n">model</span> <span class="p">(</span><span class="n">LCOE</span><span class="p">,</span> <span class="n">action</span> <span class="n">flags</span><span class="p">,</span> <span class="n">GEAS</span> <span class="n">allocation</span><span class="p">)</span>
+  <span class="n">pipeline</span><span class="o">/</span>          <span class="n">Data</span> <span class="n">pipeline</span> <span class="n">builders</span> <span class="p">(</span><span class="n">dim_kek</span><span class="p">,</span> <span class="n">fct_lcoe</span><span class="p">,</span> <span class="n">fct_captive_coal</span><span class="p">,</span> <span class="n">etc</span><span class="o">.</span><span class="p">)</span>
+  <span class="n">api</span><span class="o">/</span>               <span class="n">FastAPI</span> <span class="n">backend</span> <span class="p">(</span><span class="n">routes</span><span class="p">,</span> <span class="n">scorecard</span> <span class="n">recomputation</span><span class="p">)</span>
+  <span class="n">dash</span><span class="o">/</span>              <span class="n">Shared</span> <span class="n">modules</span> <span class="p">(</span><span class="n">data_loader</span><span class="p">,</span> <span class="n">map_layers</span><span class="p">,</span> <span class="n">logic</span><span class="p">,</span> <span class="n">constants</span><span class="p">)</span>
+<span class="n">frontend</span><span class="o">/</span>
+  <span class="n">src</span><span class="o">/</span><span class="n">components</span><span class="o">/</span>    <span class="n">Map</span><span class="p">,</span> <span class="n">panels</span><span class="p">,</span> <span class="n">charts</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">UI</span> <span class="n">components</span>
+  <span class="n">src</span><span class="o">/</span><span class="n">store</span><span class="o">/</span>         <span class="n">Zustand</span> <span class="n">state</span> <span class="n">management</span>
+  <span class="n">src</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span>           <span class="n">API</span> <span class="n">client</span><span class="p">,</span> <span class="n">types</span><span class="p">,</span> <span class="n">formatting</span> <span class="n">utilities</span>
+<span class="n">tests</span><span class="o">/</span>               <span class="mi">421</span> <span class="n">tests</span> <span class="n">across</span> <span class="n">model</span><span class="p">,</span> <span class="n">pipeline</span><span class="p">,</span> <span class="ow">and</span> <span class="n">API</span>
+<span class="n">notebooks</span><span class="o">/</span>           <span class="n">Jupyter</span> <span class="n">notebooks</span> <span class="k">for</span> <span class="n">exploration</span> <span class="ow">and</span> <span class="n">data</span> <span class="n">pipeline</span>
+<span class="n">docs</span><span class="o">/</span>                <span class="n">Methodology</span><span class="p">,</span> <span class="n">design</span> <span class="n">specs</span><span class="p">,</span> <span class="n">reference</span> <span class="n">documents</span>
+<span class="n">data</span><span class="o">/</span>                <span class="n">Input</span> <span class="n">data</span> <span class="p">(</span><span class="n">GeoTIFFs</span><span class="p">,</span> <span class="n">GeoJSON</span><span class="p">,</span> <span class="n">shapefiles</span><span class="p">)</span>
+<span class="n">outputs</span><span class="o">/</span>             <span class="n">Pipeline</span> <span class="n">output</span> <span class="n">CSVs</span>
 </pre></div>
 </div>
 </section>
@@ -303,58 +364,62 @@ npm<span class="w"> </span>run<span class="w"> </span>dev
 <div class="table-wrapper colwidths-auto docutils container">
 <table class="docutils align-default">
 <thead>
-<tr class="row-odd"><th class="head"><p>File</p></th>
-<th class="head"><p>Purpose</p></th>
+<tr class="row-odd"><th class="head"><p>Document</p></th>
+<th class="head"><p>Description</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><a class="reference internal" href="#EXECUTIVE_SUMMARY.md"><span class="xref myst">EXECUTIVE_SUMMARY.md</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#EXECUTIVE_SUMMARY.md"><span class="xref myst">Executive Summary</span></a></p></td>
 <td><p>Plain-language project overview</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#docs/METHODOLOGY_CONSOLIDATED.md"><span class="xref myst">METHODOLOGY_CONSOLIDATED.md</span></a></p></td>
-<td><p>LCOE formulas, PVOUT conversion, action flags, GEAS allocation</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#docs/METHODOLOGY_CONSOLIDATED.md"><span class="xref myst">Methodology</span></a></p></td>
+<td><p>LCOE formulas, PVOUT conversion, action flag logic, GEAS allocation</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#DATA_DICTIONARY.md"><span class="xref myst">DATA_DICTIONARY.md</span></a></p></td>
-<td><p>Every column in every pipeline table</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#DATA_DICTIONARY.md"><span class="xref myst">Data Dictionary</span></a></p></td>
+<td><p>Every column in every pipeline table with source attribution</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#ARCHITECTURE.md"><span class="xref myst">ARCHITECTURE.md</span></a></p></td>
-<td><p>System diagram, pipeline dependency graph</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#ARCHITECTURE.md"><span class="xref myst">Architecture</span></a></p></td>
+<td><p>System diagram, pipeline dependency graph, design decisions</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#DESIGN.md"><span class="xref myst">DESIGN.md</span></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#DESIGN.md"><span class="xref myst">Design Spec</span></a></p></td>
 <td><p>Dashboard UX spec, component architecture, color system</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#PERSONAS.md"><span class="xref myst">PERSONAS.md</span></a></p></td>
-<td><p>User journeys (Energy Economist, DFI Investor, Policy Maker, IPP/RE Developer, Industrial Investor)</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#TODOS.md"><span class="xref myst">TODOS.md</span></a></p></td>
-<td><p>Deferred items with priority tiers</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#PERSONAS.md"><span class="xref myst">Personas</span></a></p></td>
+<td><p>User journeys for 5 target personas</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 </section>
-<section id="tests">
-<h2>Tests<a class="headerlink" href="#tests" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w">       </span><span class="c1"># 386 tests</span>
-uv<span class="w"> </span>run<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>src/<span class="w">     </span><span class="c1"># Python lint</span>
-<span class="nb">cd</span><span class="w"> </span>frontend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>lint<span class="w"> </span><span class="c1"># TypeScript lint (Biome)</span>
+<section id="testing">
+<h2>Testing<a class="headerlink" href="#testing" title="Link to this heading">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w">            </span><span class="c1"># 421 tests</span>
+uv<span class="w"> </span>run<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>src/<span class="w"> </span>tests/<span class="w">   </span><span class="c1"># Python lint</span>
+<span class="nb">cd</span><span class="w"> </span>frontend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>lint<span class="w">     </span><span class="c1"># TypeScript lint (Biome)</span>
+<span class="nb">cd</span><span class="w"> </span>frontend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npx<span class="w"> </span>tsc<span class="w"> </span>--noEmit<span class="w"> </span><span class="c1"># Type check</span>
 </pre></div>
 </div>
 </section>
 <section id="license">
 <h2>License<a class="headerlink" href="#license" title="Link to this heading">¶</a></h2>
-<p>This project is licensed under the <strong>MIT License</strong> with the <strong>Commons Clause</strong> restriction.</p>
-<p><strong>In plain terms:</strong></p>
-<ul class="simple">
-<li><p><strong>Free to use</strong> — you can use, copy, modify, and redistribute this software freely</p></li>
-<li><p><strong>Attribution required</strong> — you must keep the copyright notice and credit the original author in all copies</p></li>
-<li><p><strong>No selling</strong> — you may not sell the software or any product/service whose value derives substantially from it</p></li>
-</ul>
-<p>See <a class="reference internal" href="#LICENSE"><span class="xref myst">LICENSE</span></a> and <a class="reference internal" href="#NOTICE"><span class="xref myst">NOTICE</span></a> for full terms.</p>
+<p>MIT License with <a class="reference internal" href="#LICENSE"><span class="xref myst">Commons Clause</span></a>. Free to use, modify, and redistribute with attribution. Commercial resale of the software itself is restricted.</p>
+</section>
+<section id="citation">
+<h2>Citation<a class="headerlink" href="#citation" title="Link to this heading">¶</a></h2>
+<p>If you use this software or dataset in your research, please cite:</p>
+<div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@software</span><span class="p">{</span><span class="nl">barca2026sez</span><span class="p">,</span>
+<span class="w">  </span><span class="na">author</span><span class="w">    </span><span class="p">=</span><span class="w"> </span><span class="s">{Barca, Shaan}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">title</span><span class="w">     </span><span class="p">=</span><span class="w"> </span><span class="s">{SEZ Renewable Energy Dashboard}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">year</span><span class="w">      </span><span class="p">=</span><span class="w"> </span><span class="s">{2026}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">version</span><span class="w">   </span><span class="p">=</span><span class="w"> </span><span class="s">{1.0.0}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">url</span><span class="w">       </span><span class="p">=</span><span class="w"> </span><span class="s">{https://github.com/shaanbarca/sez-renewable-energy-dashboard}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </section>
 <section id="author">
 <h2>Author<a class="headerlink" href="#author" title="Link to this heading">¶</a></h2>
-<p>Shaan Barca (shaan.b1223&#64;gmail.com)</p>
+<p><strong>Shaan Barca</strong> — <a class="reference external" href="mailto:shaan&#46;b1223&#37;&#52;&#48;gmail&#46;com">shaan<span>&#46;</span>b1223<span>&#64;</span>gmail<span>&#46;</span>com</a></p>
 </section>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Best Practices</span></p>
@@ -436,13 +501,15 @@ uv<span class="w"> </span>run<span class="w"> </span>ruff<span class="w"> </span
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Modelling Template documentation</a><ul>
+<li><a class="reference internal" href="#features">Features</a></li>
 <li><a class="reference internal" href="#quick-start">Quick Start</a></li>
-<li><a class="reference internal" href="#what-it-does">What It Does</a></li>
 <li><a class="reference internal" href="#architecture">Architecture</a></li>
+<li><a class="reference internal" href="#data-sources">Data Sources</a></li>
 <li><a class="reference internal" href="#project-structure">Project Structure</a></li>
 <li><a class="reference internal" href="#documentation">Documentation</a></li>
-<li><a class="reference internal" href="#tests">Tests</a></li>
+<li><a class="reference internal" href="#testing">Testing</a></li>
 <li><a class="reference internal" href="#license">License</a></li>
+<li><a class="reference internal" href="#citation">Citation</a></li>
 <li><a class="reference internal" href="#author">Author</a></li>
 </ul>
 </li>
