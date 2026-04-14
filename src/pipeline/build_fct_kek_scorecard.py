@@ -165,12 +165,11 @@ def build_fct_kek_scorecard(
         }
     )
 
-    # Wind remote captive all-in at base WACC
+    # Wind grid-connected (all-in with connection costs) at base WACC
     lcoe_wind_rc = lcoe_wind_all[
-        (lcoe_wind_all["wacc_pct"] == base_wacc) & (lcoe_wind_all["scenario"] == "remote_captive")
-    ][["kek_id", "lcoe_allin_usd_mwh"]].rename(
-        columns={"lcoe_allin_usd_mwh": "lcoe_wind_allin_mid_usd_mwh"}
-    )
+        (lcoe_wind_all["wacc_pct"] == base_wacc)
+        & (lcoe_wind_all["scenario"] == "grid_connected_solar")
+    ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_wind_allin_mid_usd_mwh"})
 
     # Grid cost: one row per grid_region_id
     grid_cost = grid_cost[
