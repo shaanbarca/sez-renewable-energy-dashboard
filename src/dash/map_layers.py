@@ -18,6 +18,7 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
+LAYERS_CACHE_DIR = REPO_ROOT / "outputs" / "layers"
 
 # ---------------------------------------------------------------------------
 # Vector layer loaders
@@ -223,7 +224,14 @@ def polygon_bbox(feature: dict) -> tuple[float, float, float, float, float, floa
 
 
 def load_peatland() -> dict | None:
-    """Load Indonesian peatland polygons, simplified + dissolved for web display."""
+    """Load Indonesian peatland polygons. Uses pre-processed cache if available."""
+    # Try pre-processed cache first
+    cache = LAYERS_CACHE_DIR / "peatland.geojson"
+    if cache.exists():
+        with open(cache) as f:
+            return json.load(f)
+
+    # Fall back to raw processing
     path = DATA_DIR / "Indonesia_peat_lands.geojson"
     if not path.exists():
         return None
@@ -241,7 +249,14 @@ def load_peatland() -> dict | None:
 
 
 def load_protected_forest() -> dict | None:
-    """Load kawasan hutan (conservation + protected forest), dissolved + simplified."""
+    """Load kawasan hutan (conservation + protected). Uses pre-processed cache if available."""
+    # Try pre-processed cache first
+    cache = LAYERS_CACHE_DIR / "protected_forest.geojson"
+    if cache.exists():
+        with open(cache) as f:
+            return json.load(f)
+
+    # Fall back to raw processing
     path = DATA_DIR / "buildability" / "kawasan_hutan.shp"
     if not path.exists():
         return None
@@ -261,7 +276,14 @@ def load_protected_forest() -> dict | None:
 
 
 def load_industrial_facilities() -> list[dict]:
-    """Load industrial facilities (50k+ employees) as point markers."""
+    """Load industrial facilities (50k+ employees). Uses pre-processed cache if available."""
+    # Try pre-processed cache first
+    cache = LAYERS_CACHE_DIR / "industrial.json"
+    if cache.exists():
+        with open(cache) as f:
+            return json.load(f)
+
+    # Fall back to raw shapefile processing
     import glob
 
     shp_files = glob.glob(str(DATA_DIR / "industrial_data" / "*.shp"))
@@ -289,7 +311,14 @@ def load_industrial_facilities() -> list[dict]:
 
 
 def load_grid_lines() -> dict | None:
-    """Load PLN transmission grid lines from pre-extracted GeoJSON."""
+    """Load PLN transmission grid lines. Uses pre-processed cache if available."""
+    # Try pre-processed cache first
+    cache = LAYERS_CACHE_DIR / "grid_lines.geojson"
+    if cache.exists():
+        with open(cache) as f:
+            return json.load(f)
+
+    # Fall back to raw data
     grid_path = DATA_DIR / "pln_grid_lines.geojson"
     if not grid_path.exists():
         return None
@@ -414,7 +443,14 @@ def _raster_to_base64_png(
 
 
 def load_pvout_raster() -> tuple[str, list[list[float]]] | None:
-    """Load PVOUT GeoTIFF from zip, downsample, return as base64 PNG overlay."""
+    """Load PVOUT raster overlay. Uses pre-processed cache if available."""
+    # Try pre-processed cache first (outputs/layers/pvout.json)
+    cache = LAYERS_CACHE_DIR / "pvout.json"
+    if cache.exists():
+        data = json.loads(cache.read_text())
+        return data["image_url"], data["coordinates"]
+
+    # Fall back to raw GeoTIFF processing
     import rasterio
     from rasterio.enums import Resampling
 
@@ -452,7 +488,14 @@ def load_pvout_raster() -> tuple[str, list[list[float]]] | None:
 
 
 def load_wind_raster() -> tuple[str, list[list[float]]] | None:
-    """Load wind speed GeoTIFF, downsample, return as base64 PNG overlay."""
+    """Load wind speed raster overlay. Uses pre-processed cache if available."""
+    # Try pre-processed cache first (outputs/layers/wind.json)
+    cache = LAYERS_CACHE_DIR / "wind.json"
+    if cache.exists():
+        data = json.loads(cache.read_text())
+        return data["image_url"], data["coordinates"]
+
+    # Fall back to raw GeoTIFF processing
     import rasterio
     from rasterio.enums import Resampling
 

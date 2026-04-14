@@ -17,7 +17,15 @@ docs/designs/
 docs/archives/
 data/*.zip
 data/*.html
+data/Indonesia_peat_lands.geojson
+data/pln_grid_lines.geojson
+data/wind_potential.geojson
+data/hydro_potential.geojson
+data/wiup_indonesia.csv
+data/industrial_location_info.csv
 data/osm/
 data/buildability/
 data/wind/*.tif
 data/kawasan_hutan_092017/
+data/industrial_data/
+data/captive_power/
