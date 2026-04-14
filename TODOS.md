@@ -135,7 +135,7 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | BPP data sourcing | 2026-04-07 | Kepmen ESDM 169/2021 (FY2020). 7 grid regions. `pdf_extract_bpp.py`. |
 | ✅ | Land cover buildability | 2026-04-07 | KLHK 66K polygons + peatland 1,524 features. All 4 layers active. |
 | ✅ | Configurable assumptions (A/B/C) | 2026-04-07/08 | 3-tier slider system, benchmark toggle, reset-to-defaults. |
-| ✅ | Persona walkthrough tour | 2026-04-09 | 4 personas x 8 steps, spotlight overlay, Guide button. |
+| ✅ | Persona walkthrough tour | 2026-04-09 | 5 personas (8-10 steps each), spotlight overlay, Guide button. V3.3: energy mode, wind/hybrid, captive power, firm solar coverage, BESS bridge-hours, grid investment. |
 | ✅ | 3D terrain rendering | 2026-04-09 | Mapbox terrain-rgb DEM, auto-pitch at zoom >= 7. |
 | ✅ | V3.1 grid infrastructure | 2026-04-10 | Grid line connectivity (1,595 lines), capacity traffic light, action flag split, threshold tightening. |
 | ✅ | Buildability circular mask | 2026-04-10 | Haversine mask replaces bounding box. `best_solar_site_dist_km` column. |

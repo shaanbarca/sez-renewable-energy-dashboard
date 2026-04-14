@@ -186,7 +186,7 @@ Three things to be aware of when interpreting results:
 | Document | What it covers |
 |----------|---------------|
 | **This file** | Plain-language overview of the project |
-| [PERSONAS.md](PERSONAS.md) | Detailed user journeys for all four audiences — Energy Economist, DFI Investor, Policy Maker, Energy Investor |
+| [PERSONAS.md](PERSONAS.md) | Detailed user journeys for all five audiences — Energy Economist, DFI Investor, Policy Maker, IPP/RE Developer, Industrial Investor |
 | [DESIGN.md](DESIGN.md) | Dashboard UX design: 6 views, component architecture, colour system, open design decisions |
 | [PLAN.md](PLAN.md) | Full implementation roadmap: phases, status, dashboard design decisions |
 | [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | All formulas, data sources, assumptions, and limitations (for energy economists and peer reviewers) |

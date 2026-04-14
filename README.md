@@ -69,7 +69,7 @@ docs/               Design mockups, reference PDFs
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Every column in every pipeline table |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System diagram, pipeline dependency graph |
 | [DESIGN.md](DESIGN.md) | Dashboard UX spec, component architecture, color system |
-| [PERSONAS.md](PERSONAS.md) | User journeys (Energy Economist, DFI Investor, Policy Maker, Energy Investor) |
+| [PERSONAS.md](PERSONAS.md) | User journeys (Energy Economist, DFI Investor, Policy Maker, IPP/RE Developer, Industrial Investor) |
 | [TODOS.md](TODOS.md) | Deferred items with priority tiers |
 
 ## Tests

@@ -11,15 +11,15 @@ const PERSONAS = [
     title: 'Energy Economist',
     subtitle: 'Multilateral development bank analyst',
     description:
-      'Compare solar LCOE against grid cost across KEKs and quantify the carbon arbitrage opportunity.',
+      'Compare solar and wind LCOE against grid cost, quantify carbon arbitrage, and model concessional finance impact.',
     icon: '📊',
   },
   {
     id: 'dfi',
     title: 'DFI Infrastructure Investor',
-    subtitle: 'Infrastructure fund analyst',
+    subtitle: 'Grid infrastructure fund analyst',
     description:
-      'Identify where grid infrastructure investment unlocks solar potential for industrial zones.',
+      'Identify where grid investment unlocks solar potential — ranked by capacity unlocked per infrastructure dollar.',
     icon: '💰',
   },
   {
@@ -27,16 +27,24 @@ const PERSONAS = [
     title: 'Policy Maker',
     subtitle: 'BKPM / KESDM official or energy adviser',
     description:
-      'Identify which KEKs need policy intervention — WACC de-risking, RUPTL acceleration, or GEAS allocation.',
+      'Map grid integration gaps, captive coal exposure, and RUPTL pipeline timing to prioritize policy interventions.',
     icon: '🏛️',
   },
   {
     id: 'ipp',
-    title: 'IPP / Solar Developer',
-    subtitle: 'Solar developer selling to PLN via PPA',
+    title: 'IPP / RE Developer',
+    subtitle: 'Solar or wind developer selling to PLN via PPA',
     description:
-      'Find the strongest solar-to-BPP economics for grid-connected solar — good resource, grid access, and PLN procurement potential.',
+      'Find sites where RE undercuts PLN cost of supply (BPP) — strong resource, grid-ready substations, and buildable land.',
     icon: '⚡',
+  },
+  {
+    id: 'industrial',
+    title: 'Industrial Investor',
+    subtitle: 'KEK tenant or smelter operator',
+    description:
+      'Compare KEKs by electricity cost risk, grid reliability, green energy trajectory, and captive coal phase-out exposure.',
+    icon: '🏭',
   },
 ] as const;
 
@@ -55,39 +63,40 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'Overview Map',
     description:
-      'Start by scanning the map. Green markers mean solar is already competitive at that KEK. Red means not yet. Notice the geographic clustering — Java vs. eastern islands.',
+      'Scan the map. Green markers = solar already competitive. Red = not yet. Notice the geographic clustering: Java manufacturing belt vs. eastern islands with higher BPP.',
     target: 'map',
+  },
+  {
+    title: 'Energy Mode',
+    description:
+      'Use the Solar / Wind / Hybrid / Overall toggle in the header. The dashboard recomputes LCOE, action flags, and competitiveness metrics for each technology. Start with "Overall" to see which RE technology wins at each KEK.',
+    target: 'header',
+    action: (s) => s.setEnergyMode('overall'),
   },
   {
     title: 'Quadrant Chart',
     description:
-      'The Quadrant Chart plots solar LCOE vs grid cost. KEKs above the diagonal line have grid costs higher than solar — meaning solar is already competitive there.',
+      'Plots RE LCOE vs grid cost (BPP). KEKs above the diagonal have grid costs higher than RE — solar or wind is already cheaper. Below = not yet competitive.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('quadrant'),
   },
   {
-    title: 'Adjust WACC to 8%',
+    title: 'Switch WACC to 8%',
     description:
-      'Try lowering WACC to 8% (concessional DFI financing). Watch which KEKs flip from red to green — these are the concessional finance cases, the core policy argument.',
+      'Lower WACC to 8% (concessional DFI financing). Watch which KEKs flip from red to green. This is the case for concessional finance instruments — quantified, site by site.',
     target: 'assumptions',
   },
   {
     title: 'Ranked Table',
     description:
-      'Sort the table by LCOE gap (ascending) to find KEKs closest to grid parity. These are the easiest wins for solar.',
+      'Sort by LCOE Gap (ascending) to find KEKs closest to grid parity. Check the Carbon Breakeven column — the carbon price ($/tCO2) needed to close the gap. Low values = easy carbon finance candidates.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'Carbon Breakeven',
+    title: 'KEK Scorecard — Economics',
     description:
-      'Check the carbon breakeven column — the carbon price (USD/tCO₂) needed to make solar competitive. Low values are easy carbon finance candidates.',
-    target: 'bottom-panel',
-  },
-  {
-    title: 'KEK Scorecard',
-    description:
-      'Click any KEK marker or table row to open its scorecard. Review resource data, LCOE breakdown across WACC scenarios, and action flags.',
+      'Click any KEK to open its scorecard. The Economics tab shows LCOE across WACC bands, BESS storage cost (14h bridge-hours for 24/7 loads), and firm solar coverage — the split between daytime-direct supply and storage-dependent nighttime demand.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -95,50 +104,50 @@ const ECONOMIST_STEPS: TourStep[] = [
     },
   },
   {
-    title: 'Export Data',
+    title: 'Export CSV',
     description:
-      'Use the Export CSV button in the table view to download the full scorecard for your economic analysis annex.',
+      'Download the full scorecard CSV from the table view. Includes LCOE bands, carbon breakeven, wind LCOE, best RE technology, and grid investment estimates — ready for your economic analysis annex.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: "You're Ready!",
     description:
-      'Explore freely. Adjust assumptions with the sliders, toggle map layers, and drill into any KEK. Re-launch this guide anytime from the "Guide" button in the header.',
+      'Explore freely. Toggle energy modes, adjust assumptions, switch map layers, and drill into any KEK. Re-launch this guide from the "Guide" button anytime.',
     target: 'header',
   },
 ];
 
 const DFI_STEPS: TourStep[] = [
   {
-    title: 'Overview Map',
+    title: 'Grid Integration Map',
     description:
-      'Start with the map. Green markers (solar_now) and orange (invest_resilience) are your actionable sites — solar is competitive or nearly so.',
+      'The map color-codes KEKs by grid integration category. Your opportunity set: "invest transmission" and "invest substation" sites where solar resource and demand exist, but specific grid infrastructure is the bottleneck.',
     target: 'map',
   },
   {
-    title: 'Rank by Capacity',
+    title: 'Filter Investment Targets',
     description:
-      'Open the table and sort by capacity (MWp) descending. You want sites large enough for utility-scale captive solar — at least 50 MWp.',
+      'Open the table. Filter Grid Integration to "Invest Transmission" or "Invest Substation". These are KEKs where targeted DFI capital unlocks solar. Check the Grid Invest ($M) column for order-of-magnitude costs.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'Check Grid Integration',
+    title: 'Rank by ROI',
     description:
-      'Look at the Grid Integration column. "within boundary" means solar fits inside the KEK. "grid ready" means substation access is good. "invest transmission" or "invest substation" means targeted infrastructure investment would unlock solar.',
+      'Sort by Capacity (MWp) descending, cross-referencing Grid Invest ($M). The highest ratio of solar capacity unlocked per infrastructure dollar is your best use of DFI capital.',
     target: 'bottom-panel',
   },
   {
-    title: 'Buildability Constraints',
+    title: 'BPP Economics',
     description:
-      'Check the buildability constraint. "Slope" or "unconstrained" = low risk. "Peat" or "kawasan_hutan" = land tenure risk. "Agriculture" = negotiation needed.',
+      'Check the LCOE Gap column. Where solar is cheaper than PLN cost of supply (BPP), grid investment enables solar that reduces PLN operating costs. A self-supporting investment case.',
     target: 'bottom-panel',
   },
   {
-    title: 'KEK Resource Tab',
+    title: 'KEK Grid Tab',
     description:
-      'Click a KEK to open its scorecard. The Solar tab shows PVOUT, buildable area, LCOE breakdown, and the scale curve.',
+      'Click a top KEK to open its scorecard. The Grid tab shows substation distance, capacity assessment (green/yellow/red traffic light), connectivity status, and transmission cost breakdown.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -146,63 +155,71 @@ const DFI_STEPS: TourStep[] = [
     },
   },
   {
-    title: 'LCOE at Your Hurdle Rate',
+    title: 'Economics & Storage',
     description:
-      'Switch to the Economics tab in the scorecard. Compare solar LCOE against tariff and BPP, check battery impact, and verify the carbon breakeven.',
+      'The Economics tab shows LCOE with BESS storage (14h bridge-hours for 24/7 industrial loads, 87% round-trip efficiency). Honest storage costs matter for investment committee presentations.',
     target: 'drawer',
   },
   {
-    title: 'Grid Connection',
+    title: 'Energy Mode — Hybrid',
     description:
-      'Check substation distance in the scorecard. The grid connection cost depends on distance from the solar site to the nearest PLN substation.',
-    target: 'drawer',
+      'Switch to "Hybrid" mode in the header. Wind nighttime generation can reduce BESS sizing, lowering the all-in cost. Check whether hybrid RE changes the investment case at your target KEKs.',
+    target: 'header',
+    action: (s) => s.setEnergyMode('hybrid'),
   },
   {
     title: "You're Ready!",
     description:
-      'Export CSV or GeoJSON for your site team. Re-launch this guide from the "Guide" button anytime.',
+      'Export CSV with grid integration category, investment estimates, and solar potential for your investment committee screening memo. Re-launch this guide from "Guide" anytime.',
     target: 'header',
   },
 ];
 
 const POLICYMAKER_STEPS: TourStep[] = [
   {
-    title: 'Action Flag Distribution',
+    title: 'Grid Integration Map',
     description:
-      'View the spatial distribution of action flags on the map. If "not_competitive" KEKs cluster in one region, it suggests a system-level grid problem, not site-specific.',
+      'The map shows grid integration categories. "Grid ready" KEKs can procure solar now. "Invest transmission" / "invest substation" KEKs need specific infrastructure. "Grid first" needs major expansion. This is the policy triage.',
     target: 'map',
+  },
+  {
+    title: 'Captive Power Exposure',
+    description:
+      'Check the Captive column in the table. KEKs near coal plants and nickel smelters face Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar.',
+    target: 'bottom-panel',
+    action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'RUPTL Pipeline',
     description:
-      'Switch to the RUPTL tab. See which grid regions have significant RE pipeline additions vs. which are flat — low grid improvement expected by 2030.',
+      'Switch to the RUPTL tab. Which grid regions have RE pipeline additions by 2030, and which are flat? Cross-reference with "plan late" KEKs — grid improvement planned but arriving after 2030.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('ruptl'),
   },
   {
-    title: 'Plan Late KEKs',
+    title: 'BPP vs Solar Economics',
     description:
-      'Switch to the table and look for KEKs with plan_late = True. These are most at risk: grid improvement is planned but arrives after 2030. Flag for RUPTL acceleration.',
+      'Back to the table. Sort by LCOE Gap — where solar undercuts PLN cost of supply (BPP), the economic case for enabling procurement is self-evident. Negative gap = PLN saves money.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'Concessional Finance Case',
     description:
-      'Set WACC to 8% in the Assumptions panel. Count how many KEKs flip from "not_competitive" to "solar_now". This is the case for concessional finance instruments.',
+      'Set WACC to 8% in the Assumptions panel. Count how many KEKs flip to "solar now". This quantifies the impact of concessional finance instruments — the core DFI policy argument.',
     target: 'assumptions',
   },
   {
-    title: 'GEAS Allocation',
+    title: 'Energy Mode — Overall',
     description:
-      "Check green_share_geas in the table — how much of each KEK's 2030 demand could GEAS-allocated solar cover? High values mean GEAS is a viable policy lever.",
-    target: 'bottom-panel',
-    action: (s) => s.setActiveTab('table'),
+      'Switch to "Overall" mode. The dashboard selects the cheapest RE technology per KEK (solar, wind, or hybrid). Some eastern KEKs may favor wind. Best RE Technology shows the winner.',
+    target: 'header',
+    action: (s) => s.setEnergyMode('overall'),
   },
   {
-    title: 'KEK Pipeline Detail',
+    title: 'KEK Demand & Action Tabs',
     description:
-      'Click a KEK to open its scorecard. The Demand tab shows captive power context and RUPTL pipeline status for this region.',
+      'Click a KEK. The Demand tab shows captive coal/nickel context and RUPTL pipeline status. The Action tab shows the specific policy recommendation — 9 flags, each naming an intervention.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -210,63 +227,127 @@ const POLICYMAKER_STEPS: TourStep[] = [
     },
   },
   {
+    title: 'Firm Solar Coverage',
+    description:
+      'In the scorecard Economics tab, check firm solar coverage — the split between daytime-direct supply and storage-dependent nighttime demand. 24/7 industrial loads need 14h of BESS. This grounds "100% RE" claims in physical reality.',
+    target: 'drawer',
+  },
+  {
     title: 'Export for Policy Brief',
     description:
-      'Export the ranked table CSV filtered to plan_late KEKs for your RUPTL review submission. Screenshot the RUPTL view for presentations.',
+      'Export the ranked table CSV with grid integration categories, action flags, grid investment estimates, and captive power data. The Methodology button shows the full analytical methodology for citations.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: "You're Ready!",
     description:
-      'Explore freely. The Methodology button in the header shows the full analytical methodology. Re-launch this guide from "Guide" anytime.',
+      'Explore freely. Toggle energy modes, adjust assumptions, and drill into any KEK. Re-launch this guide from "Guide" anytime.',
     target: 'header',
   },
 ];
 
 const IPP_STEPS: TourStep[] = [
   {
-    title: 'Rank by Capacity',
+    title: 'Strong Solar Resource',
     description:
-      'Start with the table. Sort by capacity (MWp) descending. IPP threshold: ≥30 MWp — below this, project economics are marginal for a developer.',
+      'Start with the table. Sort by Capacity (MWp) descending — you want sites large enough for utility-scale development (30+ MWp). Filter to "solar now" or "grid ready" action flags.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'Filter Actionable Sites',
+    title: 'BPP Economics',
     description:
-      'Focus on KEKs flagged "solar_now" or "invest_resilience". These are sites where the PPA pitch is straightforward — solar is already competitive or within striking distance.',
+      'Check the LCOE Gap column. Where solar undercuts PLN cost of supply (BPP), the procurement pitch writes itself: "procure solar here and your generation cost drops." Negative gap = PLN saves money.',
     target: 'bottom-panel',
   },
   {
-    title: 'Sort by Demand',
+    title: 'Grid Readiness',
     description:
-      'Sort by demand descending. Larger electricity demand = larger potential PPA = better project economics for your development pipeline.',
+      'Check Grid Integration: "grid ready" = substation accessible with capacity. Review the capacity assessment traffic light (green/yellow/red) — can the local grid absorb your project output?',
     target: 'bottom-panel',
   },
   {
-    title: 'Check Grid Integration',
+    title: 'Wind & Hybrid',
     description:
-      'Prefer "within boundary" or "grid ready" sites — these have low grid connection cost. "invest transmission" or "invest substation" sites need infrastructure investment to connect solar to the grid.',
-    target: 'bottom-panel',
-  },
-  {
-    title: 'Buildability Risk',
-    description:
-      'Check the buildability constraint column. "Slope" and "unconstrained" are low-risk. "Agriculture" means land negotiation. "Peat" or "kawasan_hutan" are high-risk.',
-    target: 'bottom-panel',
+      'Switch to "Wind" or "Hybrid" mode in the header. Some eastern KEKs have strong wind resource. The Best RE column shows which technology wins. Hybrid mode optimizes solar+wind mix to minimize all-in cost.',
+    target: 'header',
+    action: (s) => s.setEnergyMode('overall'),
   },
   {
     title: 'Quadrant Confirmation',
     description:
-      'Switch to the Quadrant Chart to visually confirm your shortlisted KEKs sit in the "Solar now" quadrant at WACC=10%.',
+      'Open the Quadrant Chart to visually confirm your shortlisted KEKs sit in the competitive quadrant at market WACC (10%). KEKs above the diagonal are your targets.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('quadrant'),
   },
   {
     title: 'KEK Deep Dive',
     description:
-      'Click your top KEK to see the full scorecard: solar resource (Solar tab), grid connection (Grid tab), economics (Economics tab), and demand (Demand tab).',
+      'Click your top KEK. Resource tab: PVOUT and buildable area. Grid tab: substation distance, capacity, connectivity. Economics tab: LCOE bands with BESS storage (14h bridge-hours). Action tab: recommended next step.',
+    target: 'map',
+    action: (s) => {
+      const scorecard = s.scorecard;
+      if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
+    },
+  },
+  {
+    title: 'Map Layers',
+    description:
+      'Toggle buildable area overlays (solar and wind) in the Layers menu. Purple = wind buildable, cyan = solar buildable. Enable PLN Grid Lines and Substations to visualize grid connectivity.',
+    target: 'header',
+  },
+  {
+    title: "You're Ready!",
+    description:
+      'Export your top KEKs as CSV for your BD pipeline tracker or PLN engagement deck. Re-launch this guide from "Guide" in the header anytime.',
+    target: 'header',
+  },
+];
+
+const INDUSTRIAL_STEPS: TourStep[] = [
+  {
+    title: 'Understanding the Baseline',
+    description:
+      'All KEKs pay the same PLN I-4 industrial tariff today ($63/MWh). The differentiation is risk and trajectory: which KEKs face future tariff hikes, grid reliability issues, or lack of green energy?',
+    target: 'map',
+  },
+  {
+    title: 'Subsidy Exposure',
+    description:
+      'Open the table. Check the BPP column — PLN cost of supply by region. Papua: $133/MWh, but tariff is $63/MWh. That $70 gap is a subsidy that is a future tariff hike waiting to happen. High BPP = high risk.',
+    target: 'bottom-panel',
+    action: (s) => s.setActiveTab('table'),
+  },
+  {
+    title: 'Grid Reliability Proxies',
+    description:
+      'Check Grid Integration and Capacity columns. KEKs near large substations with green capacity assessments offer better reliability. Continuous-process industries (smelters, data centers) cannot tolerate outages.',
+    target: 'bottom-panel',
+  },
+  {
+    title: 'Captive Coal Exposure',
+    description:
+      'Check the Captive column. Coal plants and nickel smelters within 50km face Perpres 112/2022 phase-out by 2050. RKEF smelters need 24/7 baseload — doubles BESS sizing. This is regulatory risk for co-located industry.',
+    target: 'bottom-panel',
+  },
+  {
+    title: 'Green Energy Trajectory',
+    description:
+      'Where solar could lower the regional BPP, your electricity cost is safer long-term. Check the LCOE Gap — KEKs where RE undercuts BPP will see improving grid economics. RE Coverage shows buildable RE potential.',
+    target: 'bottom-panel',
+  },
+  {
+    title: 'RUPTL Pipeline Risk',
+    description:
+      'Switch to the RUPTL tab. Check if grid improvements in your target region arrive before or after 2030. A 15-year facility commitment needs confidence that grid capacity keeps pace.',
+    target: 'bottom-panel',
+    action: (s) => s.setActiveTab('ruptl'),
+  },
+  {
+    title: 'KEK Comparison',
+    description:
+      'Click a KEK to review its full scorecard. Overview tab: key metrics at a glance. Demand tab: captive power context. Grid tab: infrastructure quality. Compare 3-4 candidate KEKs.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -276,7 +357,7 @@ const IPP_STEPS: TourStep[] = [
   {
     title: "You're Ready!",
     description:
-      'Export your top 10 KEKs as CSV for your BD pipeline tracker. Re-launch this guide from "Guide" in the header anytime.',
+      'Export the comparison matrix CSV — KEKs ranked by risk factors (BPP gap, grid quality, green share, captive exposure) for your site selection team. Re-launch from "Guide" anytime.',
     target: 'header',
   },
 ];
@@ -286,6 +367,7 @@ const STEPS_BY_PERSONA: Record<string, TourStep[]> = {
   dfi: DFI_STEPS,
   policymaker: POLICYMAKER_STEPS,
   ipp: IPP_STEPS,
+  industrial: INDUSTRIAL_STEPS,
 };
 
 // ---------------------------------------------------------------------------
@@ -343,7 +425,7 @@ function PersonaSelector() {
           We&apos;ll walk you through the features most relevant to your role.
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 [&>:last-child:nth-child(odd)]:col-span-2 [&>:last-child:nth-child(odd)]:max-w-[calc(50%-6px)] [&>:last-child:nth-child(odd)]:mx-auto">
           {PERSONAS.map((p) => (
             <button
               key={p.id}

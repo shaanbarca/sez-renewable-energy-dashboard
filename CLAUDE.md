@@ -13,7 +13,7 @@ This repo is a Python modelling and analysis project for **Indonesia's KEK (Spec
 | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | Plain-language project overview — start here if you're new to the project |
 | [PLAN.md](PLAN.md) | Full implementation plan: architecture, phases, data pipeline, dashboard design (with design review decisions) |
 | [DESIGN.md](DESIGN.md) | Dashboard UX design spec: 6 views, component architecture, colour system, open decisions |
-| [PERSONAS.md](PERSONAS.md) | User journeys for all four personas: Energy Economist, DFI Investor, Policy Maker, Energy Investor |
+| [PERSONAS.md](PERSONAS.md) | User journeys for all five personas: Energy Economist, DFI Investor, Policy Maker, IPP/RE Developer, Industrial Investor |
 | [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | Analytical methodology spec (single canonical source): LCOE formulas, PVOUT conversion, GEAS allocation, geospatial buildability filters — `src/model/basic_model.py` must implement this exactly |
 | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | Data pipeline contract: every raw input column and every derived column we need to produce, with status (✅/⚠️/❌/🔒) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture: data flow diagram, pipeline dependency graph, key design decisions |
