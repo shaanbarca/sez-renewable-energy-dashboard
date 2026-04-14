@@ -1,0 +1,2 @@
+tech_id,tech_description,year,capex_usd_per_kw,capex_lower_usd_per_kw,capex_upper_usd_per_kw,fixed_om_usd_per_kw_yr,lifetime_yr,source_pdf,source_page,is_provisional
+TECH006,"PV ground-mounted, utility-scale, grid connected",2023,960.0,830.0,1500.0,7.5,27,esdm_technology_cost.pdf,66,False

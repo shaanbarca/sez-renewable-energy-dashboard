@@ -1,0 +1,71 @@
+grid_region_id,year,plts_new_mw_re_base,plts_new_mw_ared,plts_cumul_re_base,plts_cumul_ared,ruptl_source_table,notes
+JAVA_BALI,2025,666,666,666,666,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2026,113,433,779,1099,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2027,157,541,936,1640,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2028,230,330,1166,1970,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2029,0,200,1166,2170,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2030,444,849,1610,3019,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2031,80,1858,1690,4877,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2032,0,1813,1690,6690,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2033,0,2593,1690,9283,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+JAVA_BALI,2034,874,1036,2564,10319,Tabel 5.88/5.89,Standalone PLTS extracted from Total row. Includes PLTS Atap (rooftop) quota.
+SUMATERA,2025,5,5,5,5,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2026,64,64,69,69,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2027,57,57,126,126,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2028,27,27,153,153,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2029,314,314,467,467,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2030,193,193,660,660,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2031,53,53,713,713,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2032,179,179,892,892,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2033,603,603,1495,1495,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+SUMATERA,2034,111,111,1606,1606,Tabel 5.84/5.85,ARED PLTS ≈ RE Base for Sumatera; ARED uplift primarily from PLTA/PLTB.
+KALIMANTAN,2025,55,55,55,55,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2026,17,97,72,152,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2027,146,346,218,498,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2028,50,290,268,788,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2029,15,335,283,1123,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2030,44,244,327,1367,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2031,0,0,327,1367,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2032,40,40,367,1407,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2033,50,50,417,1457,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+KALIMANTAN,2034,50,50,467,1507,Tabel 5.95/5.96,"Includes PLN (IKN *50MW in 2025 not in DMN), SH-PLN, and IPP PLTS."
+SULAWESI,2025,13,13,13,13,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2026,15,15,28,28,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2027,79,79,107,107,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2028,72,309,179,416,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2029,22,90,201,506,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2030,5,234,206,740,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2031,74,294,280,1034,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2032,47,47,327,1081,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2033,80,450,407,1531,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+SULAWESI,2034,0,0,407,1531,Tabel 5.102/5.103,Values are PLTS+BESS combined packages. Actual PLTS MW ≈ 80-90% of listed.
+MALUKU,2025,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2026,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2027,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2028,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2029,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2030,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2031,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2032,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2033,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+MALUKU,2034,0,0,0,0,Tabel 5.104/5.105/5.106/5.107,"All PLTS is asterisked (quota/distributed only, not in DMN balance)."
+PAPUA,2025,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2026,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2027,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2028,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2029,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2030,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2031,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2032,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2033,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+PAPUA,2034,0,0,0,0,Tabel 5.108/5.109 (Jayapura); Sorong system not in available tables,PLTS+BESS 100 MWac quota (2028-2030) asterisked/not in DMN balance.
+NTB,2025,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2026,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2027,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2028,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2029,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2030,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2031,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2032,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2033,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.
+NTB,2034,0,0,0,0,V.5.7.6 Maluku/Papua/Nusa Tenggara section,NTB (Lombok-Sumbawa) isolated system; detailed PLTS table not available.

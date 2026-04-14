@@ -1,0 +1,26 @@
+kek_id,year,area_ha,kek_type,energy_intensity_mwh_per_ha_yr,demand_mwh,demand_mwh_user,demand_source,is_demand_provisional
+industropolis-batang,2030,2886.87,Industri dan Pariwisata,736.0,2124736.32,,area_x_intensity,True
+batam-tourism-and-international-healthcare,2030,47.17,Jasa lainnya,800.0,37736.0,,area_x_intensity,True
+bumi-serpong-damai,2030,59.68,Jasa lainnya,800.0,47744.0,,area_x_intensity,True
+setangga,2030,557.34,,675.0,376204.5,,area_fallback_median,True
+tanjung-sauh,2030,557.34,,675.0,376204.5,,area_fallback_median,True
+kek-arun-lhokseumawe,2030,2622.48,Industri,660.0,1730836.8,,area_x_intensity,True
+kek-sanur,2030,41.2599625886,Pariwisata,504.0,20795.021144654398,,area_x_intensity,True
+kek-kendal,2030,1000.0,Industri,660.0,660000.0,,area_x_intensity,True
+kek-sorong,2030,523.7,Industri,660.0,345642.00000000006,,area_x_intensity,True
+kek-singhasari,2030,120.3,Pariwisata,504.0,60631.2,,area_x_intensity,True
+kek-morotai,2030,1101.76,Pariwisata,504.0,555287.04,,area_x_intensity,True
+kek-gresik,2030,2167.0,Industri,660.0,1430220.0,,area_x_intensity,True
+kek-likupang,2030,197.4,Pariwisata,504.0,99489.6,,area_x_intensity,True
+kek-bitung,2030,534.0,Industri,660.0,352440.0,,area_x_intensity,True
+kek-palu,2030,1500.0,Industri,660.0,990000.0,,area_x_intensity,True
+kek-kura-kura,2030,498.0,Pariwisata,504.0,250992.0,,area_x_intensity,True
+kek-galang-batang,2030,2333.6,Industri,660.0,1540176.0,,area_x_intensity,True
+kek-maloy-batuta,2030,557.34,Industri,660.0,367844.4,,area_x_intensity,True
+kek-nongsa,2030,166.45,Pariwisata,504.0,83890.79999999999,,area_x_intensity,True
+kek-mandalika,2030,1035.67,Pariwisata,504.0,521977.68000000005,,area_x_intensity,True
+kek-batam-aero-technic,2030,30.0,Industri,660.0,19800.0,,area_x_intensity,True
+kek-tanjung-kelayang,2030,324.4,Pariwisata,504.0,163497.59999999998,,area_x_intensity,True
+kek-lido,2030,1040.0,Pariwisata,504.0,524160.0,,area_x_intensity,True
+kek-tanjung-lesung,2030,1500.0,Pariwisata,504.0,756000.0,,area_x_intensity,True
+kek-sei-mangkei,2030,2002.77,Industri,660.0,1321828.2,,area_x_intensity,True

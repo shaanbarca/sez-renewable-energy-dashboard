@@ -1,0 +1,2 @@
+tech_id,tech_description,year,capex_usd_per_kw,capex_lower_usd_per_kw,capex_upper_usd_per_kw,fixed_om_usd_per_kw_yr,lifetime_yr,source_pdf,source_page,is_provisional
+TECH_WIND_ONSHORE,Wind power - Onshore,2023,1650.0,1200.0,2350.0,40.0,27,esdm_technology_cost.pdf,90,False

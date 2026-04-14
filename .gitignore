@@ -144,6 +144,7 @@ testing/
 data/*.zip
 data/*.html
 outputs/
+!outputs/data/processed/
 
 # Buildability raster data — large GeoTIFFs downloaded by scripts/download_buildability_data.py
 data/buildability/

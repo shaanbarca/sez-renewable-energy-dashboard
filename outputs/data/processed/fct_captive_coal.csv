@@ -1,0 +1,27 @@
+plant_name,latitude,longitude,capacity_mw,unit_count,status,parent,province,is_captive,kek_id,dist_to_kek_km
+Adaro Aluminum Smelter Power Station,2.528,117.858,2200,2,Pre-Permit,Pt Adaro Power,North Kalimantan,True,,
+Amman Mineral Power Station,-8.90121,116.7393,300,2,Cancelled,Amman Mineral Nusa Tenggara,West Nusa Tenggara,True,kek-mandalika,49.3
+Asahimas Chemical Power Station,-6.02475,105.94264,300,2,Operating,Agc Inc [52.5%]; Ableman Finance [18.0%]; Rodamas [18.0%]; Mitsubishi Corporation Energy Solutions [11.5%],Banten,True,,
+Delong Nickel Phase I Power Station,-3.90754,122.41926,530,8,Operating,Jiangsu Delong Nickel Industry Co,South Sulawesi,True,,
+Delong Nickel Phase Ii Power Station,-3.82791,122.46827,2220,11,Operating,Xiamen Xiangyu Group [51.0%]; Jiangsu Delong Nickel Industry Co [49.0%],Southeast Sulawesi,True,,
+Delong Nickel Phase Iii Power Station,-2.00469,121.43807,2295,12,Construction,Jiangsu Delong Nickel Industry Co,Central Sulawesi,True,,
+Fajar Power Station,-6.27265,107.12402,55,1,Operating,Siam Cement Group,West Java,True,,
+Indarung Cement Power Station,-0.95006,100.46954,100,0,Cancelled,Pt Semen Indonesia,West Sumatra,True,,
+Kalimantan Cement Works Power Station,-3.27291,116.10589,55,1,Operating,Heidelbergcement Ag,South Kalimantan,True,setangga,3.3
+Ketapang Smelter Power Station,-2.36618,110.15727,220,4,Operating,China Hongqiao Group; Harita Group,West Kalimantan,True,,
+Kuala Tanjung Inalum Captive Power Station,3.35064,99.45133,350,1,Cancelled,Pt Bukit Asam Tbk; Pt Indonesia Asahan Aluminium,North Sumatra,True,kek-sei-mangkei,27.2
+Medan Steel Mill Power Station,3.66757,98.66539,60,2,Operating,Nanjing Iron And Steel Co Ltd; Pt Gunung Gahapi,North Sumatra,True,,
+Msp Pulau Obi Power Station,-1.53064,127.41912,114,3,Operating,Xinxing Qiyun Investment Holdings Co Ltd [40.0%]; Pt Trimegah Bangun Persada [30.0%]; Harita Group [20.0%]; Pt Gane Permai Sentosa [10.0%],North Maluku,True,,
+Nanshan Industrial Park Power Station,0.91164,104.65054,2880,24,Cancelled,Global Aluminium International [72.7%]; Press Metal Aluminium Holdings Bhd [25.0%],Riau,True,kek-galang-batang,1.0
+Pati Intp Power Station,-6.70878,111.02011,60,0,Cancelled,Heidelbergcement Ag,Central Java,True,,
+Pomalaa Nickel Power Station,-4.17986,121.59293,60,2,Operating,Pt Aneka Tambang Tbk,Southeast Sulawesi,True,,
+Pt Halmahera Persada Lygend Nickel Smelter Power Station,-1.56143,127.42103,2240,11,Pre-Permit,Harita Group [63.1%]; Ningbo Lygend [36.9%],Maluku,True,,
+Qingdao Zhongsheng Captive Power Station,-3.04035,122.26156,390,6,Cancelled,Qingdao Urban Construction Investment (Group) Co Ltd; Qingdao Xiyuan Holdings Co Ltd; Shandong Taishan Steel Group Co Ltd,Central Sulawesi,True,,
+Sinar Mas Oki Paper Mill Power Station,-2.758,105.434,500,4,Cancelled,Sinar Mas Group,South Sumatra,True,,
+Sulawesi Labota Power Station,-2.86899,122.17188,3010,8,Construction,Sulawesi Mining Investment,Central Sulawesi,True,,
+Sulawesi Mining Power Station,-2.82559,122.15545,2080,9,Operating,Sulawesi Mining Investment,Central Sulawesi,True,,
+Tjiwi Kimia Paper Mill Power Station,-7.43684,112.4688,230,4,Operating,Asia Pulp & Paper,East Java,True,kek-singhasari,31.5
+Tonasa Cement Plant Power Station,-4.81671,119.50168,70,2,Operating,Pt Semen Indonesia,South Sulawesi,True,,
+Wanxiang Nickel Indonesia Power Station,-2.73095,122.03062,130,2,Operating,Pt Wanxiang Steel Indonesia,Central Sulawesi,True,,
+Weda Bay Power Station,0.47889,127.98421,3780,12,Construction,Zhejiang Huayou Cobalt Co [70.0%]; Tsingshan Holding Group Co Ltd [30.0%],North Maluku,True,,
+Xinxing Ductile Iron Pipes Power Station,-1.53051,127.41898,244,5,Operating,Xinxing Qiyun Investment Holdings Co Ltd [40.0%]; Pt Trimegah Bangun Persada [30.0%]; Harita Group [20.0%]; Pt Gane Permai Sentosa [10.0%],Maluku,True,,

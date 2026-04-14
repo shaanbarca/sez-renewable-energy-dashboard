@@ -1,0 +1,26 @@
+kek_id,kek_name,nearest_substation_name,nearest_substation_voltage_kv,nearest_substation_capacity_mva,nearest_substation_regpln,dist_to_nearest_substation_km,has_internal_substation,siting_scenario,dist_solar_to_nearest_substation_km,nearest_substation_to_solar_name,nearest_substation_to_solar_regpln,grid_integration_category,same_grid_region,line_connected,inter_substation_connected,inter_substation_dist_km,available_capacity_mva,capacity_assessment
+industropolis-batang,Industropolis Batang,GI 150 kV Weleri,150 kV,12.0,Jawa-Bali,13.11,False,remote_captive,3.59,GI 150 kV Kaliwungu - Randugarut 2,Jawa-Bali,grid_first,True,True,True,21.65,4.2,red
+batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,GI 150 kV Tg. Uncang,150 kV,30.0,Sumatera,5.85,False,remote_captive,17.97,GI 150 kV Tg. Kasam,Sumatera,invest_substation,True,False,True,25.68,10.5,red
+bumi-serpong-damai,"Banten International Education, Technology, and Health",GI 150 kV Lengkong,150 kV,,Jawa-Bali,0.41,False,remote_captive,7.75,GITET 500 kV Muaratawar,Jawa-Bali,invest_substation,True,False,True,44.67,,unknown
+setangga,Setangga,GI 150 kV Pulau Laut  2,150 kV,2.5,Kalimantan,10.99,False,remote_captive,17.3,GI 150 kV Pulau Laut  2,Kalimantan,grid_first,True,False,True,,0.9,red
+tanjung-sauh,Tanjung Sauh,GI 150 kV Tg. Kasam,150 kV,60.0,Sumatera,4.92,False,remote_captive,30.92,GI 150 kV Air Raja (60 MVA No.2),Sumatera,invest_substation,True,False,True,44.5,21.0,red
+kek-arun-lhokseumawe,Arun Lhokseumawe,GI 150 kV Arun,150 kV,60.0,Sumatera,1.12,True,within_boundary,,,,within_boundary,False,False,,,21.0,unknown
+kek-sanur,Sanur,GI 150 kV Sanur,150 kV,210.0,Jawa-Bali,2.42,False,remote_captive,33.5,GI 150 kV Amlapura (60 MVA No.2),Jawa-Bali,invest_substation,True,False,True,44.6,73.5,red
+kek-kendal,Kendal,GI 150 kV Kaliwungu - Randugarut 2,150 KV,12.0,Jawa-Bali,3.1,False,remote_captive,10.36,GI 150 kV Kaliwungu - Randugarut 2,Jawa-Bali,grid_first,True,False,True,,4.2,red
+kek-sorong,Sorong,GI 150 kV PLTMG Sorong,150 kV,,Papua,1.07,False,remote_captive,,,,invest_substation,False,False,,,,unknown
+kek-singhasari,Singhasari,GI 70 kV Porong,70 kV,40.0,Jawa-Bali,5.14,False,remote_captive,3.48,GITET 500 kV Grati,Jawa-Bali,invest_substation,True,False,True,38.48,14.0,red
+kek-morotai,Morotai,GI 150 kV Ternate 1 (120 MVA No.1 dan 2),150 kV,120.0,Maluku,213.96,False,remote_captive,,,,grid_first,False,False,,,42.0,unknown
+kek-gresik,Gresik,GI 150 kV Manyar,150 kV,330.0,Jawa-Bali,2.6,False,remote_captive,0.64,GI 70 kV Porong,Jawa-Bali,invest_substation,True,False,True,48.09,115.5,red
+kek-likupang,Likupang,GI 150 kV Likupang (New) 1,150 kV,,Sulawesi,7.43,False,remote_captive,,,,invest_substation,False,False,,,,unknown
+kek-bitung,Bitung,GI 150 kV Tanjung Merah,150 kV,90.0,Sulawesi,1.71,True,within_boundary,,,,within_boundary,False,False,,,31.5,unknown
+kek-palu,Palu,GI 150 kV Silae,150 kV,90.0,Sulawesi,17.38,False,remote_captive,11.91,GI 150 kV Parigi,Sulawesi,invest_substation,True,False,True,33.66,31.5,red
+kek-kura-kura,Kura Kura Bali,GIS 150 kV Pesanggaran,150 kV,,Jawa-Bali,2.58,False,remote_captive,3.63,GIS 150 kV Pesanggaran,Jawa-Bali,grid_ready,True,False,True,,,unknown
+kek-galang-batang,Galang Batang,GI 150 kV Air Raja (60 MVA No.2),150 kV,60.0,Sumatera,16.45,False,remote_captive,30.77,GI 150 kV Air Raja (60 MVA No.2),Sumatera,invest_substation,True,False,True,,21.0,red
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,GI 150 kV Sangatta,150 kV,60.0,Kalimantan,55.64,False,remote_captive,22.04,GI 150 kV Sangatta,Kalimantan,invest_substation,True,False,True,,21.0,red
+kek-nongsa,Nongsa,GI 150 kV Nongsa,150 kV,3.0,Sumatera,3.35,False,remote_captive,17.96,GI 150 kV Tg. Kasam,Sumatera,grid_first,True,False,True,11.77,1.0,red
+kek-mandalika,Mandalika,GI 150 kV Kuta,150 kV,30.0,Nusa Tenggara,1.81,False,remote_captive,,,,invest_substation,False,False,,,10.5,unknown
+kek-batam-aero-technic,Batam Aero Technic,GI 150 kV Nongsa 1,150 kV,,Sumatera,3.96,False,remote_captive,31.61,GI 150 kV Air Raja (60 MVA No.2),Sumatera,invest_substation,True,False,True,52.45,,unknown
+kek-tanjung-kelayang,Tanjung Kelayang,GI 70 kV Tanjung Pandan,70 kV,30.0,Sumatera,22.42,False,remote_captive,28.16,GI 70 kV Tanjung Pandan,Sumatera,invest_substation,True,False,True,,10.5,red
+kek-lido,Lido,GI 150 kV Ciawi,150 kV,,Jawa-Bali,11.36,False,remote_captive,9.88,GITET 500 kV Cibatu Baru (Deltamas),Jawa-Bali,invest_substation,True,False,True,45.71,,unknown
+kek-tanjung-lesung,Tanjung Lesung,GI 150 kV Tanjung Lesung (120 MVA No.1 dan 2),150 kV,120.0,Jawa-Bali,9.06,False,remote_captive,,,,invest_substation,False,False,,,42.0,unknown
+kek-sei-mangkei,Sei Mangkei,GI 150 kV Kuala Tanjung,150 kV,120.0,Sumatera,26.85,False,remote_captive,11.81,GI 150 kV Kuala Tanjung,Sumatera,invest_substation,True,False,True,,42.0,yellow
