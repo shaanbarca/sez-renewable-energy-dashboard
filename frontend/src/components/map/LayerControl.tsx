@@ -96,7 +96,7 @@ export default function LayerControl() {
 
       {open && (
         <div
-          className="absolute top-[calc(100%+6px)] right-0 z-[100] rounded-lg px-3 py-2.5 min-w-[220px]"
+          className="absolute top-[calc(100%+6px)] right-0 z-50 rounded-lg px-3 py-2.5 min-w-[220px]"
           style={{
             backdropFilter: 'var(--blur-heavy)',
             WebkitBackdropFilter: 'var(--blur-heavy)',

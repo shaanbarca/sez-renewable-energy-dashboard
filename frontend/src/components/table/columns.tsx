@@ -72,7 +72,7 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
         <span
           className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 px-2.5 py-2
                      text-[10px] leading-relaxed text-zinc-300 font-normal whitespace-normal
-                     rounded-md shadow-lg z-[9999] pointer-events-none
+                     rounded-md shadow-lg z-50 pointer-events-none
                      opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150"
           style={{
             background: 'var(--glass-heavy)',
