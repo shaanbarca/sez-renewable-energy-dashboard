@@ -1,8 +1,8 @@
-# Indonesia KEK Power Competitiveness Dashboard
+# SEZ Renewable Energy Dashboard
 
 Interactive dashboard that answers: **"Which of Indonesia's 25 Special Economic Zones (KEKs) can offer low-cost, low-carbon, reliable electricity, and what must change to get there?"**
 
-Combines satellite solar resource data (Global Solar Atlas), PLN grid costs, RUPTL pipeline plans, and geospatial buildability analysis into a single, transparent scorecard.
+Combines satellite solar and wind resource data (Global Solar Atlas, Global Wind Atlas), PLN grid costs, RUPTL pipeline plans, CBAM exposure analysis, and geospatial buildability filters into a single, transparent scorecard.
 
 ## Quick Start
 

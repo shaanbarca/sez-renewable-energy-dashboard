@@ -1,7 +1,7 @@
 [project]
-name = "eez"
+name = "sez-renewable-energy-dashboard"
 version = "1.0.0"
-description = "Indonesia KEK Power Competitiveness model and dashboard"
+description = "SEZ Renewable Energy Dashboard — clean energy competitiveness model for Indonesia's Special Economic Zones"
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT WITH Commons-Clause"}

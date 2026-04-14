@@ -1,4 +1,4 @@
-# Executive Summary — Indonesia KEK Clean Power Competitiveness
+# Executive Summary — SEZ Renewable Energy Dashboard
 
 > **Who this is for:** Development bank analysts, energy investors, and policy advisors who want to understand what this project does and why — without needing a background in data engineering or energy economics.
 >

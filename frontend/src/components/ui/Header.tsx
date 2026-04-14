@@ -43,7 +43,7 @@ export default function Header() {
             className="text-sm font-semibold tracking-wide"
             style={{ color: 'var(--text-primary)' }}
           >
-            KEK Power Competitiveness Dashboard
+            SEZ Renewable Energy Dashboard
           </h1>
           <ActionFlagLegend />
           <LayerControl />
