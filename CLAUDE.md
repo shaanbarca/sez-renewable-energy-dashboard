@@ -166,6 +166,8 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
 - `fct_captive_coal` — GEM Global Coal Plant Tracker: captive coal plants within 50km of each KEK (count, total MW, plant names)
 - `fct_captive_nickel` — CGSP Nickel Tracker: nickel smelters within 50km of each KEK (count, process type, Chinese ownership, project names)
+- `fct_captive_steel` — GEM Global Iron and Steel Plant Tracker: steel plants within 50km of each KEK (count, total TPA capacity, technology, plant names, Chinese ownership)
+- `fct_captive_cement` — GEM Global Cement Plant Tracker: cement plants within 50km of each KEK (count, total MTPA capacity, plant type, plant names, Chinese ownership)
 - `fct_kek_wind_resource` — wind speed, capacity factor, and buildability per KEK (centroid + best 50km + buildable-area metrics from `buildable_wind_web.tif`); columns: `wind_speed_centroid_ms`, `cf_wind_centroid`, `wind_buildable_area_ha`, `max_wind_capacity_mwp`, `wind_buildability_constraint`, `cf_wind_buildable_best`
 
 **Wind pipeline** (`scripts/build_wind_pipeline.sh` runs all three steps):
@@ -186,6 +188,7 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `wind_carbon_breakeven_usd_tco2` — carbon price at which wind becomes cost-competitive
 - `firm_wind_coverage_pct`, `wind_firming_gap_pct`, `wind_firming_hours` — wind temporal/intermittency metrics (live-computed in `logic.py`)
 - `hybrid_lcoe_usd_mwh`, `hybrid_allin_usd_mwh`, `hybrid_bess_hours`, `hybrid_solar_share`, `hybrid_supply_coverage_pct`, `hybrid_nighttime_coverage_pct`, `hybrid_bess_reduction_pct`, `hybrid_carbon_breakeven_usd_tco2` — hybrid solar+wind metrics (live-computed in `logic.py` via `hybrid_lcoe_optimized()`; see METHODOLOGY_CONSOLIDATED.md §6A)
+- `cbam_exposed`, `cbam_product_type`, `cbam_emission_intensity_current`, `cbam_emission_intensity_solar`, `cbam_cost_2026/2030/2034_usd_per_tonne`, `cbam_savings_2026/2030/2034_usd_per_tonne` — EU CBAM exposure metrics; 3-signal detection: (1) nickel process types (RKEF/FeNi → iron_steel), (2) plant-level counts (steel_plant_count > 0 → iron_steel, cement_plant_count > 0 → cement), (3) KEK business sectors (Base Metal → iron_steel, Bauxite → aluminium, Petrochemical → fertilizer); 12/25 KEKs exposed; cost trajectory uses EU ETS ~€80/tCO₂ × free allocation phase-out schedule (97.5% free in 2026 → 0% in 2034)
 
 **Solar resource data**: Global Solar Atlas GeoTIFFs in `data/` (zipped). PVOUT is extracted per KEK centroid and best-within-radius offline; the dashboard reads precomputed flat tables only.
 
@@ -250,3 +253,5 @@ The review checklist (`/review`) will flag stale documentation as an INFORMATION
 - `data/substation.geojson` contains substation locations for proximity analysis (2,913 PLN substations with `namobj`, `kapgi` MVA, `teggi` voltage, `regpln` PLN region, `statopr` status).
 - `data/pln_grid_lines.geojson` contains 1,595 PLN transmission lines for geometric connectivity checking (V3.1). Properties: `namobj` (line name with endpoints), `tegjar` (voltage kV), geometry (LineString/MultiLineString).
 - `data/industrial_data/` contains a shapefile of Indonesian industrial facilities (50k+ employee firms, 2023).
+- `data/captive_power/gem_steel_plants.csv` contains 7 Indonesian steel plants from GEM Global Iron and Steel Plant Tracker (capacity TPA, technology BF-BOF/EAF, ownership).
+- `data/captive_power/gem_cement_plants.csv` contains 32 Indonesian cement plants from GEM Global Cement Plant Tracker (capacity MTPA, plant type, ownership).

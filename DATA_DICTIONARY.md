@@ -36,7 +36,9 @@ Contract for the data pipeline. Three parts:
   - [3.6 fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv)
   - [3.7 fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv)
   - [3.8 fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv)
-  - [3.9 fct_kek_wind_resource](#39-outputsdataprocessedfct_kek_wind_resourcecsv)
+  - [3.9 fct_captive_steel_summary](#39-outputsdataprocessedfct_captive_steel_summarycsv)
+  - [3.10 fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv)
+  - [3.11 fct_kek_wind_resource](#311-outputsdataprocessedfct_kek_wind_resourcecsv)
 - [Open Questions](#open-questions)
 
 ---
@@ -55,10 +57,12 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this KEK's region?" — used to compute the GEAS green energy share each KEK can claim, and to flag KEKs where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
 | [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 25 | Nearest PLN substation per KEK — KEK-to-substation + solar-to-substation distances, grid connectivity, capacity assessment | `dim_kek` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_kek_resource` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
 | [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 450 | Precomputed LCOE bands — 25 KEKs × 9 WACC values (4–20% in 2% steps) × 2 siting scenarios (within_boundary/grid_connected_solar) | `dim_kek` · `fct_kek_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison. `within_boundary` is base-case; `grid_connected_solar` adds connection cost (solar→substation). | ✅ |
-| [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power context | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_coal_summary` · `fct_captive_nickel_summary` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? | ⚠️ Provisional until CAPEX verified |
+| [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power + CBAM exposure | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_coal_summary` · `fct_captive_nickel_summary` · `fct_captive_steel_summary` · `fct_captive_cement_summary` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? | ⚠️ Provisional until CAPEX verified |
 | [fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv) | fact | 5 | Per-KEK captive coal plant aggregation within 50 km | `dim_kek` · GEM Global Coal Plant Tracker (KAPSARC mirror) | Identifies KEKs with existing captive coal subject to Perpres 112/2022 phase-out. Feeds `has_captive_coal` and `perpres_112_status` on scorecard. | ✅ |
 | [fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv) | fact | 3 | Per-KEK nickel smelter aggregation within 50 km | `dim_kek` · CGSP Nickel Tracker | Identifies KEKs near nickel processing with high baseload demand. Process type informs BESS sizing requirements. | ✅ |
-| [fct_kek_wind_resource](#39-outputsdataprocessedfct_kek_wind_resourcecsv) | fact | 25 | Wind speed, capacity factor, and buildability per KEK (centroid + best 50km + buildable-area metrics) | `dim_kek` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_kek_resource`. Answers "how much wind does each KEK get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
+| [fct_captive_steel_summary](#39-outputsdataprocessedfct_captive_steel_summarycsv) | fact | 2 | Per-KEK steel plant aggregation within 50 km | `dim_kek` · GEM Steel Tracker | CBAM-exposed steel plants. EAF/BF-BOF technology, Chinese ownership. Feeds Industry tab. | ✅ |
+| [fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv) | fact | 5 | Per-KEK cement plant aggregation within 50 km | `dim_kek` · GEM Cement Tracker | CBAM-exposed cement plants. High process emissions (0.52 tCO₂/t calcination). Feeds Industry tab. | ✅ |
+| [fct_kek_wind_resource](#311-outputsdataprocessedfct_kek_wind_resourcecsv) | fact | 25 | Wind speed, capacity factor, and buildability per KEK (centroid + best 50km + buildable-area metrics) | `dim_kek` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_kek_resource`. Answers "how much wind does each KEK get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
 
 ---
 
@@ -714,7 +718,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 |--------|------|---------|
 | `data_completeness` | str | `"complete"` if no null key columns and `is_capex_provisional=False`. `"provisional"` if `is_capex_provisional=True`. `"partial"` if key columns are null. |
 
-**Captive power columns** (from `fct_captive_coal_summary` + `fct_captive_nickel_summary`, merged via left join):
+**Captive power columns** (from `fct_captive_coal_summary` + `fct_captive_nickel_summary` + `fct_captive_steel_summary` + `fct_captive_cement_summary`, merged via left join):
 
 | Column | Type | Source | Formula / Notes |
 |--------|------|--------|-----------------|
@@ -732,6 +736,14 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `solar_replacement_pct` | float/null | Derived | `max_solar_generation_gwh / captive_coal_generation_gwh × 100`. What % of captive coal output is replaceable by buildable solar. |
 | `bess_sizing_hours` | float | Derived | BESS storage sizing (hours). V3.6 hierarchy: user override > bridge-hours 14h (reliability >= 0.75) > RKEF 4h > cloud-firming 2h. Drives `battery_adder_usd_mwh` and `lcoe_with_battery_usd_mwh`. |
 | `bess_sizing_hours_override` | float/null | User input | Optional BESS sizing override (1-16h). When set, overrides the auto-computed sizing for all KEKs. None = auto (2h/4h/14h by load type). Adjustable via ScoreDrawer Economics tab slider. |
+| `steel_plant_count` | int/null | GEM Steel | Count of steel plants within 50 km of KEK centroid. |
+| `steel_capacity_tpa` | float/null | GEM Steel | Sum of capacity (tonnes per annum) for matched steel plants. |
+| `steel_plants` | str/null | GEM Steel | Semicolon-separated plant names. |
+| `steel_has_chinese_ownership` | bool/null | GEM Steel | True if any matched steel facility has Chinese ownership. |
+| `cement_plant_count` | int/null | GEM Cement | Count of cement plants within 50 km of KEK centroid. |
+| `cement_capacity_mtpa` | float/null | GEM Cement | Sum of capacity (million tonnes per annum) for matched cement plants. |
+| `cement_plants` | str/null | GEM Cement | Semicolon-separated plant names. |
+| `cement_has_chinese_ownership` | bool/null | GEM Cement | True if any matched cement facility has Chinese ownership. |
 
 ---
 
@@ -770,7 +782,43 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 ---
 
-### 3.9 `outputs/data/processed/fct_kek_wind_resource.csv`
+### 3.9 `outputs/data/processed/fct_captive_steel_summary.csv`
+
+**Rows:** 2 (KEKs with steel plants within 50 km)
+**Built from:** `dim_kek` centroids × GEM Global Iron and Steel Plant Tracker
+**Pipeline:** `build_captive_steel_summary()` in `src/pipeline/build_fct_captive_steel.py`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `kek_id` | str | KEK identifier (join key to `dim_kek`) |
+| `steel_plant_count` | int | Number of steel plants within 50 km |
+| `steel_capacity_tpa` | float | Total capacity in tonnes per annum |
+| `steel_plants` | str | Semicolon-separated plant names |
+| `steel_has_chinese_ownership` | bool | True if any matched facility has Chinese ownership |
+
+**Data source:** GEM Global Iron and Steel Plant Tracker, CC BY 4.0. 7 plants in raw data (`data/captive_power/gem_steel_plants.csv`), 2 KEKs matched after 50 km buffer.
+
+---
+
+### 3.10 `outputs/data/processed/fct_captive_cement_summary.csv`
+
+**Rows:** 5 (KEKs with cement plants within 50 km)
+**Built from:** `dim_kek` centroids × GEM Global Cement Plant Tracker
+**Pipeline:** `build_captive_cement_summary()` in `src/pipeline/build_fct_captive_cement.py`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `kek_id` | str | KEK identifier (join key to `dim_kek`) |
+| `cement_plant_count` | int | Number of cement plants within 50 km |
+| `cement_capacity_mtpa` | float | Total capacity in million tonnes per annum |
+| `cement_plants` | str | Semicolon-separated plant names |
+| `cement_has_chinese_ownership` | bool | True if any matched facility has Chinese ownership |
+
+**Data source:** GEM Global Cement Plant Tracker, CC BY 4.0. 32 plants in raw data (`data/captive_power/gem_cement_plants.csv`), 5 KEKs matched after 50 km buffer.
+
+---
+
+### 3.11 `outputs/data/processed/fct_kek_wind_resource.csv`
 
 **Rows:** 25 (one per KEK)
 **Built from:** `dim_kek` centroids × Global Wind Atlas v3 GeoTIFF × `buildable_wind_web.tif`

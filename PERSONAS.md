@@ -2,7 +2,7 @@
 
 Five primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
 
-*Updated for Methodology V3.3 — grid-connected solar model, 9 action flags, BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context. See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
+*Updated for Methodology V3.3+ — grid-connected solar model, 9 action flags, BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context (coal/nickel/steel/cement), EU CBAM exposure (12 KEKs, 3-signal detection). See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
 
 **Related:** [DESIGN.md](DESIGN.md) | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
 
@@ -18,7 +18,8 @@ This dashboard answers that question, site by site, for all 25 KEKs. It is the f
 
 - **Solar economics** — LCOE at adjustable financing rates (Global Solar Atlas, ESDM cost catalogue)
 - **Grid infrastructure** — substation proximity, capacity, connectivity, upgrade costs (PLN SIMOL, PLN grid lines)
-- **Captive power exposure** — coal plants and nickel smelters within 50km, subject to Perpres 112/2022 phase-out (GEM GCPT, CGSP Nickel Tracker)
+- **Captive power exposure** — coal plants, nickel smelters, steel mills, and cement plants within 50km, subject to Perpres 112/2022 phase-out (GEM GCPT, CGSP Nickel Tracker, GEM Steel/Cement Trackers)
+- **EU CBAM exposure** — 12 KEKs with CBAM-liable products (iron/steel, aluminium, fertilizer, cement); emission intensity, cost trajectory 2026-2034, RE savings quantified
 - **Industrial demand** — estimated 2030 electricity demand by KEK type and area
 - **Policy pipeline** — RUPTL planned additions by region and year, GEAS solar allocations
 - **Regional grid cost** — BPP (PLN's actual cost of supply) and I-4 industrial tariff by grid region
@@ -453,3 +454,5 @@ Comparison matrix CSV for site selection team. Screenshots of grid integration m
 | No PLN SAIDI/SAIFI data | Actual grid reliability by region is unavailable. Substation distance and capacity are proxies only. V3.1 `capacity_assessment` traffic light adds a signal but is still a proxy. | Deferred — PLN publishes SAIDI/SAIFI by grid system but not by KEK; requires manual mapping. |
 | KEK operational status is coarse | `status` field does not show tenant occupancy or infrastructure readiness. An industrial investor choosing between KEKs needs to know if peers are already operating there. | Deferred — requires BKPM/KEK management data. |
 | No logistics or transport cost data | Electricity is one input; transport, labor, and raw material access also matter for site selection. Dashboard covers electricity only. | Out of scope — fundamental limitation. |
+| EU CBAM tariff exposure by KEK | Manufacturers in iron/steel, aluminium, fertilizer, and cement face EU carbon border tariffs rising from ~$2/tCO₂ (2026) to ~$88/tCO₂ (2034) as free allocation phases out. Site selection must factor CBAM cost trajectory and RE availability. | ✅ Built (2026-04-14) — 3-signal detection (nickel process, plant counts, business sectors). 12 KEKs exposed. `cbam_cost_2030_usd_per_tonne` + `cbam_savings` quantify RE switching value. ScoreDrawer Industry tab shows full trajectory. |
+| Steel/cement plant proximity | Industrial investors choosing manufacturing KEKs need to know existing heavy industry (supply chain, clustering effects, infrastructure sharing). | ✅ Built (2026-04-14) — GEM Steel (7 plants, 2 KEKs matched) and Cement (32 plants, 5 KEKs matched) Trackers. Map overlays + ScoreDrawer Industry tab + table Industry badge column. |

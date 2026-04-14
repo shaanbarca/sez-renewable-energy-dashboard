@@ -109,7 +109,7 @@ Step 5 — What action does each KEK need?
 The project has three layers:
 
 ### 1. Data Pipeline
-A set of Python scripts that pull from six public data sources and produce eleven clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 25 KEKs.
+A set of Python scripts that pull from eight public data sources and produce thirteen clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 25 KEKs.
 
 **Data sources used:**
 - Global Solar Atlas v2 satellite data (sun radiation per location)
@@ -118,9 +118,11 @@ A set of Python scripts that pull from six public data sources and produce eleve
 - PLN RUPTL 2025–2034 (national electricity supply plan PDF)
 - KEK portal (scraped zone boundaries, coordinates, and sector types)
 - Substation locations (for grid access proximity analysis)
+- GEM Global Coal, Steel, and Cement Plant Trackers (captive power and CBAM-exposed industry)
+- CGSP Nickel Tracker (nickel smelter locations, process types, ownership)
 
 ### 2. Analytical Model
-A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (383 automated tests) and produces a scorecard table covering all 25 KEKs with LCOE bands, competitive gap, action flags, and green energy share estimates.
+A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (421 automated tests) and produces a scorecard table covering all 25 KEKs with LCOE bands, competitive gap, action flags, and green energy share estimates.
 
 ### 3. Dashboard
 An interactive web dashboard (React + Vite frontend with FastAPI backend) that lets analysts adjust assumptions — financing rate, capital cost, BESS parameters — and instantly see how the rankings change. Six views:
@@ -128,7 +130,7 @@ An interactive web dashboard (React + Vite frontend with FastAPI backend) that l
 - **Ranked table** — sortable, filterable TanStack Table with column filters, CSV export
 - **Quadrant chart** — solar cost vs. grid cost scatter with action flag zones
 - **RUPTL context** — regional grid pipeline timing by technology
-- **KEK Scorecard** — 6-tab deep-dive (Overview / Solar / Grid / Economics / Demand / Flags) with info badges and interactive LCOE curve chart
+- **KEK Scorecard** — 6-tab deep-dive (Overview / Solar / Grid / Economics / Industry / Action) with info badges, CBAM cost trajectory, and interactive LCOE curve chart
 - **Assumptions panel** — WACC, CAPEX, FOM, lifetime, BESS CAPEX, substation utilization sliders for live recomputation
 
 > **Roadmap details:** See [PLAN.md](PLAN.md) for the full delivery plan and phase status.
@@ -137,7 +139,7 @@ An interactive web dashboard (React + Vite frontend with FastAPI backend) that l
 
 ## The Data (What's Available Today)
 
-All eleven output tables are produced by the pipeline. Key outputs:
+All thirteen output tables are produced by the pipeline. Key outputs:
 
 | What it tells you | Table | Status |
 |-------------------|-------|--------|
@@ -147,6 +149,8 @@ All eleven output tables are produced by the pipeline. Key outputs:
 | Solar LCOE at 9 financing rates (4–20% WACC, 2% steps) | `fct_lcoe` | ✅ CAPEX verified (ESDM p.66). See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for full column specs. |
 | Grid electricity cost per PLN region | `fct_grid_cost_proxy` | ✅ Official tariff |
 | PLN's planned solar additions 2025–2034 | `fct_ruptl_pipeline` | ✅ Manually verified |
+| Captive coal, nickel, steel, cement within 50km | `fct_captive_*` | ✅ GEM + CGSP trackers. 4 industry overlays. |
+| EU CBAM exposure: cost trajectory 2026-2034 | Scorecard fields | ✅ 12/25 KEKs exposed. 3-signal detection. |
 | Full scorecard: LCOE vs. grid cost + action flags | `fct_kek_scorecard` | ⚠️ Provisional until CAPEX verified |
 
 > **Column-by-column reference:** See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for every table, every column, its source, and its status.

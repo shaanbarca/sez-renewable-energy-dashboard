@@ -161,6 +161,10 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | M19: BESS RKEF high-reliability multiplier | 2026-04-12 | Auto-doubles BESS sizing (2h→4h) for RKEF nickel process KEKs. Doubles battery CAPEX component. Visible in invest_battery flag + LCOE. |
 | ✅ | Solar replacement potential | 2026-04-12 | `solar_replacement_pct` in Captive Power card. Calculates what % of captive coal generation is replaceable by buildable solar (40% coal CF assumption). |
 | ✅ | Enriched nickel popups | 2026-04-12 | CGSP fields now in map popup: capacity (tons), investment cost (USD), shareholder, ESG ecological/social flags. Both raw and processed data paths. |
+| ✅ | GEM steel plant overlay + pipeline | 2026-04-14 | 7 steel plants from GEM Global Iron and Steel Plant Tracker. `build_fct_captive_steel.py` spatial join (50km). Map layer: indigo icon, popup with capacity/technology/ownership. 2 KEKs matched. |
+| ✅ | GEM cement plant overlay + pipeline | 2026-04-14 | 32 cement plants from GEM Global Cement Plant Tracker. `build_fct_captive_cement.py` spatial join (50km). Map layer: blue-grey icon, popup with capacity/type/ownership. 5 KEKs matched. |
+| ✅ | CBAM 3-signal detection expansion | 2026-04-14 | CBAM detection expanded from nickel-only to 3 signals: (1) nickel process types, (2) plant-level steel/cement counts, (3) KEK business sectors. 8→12 KEKs exposed. Products: iron_steel, aluminium, fertilizer, cement. |
+| ✅ | ScoreDrawer Industry tab redesign | 2026-04-14 | "Demand" tab renamed "Industry". Sections reordered: Demand → Industry/CBAM → Supply → Temporal. Table condensed from 4 captive columns to 2 (Industry badges + CBAM '30 cost). |
 
 ---
 
