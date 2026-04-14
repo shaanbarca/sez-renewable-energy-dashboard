@@ -48,6 +48,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'Most common nickel smelting process near KEK. RKEF (24/7 baseload, doubles BESS sizing), Ferro Nickel, HPAL, Laterite.',
   solar_replacement_pct:
     'What % of captive coal generation could be replaced by buildable solar within 50km. Assumes 40% coal capacity factor.',
+  cbam_exposed:
+    'EU Carbon Border Adjustment Mechanism exposure. Nickel Pig Iron and Ferro Nickel fall under iron/steel codes. Exports to EU face escalating carbon pricing: ~€2/tCO₂ (2026) → €80/tCO₂ (2034).',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -269,6 +271,28 @@ export const columns = [
       if (val == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
       const color = val >= 100 ? '#4CAF50' : val >= 50 ? '#FFC107' : '#F44336';
       return <span style={{ color }}>{val.toFixed(0)}%</span>;
+    },
+  }),
+  col.display({
+    id: 'cbam_exposed',
+    header: () => <HeaderWithTooltip label="CBAM" columnId="cbam_exposed" />,
+    enableColumnFilter: true,
+    filterFn: (row, _columnId, filterValue: string) => {
+      const exposed = !!row.original.cbam_exposed;
+      return filterValue === 'Yes' ? exposed : !exposed;
+    },
+    cell: (info) => {
+      if (!info.row.original.cbam_exposed) {
+        return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      }
+      return (
+        <span
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+          style={{ background: '#FF704433', color: '#FF7043' }}
+        >
+          EU CBAM
+        </span>
+      );
     },
   }),
   col.accessor('lcoe_mid_usd_mwh', {

@@ -46,6 +46,7 @@ const DROPDOWN_COLUMNS = new Set([
   'grid_integration_category',
   'captive_power_type',
   'dominant_process_type',
+  'cbam_exposed',
 ]);
 // Columns that get range filters (numeric)
 const RANGE_COLUMNS = new Set([

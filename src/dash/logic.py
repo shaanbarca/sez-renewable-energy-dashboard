@@ -1070,6 +1070,17 @@ def compute_scorecard_live(
             row["has_captive_coal"] = False
             row["perpres_112_status"] = None
 
+        # CBAM exposure: EU Carbon Border Adjustment Mechanism (2026+)
+        # RKEF nickel (Nickel Pig Iron, Ferro Nickel) falls under iron/steel CN codes
+        process = str(row.get("dominant_process_type") or "").strip()
+        cbam_processes = {"Nickel Pig Iron", "Ferro Nickel"}
+        if process in cbam_processes:
+            row["cbam_exposed"] = True
+            row["cbam_product_type"] = "iron_steel"
+        else:
+            row["cbam_exposed"] = False
+            row["cbam_product_type"] = None
+
         # Solar replacement potential: what % of captive coal generation can solar replace?
         # Assumes 40% capacity factor for coal (Indonesian captive coal typical)
         coal_mw = row.get("captive_coal_mw")

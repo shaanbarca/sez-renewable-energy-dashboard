@@ -133,6 +133,10 @@ export interface ScorecardRow {
   perpres_112_status?: string | null;
   captive_coal_generation_gwh?: number | null;
   solar_replacement_pct?: number | null;
+
+  // CBAM exposure (EU Carbon Border Adjustment Mechanism)
+  cbam_exposed?: boolean;
+  cbam_product_type?: string | null;
   bess_sizing_hours?: number | null;
 
   // V3.3: Firm solar metrics (temporal mismatch)

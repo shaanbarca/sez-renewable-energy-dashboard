@@ -495,6 +495,14 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
               tip="RKEF smelters run 24/7 baseload, doubling battery storage requirements from 2h to 4h."
             />
           )}
+          {row.cbam_exposed && (
+            <ColoredStatRow
+              label="EU CBAM"
+              value="Exposed"
+              color="#FF7043"
+              tip="Nickel Pig Iron / Ferro Nickel exports face EU carbon border pricing from 2026, escalating to full EU ETS price by 2034."
+            />
+          )}
         </StatCard>
       )}
 
@@ -1647,7 +1655,7 @@ function DemandTab({ row }: { row: ScorecardRow }) {
               )}
             </>
           )}
-          {(row.solar_replacement_pct != null || row.perpres_112_status) && (
+          {(row.solar_replacement_pct != null || row.perpres_112_status || row.cbam_exposed) && (
             <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
               {row.solar_replacement_pct != null && (
                 <ColoredStatRow
@@ -1668,6 +1676,14 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                   label="Perpres 112/2022"
                   value={row.perpres_112_status}
                   tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
+                />
+              )}
+              {row.cbam_exposed && (
+                <ColoredStatRow
+                  label="EU CBAM Exposure"
+                  value="Exposed (Iron/Steel)"
+                  color="#FF7043"
+                  tip="This KEK has nickel smelters producing Nickel Pig Iron or Ferro Nickel, which fall under EU CBAM iron/steel codes (HS 7202). Exports to EU face carbon border pricing: ~€2/tCO₂ in 2026, escalating to full EU ETS price (~€80/tCO₂) by 2034 as free allocation phases out. Switching to renewable energy eliminates Scope 2 CBAM costs."
                 />
               )}
             </div>
