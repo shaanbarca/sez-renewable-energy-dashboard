@@ -126,6 +126,9 @@ Test files are in `tests/`. 402 tests across model, pipeline, and API modules �
 - `bess_storage_adder(...)` — V3.3: BESS storage cost per MWh; includes round-trip efficiency (87%) and bridge-hours sizing for 24/7 loads; V3.6: `bess_sizing_hours_override` in UserAssumptions lets users override auto-sizing (2h/4h/14h) via ScoreDrawer slider (1-16h)
 - `lcoe_solar_with_battery(...)` — V3: solar LCOE + BESS storage adder
 - `firm_solar_metrics(...)` — V3.3: temporal-aware solar coverage (daytime-direct vs storage-dependent), returns `firm_solar_coverage_pct`, `storage_gap_pct`, `storage_required_mwh`, `nighttime_demand_mwh`
+- `wind_speed_to_cf(wind_speed_ms)` — piecewise-linear wind capacity factor from wind speed (3.0-12.0 m/s → CF 0.00-0.42), calibrated to Vestas V126/3.45 MW
+- `compute_lcoe_wind_live(capex, fom, wacc, lifetime, cf_wind)` — live wind LCOE via CRF annuity (same formula as solar, wind-specific parameters)
+- `firm_wind_metrics(cf_wind, demand_mwh, wind_generation_mwh)` — CF-dependent intermittency model: >=35% CF → 15% firming/2h, >=25% → 25%/3h, <25% → 35%/4h; returns `firm_wind_coverage_pct`, `wind_firming_gap_pct`, `wind_firming_hours`
 - `grid_connection_cost_per_kw(dist_km)` — V2: connection cost = dist × $5/kW-km + $80/kW fixed
 - `new_transmission_cost_per_kw(inter_substation_dist_km, solar_capacity_mwp)` — V3.1: new line cost when substations not connected = dist × $1.25M/km ÷ capacity
 - `capacity_assessment(substation_capacity_mva, solar_capacity_mwp, utilization_pct, power_factor)` — V3.4: traffic light (green/yellow/red/unknown); converts MVA to MW via power factor (0.85) before comparing to solar MWp
@@ -160,6 +163,13 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - `fct_grid_cost_proxy` — grid cost proxy (BPP when available, otherwise provisional) + `grid_emission_factor_t_co2_mwh` (KESDM Tier 2 OM by grid region)
 - `fct_captive_coal` — GEM Global Coal Plant Tracker: captive coal plants within 50km of each KEK (count, total MW, plant names)
 - `fct_captive_nickel` — CGSP Nickel Tracker: nickel smelters within 50km of each KEK (count, process type, Chinese ownership, project names)
+- `fct_kek_wind_resource` — wind speed, capacity factor, and buildability per KEK (centroid + best 50km + buildable-area metrics from `buildable_wind_web.tif`); columns: `wind_speed_centroid_ms`, `cf_wind_centroid`, `wind_buildable_area_ha`, `max_wind_capacity_mwp`, `wind_buildability_constraint`, `cf_wind_buildable_best`
+
+**Wind pipeline** (`scripts/build_wind_pipeline.sh` runs all three steps):
+- `src/pipeline/build_wind_buildable_raster.py` — 5-layer buildability filter (kawasan hutan, peatland, land cover, slope/elevation 20deg, wind speed 3.0 m/s cut-in) → `buildable_wind_web.tif`
+- `src/pipeline/build_wind_buildable_polygons.py` — vectorizes raster → `wind_buildable_polygons.geojson` (3,402 polygons, 50 ha min area)
+- `src/pipeline/wind_buildability_filters.py` — wind-adapted filter thresholds (slope relaxed 8→20deg, cropland allowed, 25 ha/MWp spacing)
+- `src/pipeline/build_fct_kek_wind_resource.py` — extracts per-KEK wind buildability from raster
 
 **Key computed outputs** (see `sample_end_to_end_policy_planning.ipynb`):
 - `lcoe_usd_mwh` — solar LCOE from `lcoe_solar(capex, fom, wacc, lifetime, cf)`
@@ -167,8 +177,15 @@ The codebase follows a **star-schema data model** aligned with the dashboard pla
 - Action flags: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive` — 8 flags per KEK via `ActionFlag` enum (V3); `invest_transmission` = solar near substation but KEK far; `invest_substation` = KEK near but solar far; `invest_battery` = high reliability req, BESS storage needed; `invest_resilience` fires when LCOE is 0–20% above grid cost AND reliability_req ≥ 0.75
 - `green_share_geas` — share of 2030 demand met by GEAS-allocated solar (GEAS and captive solar are substitutes — see METHODOLOGY_CONSOLIDATED.md §8)
 - `carbon_breakeven_usd_tco2` — carbon price (USD/tCO2) at which solar becomes cost-competitive; derived from LCOE gap ÷ grid emission factor (KESDM 2019 OM)
+- `best_re_technology` — `"solar"` or `"wind"`, whichever has lower all-in LCOE per KEK
+- `wind_competitive_gap_pct` — wind LCOE competitive gap vs grid cost (same formula as solar gap)
+- `wind_supply_coverage_pct` — fraction of KEK demand coverable by buildable wind capacity
+- `wind_carbon_breakeven_usd_tco2` — carbon price at which wind becomes cost-competitive
+- `firm_wind_coverage_pct`, `wind_firming_gap_pct`, `wind_firming_hours` — wind temporal/intermittency metrics (live-computed in `logic.py`)
 
 **Solar resource data**: Global Solar Atlas GeoTIFFs in `data/` (zipped). PVOUT is extracted per KEK centroid and best-within-radius offline; the dashboard reads precomputed flat tables only.
+
+**Wind resource data**: Global Wind Atlas v3 GeoTIFF (`data/wind/`). Wind speed at 100m hub height, extracted per KEK. Wind buildable polygons served as a map overlay layer (`GET /api/layers/wind_buildable_polygons`).
 
 **Utilities**:
 - [utils/S3_loading.py](utils/S3_loading.py) — boto3 helpers for listing bucket contents and generating presigned URLs (eu-north-1 endpoint)

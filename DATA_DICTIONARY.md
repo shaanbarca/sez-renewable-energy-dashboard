@@ -36,6 +36,7 @@ Contract for the data pipeline. Three parts:
   - [3.6 fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv)
   - [3.7 fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv)
   - [3.8 fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv)
+  - [3.9 fct_kek_wind_resource](#39-outputsdataprocessedfct_kek_wind_resourcecsv)
 - [Open Questions](#open-questions)
 
 ---
@@ -57,6 +58,7 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_kek_scorecard](#36-outputsdataprocessedfct_kek_scorecardcsv) | fact | 25 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power context | `dim_kek` · `fct_lcoe` (WACC=10%) · `fct_kek_resource` · `fct_kek_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_coal_summary` · `fct_captive_nickel_summary` | The single table the dashboard reads. For each KEK it answers: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? | ⚠️ Provisional until CAPEX verified |
 | [fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv) | fact | 5 | Per-KEK captive coal plant aggregation within 50 km | `dim_kek` · GEM Global Coal Plant Tracker (KAPSARC mirror) | Identifies KEKs with existing captive coal subject to Perpres 112/2022 phase-out. Feeds `has_captive_coal` and `perpres_112_status` on scorecard. | ✅ |
 | [fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv) | fact | 3 | Per-KEK nickel smelter aggregation within 50 km | `dim_kek` · CGSP Nickel Tracker | Identifies KEKs near nickel processing with high baseload demand. Process type informs BESS sizing requirements. | ✅ |
+| [fct_kek_wind_resource](#39-outputsdataprocessedfct_kek_wind_resourcecsv) | fact | 25 | Wind speed, capacity factor, and buildability per KEK (centroid + best 50km + buildable-area metrics) | `dim_kek` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_kek_resource`. Answers "how much wind does each KEK get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
 
 ---
 
@@ -671,6 +673,27 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `max_solar_generation_gwh` | float | `max_captive_capacity_mwp × pvout_best_50km / 1000` — maximum annual solar generation if all buildable capacity were built at best-resource sites within 50km. |
 | `solar_supply_coverage_pct` | float | `max_solar_generation_gwh / demand_2030_gwh` — fraction of KEK demand coverable by buildable solar. >= 1.0 means solar can fully supply the KEK. |
 
+**Wind columns (from `fct_kek_wind_resource`, merged at API startup + live-computed in `logic.py`):**
+
+| Column | Type | Source | Formula / Notes |
+|--------|------|--------|-----------------|
+| `lcoe_wind_mid_usd_mwh` | float | Live | Wind LCOE at current WACC, mid CAPEX. Same CRF formula as solar with wind parameters. |
+| `lcoe_wind_allin_mid_usd_mwh` | float | Live | Wind LCOE including connection costs. |
+| `cf_wind` | float | CSV | Capacity factor at best 50km wind site. |
+| `wind_speed_ms` | float | CSV | Wind speed at best 50km site (m/s). |
+| `best_re_technology` | str | Live | `"solar"` or `"wind"`, whichever has lower all-in LCOE. |
+| `best_re_lcoe_mid_usd_mwh` | float | Live | LCOE of the better technology. |
+| `wind_competitive_gap_pct` | float | Live | `(lcoe_wind_mid - grid_cost) / grid_cost × 100`. Negative = wind cheaper. |
+| `max_wind_capacity_mwp` | float | CSV | Buildable wind capacity at 25 ha/MWp density. |
+| `wind_buildable_area_ha` | float | CSV | Buildable wind area within 50km after 5-layer filter. |
+| `wind_buildability_constraint` | str | CSV | Binding constraint in wind buildability cascade. |
+| `max_wind_generation_gwh` | float | Live | `max_wind_capacity_mwp × cf_wind_buildable_best × 8760 / 1000`. |
+| `wind_supply_coverage_pct` | float | Live | `max_wind_generation_gwh / demand_2030_gwh`. |
+| `wind_carbon_breakeven_usd_tco2` | float | Live | Carbon price at which wind becomes cost-competitive. Same formula as solar (§9.2). |
+| `firm_wind_coverage_pct` | float | Live | Demand fraction wind serves without storage. CF-dependent (65-85%). |
+| `wind_firming_gap_pct` | float | Live | Fraction requiring firming (15-35%, CF-dependent). |
+| `wind_firming_hours` | float | Live | BESS bridge hours for wind intermittency (2-4h). |
+
 **Data quality column:**
 
 | Column | Type | Formula |
@@ -730,6 +753,48 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `has_chinese_ownership` | bool | True if any matched facility has Chinese ownership |
 
 **Data source:** CGSP Nickel Tracker (chinaglobalsouth.com/nickel), CC license, updated quarterly. 107 facilities in raw data, 3 KEKs matched after 50 km buffer.
+
+---
+
+### 3.9 `outputs/data/processed/fct_kek_wind_resource.csv`
+
+**Rows:** 25 (one per KEK)
+**Built from:** `dim_kek` centroids × Global Wind Atlas v3 GeoTIFF × `buildable_wind_web.tif`
+**Pipeline:** `build_fct_kek_wind_resource.py`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `kek_id` | str | KEK identifier (join key to `dim_kek`) |
+| `kek_name` | str | KEK display name |
+| `latitude` | float | KEK centroid latitude |
+| `longitude` | float | KEK centroid longitude |
+| `wind_speed_centroid_ms` | float | Mean annual wind speed at KEK centroid (100m hub height, m/s) |
+| `wind_speed_best_50km_ms` | float | Best wind speed within 50km radius (m/s) |
+| `cf_wind_centroid` | float | Capacity factor at centroid (from `wind_speed_to_cf()`) |
+| `cf_wind_best_50km` | float | Capacity factor at best 50km site |
+| `wind_class` | str | Wind resource classification (marginal/low/moderate/good/excellent) |
+| `wind_source` | str | Data source identifier |
+| `wind_buildable_area_ha` | float | Buildable area for wind within 50km after 5-layer filter (ha) |
+| `max_wind_capacity_mwp` | float | Maximum wind capacity at 25 ha/MWp density (MWp) |
+| `wind_buildability_constraint` | str | Binding constraint in buildability cascade |
+| `wind_speed_buildable_best_ms` | float | Wind speed at best buildable pixel (m/s) |
+| `cf_wind_buildable_best` | float | Capacity factor at best buildable pixel |
+| `best_wind_site_lat` | float | Latitude of best buildable wind site |
+| `best_wind_site_lon` | float | Longitude of best buildable wind site |
+| `best_wind_site_dist_km` | float | Distance from KEK centroid to best wind site (km) |
+
+**Wind buildability pipeline:** `buildable_wind_web.tif` is produced by `build_wind_buildable_raster.py` using 5 exclusion layers (kawasan hutan, peatland, land cover, slope/elevation, wind speed minimum). See METHODOLOGY_CONSOLIDATED.md §4.1.
+
+**Live-computed wind columns** (in `logic.py`, not stored in CSV):
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `wind_supply_coverage_pct` | float | Fraction of KEK demand coverable by buildable wind |
+| `wind_carbon_breakeven_usd_tco2` | float | Carbon price at which wind becomes cost-competitive |
+| `max_wind_generation_gwh` | float | Maximum annual wind generation from buildable capacity |
+| `firm_wind_coverage_pct` | float | Demand fraction wind serves directly (without storage) |
+| `wind_firming_gap_pct` | float | Fraction of demand requiring firming (CF-dependent: 15-35%) |
+| `wind_firming_hours` | float | BESS bridge hours for wind intermittency (2-4h) |
 
 ---
 

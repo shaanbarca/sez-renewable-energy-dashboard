@@ -237,6 +237,25 @@ The scorecard compares solar and wind LCOE per KEK. The cheaper technology is st
 
 **Implementation:** `wind_speed_to_cf()` in `basic_model.py`; `build_fct_kek_wind_resource.py`; `build_fct_lcoe_wind.py`
 
+### 4.1 Wind Buildability Filters
+
+Wind uses a 5-layer exclusion cascade, adapted from solar (Appendix A) with wind-specific thresholds:
+
+| Layer | Solar | Wind | Rationale |
+|-------|-------|------|-----------|
+| Kawasan Hutan | Excluded | Excluded | Same regulatory hard exclusion |
+| Peatland | Excluded | Excluded | Same PP 57/2016 restriction |
+| Land cover (ESA WorldCover) | Tree, crop, urban, water excluded | Tree, urban, water excluded; **cropland allowed** | Wind turbines coexist with agriculture |
+| Slope | > 8 deg excluded | > 20 deg excluded | Wind turbines tolerate steeper terrain than solar arrays |
+| Elevation | > 1,500m excluded | > 1,500m excluded | Same access cost constraint |
+| Wind speed minimum | N/A | < 3.0 m/s excluded | Below cut-in speed, zero generation |
+| Minimum contiguous area | 10 ha | 50 ha | Wind farms require larger contiguous parcels |
+| Area density | ~1.5 ha/MWp (solar) | 25 ha/MWp (wind) | Wind turbine spacing (5-7 rotor diameters) |
+
+**Pipeline:** `build_wind_buildable_raster.py` produces `buildable_wind_web.tif`. `build_wind_buildable_polygons.py` vectorizes to `wind_buildable_polygons.geojson` (3,402 polygons). `wind_buildability_filters.py` defines filter thresholds.
+
+**Memory-efficient processing:** The raster pipeline uses `rasterio.band()` lazy references with `Resampling.mode` to stream the 10m ESA WorldCover VRT without loading it into memory. Each filter layer is applied as an intermediate step file.
+
 ---
 
 ## 5. Siting Scenarios
@@ -683,6 +702,52 @@ storage_required_mwh = nighttime_demand / BESS_ROUND_TRIP_EFFICIENCY
 
 **Implementation:** `firm_solar_metrics()` in `basic_model.py`. Output fields: `firm_solar_coverage_pct`, `nighttime_demand_mwh`, `storage_required_mwh`, `storage_gap_pct`.
 
+### 9.6 Wind supply coverage
+
+Same formula as solar supply coverage (§9.4), using wind buildability data:
+
+$$\text{max\_wind\_generation\_gwh} = \text{max\_wind\_capacity\_mwp} \times \text{cf\_wind\_buildable\_best} \times 8760 / 1000$$
+
+$$\text{wind\_supply\_coverage} = \frac{\text{max\_wind\_generation\_gwh}}{\text{demand\_2030\_gwh}}$$
+
+Where:
+- `max_wind_capacity_mwp` = buildable wind capacity from wind buildability filters (§4.1)
+- `cf_wind_buildable_best` = capacity factor at best buildable wind site within 50km
+- `demand_2030_gwh` = estimated KEK annual electricity demand
+
+**Implementation:** Live-computed in `logic.py` (not precomputed in CSV). Uses `max_wind_capacity_mwp` and `cf_wind_buildable_best` from `fct_kek_wind_resource`, merged into `resource_df` at API startup.
+
+### 9.7 Wind carbon breakeven
+
+Uses the same technology-agnostic `carbon_breakeven_price()` function as solar (§9.2):
+
+$$P_{\text{carbon,wind}} = \begin{cases} 0 & \text{if } LCOE_{\text{wind}} \leq C_{\text{grid}} \\ \frac{LCOE_{\text{wind}} - C_{\text{grid}}}{EF_{\text{grid}}} & \text{otherwise} \end{cases} \quad [\text{USD/tCO}_2]$$
+
+**Implementation:** Live-computed in `logic.py` using `lcoe_wind_mid_usd_mwh` and `grid_cost_usd_mwh`. Output field: `wind_carbon_breakeven_usd_tco2`.
+
+### 9.8 Firm wind coverage (intermittency model)
+
+Wind's temporal profile differs from solar. Solar has a predictable day/night split (10h production, 14h gap). Wind is intermittent across all hours, with availability depending on capacity factor.
+
+**CF-dependent intermittency tiers:**
+
+| CF range | Firming gap | Bridge hours | Context |
+|----------|-------------|-------------|---------|
+| >= 35% | 15% | 2h | Strong wind resource, short calm spells |
+| 25-34% | 25% | 3h | Moderate wind, longer intermittent gaps |
+| < 25% | 35% | 4h | Low wind, frequent and extended calms |
+
+**Firm wind coverage:** Fraction of demand that wind can serve directly (without storage):
+```
+firm_wind_coverage_pct = (1 - firming_gap) * wind_supply_coverage_pct
+```
+
+At 100% annual wind coverage with 25% firming gap, firm wind coverage = 75%. The remaining 25% requires battery or backup.
+
+**Compared to solar:** Solar's gap is fixed at ~58% (14h night). Wind's gap is smaller (15-35%) but less predictable. Solar's temporal mismatch is a scheduling problem (store during day, discharge at night). Wind's is a weather problem (calms can last hours to days). This distinction matters for BESS sizing: solar needs long-duration storage, wind needs shorter but less predictable firming.
+
+**Implementation:** `firm_wind_metrics()` in `basic_model.py`. Output fields: `firm_wind_coverage_pct`, `wind_firming_gap_pct`, `wind_firming_hours`.
+
 ---
 
 ## 10. Action Flags
@@ -972,6 +1037,9 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | Core model (all formulas) | `src/model/basic_model.py` |
 | All constants/assumptions | `src/assumptions.py` |
 | Solar resource pipeline | `src/pipeline/build_fct_kek_resource.py` |
+| Wind resource pipeline | `src/pipeline/build_fct_kek_wind_resource.py` |
+| Wind buildability raster | `src/pipeline/build_wind_buildable_raster.py` |
+| Wind buildability filters | `src/pipeline/wind_buildability_filters.py` |
 | Substation proximity (3-point) | `src/pipeline/build_fct_substation_proximity.py` |
 | LCOE pipeline | `src/pipeline/build_fct_lcoe.py` |
 | Buildability filters | `src/pipeline/buildability_filters.py` |
