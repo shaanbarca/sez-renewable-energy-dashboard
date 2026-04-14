@@ -343,14 +343,14 @@ Fact tables describe *what a KEK has* — resource quality, demand, cost, scorec
 | `pvout_best_50km` | float | computed | `pvout_daily_best_50km × 365` (kWh/kWp/yr) |
 | `cf_best_50km` | float | computed | `pvout_best_50km / 8760` |
 | `pvout_source` | str | constant | "GlobalSolarAtlas-v2" |
-| `pvout_buildable_best_50km` | float | computed | Max PVOUT within 50km after 4-layer buildability filter. NaN when `data/buildability/` files absent. |
+| `pvout_buildable_best_50km` | float | computed | Max PVOUT within 50km after 5-layer buildability filter (kawasan hutan, peatland, land cover, road proximity, slope/elevation). NaN when `data/buildability/` files absent. |
 | `buildable_area_ha` | float | computed | Total buildable area in 50km radius after all filters (ha). NaN when data absent. |
 | `max_captive_capacity_mwp` | float | computed | `buildable_area_ha / 1.5` — max captive solar capacity (MWp). 1.5 ha/MWp for tropical fixed-tilt. |
-| `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"land_cover"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"`. `"land_cover"` = ESA WorldCover layer (tree cover/forest, cropland, urban, water, wetland, mangrove) — dominant at all 25 KEKs because Indonesian forest cover is pervasive (60–93% of pixels removed). Peat and kawasan_hutan layers are also active and removing pixels but are numerically smaller than land cover. |
+| `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"land_cover"` \| `"far_from_road"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"`. `"land_cover"` = ESA WorldCover layer (tree cover/forest, cropland, urban, water, wetland, mangrove) — dominant at most KEKs. `"far_from_road"` = >10km from motorable OSM road (motorway/trunk/primary/secondary/tertiary). |
 | `best_solar_site_lat` | float | computed | Latitude of the highest-PVOUT buildable pixel within 50km. NaN when data absent or no buildable area. |
 | `best_solar_site_lon` | float | computed | Longitude of the highest-PVOUT buildable pixel within 50km. NaN when data absent or no buildable area. |
 | `best_solar_site_dist_km` | float | computed | Haversine distance (km) from KEK centroid to best buildable pixel. Always ≤ 50km (enforced by circular mask). NaN when data absent. |
-| `within_boundary_area_ha` | float | computed | Buildable area (ha) inside the KEK polygon after 4-layer buildability filter. **0.0 when spatial intersection finds no buildable pixels** (no theoretical fallback). 12 KEKs have raster-derived values; 13 KEKs are 0.0. |
+| `within_boundary_area_ha` | float | computed | Buildable area (ha) inside the KEK polygon after 5-layer buildability filter. **0.0 when spatial intersection finds no buildable pixels** (no theoretical fallback). 12 KEKs have raster-derived values; 13 KEKs are 0.0. |
 | `within_boundary_capacity_mwp` | float | computed | `within_boundary_area_ha / 1.5` — max captive solar capacity inside KEK boundary (MWp). 0.0 when area is 0. |
 | `pvout_within_boundary` | float | computed | Mean annual PVOUT (kWh/kWp/yr) of buildable pixels inside the KEK polygon. NaN when no buildable pixels exist. |
 | `within_boundary_source` | str | computed | `"raster"` if spatial buildable pixels were found inside the KEK polygon; `"theoretical"` if no pixels survived the buildability filter (area/capacity zeroed). |
@@ -681,11 +681,11 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `lcoe_wind_allin_mid_usd_mwh` | float | Live | Wind LCOE including connection costs. |
 | `cf_wind` | float | CSV | Capacity factor at best 50km wind site. |
 | `wind_speed_ms` | float | CSV | Wind speed at best 50km site (m/s). |
-| `best_re_technology` | str | Live | `"solar"` or `"wind"`, whichever has lower all-in LCOE. |
+| `best_re_technology` | str | Live | `"solar"`, `"wind"`, or `"hybrid"`, whichever has lower all-in LCOE (3-way comparison, see §6A.6). |
 | `best_re_lcoe_mid_usd_mwh` | float | Live | LCOE of the better technology. |
 | `wind_competitive_gap_pct` | float | Live | `(lcoe_wind_mid - grid_cost) / grid_cost × 100`. Negative = wind cheaper. |
 | `max_wind_capacity_mwp` | float | CSV | Buildable wind capacity at 25 ha/MWp density. |
-| `wind_buildable_area_ha` | float | CSV | Buildable wind area within 50km after 5-layer filter. |
+| `wind_buildable_area_ha` | float | CSV | Buildable wind area within 50km after 6-layer filter. |
 | `wind_buildability_constraint` | str | CSV | Binding constraint in wind buildability cascade. |
 | `max_wind_generation_gwh` | float | Live | `max_wind_capacity_mwp × cf_wind_buildable_best × 8760 / 1000`. |
 | `wind_supply_coverage_pct` | float | Live | `max_wind_generation_gwh / demand_2030_gwh`. |
@@ -693,6 +693,20 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `firm_wind_coverage_pct` | float | Live | Demand fraction wind serves without storage. CF-dependent (65-85%). |
 | `wind_firming_gap_pct` | float | Live | Fraction requiring firming (15-35%, CF-dependent). |
 | `wind_firming_hours` | float | Live | BESS bridge hours for wind intermittency (2-4h). |
+
+**Hybrid RE columns** (live-computed in `logic.py` via `hybrid_lcoe_optimized()`; see §6A):
+
+| Column | Type | Source | Formula / Notes |
+|--------|------|--------|-----------------|
+| `hybrid_lcoe_usd_mwh` | float | Live | Blended LCOE = generation-weighted avg of solar + wind LCOE. |
+| `hybrid_bess_hours` | float | Live | Reduced BESS sizing (0-14h). `14 × (1 - nighttime_coverage)`. |
+| `hybrid_bess_adder_usd_mwh` | float | Live | BESS cost at reduced sizing via `bess_storage_adder()`. |
+| `hybrid_allin_usd_mwh` | float | Live | `hybrid_lcoe + hybrid_bess_adder`. Primary hybrid cost metric. |
+| `hybrid_solar_share` | float | Live | Optimal solar fraction (0-1). Auto-optimized or user-overridden. |
+| `hybrid_supply_coverage_pct` | float | Live | `(scaled_solar_gen + scaled_wind_gen) / demand`. |
+| `hybrid_nighttime_coverage_pct` | float | Live | Fraction of nighttime demand covered by wind. |
+| `hybrid_bess_reduction_pct` | float | Live | `1 - hybrid_bess_hours / 14`. 0% = no reduction, 100% = no BESS needed. |
+| `hybrid_carbon_breakeven_usd_tco2` | float | Live | Carbon price at which hybrid all-in beats grid cost. Same formula as solar (§9.2). |
 
 **Data quality column:**
 
@@ -774,7 +788,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `cf_wind_best_50km` | float | Capacity factor at best 50km site |
 | `wind_class` | str | Wind resource classification (marginal/low/moderate/good/excellent) |
 | `wind_source` | str | Data source identifier |
-| `wind_buildable_area_ha` | float | Buildable area for wind within 50km after 5-layer filter (ha) |
+| `wind_buildable_area_ha` | float | Buildable area for wind within 50km after 6-layer filter (ha) |
 | `max_wind_capacity_mwp` | float | Maximum wind capacity at 25 ha/MWp density (MWp) |
 | `wind_buildability_constraint` | str | Binding constraint in buildability cascade |
 | `wind_speed_buildable_best_ms` | float | Wind speed at best buildable pixel (m/s) |

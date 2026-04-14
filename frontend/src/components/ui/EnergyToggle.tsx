@@ -5,6 +5,7 @@ import { useDashboardStore } from '../../store/dashboard';
 const options: { value: EnergyMode; label: string }[] = [
   { value: 'solar', label: 'Solar' },
   { value: 'wind', label: 'Wind' },
+  { value: 'hybrid', label: 'Hybrid' },
   { value: 'overall', label: 'Overall' },
 ];
 

@@ -397,6 +397,20 @@ LAND_COST_USD_PER_KW: float = 45.0
 # Range: $10–500/kW depending on location. Rural: $10–50, peri-urban: $50–200.
 # Only applied to grid_connected_solar scenario (within_boundary uses existing KEK land).
 
+# ─── HYBRID RE DEFAULTS ──────────────────────────────────────────────────────
+
+HYBRID_DEFAULT_SOLAR_SHARE: float | None = None
+# None = auto-optimize per KEK (sweep solar share 0–100% in 5% steps).
+# Set 0.0–1.0 to fix the solar/wind capacity mix ratio.
+
+HYBRID_OPTIMIZATION_STEP: float = 0.05
+# Solar share sweep granularity (5% = 21 evaluations per KEK).
+
+HYBRID_WIND_NIGHTTIME_FRACTION: float = 14.0 / 24.0
+# Conservative assumption: wind output is uniformly distributed across hours,
+# so the fraction available during solar's nighttime gap (14h/24h) = 0.583.
+# Future: replace with hourly TMY data when available.
+
 # ─── ACTION FLAG THRESHOLDS ───────────────────────────────────────────────────
 
 FIRMING_PVOUT_THRESHOLD: float = 1_350.0

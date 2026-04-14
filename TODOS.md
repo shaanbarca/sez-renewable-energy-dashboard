@@ -59,7 +59,7 @@ From [physics_vs_tool_technical_gaps.md](docs/physics_vs_tool_technical_gaps.md)
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
 | M1 | **Grid emission factor update** | PERSONAS.md gap 5 | P1, P3 | KESDM 2019 Tier 2 OM → 2023 KESDM or IEA SEA 2024 data. Affects `carbon_breakeven_usd_tco2` accuracy (7 years stale). |
-| M2 | **Road proximity layer (Layer 3a)** | PERSONAS.md gap 8 | P2, P4 | OSM PBF processing → `dist_to_nearest_road_km`. Construction access cost proxy. |
+| ~~M2~~ | ~~**Road proximity layer (Layer 3a)**~~ | ~~PERSONAS.md gap 8~~ | ~~P2, P4~~ | ✅ Done. `road_distance_km.tif` from Geofabrik PBF, 10km hard exclusion for both solar and wind. |
 | M3 | **CAPEX market comparables** | PERSONAS.md P1 gaps | P1 | 2023-2024 Indonesia solar EPC tender data. ESDM catalogue ($960/kW) may be +/-15-20% from market. |
 | M4 | **KEK operational status enrichment** | PERSONAS.md gap 7 | P4 | Distinguish operating (tenants present) vs. greenfield. Requires BKPM/KEK management data. |
 | ~~M5~~ | ~~**Custom CAPEX input for IPP**~~ | PERSONAS.md P4 audit | P4 | ✅ Done (2026-04-11) — `CapexInput.tsx` free-text input with slider, validates range, tab/enter commit. |

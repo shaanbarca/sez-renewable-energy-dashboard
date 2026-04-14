@@ -1,30 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_HIERARCHY, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { ACTION_FLAG_HIERARCHY_BY_MODE, getActionSectionTitle } from '../../lib/actionFlags';
+import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { useDashboardStore } from '../../store/dashboard';
 
 const FLAG_DESCRIPTIONS: Record<string, string> = {
   solar_now:
     'Solar is cost-competitive today. Grid upgrades are planned and GEAS allocation is sufficient.',
+  wind_now: 'Wind is cost-competitive today. Deploy wind generation.',
+  hybrid_now:
+    'Hybrid solar+wind all-in cost beats grid. Wind reduces nighttime storage requirements.',
   invest_resilience:
-    'Solar is within ~20% of grid parity. Investing now builds resilience against future grid cost increases.',
+    'RE is within ~20% of grid parity. Investing now builds resilience against future grid cost increases.',
   invest_battery:
-    'Solar economics work, but high reliability requirements mean battery storage is needed, adding cost.',
+    'RE economics work, but high reliability requirements mean battery storage is needed, adding cost.',
   invest_transmission:
-    'Solar can reach a substation, but the KEK is far from grid infrastructure. Build transmission to KEK.',
+    'RE can reach a substation, but the KEK is far from grid infrastructure. Build transmission to KEK.',
   invest_substation:
-    'KEK is grid-connected, but the best solar site is far from any substation. Build a substation near solar.',
+    'KEK is grid-connected, but the best RE site is far from any substation. Build a substation near the generation site.',
   grid_first:
-    'No substation near the KEK or the solar site. New grid infrastructure (substation + transmission) must be built before solar can connect.',
+    'No substation near the KEK or the RE site. New grid infrastructure must be built before RE can connect.',
   plan_late:
-    'Over 60% of planned solar additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
+    'Over 60% of planned RE additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
   not_competitive:
-    'Solar LCOE exceeds grid cost, or solar resource quality (PVOUT) is below the minimum threshold.',
+    'RE LCOE exceeds grid cost under current assumptions.',
   no_solar_resource:
     'All land within the search radius is protected forest, peatland, or unbuildable. No area available for solar.',
+  no_wind_resource:
+    'No viable wind resource within 50 km. Wind speeds below cut-in threshold or all land is unbuildable.',
+  no_re_resource:
+    'No viable renewable resource (solar or wind) within 50 km.',
 };
 
 export default function ActionFlagLegend() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const hierarchy = ACTION_FLAG_HIERARCHY_BY_MODE[energyMode];
 
   useEffect(() => {
     if (!open) return;
@@ -47,7 +58,7 @@ export default function ActionFlagLegend() {
       >
         {/* Show compact dot strip as a preview */}
         <span className="flex items-center gap-0.5">
-          {ACTION_FLAG_HIERARCHY.slice(0, 4).map((flag) => (
+          {hierarchy.slice(0, 4).map((flag) => (
             <span
               key={flag}
               className="inline-block w-1.5 h-1.5 rounded-full"
@@ -82,12 +93,12 @@ export default function ActionFlagLegend() {
             className="text-[10px] uppercase tracking-wider mb-2 font-medium"
             style={{ color: 'var(--text-muted)' }}
           >
-            Solar Readiness Ladder
+            {getActionSectionTitle(energyMode)} Ladder
           </p>
           <div>
-            {ACTION_FLAG_HIERARCHY.map((flag, i) => {
+            {hierarchy.map((flag, i) => {
               const color = ACTION_FLAG_COLORS[flag];
-              const isLast = i === ACTION_FLAG_HIERARCHY.length - 1;
+              const isLast = i === hierarchy.length - 1;
               return (
                 <div key={flag} className="group flex items-stretch gap-0">
                   {/* Vertical track */}

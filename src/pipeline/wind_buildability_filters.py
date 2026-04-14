@@ -44,6 +44,11 @@ Based on inter-turbine spacing of 5-7 rotor diameters (630-880m for
 a 126m rotor Vestas V126/3.45 MW). Source: IRENA 2023, ESDM 2024.
 Solar uses 1.5 ha/MWp — wind needs ~17x more land per MWp."""
 
+WIND_ROAD_MAX_DIST_KM: float = 10.0
+"""Layer 3a: pixels >10km from a motorable road are excluded.
+Same threshold as solar. Crane access for turbine installation
+requires a motorable road within reach. Source: OSM PBF extract."""
+
 WIND_LAND_COVER_BUILDABLE_THRESHOLD: float = 0.5
 """Sub-pixel threshold for ESA WorldCover binary resampling.
 Same as solar: >=50% of source 10m pixels must be buildable."""
@@ -73,7 +78,8 @@ WIND_VALID_CONSTRAINTS: frozenset[str] = frozenset(
         "slope",
         "peat",
         "land_cover",
-        "low_wind",  # NEW: wind speed below cut-in
+        "far_from_road",  # Layer 3a: >10km from motorable road (OSM)
+        "low_wind",  # wind speed below cut-in
         "area_too_small",
         "unconstrained",
         "data_unavailable",
@@ -86,17 +92,18 @@ def compute_wind_buildability_constraint(
     n_after_layer1a: int,
     n_after_layer1b: int,
     n_after_layer1cd: int,
+    n_after_layer3a: int,
     n_after_layer2: int,
     n_after_wind_speed: int,
     n_after_layer4: int,
 ) -> str:
     """Identify the dominant binding constraint for wind buildability.
 
-    Same logic as solar's compute_buildability_constraint, plus a
-    wind-speed filter layer between terrain and min-area.
+    Same logic as solar's compute_buildability_constraint, plus
+    road-proximity and wind-speed filter layers.
 
-    Returns one of: "kawasan_hutan" | "peat" | "land_cover" | "slope" |
-                    "low_wind" | "area_too_small" | "unconstrained"
+    Returns one of: "kawasan_hutan" | "peat" | "land_cover" | "far_from_road" |
+                    "slope" | "low_wind" | "area_too_small" | "unconstrained"
     """
     if n_pixels_raw == 0:
         return "unconstrained"
@@ -105,7 +112,8 @@ def compute_wind_buildability_constraint(
         "kawasan_hutan": n_pixels_raw - n_after_layer1a,
         "peat": n_after_layer1a - n_after_layer1b,
         "land_cover": n_after_layer1b - n_after_layer1cd,
-        "slope": n_after_layer1cd - n_after_layer2,
+        "far_from_road": n_after_layer1cd - n_after_layer3a,
+        "slope": n_after_layer3a - n_after_layer2,
         "low_wind": n_after_layer2 - n_after_wind_speed,
         "area_too_small": n_after_wind_speed - n_after_layer4,
     }

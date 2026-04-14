@@ -4,16 +4,16 @@ buildability_filters.py — Pure filter functions for the land suitability casca
 All functions accept numpy arrays (no file I/O). This enables unit testing with
 synthetic rasters without requiring real geospatial data files.
 
-Layers implemented (v1.1):
+Layers implemented (v1.2):
     Layer 1a: Kawasan Hutan hard exclusion (shapefile → rasterized mask)
     Layer 1b: Peatland (gambut) exclusion
     Layer 1c/d: Land cover exclusions (mangrove, water, cropland, urban) — ESA WorldCover v200
+    Layer 3a: Road proximity — hard exclusion >10km from motorable road (OSM)
     Layer 2a: Slope > 8° exclusion (derived from Copernicus DEM)
     Layer 2c: Elevation > 1,500m exclusion
 
-Deferred to v1.2:
+Deferred:
     Layer 2d: Flood hazard (BNPB portal inaccessible; low overlap with slope)
-    Layer 3a: Road proximity (soft constraint; requires OSM PBF processing)
 
 Layer 3b (substation proximity) is already captured in fct_substation_proximity.
 
@@ -40,6 +40,7 @@ MAX_ELEV_M: float = 1500.0  # Layer 2c hard exclusion threshold (metres)
 MIN_AREA_HA: float = 10.0  # Layer 4 minimum contiguous buildable patch (ha)
 HA_PER_MWP: float = 1.5  # 1.5 ha/MWp (tropical fixed-tilt, GCR ~0.45–0.55)
 LAND_COVER_BUILDABLE_THRESHOLD: float = 0.5  # sub-pixel: >=50% of source pixels must be buildable
+ROAD_MAX_DIST_KM: float = 10.0  # Layer 3a: pixels >10km from motorable road excluded
 
 VALID_CONSTRAINTS: frozenset[str] = frozenset(
     [
@@ -47,6 +48,7 @@ VALID_CONSTRAINTS: frozenset[str] = frozenset(
         "slope",
         "peat",
         "land_cover",  # ESA WorldCover layer 1c/d: tree cover, cropland, urban, water, wetland, mangrove
+        "far_from_road",  # Layer 3a: >10km from motorable road (OSM)
         "area_too_small",
         "unconstrained",
         "data_unavailable",
@@ -115,6 +117,28 @@ def apply_slope_elevation_mask(
     return result
 
 
+def apply_road_distance_mask(
+    pvout_arr: np.ndarray,
+    road_dist_arr: np.ndarray,
+    max_dist_km: float = ROAD_MAX_DIST_KM,
+) -> np.ndarray:
+    """Zero out pixels that are more than max_dist_km from a motorable road.
+
+    Args:
+        pvout_arr:     2D float array of PVOUT/wind values.
+        road_dist_arr: 2D float array of distance to nearest road (km).
+                       NaN = no data, conservatively excluded.
+        max_dist_km:   Hard exclusion threshold (default 10 km).
+
+    Returns:
+        Copy of pvout_arr with far-from-road pixels set to 0.0.
+    """
+    result = pvout_arr.copy().astype(float)
+    too_far = ~np.isfinite(road_dist_arr) | (road_dist_arr > max_dist_km)
+    result[too_far] = 0.0
+    return result
+
+
 def apply_min_area_filter(
     buildable_mask: np.ndarray,
     pixel_area_ha: float,
@@ -169,6 +193,7 @@ def compute_buildability_constraint(
     n_after_layer1a: int,
     n_after_layer1b: int,
     n_after_layer1cd: int,
+    n_after_layer3a: int,
     n_after_layer2: int,
     n_after_layer4: int,
 ) -> str:
@@ -181,12 +206,13 @@ def compute_buildability_constraint(
         n_after_layer1a: Remaining after Kawasan Hutan exclusion.
         n_after_layer1b: Remaining after peatland exclusion.
         n_after_layer1cd: Remaining after land-cover exclusions.
+        n_after_layer3a: Remaining after road proximity exclusion.
         n_after_layer2:  Remaining after slope + elevation filter.
         n_after_layer4:  Remaining after minimum-area filter.
 
     Returns:
-        One of: "kawasan_hutan" | "peat" | "land_cover" | "slope" |
-                "area_too_small" | "unconstrained"
+        One of: "kawasan_hutan" | "peat" | "land_cover" | "far_from_road" |
+                "slope" | "area_too_small" | "unconstrained"
 
         Note: "land_cover" covers the full ESA WorldCover exclusion set (tree cover /
         forest, cropland, urban, water, wetland, mangrove). It is the dominant constraint
@@ -200,7 +226,8 @@ def compute_buildability_constraint(
         "kawasan_hutan": n_pixels_raw - n_after_layer1a,
         "peat": n_after_layer1a - n_after_layer1b,
         "land_cover": n_after_layer1b - n_after_layer1cd,
-        "slope": n_after_layer1cd - n_after_layer2,
+        "far_from_road": n_after_layer1cd - n_after_layer3a,
+        "slope": n_after_layer3a - n_after_layer2,
         "area_too_small": n_after_layer2 - n_after_layer4,
     }
 

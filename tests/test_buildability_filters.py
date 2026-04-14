@@ -16,9 +16,11 @@ import rasterio.transform
 from src.pipeline.buildability_filters import (
     MAX_ELEV_M,
     MAX_SLOPE_DEG,
+    ROAD_MAX_DIST_KM,
     VALID_CONSTRAINTS,
     apply_exclusion_mask,
     apply_min_area_filter,
+    apply_road_distance_mask,
     apply_slope_elevation_mask,
     compute_buildability_constraint,
     compute_distance_mask_km,
@@ -109,6 +111,66 @@ class TestApplySlopeElevationMask:
         assert result[0, 2] == 0.0  # fails elevation
 
 
+# ── apply_road_distance_mask ──────────────────────────────────────────────────
+
+
+class TestApplyRoadDistanceMask:
+    def test_far_pixels_zeroed(self):
+        """Pixels > ROAD_MAX_DIST_KM from road should become 0.0."""
+        pvout = np.full((2, 2), 5.0)
+        road_dist = np.array([[5.0, 15.0], [8.0, 20.0]])
+        result = apply_road_distance_mask(pvout, road_dist)
+        assert result[0, 0] == 5.0  # 5 km < 10 km
+        assert result[0, 1] == 0.0  # 15 km > 10 km
+        assert result[1, 0] == 5.0  # 8 km < 10 km
+        assert result[1, 1] == 0.0  # 20 km > 10 km
+
+    def test_near_pixels_retained(self):
+        """Pixels <= threshold from road keep their values."""
+        pvout = np.array([[4.5, 4.8], [4.9, 5.1]])
+        road_dist = np.full((2, 2), 3.0)  # all within 10km
+        result = apply_road_distance_mask(pvout, road_dist)
+        np.testing.assert_array_equal(result, pvout)
+
+    def test_road_dist_nan_treated_as_excluded(self):
+        """NaN in road_dist_arr should conservatively exclude the pixel."""
+        pvout = np.array([[5.0, 5.0]])
+        road_dist = np.array([[np.nan, 2.0]])
+        result = apply_road_distance_mask(pvout, road_dist)
+        assert result[0, 0] == 0.0  # NaN = excluded
+        assert result[0, 1] == 5.0  # 2 km = retained
+
+    def test_custom_threshold(self):
+        """Custom max_dist_km overrides default."""
+        pvout = np.full((1, 3), 5.0)
+        road_dist = np.array([[3.0, 5.0, 8.0]])
+        result = apply_road_distance_mask(pvout, road_dist, max_dist_km=4.0)
+        assert result[0, 0] == 5.0  # 3 < 4
+        assert result[0, 1] == 0.0  # 5 > 4
+        assert result[0, 2] == 0.0  # 8 > 4
+
+    def test_does_not_modify_input(self):
+        """apply_road_distance_mask should return a copy, not modify in place."""
+        pvout = np.array([[5.0, 5.0]], dtype=float)
+        road_dist = np.array([[20.0, 2.0]])
+        _ = apply_road_distance_mask(pvout, road_dist)
+        assert pvout[0, 0] == 5.0  # original unchanged
+
+    def test_exact_threshold_retained(self):
+        """Pixels at exactly max_dist_km should be retained (> excludes, = does not)."""
+        pvout = np.array([[5.0]])
+        road_dist = np.array([[ROAD_MAX_DIST_KM]])
+        result = apply_road_distance_mask(pvout, road_dist)
+        assert result[0, 0] == 5.0  # exactly at threshold is NOT excluded
+
+    def test_zero_distance_retained(self):
+        """Pixels on a road (distance 0) should be retained."""
+        pvout = np.array([[5.0]])
+        road_dist = np.array([[0.0]])
+        result = apply_road_distance_mask(pvout, road_dist)
+        assert result[0, 0] == 5.0
+
+
 # ── apply_min_area_filter ─────────────────────────────────────────────────────
 
 
@@ -163,33 +225,41 @@ class TestComputeSlopeDegrees:
 class TestComputeBuildabilityConstraint:
     def test_kawasan_hutan_dominant(self):
         """Kawasan Hutan removes most pixels → constraint = kawasan_hutan."""
-        # 100 raw → 20 after KH (80 removed) → 18 after peat → 15 after LC → 14 after slope → 14 after area
-        result = compute_buildability_constraint(100, 20, 18, 15, 14, 14)
+        # 100 raw → 20 after KH (80 removed) → 18 after peat → 15 after LC → 15 road → 14 slope → 14 area
+        result = compute_buildability_constraint(100, 20, 18, 15, 15, 14, 14)
         assert result == "kawasan_hutan"
 
     def test_slope_dominant(self):
         """Slope removes most pixels → constraint = slope."""
-        result = compute_buildability_constraint(100, 95, 94, 93, 50, 50)
+        result = compute_buildability_constraint(100, 95, 94, 93, 93, 50, 50)
         assert result == "slope"
+
+    def test_far_from_road_dominant(self):
+        """Road proximity removes most pixels → constraint = far_from_road."""
+        # 100 raw → 95 KH → 94 peat → 93 LC → 30 road (63 removed!) → 28 slope → 28 area
+        result = compute_buildability_constraint(100, 95, 94, 93, 30, 28, 28)
+        assert result == "far_from_road"
 
     def test_unconstrained_when_no_removal(self):
         """No pixels removed at any layer → unconstrained."""
-        result = compute_buildability_constraint(50, 50, 50, 50, 50, 50)
+        result = compute_buildability_constraint(50, 50, 50, 50, 50, 50, 50)
         assert result == "unconstrained"
 
     def test_unconstrained_on_zero_pixels(self):
         """Zero raw pixels → unconstrained (no exclusion to report)."""
-        result = compute_buildability_constraint(0, 0, 0, 0, 0, 0)
+        result = compute_buildability_constraint(0, 0, 0, 0, 0, 0, 0)
         assert result == "unconstrained"
 
     def test_output_is_valid_constraint(self):
         """All returned values are in the VALID_CONSTRAINTS set."""
+        # Args: (raw, 1a, 1b, 1cd, 3a, 2, 4)
         cases = [
-            (100, 20, 18, 15, 14, 14),
-            (100, 95, 94, 50, 49, 49),
-            (100, 95, 60, 58, 57, 57),
-            (100, 95, 94, 93, 90, 70),
-            (50, 50, 50, 50, 50, 50),
+            (100, 20, 18, 15, 15, 14, 14),
+            (100, 95, 94, 50, 50, 49, 49),
+            (100, 95, 60, 58, 58, 57, 57),
+            (100, 95, 94, 93, 93, 90, 70),
+            (100, 95, 94, 93, 30, 28, 28),  # road dominant
+            (50, 50, 50, 50, 50, 50, 50),
         ]
         for args in cases:
             result = compute_buildability_constraint(*args)

@@ -12,6 +12,13 @@ set -e
 echo "=== Wind Buildability Pipeline ==="
 echo ""
 
+# Optional: build road distance raster if not present
+if [ ! -f "data/buildability/road_distance_km.tif" ]; then
+    echo "Note: road_distance_km.tif not found. Road proximity filter will be skipped."
+    echo "      Run 'uv run python scripts/download_road_data.py' to build it."
+    echo ""
+fi
+
 echo "Step 1/3: Building wind buildable raster..."
 uv run python -m src.pipeline.build_wind_buildable_raster
 echo ""

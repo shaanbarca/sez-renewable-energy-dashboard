@@ -148,6 +148,11 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         lv.wind = false;
         lv.buildable_polygons = true;
         lv.wind_buildable_polygons = false;
+      } else if (mode === 'hybrid') {
+        lv.pvout = true;
+        lv.wind = true;
+        lv.buildable_polygons = true;
+        lv.wind_buildable_polygons = true;
       }
       // 'overall' — leave layers as-is, user controls via LayerControl
       return { energyMode: mode, layerVisibility: lv };

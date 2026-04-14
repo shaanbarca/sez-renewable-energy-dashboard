@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre';
+import { getEffectiveActionFlag } from '../../lib/actionFlags';
 import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import type { ActionFlag } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -114,6 +115,8 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
     };
   }, [scorecard, mapInstance]);
 
+  const energyMode = useDashboardStore((s) => s.energyMode);
+
   const geojson = useMemo(() => {
     if (!scorecard) return null;
     return {
@@ -127,7 +130,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
         properties: {
           kek_id: row.kek_id,
           kek_name: row.kek_name,
-          action_flag: row.action_flag,
+          action_flag: getEffectiveActionFlag(row, energyMode),
           province: row.province,
           kek_type: row.kek_type ?? '',
           category: row.category ?? '',
@@ -136,7 +139,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
         },
       })),
     };
-  }, [scorecard]);
+  }, [scorecard, energyMode]);
 
   // Build the match expression for circle-color from constants
   const colorMatch = useMemo(() => {

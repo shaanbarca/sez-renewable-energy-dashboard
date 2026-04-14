@@ -195,8 +195,8 @@ Candidate zone (50km radius)
 | Peatland (1,524 features) | KLHK vector boundaries | Active |
 | ESA WorldCover 10m | 2021 v200 | Active |
 | DEM slope >8 deg / elevation >1,500m | Copernicus GLO-30 | Active |
-| Flood hazard | BNPB | Deferred (v1.2) |
-| Road proximity | OSM | Deferred (v1.2) |
+| Road proximity (>10km from motorable road) | OSM via Geofabrik PBF | Active |
+| Flood hazard | BNPB | Deferred |
 
 **Resolution note:** The PVOUT raster is ~1km resolution (~86 ha/pixel). Layer 4 is a near-no-op at this resolution. See Appendix A for full filter specifications.
 
@@ -460,6 +460,119 @@ The dashboard includes an "LCOE vs Project Scale" chart that shows how LCOE vari
 **Typical curve shape:** Declining at small capacity (connection costs dominate, spread over more kW), flattening at medium capacity, potentially rising at large capacity if substation upgrade costs grow. KEKs with red capacity assessment show a more pronounced uptick at high capacity.
 
 **Implementation:** `LcoeCurveChart.tsx` (frontend only, no backend computation).
+
+---
+
+## 6A. Hybrid Solar+Wind RE Framework
+
+### 6A.1 Motivation
+
+Solar-only 24/7 industrial supply requires 14 hours of BESS bridging (nighttime gap from 6pm to 8am). At current Li-ion costs ($200/kWh), this adds $160-380/MWh to solar LCOE, making firm solar structurally uneconomic for most KEKs.
+
+Wind generation is temporally complementary: it produces power day and night with roughly uniform output across hours. Adding wind to the mix partially fills the nighttime gap, reducing BESS sizing and total system cost. A 60/40 solar/wind blend with wind covering 30% of nighttime demand can cut BESS from 14h to ~10h, saving ~$100/MWh in storage costs.
+
+### 6A.2 RESource abstraction
+
+Each renewable technology is represented as an `RESource` dataclass:
+
+| Field | Type | Solar | Wind | Hydro (future) |
+|-------|------|-------|------|-----------------|
+| `technology` | str | `"solar"` | `"wind"` | `"hydro"` |
+| `lcoe_usd_mwh` | float | Standalone LCOE | Standalone LCOE | Standalone LCOE |
+| `generation_mwh` | float | Annual generation | Annual generation | Annual generation |
+| `cf` | float | Capacity factor | Capacity factor | Capacity factor |
+| `nighttime_fraction` | float | 0.0 | 14/24 ≈ 0.583 | 1.0 (dispatchable) |
+| `capacity_mwp` | float | Buildable capacity | Buildable capacity | Installed capacity |
+
+Solar has `nighttime_fraction = 0.0` (zero production at night). Wind uses `14/24` (conservative: assumes uniform CF across all hours, so 14 of 24 hours fall at night). Hydro will use `1.0` (fully dispatchable baseload).
+
+### 6A.3 Blended LCOE
+
+Generation-weighted average across sources:
+
+```
+blended_lcoe = Σ(source_gen × source_lcoe) / Σ(source_gen)
+```
+
+For solar+wind with shares `s` and `(1-s)`:
+
+```
+blended_lcoe = (solar_gen × s × solar_lcoe + wind_gen × (1-s) × wind_lcoe)
+               / (solar_gen × s + wind_gen × (1-s))
+```
+
+Blended LCOE always falls between the two standalone LCOEs. But hybrid all-in cost (LCOE + BESS) can beat both standalone technologies because the BESS reduction is nonlinear.
+
+### 6A.4 BESS reduction formula
+
+```
+nighttime_demand = total_demand × (14/24)
+
+For each source:
+  nighttime_contribution = generation × nighttime_fraction
+
+total_nighttime_supply = Σ(nighttime_contribution)
+nighttime_coverage = min(total_nighttime_supply / nighttime_demand, 1.0)
+
+hybrid_bess_hours = 14.0 × (1.0 - nighttime_coverage)
+```
+
+Wind's nighttime contribution = `wind_generation × (14/24)`. When wind covers 50% of nighttime demand, BESS drops from 14h to 7h.
+
+The BESS storage adder is then computed using the existing `bess_storage_adder()` function with the reduced `hybrid_bess_hours` and the blended capacity factor.
+
+### 6A.5 Mix ratio optimization
+
+The optimizer sweeps `solar_share` from 0% to 100% in 5% steps (21 evaluations per KEK). For each candidate share:
+
+1. Scale solar and wind generation by their respective shares
+2. Compute blended LCOE
+3. Compute hybrid BESS hours from nighttime coverage
+4. Compute BESS adder using `bess_storage_adder()` with reduced hours and blended CF
+5. All-in = blended LCOE + BESS adder
+
+The share that minimizes all-in cost is selected. This is pure arithmetic, sub-ms per KEK.
+
+**User override:** `hybrid_solar_share` in `UserAssumptions` (0.0-1.0). When set, the optimizer is bypassed and the exact specified share is used. `None` (default) = auto-optimize.
+
+**No-wind fallback:** When `cf_wind <= 0` or wind generation is zero, the optimizer returns `solar_share = 1.0` and all hybrid fields equal their solar-only equivalents.
+
+### 6A.6 Three-way technology comparison
+
+`best_re_technology` compares three candidates:
+
+| Candidate | Cost metric |
+|-----------|------------|
+| Solar | `lcoe_with_battery` (solar LCOE + 14h BESS adder) |
+| Wind | `lcoe_wind_mid` (standalone, no BESS) |
+| Hybrid | `hybrid_allin_usd_mwh` (blended LCOE + reduced BESS adder) |
+
+The lowest all-in cost wins. Hybrid can beat both standalone technologies: it beats solar because BESS is smaller, and it can beat wind because blended LCOE is lower when solar is cheaper per MWh.
+
+### 6A.7 Output fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hybrid_lcoe_usd_mwh` | float | Blended LCOE before BESS |
+| `hybrid_bess_hours` | float | Reduced BESS sizing (0-14h) |
+| `hybrid_bess_adder_usd_mwh` | float | BESS cost at reduced sizing |
+| `hybrid_allin_usd_mwh` | float | Blended LCOE + BESS adder |
+| `hybrid_solar_share` | float | Optimal solar fraction (0-1) |
+| `hybrid_supply_coverage_pct` | float | Combined generation / demand |
+| `hybrid_nighttime_coverage_pct` | float | Wind nighttime fill fraction |
+| `hybrid_bess_reduction_pct` | float | `1 - hybrid_bess_hours / 14` |
+| `hybrid_carbon_breakeven_usd_tco2` | float | Carbon price for hybrid competitiveness |
+
+### 6A.8 Hydro extensibility
+
+When hydro proximity data ships, adding hydro requires:
+1. Create `RESource(technology="hydro", nighttime_fraction=1.0, ...)` (dispatchable baseload)
+2. Pass 3-element sources list to `hybrid_lcoe_optimized()`
+3. Optimizer expands from 1D sweep to 2D grid (solar x wind, hydro = remainder). 231 evaluations at 5% steps, still sub-ms.
+
+Hydro's firm nighttime output directly offsets BESS further. No refactoring needed.
+
+**Implementation:** `src/model/basic_model.py` (`RESource`, `hybrid_bess_hours()`, `hybrid_lcoe_optimized()`), `src/dash/logic.py` (hybrid block in `compute_scorecard_live()`).
 
 ---
 
@@ -1142,7 +1255,9 @@ See the [Indonesian Regulatory Framework](#indonesian-regulatory-framework) tabl
 
 ### Layer 3: Infrastructure Proximity
 
-Distance to road and substation are soft constraints affecting cost, not hard exclusions. Road proximity deferred to v1.2.
+**Layer 3a: Road proximity (v1.2).** Pixels more than 10km from a motorable road are excluded. Data source: OpenStreetMap via Geofabrik Indonesia PBF extract. Road types included: motorway, trunk, primary, secondary, tertiary. Residential, service, track, footway, and path roads are excluded. Distance computed via Euclidean distance transform (`scipy.ndimage.distance_transform_edt`) on the nationwide rasterized road network at ~1km resolution, with latitude-corrected pixel sampling. The 10km threshold represents a practical construction access limit: sites beyond this distance face prohibitive access road costs in Indonesian terrain. Applies to both solar and wind pipelines with the same threshold.
+
+**Layer 3b: Substation proximity** is captured separately in `fct_substation_proximity` (see Section 8).
 
 ### Layer 4: Minimum Contiguous Area
 

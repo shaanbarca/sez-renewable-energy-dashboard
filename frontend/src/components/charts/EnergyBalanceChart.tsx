@@ -1,9 +1,11 @@
-import type { ScorecardRow } from '../../lib/types';
+import type { EnergyMode, ScorecardRow } from '../../lib/types';
 
 const COLORS = {
   daytime: '#FFC107',
   nighttime: '#7B1FA2',
   solar: '#4CAF50',
+  wind: '#2196F3',
+  bess: '#FF9800',
   gap: '#EF5350',
 };
 
@@ -49,7 +51,10 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-export default function EnergyBalanceChart({ row }: { row: ScorecardRow }) {
+export default function EnergyBalanceChart({
+  row,
+  energyMode = 'solar',
+}: { row: ScorecardRow; energyMode?: EnergyMode }) {
   if (row.demand_2030_gwh == null || row.max_solar_generation_gwh == null) return null;
 
   const totalDemand = row.demand_2030_gwh;
@@ -60,17 +65,41 @@ export default function EnergyBalanceChart({ row }: { row: ScorecardRow }) {
   const daytimeDemand = totalDemand * daytimeFraction;
   const nighttimeDemand = totalDemand * nighttimeFraction;
 
-  const totalSupply = row.max_solar_generation_gwh;
-  const coveragePct = row.solar_supply_coverage_pct ?? totalSupply / totalDemand;
+  const isHybrid = energyMode === 'hybrid' && row.hybrid_allin_usd_mwh != null;
+
+  // Supply sources
+  const solarGwh = row.max_solar_generation_gwh;
+  const windGwh = isHybrid ? (row.max_wind_generation_gwh ?? 0) : 0;
+  const windShare = isHybrid && row.hybrid_solar_share != null ? 1 - row.hybrid_solar_share : 0;
+  const solarShare = isHybrid && row.hybrid_solar_share != null ? row.hybrid_solar_share : 1;
+
+  // Scaled generation based on mix
+  const scaledSolar = solarGwh * solarShare;
+  const scaledWind = windGwh * windShare;
+  const totalSupply = isHybrid ? scaledSolar + scaledWind : solarGwh;
+
+  const coveragePct = isHybrid
+    ? (row.hybrid_supply_coverage_pct ?? totalSupply / totalDemand)
+    : (row.solar_supply_coverage_pct ?? totalSupply / totalDemand);
 
   // Scale: demand bar is always 100%. Supply bar is proportional.
-  const supplyPct = Math.min((totalSupply / totalDemand) * 100, 100);
+  const totalSupplyPct = Math.min((totalSupply / totalDemand) * 100, 100);
   const gapGwh = Math.max(totalDemand - totalSupply, 0);
-  const gapPct = 100 - supplyPct;
+  const gapPct = 100 - totalSupplyPct;
+
+  // For hybrid: split supply bar into solar + wind segments
+  const solarPct = totalSupply > 0 ? (scaledSolar / totalDemand) * 100 : 0;
+  const windPct = totalSupply > 0 ? (scaledWind / totalDemand) * 100 : 0;
 
   // Summary line
   let summary: string;
-  if (coveragePct >= 1.0) {
+  if (isHybrid) {
+    const nightCov = row.hybrid_nighttime_coverage_pct != null
+      ? Math.round(row.hybrid_nighttime_coverage_pct * 100)
+      : 0;
+    const bessHrs = row.hybrid_bess_hours?.toFixed(1) ?? '?';
+    summary = `Hybrid: wind covers ${nightCov}% of nighttime demand, reducing BESS from 14h to ${bessHrs}h.`;
+  } else if (coveragePct >= 1.0) {
     const storagePct = row.storage_gap_pct != null ? (row.storage_gap_pct * 100).toFixed(0) : '58';
     summary = `Solar produces more than enough annually, but ${storagePct}% of demand falls at night.`;
   } else if (coveragePct >= 0.5) {
@@ -88,7 +117,7 @@ export default function EnergyBalanceChart({ row }: { row: ScorecardRow }) {
         border: '1px solid var(--card-border)',
       }}
       role="img"
-      aria-label="Energy balance showing solar supply vs industrial demand"
+      aria-label="Energy balance showing renewable supply vs industrial demand"
     >
       <div className="mb-1.5">
         <div className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
@@ -98,7 +127,7 @@ export default function EnergyBalanceChart({ row }: { row: ScorecardRow }) {
           className="text-[10px] leading-snug mt-0.5"
           style={{ color: 'var(--text-muted)', opacity: 0.7 }}
         >
-          Can solar actually power this KEK?
+          {isHybrid ? 'Can solar + wind power this KEK?' : 'Can solar actually power this KEK?'}
         </div>
       </div>
 
@@ -145,7 +174,16 @@ export default function EnergyBalanceChart({ row }: { row: ScorecardRow }) {
           </span>
         </div>
         <div className="flex rounded overflow-hidden" style={{ background: 'var(--bar-bg)' }}>
-          <BarSegment widthPct={supplyPct} color={COLORS.solar} label="Solar" gwh={totalSupply} />
+          {isHybrid ? (
+            <>
+              <BarSegment widthPct={Math.min(solarPct, 100)} color={COLORS.solar} label="Solar" gwh={scaledSolar} />
+              {scaledWind > 0 && (
+                <BarSegment widthPct={Math.min(windPct, 100 - Math.min(solarPct, 100))} color={COLORS.wind} label="Wind" gwh={scaledWind} />
+              )}
+            </>
+          ) : (
+            <BarSegment widthPct={totalSupplyPct} color={COLORS.solar} label="Solar" gwh={totalSupply} />
+          )}
           {gapPct > 2 && (
             <div
               className="h-5 flex items-center justify-center"
@@ -171,6 +209,7 @@ export default function EnergyBalanceChart({ row }: { row: ScorecardRow }) {
         <LegendDot color={COLORS.daytime} label="Daytime" />
         <LegendDot color={COLORS.nighttime} label="Nighttime" />
         <LegendDot color={COLORS.solar} label="Solar" />
+        {isHybrid && <LegendDot color={COLORS.wind} label="Wind" />}
         {gapPct > 2 && <LegendDot color={COLORS.gap} label="Gap" />}
       </div>
 

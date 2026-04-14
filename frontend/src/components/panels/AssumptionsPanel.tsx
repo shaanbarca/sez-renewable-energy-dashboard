@@ -182,6 +182,8 @@ export default function AssumptionsPanel() {
   const defaultAssumptions = useDashboardStore((s) => s.defaultAssumptions);
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
 
+  const energyMode = useDashboardStore((s) => s.energyMode);
+
   const isModified =
     assumptions &&
     defaultAssumptions &&
@@ -324,6 +326,54 @@ export default function AssumptionsPanel() {
               </div>
             )}
           </div>
+
+          {/* Hybrid Solar Share — only visible in hybrid mode */}
+          {energyMode === 'hybrid' && (
+            <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Hybrid Solar Share
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={assumptions.hybrid_solar_share != null}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setAssumptions({ hybrid_solar_share: 0.5 });
+                      } else {
+                        setAssumptions({ hybrid_solar_share: null });
+                      }
+                    }}
+                    className="w-3 h-3 accent-[var(--accent)]"
+                  />
+                  <span className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                    Override
+                  </span>
+                </label>
+              </div>
+              {assumptions.hybrid_solar_share != null ? (
+                <Slider
+                  value={Math.round(assumptions.hybrid_solar_share * 100)}
+                  onChange={(v) => setAssumptions({ hybrid_solar_share: v / 100 })}
+                  min={0}
+                  max={100}
+                  step={5}
+                  label="Solar Share"
+                  unit="%"
+                  description="Fixed solar/wind mix ratio. 70% = 70% solar, 30% wind. Unchecked = auto-optimize per KEK."
+                  marks={{ '0': '0% (wind)', '50': '50/50', '100': '100% (solar)' }}
+                />
+              ) : (
+                <div className="text-[10px] py-1" style={{ color: 'var(--text-muted)' }}>
+                  Auto-optimizing mix per KEK (lowest all-in cost)
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tier 2 + 3: Advanced */}
           <Accordion.Root type="multiple" className="mt-1">

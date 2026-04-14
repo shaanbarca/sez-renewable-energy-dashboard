@@ -1524,3 +1524,135 @@ class TestWindSpeedToCf:
         """Jeneponto (South Sulawesi) at ~6.5 m/s should give CF ~0.22–0.25."""
         cf = wind_speed_to_cf(6.5)
         assert 0.20 <= cf <= 0.27
+
+
+class TestHybridRE:
+    """Tests for hybrid solar+wind framework: BESS reduction, optimizer, fallbacks."""
+
+    def test_hybrid_bess_hours_solar_only(self):
+        """With no wind nighttime contribution, hybrid BESS = full 14h bridge."""
+        from src.model.basic_model import RESource, hybrid_bess_hours
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        result = hybrid_bess_hours([solar], total_demand_mwh=2_000_000)
+        assert result == 14.0
+
+    def test_hybrid_bess_hours_wind_reduces(self):
+        """Wind covering 50% of nighttime demand halves BESS hours to 7h."""
+        from src.model.basic_model import RESource, hybrid_bess_hours
+
+        # nighttime demand = 2M * (14/24) = 1,166,667 MWh
+        # wind nighttime gen = 2M * (14/24) = 1,166,667 MWh -> coverage=1.0? No.
+        # Wind gen=1M, nighttime_fraction=14/24=0.583, nighttime_gen=583,333
+        # coverage = 583,333 / 1,166,667 = 0.5 -> bess = 14 * 0.5 = 7h
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 90.0, 1_000_000, 0.25, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_bess_hours([solar, wind], total_demand_mwh=2_000_000)
+        assert abs(result - 7.0) < 0.1, f"Expected ~7h, got {result:.1f}h"
+
+    def test_hybrid_bess_hours_capped_at_zero(self):
+        """Massive wind gen caps nighttime coverage at 1.0, BESS hours at 0."""
+        from src.model.basic_model import RESource, hybrid_bess_hours
+
+        solar = RESource("solar", 70.0, 500_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 80.0, 10_000_000, 0.35, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_bess_hours([solar, wind], total_demand_mwh=1_000_000)
+        assert result == 0.0
+
+    def test_optimizer_no_wind_fallback(self):
+        """When wind has zero generation, optimizer returns solar-only with share=1.0."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 90.0, 0.0, 0.0, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized([solar, wind], demand_mwh=2_000_000)
+        assert result["optimal_solar_share"] == 1.0
+        assert result["hybrid_lcoe_usd_mwh"] == 70.0
+
+    def test_optimizer_no_wind_nan_fallback(self):
+        """When wind LCOE is NaN, optimizer returns solar-only."""
+        import numpy as np
+
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", np.nan, 500_000, 0.25, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized([solar, wind], demand_mwh=2_000_000)
+        assert result["optimal_solar_share"] == 1.0
+
+    def test_blended_lcoe_between_standalone(self):
+        """Blended LCOE must fall between solar and wind standalone LCOE."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 100.0, 800_000, 0.25, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized([solar, wind], demand_mwh=2_000_000)
+        lcoe = result["hybrid_lcoe_usd_mwh"]
+        assert 70.0 <= lcoe <= 100.0, f"Blended LCOE ${lcoe} outside [70, 100]"
+
+    def test_hybrid_allin_can_beat_solar_standalone(self):
+        """Hybrid all-in (LCOE+BESS) should beat solar standalone (LCOE+14h BESS)
+        when wind provides meaningful nighttime coverage."""
+        from src.model.basic_model import (
+            RESource,
+            bess_bridge_hours,
+            bess_storage_adder,
+            hybrid_lcoe_optimized,
+        )
+
+        solar = RESource("solar", 75.0, 1_500_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 95.0, 800_000, 0.28, nighttime_fraction=14.0 / 24.0)
+
+        hybrid = hybrid_lcoe_optimized([solar, wind], demand_mwh=2_000_000)
+        solar_standalone = 75.0 + bess_storage_adder(
+            solar_cf=0.18, sizing_hours=bess_bridge_hours()
+        )
+        assert hybrid["hybrid_allin_usd_mwh"] < solar_standalone, (
+            f"Hybrid ${hybrid['hybrid_allin_usd_mwh']} should beat solar standalone ${solar_standalone:.1f}"
+        )
+
+    def test_user_override_respected(self):
+        """solar_share_override=0.7 should produce exactly 70/30 blend."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 100.0, 800_000, 0.25, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized(
+            [solar, wind], demand_mwh=2_000_000, solar_share_override=0.7
+        )
+        assert result["optimal_solar_share"] == 0.7
+        # Blended LCOE at 70/30: (0.7M*70 + 0.24M*100) / (0.7M+0.24M)
+        s_gen = 1_000_000 * 0.7
+        w_gen = 800_000 * 0.3
+        expected_lcoe = (s_gen * 70 + w_gen * 100) / (s_gen + w_gen)
+        assert abs(result["hybrid_lcoe_usd_mwh"] - expected_lcoe) < 0.1
+
+    def test_bess_reduction_positive(self):
+        """Hybrid BESS hours should be less than 14h when wind is available."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 90.0, 600_000, 0.22, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized([solar, wind], demand_mwh=2_000_000)
+        assert result["hybrid_bess_hours"] < 14.0
+        assert result["hybrid_bess_hours"] > 0.0
+
+    def test_no_solar_returns_none(self):
+        """No solar source -> all None."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        wind = RESource("wind", 90.0, 600_000, 0.22, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized([wind], demand_mwh=2_000_000)
+        assert result["hybrid_lcoe_usd_mwh"] is None
+
+    def test_supply_coverage_combined(self):
+        """Combined supply coverage should sum both sources' generation."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
+        wind = RESource("wind", 90.0, 500_000, 0.25, nighttime_fraction=14.0 / 24.0)
+        result = hybrid_lcoe_optimized(
+            [solar, wind], demand_mwh=2_000_000, solar_share_override=1.0
+        )
+        # At share=1.0: total_gen = 1M solar + 0 wind = 1M
+        assert abs(result["hybrid_supply_coverage_pct"] - 0.5) < 0.01

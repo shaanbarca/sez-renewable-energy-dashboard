@@ -1,10 +1,15 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchKekSubstations } from '../../lib/api';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_HIERARCHY, ACTION_FLAG_LABELS } from '../../lib/constants';
+import {
+  ACTION_FLAG_HIERARCHY_BY_MODE,
+  getActionSectionTitle,
+  getEffectiveActionFlag,
+  getEffectiveFlagExplanation,
+} from '../../lib/actionFlags';
+import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import { capitalize, formatGridRegion, formatSnakeLabel } from '../../lib/format';
 import type {
-  ActionFlag,
   ScorecardRow,
   SubstationWithCosts,
   UserAssumptions,
@@ -301,48 +306,6 @@ function FlagStep({
   );
 }
 
-function getFlagExplanation(flag: ActionFlag, row: ScorecardRow): string {
-  switch (flag) {
-    case 'solar_now':
-      return 'Solar is cost-competitive with the grid today. Grid upgrades are planned and sufficient GEAS allocation exists.';
-    case 'invest_resilience': {
-      const gap = row.solar_competitive_gap_pct;
-      return `Solar is within ${gap != null ? Math.abs(gap).toFixed(0) : '~20'}% of grid parity. Investing now builds resilience against future grid cost increases.`;
-    }
-    case 'grid_first':
-      return `Solar is cost-competitive here (LCOE $${row.lcoe_mid_usd_mwh?.toFixed(1)}/MWh vs grid $${row.grid_cost_usd_mwh?.toFixed(1)}/MWh), but ${row.grid_upgrade_planned === false ? 'no grid upgrade is planned before 2030' : 'grid infrastructure needs improvement'} — solar cannot connect until the grid catches up.`;
-    case 'invest_transmission':
-      return `Solar can reach a nearby substation, but the KEK is far from grid infrastructure. Build transmission from substation to KEK${row.dist_to_nearest_substation_km ? ` (${row.dist_to_nearest_substation_km.toFixed(0)}km)` : ''}.`;
-    case 'invest_substation':
-      return `KEK is grid-connected, but the best solar site is far from any substation. Build a substation or connection point near the solar farm${row.dist_solar_to_nearest_substation_km ? ` (${row.dist_solar_to_nearest_substation_km.toFixed(0)}km)` : ''}.`;
-    case 'invest_battery': {
-      const parts = ['Solar economics work, but this KEK needs battery storage for reliability.'];
-      const sizingHrs = row.bess_sizing_hours ?? 2;
-      if (row.battery_adder_usd_mwh)
-        parts.push(
-          `Battery adds +$${row.battery_adder_usd_mwh.toFixed(0)}/MWh (${sizingHrs}h Li-ion storage${sizingHrs >= 14 ? ', bridge-hours for overnight gap' : sizingHrs > 2 ? ', RKEF 24/7 sizing' : ''}).`,
-        );
-      if (row.lcoe_with_battery_usd_mwh)
-        parts.push(`Solar + battery: $${row.lcoe_with_battery_usd_mwh.toFixed(1)}/MWh.`);
-      return parts.join(' ');
-    }
-    case 'plan_late':
-      return 'Over 60% of planned solar additions in this grid region slip past 2030. The RUPTL pipeline needs acceleration for this KEK to benefit.';
-    case 'not_competitive': {
-      const lcoe = row.lcoe_mid_usd_mwh;
-      const gridCost = row.grid_cost_usd_mwh;
-      if (lcoe != null && gridCost != null && lcoe <= gridCost) {
-        return `Solar LCOE ($${lcoe.toFixed(1)}/MWh) is below grid cost ($${gridCost.toFixed(1)}/MWh), but solar resource quality (PVOUT ${row.pvout_best_50km_kwh_kwp_yr?.toFixed(0) ?? '?'} kWh/kWp/yr) is below the minimum threshold. The site lacks sufficient solar irradiance for a viable project.`;
-      }
-      return `Solar LCOE ($${lcoe?.toFixed(1)}/MWh) exceeds grid cost ($${gridCost?.toFixed(1)}/MWh) under current assumptions.`;
-    }
-    case 'no_solar_resource':
-      return 'All land within the 50km search radius is protected forest, peatland, or otherwise unbuildable. There is no available area for solar development.';
-    default:
-      return '';
-  }
-}
-
 const CAPACITY_COLORS: Record<string, string> = {
   green: '#4CAF50',
   yellow: '#FFC107',
@@ -364,9 +327,11 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
   const activeLcoe =
     energyMode === 'wind'
       ? row.lcoe_wind_mid_usd_mwh
-      : energyMode === 'overall'
-        ? row.best_re_lcoe_mid_usd_mwh
-        : row.lcoe_mid_usd_mwh;
+      : energyMode === 'hybrid'
+        ? row.hybrid_allin_usd_mwh
+        : energyMode === 'overall'
+          ? row.best_re_lcoe_mid_usd_mwh
+          : row.lcoe_mid_usd_mwh;
 
   const activeGap = computeGapPct(activeLcoe, row.grid_cost_usd_mwh);
   const gapPct = energyMode === 'solar' ? row.solar_competitive_gap_pct : activeGap;
@@ -376,9 +341,11 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
   const techLabel =
     energyMode === 'wind'
       ? 'Wind'
-      : energyMode === 'overall'
-        ? capitalize(row.best_re_technology)
-        : 'Solar';
+      : energyMode === 'hybrid'
+        ? 'Hybrid'
+        : energyMode === 'overall'
+          ? capitalize(row.best_re_technology)
+          : 'Solar';
 
   return (
     <>
@@ -408,7 +375,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         <StatRow label="Grid Region" value={formatGridRegion(row.grid_region_id)} />
       </StatCard>
 
-      {energyMode !== 'wind' && <EnergyBalanceChart row={row} />}
+      {energyMode !== 'wind' && <EnergyBalanceChart row={row} energyMode={energyMode} />}
 
       <StatCard>
         <SectionHeader
@@ -556,8 +523,8 @@ function ResourceTab({ row }: { row: ScorecardRow }) {
         : null;
 
   const wbLcoe = row.lcoe_within_boundary_usd_mwh;
-  const showSolar = energyMode === 'solar' || energyMode === 'overall';
-  const showWind = energyMode === 'wind' || energyMode === 'overall';
+  const showSolar = energyMode === 'solar' || energyMode === 'hybrid' || energyMode === 'overall';
+  const showWind = energyMode === 'wind' || energyMode === 'hybrid' || energyMode === 'overall';
 
   return (
     <>
@@ -937,9 +904,11 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
   const activeLcoe =
     energyMode === 'wind'
       ? row.lcoe_wind_mid_usd_mwh
-      : energyMode === 'overall'
-        ? row.best_re_lcoe_mid_usd_mwh
-        : row.lcoe_mid_usd_mwh;
+      : energyMode === 'hybrid'
+        ? row.hybrid_allin_usd_mwh
+        : energyMode === 'overall'
+          ? row.best_re_lcoe_mid_usd_mwh
+          : row.lcoe_mid_usd_mwh;
 
   const activeGapBpp =
     energyMode === 'solar' ? row.gap_vs_bpp_pct : computeGapPct(activeLcoe, row.bpp_usd_mwh);
@@ -952,9 +921,11 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
   const techLabel =
     energyMode === 'wind'
       ? 'Wind'
-      : energyMode === 'overall'
-        ? capitalize(row.best_re_technology)
-        : 'Solar';
+      : energyMode === 'hybrid'
+        ? 'Hybrid'
+        : energyMode === 'overall'
+          ? capitalize(row.best_re_technology)
+          : 'Solar';
 
   // Wind mode early return when wind data is missing (Palu, Sei Mangkei)
   if (energyMode === 'wind' && row.lcoe_wind_mid_usd_mwh == null) {
@@ -1114,6 +1085,53 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
           </StatCard>
         )}
 
+      {/* Hybrid BESS reduction — shown in hybrid mode */}
+      {energyMode === 'hybrid' && row.hybrid_allin_usd_mwh != null && (
+        <StatCard>
+          <SectionHeader
+            title="Hybrid Storage Savings"
+            subtitle="Wind fills the nighttime gap, cutting battery needs"
+            tip="Combining solar and wind reduces battery storage because wind generates during solar's nighttime gap."
+          />
+          <StatRowWithTip
+            label="Optimal Mix"
+            value={row.hybrid_solar_share != null ? `${Math.round(row.hybrid_solar_share * 100)}% Solar / ${Math.round((1 - row.hybrid_solar_share) * 100)}% Wind` : null}
+            tip="Auto-optimized capacity mix that minimizes total cost (LCOE + battery storage)."
+          />
+          <StatRowWithTip
+            label="Blended LCOE"
+            value={row.hybrid_lcoe_usd_mwh != null ? row.hybrid_lcoe_usd_mwh.toFixed(1) : null}
+            unit="$/MWh"
+            tip="Generation-weighted LCOE of the solar+wind blend (before battery)."
+          />
+          <StatRowWithTip
+            label="Hybrid BESS"
+            value={row.hybrid_bess_hours != null ? row.hybrid_bess_hours.toFixed(1) : null}
+            unit="hours"
+            tip={`Reduced from 14h (solar-only) to ${row.hybrid_bess_hours?.toFixed(1) ?? '?'}h because wind covers ${row.hybrid_nighttime_coverage_pct != null ? Math.round(row.hybrid_nighttime_coverage_pct * 100) : '?'}% of nighttime demand.`}
+          />
+          <StatRowWithTip
+            label="BESS Adder"
+            value={row.hybrid_bess_adder_usd_mwh != null ? `+$${row.hybrid_bess_adder_usd_mwh.toFixed(0)}` : null}
+            unit="/MWh"
+            tip="Battery cost at reduced hybrid sizing. Compare to solar-only BESS adder."
+          />
+          {row.hybrid_bess_reduction_pct != null && (
+            <ColoredStatRow
+              label="BESS Reduction"
+              value={`${row.hybrid_bess_reduction_pct.toFixed(0)}%`}
+              color="#4CAF50"
+              tip="How much less battery storage is needed vs solar-only (14h bridge)."
+            />
+          )}
+          <StatRow
+            label="All-In LCOE"
+            value={row.hybrid_allin_usd_mwh.toFixed(1)}
+            unit="$/MWh"
+          />
+        </StatCard>
+      )}
+
       <StatCard>
         <SectionHeader
           title="Carbon & Policy"
@@ -1144,6 +1162,18 @@ function EconomicsTab({ row }: { row: ScorecardRow }) {
             tip="Carbon price that makes wind cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
           />
         )}
+        {energyMode === 'hybrid' && (
+          <StatRowWithTip
+            label="Carbon Breakeven (Hybrid)"
+            value={
+              row.hybrid_carbon_breakeven_usd_tco2 != null
+                ? row.hybrid_carbon_breakeven_usd_tco2.toFixed(1)
+                : null
+            }
+            unit="$/tCO2"
+            tip="Carbon price that makes the hybrid solar+wind+battery system cheaper than grid."
+          />
+        )}
         <StatRowWithTip
           label="GEAS Green Share"
           value={row.green_share_geas != null ? `${(row.green_share_geas * 100).toFixed(1)}` : null}
@@ -1162,16 +1192,18 @@ function DemandTab({ row }: { row: ScorecardRow }) {
   const demand2030 = row.demand_2030_gwh;
   const solarGen = row.max_solar_generation_gwh;
   const windGen = row.max_wind_generation_gwh;
-  const showSolar = energyMode === 'solar' || energyMode === 'overall';
-  const showWind = energyMode === 'wind' || energyMode === 'overall';
+  const showSolar = energyMode === 'solar' || energyMode === 'hybrid' || energyMode === 'overall';
+  const showWind = energyMode === 'wind' || energyMode === 'hybrid' || energyMode === 'overall';
 
   // Pick active coverage based on energy mode
   const coverage =
     energyMode === 'wind'
       ? row.wind_supply_coverage_pct
-      : energyMode === 'overall'
-        ? row.solar_supply_coverage_pct
-        : row.solar_supply_coverage_pct;
+      : energyMode === 'hybrid'
+        ? row.hybrid_supply_coverage_pct
+        : energyMode === 'overall'
+          ? row.solar_supply_coverage_pct
+          : row.solar_supply_coverage_pct;
   const wbGen = row.within_boundary_generation_gwh;
   const wbCoverage = row.within_boundary_coverage_pct;
 
@@ -1649,18 +1681,20 @@ function DemandTab({ row }: { row: ScorecardRow }) {
 /* ---------- Tab 6: Action (was Flags) ---------- */
 
 function ActionTab({ row }: { row: ScorecardRow }) {
-  const activeFlag = row.action_flag;
-  const activeIdx = ACTION_FLAG_HIERARCHY.indexOf(activeFlag as ActionFlag);
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const activeFlag = getEffectiveActionFlag(row, energyMode);
+  const hierarchy = ACTION_FLAG_HIERARCHY_BY_MODE[energyMode];
+  const activeIdx = hierarchy.indexOf(activeFlag);
 
   return (
     <>
       <StatCard>
         <SectionHeader
-          title="Solar Readiness"
+          title={getActionSectionTitle(energyMode)}
           subtitle="Where this KEK sits on the path from analysis to deployment"
-          tip="Flags are ranked best to worst. The active flag (highlighted) is this KEK's primary action recommendation based on solar economics, grid readiness, and pipeline status."
+          tip="Flags are ranked best to worst. The active flag (highlighted) is this KEK's primary action recommendation based on RE economics, grid readiness, and pipeline status."
         />
-        {ACTION_FLAG_HIERARCHY.map((flag, i) => {
+        {hierarchy.map((flag, i) => {
           const isActive = activeFlag === flag;
           const isAbove = activeIdx >= 0 && i < activeIdx;
           return (
@@ -1671,8 +1705,8 @@ function ActionTab({ row }: { row: ScorecardRow }) {
               active={isActive}
               above={isAbove}
               isFirst={i === 0}
-              isLast={i === ACTION_FLAG_HIERARCHY.length - 1}
-              explanation={isActive ? getFlagExplanation(flag, row) : undefined}
+              isLast={i === hierarchy.length - 1}
+              explanation={isActive ? getEffectiveFlagExplanation(flag, row, energyMode) : undefined}
             />
           );
         })}
@@ -1730,6 +1764,7 @@ export default function ScoreDrawer() {
   const drawerOpen = useDashboardStore((s) => s.drawerOpen);
   const scorecard = useDashboardStore((s) => s.scorecard);
   const closeDrawer = useDashboardStore((s) => s.closeDrawer);
+  const energyMode = useDashboardStore((s) => s.energyMode);
 
   const [substations, setSubstations] = useState<SubstationWithCosts[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
@@ -1780,9 +1815,10 @@ export default function ScoreDrawer() {
     return () => document.removeEventListener('keydown', handler);
   }, [drawerOpen, handleClose]);
 
-  const flagColor = row ? (ACTION_FLAG_COLORS[row.action_flag] ?? '#666') : '#666';
-  const flagLabel = row ? (ACTION_FLAG_LABELS[row.action_flag] ?? row.action_flag) : '';
-  const flagDescription = row ? getFlagExplanation(row.action_flag, row) : '';
+  const effectiveFlag = row ? getEffectiveActionFlag(row, energyMode) : null;
+  const flagColor = effectiveFlag ? (ACTION_FLAG_COLORS[effectiveFlag] ?? '#666') : '#666';
+  const flagLabel = effectiveFlag ? (ACTION_FLAG_LABELS[effectiveFlag] ?? effectiveFlag) : '';
+  const flagDescription = row && effectiveFlag ? getEffectiveFlagExplanation(effectiveFlag, row, energyMode) : '';
 
   return (
     <div

@@ -57,6 +57,12 @@ class AssumptionsInput(BaseModel):
     target_capacity_mwp: float | None = Field(
         default=None, ge=1, description="Target build size (MWp). None = use max buildable."
     )
+    hybrid_solar_share: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Hybrid solar/wind mix ratio (0-1). None = auto-optimize per KEK.",
+    )
 
 
 class ThresholdsInput(BaseModel):

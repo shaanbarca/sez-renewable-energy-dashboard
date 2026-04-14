@@ -75,6 +75,7 @@ from src.pipeline.buildability_filters import (
     LAND_COVER_BUILDABLE_THRESHOLD,
     apply_exclusion_mask,
     apply_min_area_filter,
+    apply_road_distance_mask,
     apply_slope_elevation_mask,
     compute_buildability_constraint,
     compute_distance_mask_km,
@@ -103,6 +104,7 @@ _REQUIRED_BUILD_FILES = [
     "peatland_klhk.shp",
     "peatland.vrt",
     "esa_worldcover.vrt",
+    "road_distance_km.tif",
 ]
 
 
@@ -517,6 +519,19 @@ def _compute_buildable_pvout(
         pvout_after_1cd = pvout_after_1b
     n_after_1cd = int((pvout_after_1cd > 0).sum())
 
+    # ── Layer 3a: Road proximity (skip if file absent) ───────────────────────
+    if "road_distance_km.tif" in available:
+        road_dist = _read_raster_window_to_pvout_grid(
+            data_dir / "road_distance_km.tif", bbox, (height, width), win_transform
+        )
+        if road_dist is not None:
+            pvout_after_3a = apply_road_distance_mask(pvout_after_1cd, road_dist)
+        else:
+            pvout_after_3a = pvout_after_1cd
+    else:
+        pvout_after_3a = pvout_after_1cd
+    n_after_3a = int((pvout_after_3a > 0).sum())
+
     # ── Layer 2: Slope + elevation (skip if DEM absent) ───────────────────────
     if "dem_indonesia.tif" in available:
         dem_arr = _read_raster_window_to_pvout_grid(
@@ -525,11 +540,11 @@ def _compute_buildable_pvout(
         if dem_arr is not None:
             pix_m = abs(win_transform.a) * KM_PER_DEGREE_LAT * 1000
             slope_arr = compute_slope_degrees(np.nan_to_num(dem_arr, nan=0.0), pix_m)
-            pvout_after_2 = apply_slope_elevation_mask(pvout_after_1cd, slope_arr, dem_arr)
+            pvout_after_2 = apply_slope_elevation_mask(pvout_after_3a, slope_arr, dem_arr)
         else:
-            pvout_after_2 = pvout_after_1cd
+            pvout_after_2 = pvout_after_3a
     else:
-        pvout_after_2 = pvout_after_1cd
+        pvout_after_2 = pvout_after_3a
     n_after_2 = int((pvout_after_2 > 0).sum())
 
     # ── Layer 4: Minimum contiguous area ─────────────────────────────────────
@@ -560,7 +575,7 @@ def _compute_buildable_pvout(
         best_solar_dist_km = np.nan
 
     constraint = compute_buildability_constraint(
-        n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_2, n_after_4
+        n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_3a, n_after_2, n_after_4
     )
 
     # Per-layer diagnostic — helps verify each layer is active at each KEK
@@ -572,7 +587,8 @@ def _compute_buildable_pvout(
         f"  -kh={n_raw - n_after_1a}({_pct(n_raw - n_after_1a)})"
         f"  -peat={n_after_1a - n_after_1b}({_pct(n_after_1a - n_after_1b)})"
         f"  -lc={n_after_1b - n_after_1cd}({_pct(n_after_1b - n_after_1cd)})"
-        f"  -slope={n_after_1cd - n_after_2}({_pct(n_after_1cd - n_after_2)})"
+        f"  -road={n_after_1cd - n_after_3a}({_pct(n_after_1cd - n_after_3a)})"
+        f"  -slope={n_after_3a - n_after_2}({_pct(n_after_3a - n_after_2)})"
         f"  buildable={n_after_4}  constraint={constraint}"
     )
 

@@ -12,6 +12,7 @@ export interface UserAssumptions {
   idr_usd_rate: number;
   grant_funded_transmission?: boolean;
   target_capacity_mwp?: number | null;
+  hybrid_solar_share?: number | null;
 }
 
 export interface UserThresholds {
@@ -25,6 +26,8 @@ export interface UserThresholds {
 
 export type ActionFlag =
   | 'solar_now'
+  | 'wind_now'
+  | 'hybrid_now'
   | 'invest_transmission'
   | 'invest_substation'
   | 'invest_resilience'
@@ -32,7 +35,9 @@ export type ActionFlag =
   | 'invest_battery'
   | 'plan_late'
   | 'not_competitive'
-  | 'no_solar_resource';
+  | 'no_solar_resource'
+  | 'no_wind_resource'
+  | 'no_re_resource';
 
 export interface ScorecardRow {
   kek_id: string;
@@ -146,6 +151,17 @@ export interface ScorecardRow {
   firm_wind_coverage_pct?: number | null;
   wind_firming_gap_pct?: number | null;
   wind_firming_hours?: number | null;
+
+  // Hybrid solar+wind fields
+  hybrid_lcoe_usd_mwh?: number | null;
+  hybrid_bess_hours?: number | null;
+  hybrid_bess_adder_usd_mwh?: number | null;
+  hybrid_allin_usd_mwh?: number | null;
+  hybrid_solar_share?: number | null;
+  hybrid_supply_coverage_pct?: number | null;
+  hybrid_nighttime_coverage_pct?: number | null;
+  hybrid_bess_reduction_pct?: number | null;
+  hybrid_carbon_breakeven_usd_tco2?: number | null;
 }
 
 export interface SubstationWithCosts {
@@ -199,7 +215,7 @@ export interface ScorecardResponse {
   scorecard: ScorecardRow[];
 }
 
-export type EnergyMode = 'solar' | 'wind' | 'overall';
+export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
 export type BottomTab = 'table' | 'quadrant' | 'ruptl';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';

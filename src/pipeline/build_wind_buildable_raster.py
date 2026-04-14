@@ -41,6 +41,7 @@ from rasterio.warp import reproject
 
 from src.pipeline.buildability_filters import (
     apply_exclusion_mask,
+    apply_road_distance_mask,
     apply_slope_elevation_mask,
     compute_slope_degrees,
 )
@@ -50,6 +51,7 @@ from src.pipeline.wind_buildability_filters import (
     WIND_MAX_ELEV_M,
     WIND_MAX_SLOPE_DEG,
     WIND_MIN_SPEED_MS,
+    WIND_ROAD_MAX_DIST_KM,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -247,6 +249,23 @@ def build_wind_buildable_raster() -> Path:
             del lc_mask
     else:
         print("    Land cover VRT: not found, skipping")
+
+    # 5.5 Road proximity (>10km from motorable road excluded)
+    road_path = BUILD_DIR / "road_distance_km.tif"
+    if road_path.exists():
+        before = np.count_nonzero(result > 0)
+        road_dist = _resample_raster_to_grid(
+            road_path, (target_h, target_w), target_transform, categorical=False
+        )
+        if road_dist is not None:
+            result = apply_road_distance_mask(result, road_dist, max_dist_km=WIND_ROAD_MAX_DIST_KM)
+            excluded = before - np.count_nonzero(result > 0)
+            print(
+                f"    Road proximity: excluded {excluded:,} pixels ({excluded / before * 100:.1f}%)"
+            )
+            del road_dist
+    else:
+        print("    Road distance: not found, skipping")
 
     # 6. Slope & elevation (wind: slope <=20°, elev <=1500m)
     dem_path = BUILD_DIR / "dem_indonesia.tif"

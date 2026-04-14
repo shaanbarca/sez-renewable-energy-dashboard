@@ -31,6 +31,7 @@ from src.assumptions import (
     FIRMING_RELIABILITY_REQ_THRESHOLD,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
     GRID_CONNECTION_FIXED_PER_KW,
+    HYBRID_WIND_NIGHTTIME_FRACTION,
     IDR_USD_RATE,
     LAND_COST_USD_PER_KW,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
@@ -44,6 +45,7 @@ from src.assumptions import (
 )
 from src.model.basic_model import (
     ActionFlag,
+    RESource,
     action_flags,
     bess_bridge_hours,
     bess_storage_adder,
@@ -52,6 +54,7 @@ from src.model.basic_model import (
     firm_solar_metrics,
     firm_wind_metrics,
     grid_connection_cost_per_kw,
+    hybrid_lcoe_optimized,
     is_solar_attractive,
     lcoe_solar,
     new_transmission_cost_per_kw,
@@ -101,6 +104,9 @@ class UserAssumptions:
     # Project sizing — optional capacity override (H10)
     target_capacity_mwp: float | None = None
 
+    # Hybrid RE: solar/wind mix ratio (None = auto-optimize per KEK)
+    hybrid_solar_share: float | None = None
+
     @property
     def wacc_decimal(self) -> float:
         return self.wacc_pct / 100.0
@@ -136,6 +142,8 @@ class UserAssumptions:
             d["target_capacity_mwp"] = self.target_capacity_mwp
         if self.grant_funded_transmission:
             d["grant_funded_transmission"] = True
+        if self.hybrid_solar_share is not None:
+            d["hybrid_solar_share"] = self.hybrid_solar_share
         return d
 
     @classmethod
@@ -817,18 +825,23 @@ def compute_scorecard_live(
             row["cf_wind"] = 0.0
             row["wind_speed_ms"] = 0.0
 
-        # Best RE technology: compare solar vs wind LCOE at current WACC
+        # Best RE technology: compare solar (with BESS), wind, and hybrid all-in
         wind_lcoe_val = row.get("lcoe_wind_mid_usd_mwh")
         solar_lcoe_val = row.get("lcoe_mid_usd_mwh")
-        if pd.notna(wind_lcoe_val) and pd.notna(solar_lcoe_val):
-            row["best_re_technology"] = "wind" if wind_lcoe_val < solar_lcoe_val else "solar"
-            row["best_re_lcoe_mid_usd_mwh"] = min(wind_lcoe_val, solar_lcoe_val)
-        elif pd.notna(solar_lcoe_val):
-            row["best_re_technology"] = "solar"
-            row["best_re_lcoe_mid_usd_mwh"] = solar_lcoe_val
-        elif pd.notna(wind_lcoe_val):
-            row["best_re_technology"] = "wind"
-            row["best_re_lcoe_mid_usd_mwh"] = wind_lcoe_val
+        hybrid_allin_val = row.get("hybrid_allin_usd_mwh")
+
+        candidates: dict[str, float] = {}
+        if pd.notna(solar_lcoe_val):
+            candidates["solar"] = float(solar_lcoe_val)
+        if pd.notna(wind_lcoe_val):
+            candidates["wind"] = float(wind_lcoe_val)
+        if hybrid_allin_val is not None and pd.notna(hybrid_allin_val):
+            candidates["hybrid"] = float(hybrid_allin_val)
+
+        if candidates:
+            best_tech = min(candidates, key=candidates.get)
+            row["best_re_technology"] = best_tech
+            row["best_re_lcoe_mid_usd_mwh"] = candidates[best_tech]
         else:
             row["best_re_technology"] = "solar"
             row["best_re_lcoe_mid_usd_mwh"] = np.nan
@@ -899,6 +912,53 @@ def compute_scorecard_live(
         row["firm_wind_coverage_pct"] = wind_firm["firm_wind_coverage_pct"]
         row["wind_firming_gap_pct"] = wind_firm["wind_firming_gap_pct"]
         row["wind_firming_hours"] = wind_firm["wind_firming_hours"]
+
+        # Hybrid solar+wind: blended LCOE with reduced BESS from complementary profiles
+        solar_source = RESource(
+            technology="solar",
+            lcoe_usd_mwh=float(lcoe_mid) if pd.notna(lcoe_mid) else np.nan,
+            generation_mwh=solar_gen_mwh,
+            cf=primary_cf,
+            nighttime_fraction=0.0,
+            capacity_mwp=float(kek.get("max_captive_capacity_mwp", 0))
+            if pd.notna(kek.get("max_captive_capacity_mwp"))
+            else 0.0,
+        )
+        wind_source = RESource(
+            technology="wind",
+            lcoe_usd_mwh=float(wind_lcoe_val) if pd.notna(wind_lcoe_val) else np.nan,
+            generation_mwh=wind_gen_mwh,
+            cf=wind_cf_best,
+            nighttime_fraction=HYBRID_WIND_NIGHTTIME_FRACTION,
+            capacity_mwp=wind_cap,
+        )
+        hybrid = hybrid_lcoe_optimized(
+            sources=[solar_source, wind_source],
+            demand_mwh=demand_mwh_val,
+            bess_capex_usd_per_kwh=assumptions.bess_capex_usd_per_kwh,
+            wacc=assumptions.wacc_decimal,
+            solar_share_override=assumptions.hybrid_solar_share,
+        )
+        row["hybrid_lcoe_usd_mwh"] = hybrid["hybrid_lcoe_usd_mwh"]
+        row["hybrid_bess_hours"] = hybrid["hybrid_bess_hours"]
+        row["hybrid_bess_adder_usd_mwh"] = hybrid["hybrid_bess_adder_usd_mwh"]
+        row["hybrid_allin_usd_mwh"] = hybrid["hybrid_allin_usd_mwh"]
+        row["hybrid_solar_share"] = hybrid["optimal_solar_share"]
+        row["hybrid_supply_coverage_pct"] = hybrid["hybrid_supply_coverage_pct"]
+        row["hybrid_nighttime_coverage_pct"] = hybrid["hybrid_nighttime_coverage_pct"]
+        # BESS reduction: how much hybrid cuts from solar-only 14h bridge
+        solar_bess = bess_bridge_hours()
+        h_bess = hybrid["hybrid_bess_hours"]
+        row["hybrid_bess_reduction_pct"] = (
+            round((solar_bess - h_bess) / solar_bess * 100, 1) if h_bess is not None else None
+        )
+        # Hybrid carbon breakeven
+        h_allin = hybrid["hybrid_allin_usd_mwh"]
+        row["hybrid_carbon_breakeven_usd_tco2"] = (
+            carbon_breakeven_price(h_allin, grid_cost, emission_factor)
+            if h_allin is not None and pd.notna(h_allin) and emission_factor > 0
+            else None
+        )
 
         # Within-boundary LCOE (secondary, for reference — captive solar, no connection costs)
         if kek_id in wb.index:

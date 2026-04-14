@@ -17,6 +17,7 @@ have historically produced ~10–100x errors.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
@@ -43,6 +44,8 @@ from src.assumptions import (
     GENTIE_COST_PER_KW_KM,
     GRID_CONNECTION_FIXED_PER_KW,
     HOURS_PER_YEAR,
+    HYBRID_OPTIMIZATION_STEP,
+    HYBRID_WIND_NIGHTTIME_FRACTION,
     KEK_TO_SUBSTATION_THRESHOLD_KM,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PVOUT_ANNUAL_MAX,
@@ -65,6 +68,27 @@ from src.assumptions import (
     WIND_CF_MAX,
     WIND_CF_MIN,
 )
+
+# ---------------------------------------------------------------------------
+# 0. Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RESource:
+    """One renewable energy source's contribution to a hybrid system.
+
+    Extensibility point: hydro slots in with nighttime_fraction=1.0 (dispatchable).
+    """
+
+    technology: str  # "solar", "wind", "hydro"
+    lcoe_usd_mwh: float  # standalone LCOE (no BESS)
+    generation_mwh: float  # annual generation from available capacity
+    cf: float  # capacity factor (0-1)
+    nighttime_fraction: float  # fraction of generation during nighttime hours
+    # solar=0.0 (all daytime), wind~=0.583 (uniform), hydro=1.0 (dispatchable)
+    capacity_mwp: float = 0.0  # installed capacity
+
 
 # ---------------------------------------------------------------------------
 # 1. Resource helpers
@@ -327,6 +351,169 @@ def bess_bridge_hours(
     high-reliability loads (MacKay Ch. 26).
     """
     return 24.0 - solar_production_hours
+
+
+def hybrid_bess_hours(
+    sources: list[RESource],
+    total_demand_mwh: float,
+    solar_production_hours: float = SOLAR_PRODUCTION_HOURS,
+) -> float:
+    """BESS hours needed in a hybrid multi-source system.
+
+    Wind (and later hydro) partially fill solar's nighttime gap, reducing
+    storage needs. Assumes each source's nighttime output is proportional
+    to its nighttime_fraction (conservative uniform-CF assumption for wind).
+
+    Returns hours of BESS needed (0 to bridge_hours range).
+    """
+    bridge = bess_bridge_hours(solar_production_hours)
+    if total_demand_mwh <= 0:
+        return bridge
+
+    nighttime_demand = total_demand_mwh * (bridge / 24.0)
+    if nighttime_demand <= 0:
+        return 0.0
+
+    # Sum nighttime generation across all sources
+    nighttime_gen = sum(s.generation_mwh * s.nighttime_fraction for s in sources)
+    coverage = min(nighttime_gen / nighttime_demand, 1.0)
+    return bridge * (1.0 - coverage)
+
+
+def hybrid_lcoe_optimized(
+    sources: list[RESource],
+    demand_mwh: float,
+    bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
+    wacc: float = BASE_WACC_DECIMAL,
+    bess_lifetime_yr: int = BESS_LIFETIME_YR,
+    bess_fom_usd_per_kw_yr: float = BESS_FOM_USD_PER_KW_YR,
+    bess_discharge_hours: float = BESS_DISCHARGE_HOURS,
+    round_trip_efficiency: float = BESS_ROUND_TRIP_EFFICIENCY,
+    solar_share_override: float | None = None,
+    optimization_step: float = HYBRID_OPTIMIZATION_STEP,
+) -> dict[str, float | None]:
+    """Optimize solar/wind mix to minimize all-in LCOE + BESS.
+
+    Sweeps solar_share from 0% to 100% in `optimization_step` increments.
+    For each candidate, computes blended LCOE + BESS adder at reduced sizing.
+    Picks the share that minimizes all-in cost.
+
+    Accepts list[RESource] for N-technology extensibility. Currently expects
+    at most one solar and one wind source.
+
+    Returns dict with hybrid_lcoe_usd_mwh, hybrid_bess_hours,
+    hybrid_bess_adder_usd_mwh, hybrid_allin_usd_mwh, optimal_solar_share,
+    hybrid_supply_coverage_pct, hybrid_nighttime_coverage_pct.
+    """
+    _none = {
+        "hybrid_lcoe_usd_mwh": None,
+        "hybrid_bess_hours": None,
+        "hybrid_bess_adder_usd_mwh": None,
+        "hybrid_allin_usd_mwh": None,
+        "optimal_solar_share": None,
+        "hybrid_supply_coverage_pct": None,
+        "hybrid_nighttime_coverage_pct": None,
+    }
+
+    solar = next((s for s in sources if s.technology == "solar"), None)
+    wind = next((s for s in sources if s.technology == "wind"), None)
+
+    if solar is None or solar.generation_mwh <= 0 or np.isnan(solar.lcoe_usd_mwh):
+        return _none
+    if wind is None or wind.generation_mwh <= 0 or np.isnan(wind.lcoe_usd_mwh):
+        # No wind: hybrid = solar-only
+        bess_hrs = bess_bridge_hours()
+        adder = bess_storage_adder(
+            bess_capex_usd_per_kwh,
+            solar.cf,
+            wacc,
+            bess_hrs,
+            bess_lifetime_yr,
+            bess_fom_usd_per_kw_yr,
+            bess_discharge_hours,
+            round_trip_efficiency,
+        )
+        return {
+            "hybrid_lcoe_usd_mwh": round(solar.lcoe_usd_mwh, 2),
+            "hybrid_bess_hours": round(bess_hrs, 1),
+            "hybrid_bess_adder_usd_mwh": round(adder, 2),
+            "hybrid_allin_usd_mwh": round(solar.lcoe_usd_mwh + adder, 2),
+            "optimal_solar_share": 1.0,
+            "hybrid_supply_coverage_pct": round(solar.generation_mwh / demand_mwh, 3)
+            if demand_mwh > 0
+            else None,
+            "hybrid_nighttime_coverage_pct": 0.0,
+        }
+
+    # Build candidate shares
+    if solar_share_override is not None:
+        candidates = [solar_share_override]
+    else:
+        n_steps = int(round(1.0 / optimization_step)) + 1
+        candidates = [i * optimization_step for i in range(n_steps)]
+
+    best_allin = float("inf")
+    best_result = _none
+
+    for share in candidates:
+        s_gen = solar.generation_mwh * share
+        w_gen = wind.generation_mwh * (1.0 - share)
+        total_gen = s_gen + w_gen
+        if total_gen <= 0:
+            continue
+
+        # Blended LCOE weighted by generation
+        blended_lcoe = (s_gen * solar.lcoe_usd_mwh + w_gen * wind.lcoe_usd_mwh) / total_gen
+
+        # Blended CF for BESS denominator calculation
+        blended_cf = solar.cf * share + wind.cf * (1.0 - share)
+        if blended_cf <= 0:
+            continue
+
+        # Build scaled sources for BESS hours calculation
+        scaled_sources = [
+            RESource("solar", solar.lcoe_usd_mwh, s_gen, solar.cf, 0.0),
+            RESource("wind", wind.lcoe_usd_mwh, w_gen, wind.cf, HYBRID_WIND_NIGHTTIME_FRACTION),
+        ]
+        h_bess = hybrid_bess_hours(scaled_sources, demand_mwh)
+
+        # BESS adder at reduced hours, using blended CF
+        if h_bess > 0 and blended_cf > 0:
+            adder = bess_storage_adder(
+                bess_capex_usd_per_kwh,
+                blended_cf,
+                wacc,
+                h_bess,
+                bess_lifetime_yr,
+                bess_fom_usd_per_kw_yr,
+                bess_discharge_hours,
+                round_trip_efficiency,
+            )
+        else:
+            adder = 0.0
+
+        allin = blended_lcoe + adder
+        if allin < best_allin:
+            best_allin = allin
+            # Nighttime coverage
+            bridge = bess_bridge_hours()
+            night_demand = demand_mwh * (bridge / 24.0) if demand_mwh > 0 else 0.0
+            night_gen = w_gen * HYBRID_WIND_NIGHTTIME_FRACTION
+            night_cov = min(night_gen / night_demand, 1.0) if night_demand > 0 else 0.0
+
+            best_result = {
+                "hybrid_lcoe_usd_mwh": round(blended_lcoe, 2),
+                "hybrid_bess_hours": round(h_bess, 1),
+                "hybrid_bess_adder_usd_mwh": round(adder, 2),
+                "hybrid_allin_usd_mwh": round(allin, 2),
+                "optimal_solar_share": round(share, 2),
+                "hybrid_supply_coverage_pct": round(total_gen / demand_mwh, 3)
+                if demand_mwh > 0
+                else None,
+                "hybrid_nighttime_coverage_pct": round(night_cov, 3),
+            }
+
+    return best_result
 
 
 def bess_storage_adder(

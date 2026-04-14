@@ -607,12 +607,12 @@ export default function VectorOverlay() {
               <Layer
                 id="overlay-wind-buildable-fill"
                 type="fill"
-                paint={{ 'fill-color': '#81D4FA', 'fill-opacity': 0.25 }}
+                paint={{ 'fill-color': '#B39DDB', 'fill-opacity': 0.28 }}
               />
               <Layer
                 id="overlay-wind-buildable-outline"
                 type="line"
-                paint={{ 'line-color': '#039BE5', 'line-width': 1, 'line-opacity': 0.5 }}
+                paint={{ 'line-color': '#7E57C2', 'line-width': 1, 'line-opacity': 0.55 }}
               />
             </Source>
           );
@@ -641,7 +641,7 @@ export default function VectorOverlay() {
               minWidth: 300,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 4, color: '#039BE5' }}>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: '#B39DDB' }}>
               Wind Buildable Area
             </div>
             <div>Area: {windBuildableClick.area_ha.toLocaleString()} ha</div>

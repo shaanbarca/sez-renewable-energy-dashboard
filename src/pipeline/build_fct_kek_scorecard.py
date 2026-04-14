@@ -329,6 +329,9 @@ def build_fct_kek_scorecard(
     ] = np.nan
 
     def _best_re(row: pd.Series) -> str:
+        # Note: pipeline CSV uses 2-way comparison (solar vs wind standalone LCOE).
+        # The live dashboard (logic.py) does a 3-way comparison including hybrid
+        # all-in (blended LCOE + reduced BESS), which can produce "hybrid" as best.
         s = row["lcoe_mid_usd_mwh"]
         w = row["lcoe_wind_mid_usd_mwh"]
         if pd.isna(s) and pd.isna(w):
