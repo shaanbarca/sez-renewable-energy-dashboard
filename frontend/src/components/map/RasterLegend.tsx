@@ -30,16 +30,9 @@ export default function RasterLegend() {
   const showWindBuildable = !!layerVisibility.wind_buildable_polygons;
   const showSolarBuildable = !!layerVisibility.buildable_polygons;
 
-  // Count total legend cards to decide layout
-  const standaloneSwatches =
-    (!showRadius && showSolarBuildable ? 1 : 0) + (!showRadius && showWindBuildable ? 1 : 0);
-  // Combine standalone swatches into one card
-  const cardCount = visible.length + (showRadius ? 1 : 0) + (standaloneSwatches > 0 ? 1 : 0);
+  const hasSwatches = showRadius || (!showRadius && (showSolarBuildable || showWindBuildable));
 
-  if (visible.length === 0 && !showRadius && !showSolarBuildable && !showWindBuildable) return null;
-
-  // Stack vertically when more than 2 legend cards
-  const shouldStack = cardCount > 2;
+  if (visible.length === 0 && !hasSwatches) return null;
 
   return (
     <div
@@ -47,42 +40,36 @@ export default function RasterLegend() {
       style={{ transform: `translate(calc(-50% + ${dragPos.x}px), ${dragPos.y}px)` }}
     >
       <div
-        className={`flex ${shouldStack ? 'flex-col' : 'flex-row'} gap-2 items-start cursor-grab active:cursor-grabbing`}
+        className="rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing"
+        style={{
+          backdropFilter: 'var(--blur)',
+          WebkitBackdropFilter: 'var(--blur)',
+          background: 'var(--glass)',
+          border: '1px solid var(--glass-border)',
+        }}
         onMouseDown={onDragStart}
       >
-        {visible.map(({ key, label, unit, min, max, gradient }) => (
-          <div
-            key={key}
-            className="rounded-lg px-3 py-2"
-            style={{
-              backdropFilter: 'var(--blur)',
-              WebkitBackdropFilter: 'var(--blur)',
-              background: 'var(--glass)',
-              border: '1px solid var(--glass-border)',
-            }}
-          >
-            <div className="text-[10px] text-zinc-400 mb-1">
-              {label} <span className="text-zinc-600">({unit})</span>
-            </div>
-            <div className="h-3 rounded-sm w-48" style={{ background: gradient }} />
-            <div className="flex justify-between mt-0.5">
-              <span className="text-[9px] text-zinc-500">{min}</span>
-              <span className="text-[9px] text-zinc-500">{max}</span>
-            </div>
+        {/* Row 1: Raster gradients side by side */}
+        {visible.length > 0 && (
+          <div className={`flex gap-4 justify-center ${hasSwatches ? 'mb-2' : ''}`}>
+            {visible.map(({ key, label, unit, min, max, gradient }) => (
+              <div key={key}>
+                <div className="text-[10px] text-zinc-400 mb-1">
+                  {label} <span className="text-zinc-600">({unit})</span>
+                </div>
+                <div className="h-3 rounded-sm w-48" style={{ background: gradient }} />
+                <div className="flex justify-between mt-0.5">
+                  <span className="text-[9px] text-zinc-500">{min}</span>
+                  <span className="text-[9px] text-zinc-500">{max}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
 
-        {/* Spatial legends when KEK is selected */}
+        {/* Row 2: Spatial legends when KEK is selected */}
         {showRadius && (
-          <div
-            className="rounded-lg px-3 py-2 flex items-center gap-3 flex-wrap"
-            style={{
-              backdropFilter: 'var(--blur)',
-              WebkitBackdropFilter: 'var(--blur)',
-              background: 'var(--glass)',
-              border: '1px solid var(--glass-border)',
-            }}
-          >
+          <div className="flex items-center gap-3 flex-wrap justify-center">
             <div className="flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 14 14">
                 <rect
@@ -117,7 +104,6 @@ export default function RasterLegend() {
                 Remote solar (50 km)
               </span>
             </div>
-            {/* Wind buildable swatch inside spatial legend when KEK selected */}
             {showWindBuildable && (
               <>
                 <div
@@ -164,17 +150,9 @@ export default function RasterLegend() {
           </div>
         )}
 
-        {/* Standalone buildable area legends when no KEK selected */}
+        {/* Row 2: Standalone buildable legends when no KEK selected */}
         {!showRadius && (showSolarBuildable || showWindBuildable) && (
-          <div
-            className="rounded-lg px-3 py-2 flex items-center gap-3"
-            style={{
-              backdropFilter: 'var(--blur)',
-              WebkitBackdropFilter: 'var(--blur)',
-              background: 'var(--glass)',
-              border: '1px solid var(--glass-border)',
-            }}
-          >
+          <div className="flex items-center gap-3 justify-center">
             {showSolarBuildable && (
               <div className="flex items-center gap-1.5">
                 <svg width="14" height="14" viewBox="0 0 14 14">

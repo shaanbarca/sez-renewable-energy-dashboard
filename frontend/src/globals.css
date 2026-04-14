@@ -103,6 +103,10 @@
 [data-theme="satellite"] {
   --glass: rgba(20, 20, 24, 0.7);
   --glass-heavy: rgba(20, 20, 24, 0.8);
+  --panel-bg: rgba(20, 20, 24, 0.75);
+  --header-bg: rgba(20, 20, 24, 0.7);
+  --popup-bg: rgba(20, 20, 24, 0.92);
+  --tab-active-bg: rgba(255, 255, 255, 0.1);
 }
 
 body {
