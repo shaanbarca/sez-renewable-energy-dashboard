@@ -10,11 +10,39 @@ import {
 } from '@tanstack/react-table';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { formatFilterValue } from '../../lib/format';
-import type { ScorecardRow } from '../../lib/types';
+import type { ScorecardRow, UserAssumptions, UserThresholds } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import { columns } from './columns';
 
-function exportCsv(rows: Record<string, unknown>[], headers: string[]) {
+const ASSUMPTION_LABELS: [keyof UserAssumptions, string, string][] = [
+  ['wacc_pct', 'WACC', '%'],
+  ['capex_usd_per_kw', 'Solar CAPEX', 'USD/kW'],
+  ['fom_usd_per_kw_yr', 'Fixed O&M', 'USD/kW-yr'],
+  ['lifetime_yr', 'Lifetime', 'years'],
+  ['bess_capex_usd_per_kwh', 'BESS CAPEX', 'USD/kWh'],
+  ['bess_sizing_hours_override', 'BESS Sizing Override', 'hours'],
+  ['connection_cost_per_kw_km', 'Grid Connection Cost', 'USD/kW-km'],
+  ['grid_connection_fixed_per_kw', 'Grid Connection Fixed', 'USD/kW'],
+  ['land_cost_usd_per_kw', 'Land Cost', 'USD/kW'],
+  ['substation_utilization_pct', 'Substation Utilization', 'fraction'],
+  ['idr_usd_rate', 'IDR/USD Rate', 'IDR'],
+  ['cbam_certificate_price_eur', 'CBAM Certificate Price', 'EUR/tCO2'],
+  ['cbam_eur_usd_rate', 'CBAM EUR/USD Rate', ''],
+  ['grant_funded_transmission', 'Grant-Funded Transmission', ''],
+  ['target_capacity_mwp', 'Target Capacity', 'MWp'],
+  ['hybrid_solar_share', 'Hybrid Solar Share Override', '%'],
+];
+
+const THRESHOLD_LABELS: [keyof UserThresholds, string, string][] = [
+  ['pvout_threshold', 'PVOUT Threshold', 'kWh/kWp/yr'],
+  ['plan_late_threshold', 'Plan Late Threshold', 'fraction'],
+  ['geas_threshold', 'GEAS Green Share Threshold', 'fraction'],
+  ['resilience_gap_pct', 'Resilience Gap', '%'],
+  ['min_viable_mwp', 'Min Viable Project Size', 'MWp'],
+  ['reliability_threshold', 'Reliability Threshold', 'fraction'],
+];
+
+function exportCsv(rows: Record<string, unknown>[], headers: string[], metadata?: string) {
   const headerLine = headers.join(',');
   const lines = rows.map((row) =>
     headers
@@ -26,7 +54,9 @@ function exportCsv(rows: Record<string, unknown>[], headers: string[]) {
       })
       .join(','),
   );
-  const csv = [headerLine, ...lines].join('\n');
+  const parts = [headerLine, ...lines];
+  if (metadata) parts.push('', metadata);
+  const csv = parts.join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -154,6 +184,10 @@ function RangeFilter({ column, data }: { column: Column<ScorecardRow>; data: Sco
 
 export default function DataTable() {
   const scorecard = useDashboardStore((s) => s.scorecard);
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const thresholds = useDashboardStore((s) => s.thresholds);
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
   const selectedKek = useDashboardStore((s) => s.selectedKek);
   const selectKek = useDashboardStore((s) => s.selectKek);
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -217,8 +251,33 @@ export default function DataTable() {
       'solar_replacement_pct',
       'perpres_112_status',
     ];
-    exportCsv(scorecard as unknown as Record<string, unknown>[], headers);
-  }, [scorecard]);
+
+    const meta: string[] = [];
+    if (assumptions) {
+      meta.push('--- Assumptions ---');
+      meta.push('Parameter,Value,Unit');
+      for (const [key, label, unit] of ASSUMPTION_LABELS) {
+        const val = assumptions[key];
+        if (val != null) meta.push(`${label},${val},${unit}`);
+      }
+    }
+    if (thresholds) {
+      meta.push('');
+      meta.push('--- Thresholds ---');
+      meta.push('Parameter,Value,Unit');
+      for (const [key, label, unit] of THRESHOLD_LABELS) {
+        const val = thresholds[key];
+        if (val != null) meta.push(`${label},${val},${unit}`);
+      }
+    }
+    meta.push('');
+    meta.push('--- Export Metadata ---');
+    meta.push(`Energy Mode,${energyMode}`);
+    meta.push(`Benchmark Mode,${benchmarkMode}`);
+    meta.push(`Export Date,${new Date().toISOString().slice(0, 10)}`);
+
+    exportCsv(scorecard as unknown as Record<string, unknown>[], headers, meta.join('\n'));
+  }, [scorecard, assumptions, thresholds, energyMode, benchmarkMode]);
 
   if (!scorecard) {
     return (
