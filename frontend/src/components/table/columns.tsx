@@ -98,9 +98,20 @@ function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> 
   return (
     <span className="relative group/flag flex items-center gap-2">
       <span
-        className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-        style={{ backgroundColor: color }}
-      />
+        className="relative inline-flex items-center justify-center flex-shrink-0"
+        style={{ width: 12, height: 12 }}
+      >
+        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+        {row.cbam_exposed && (
+          <span
+            className="absolute inset-0 rounded-full"
+            style={{
+              border: '1.5px solid #FF6F00',
+            }}
+            title="CBAM Exposed"
+          />
+        )}
+      </span>
       <span>{label}</span>
       {explanation && (
         <span

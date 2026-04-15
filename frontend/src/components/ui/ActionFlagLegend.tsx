@@ -6,6 +6,8 @@ import { useDashboardStore } from '../../store/dashboard';
 const FLAG_DESCRIPTIONS: Record<string, string> = {
   solar_now:
     'Solar is cost-competitive today. Grid upgrades are planned and GEAS allocation is sufficient.',
+  cbam_urgent:
+    'RE not grid-competitive alone, but EU CBAM border tax on exports tips the economics. CBAM-adjusted gap < 0.',
   wind_now: 'Wind is cost-competitive today. Deploy wind generation.',
   hybrid_now:
     'Hybrid solar+wind all-in cost beats grid. Wind reduces nighttime storage requirements.',
@@ -101,10 +103,22 @@ export default function ActionFlagLegend() {
                 <div key={flag} className="group flex items-stretch gap-0">
                   {/* Vertical track */}
                   <div className="flex flex-col items-center" style={{ width: 16 }}>
-                    <div
-                      className="rounded-full shrink-0 mt-[7px]"
-                      style={{ width: 8, height: 8, background: color }}
-                    />
+                    {flag === 'cbam_urgent' ? (
+                      <div
+                        className="rounded-full shrink-0 mt-[5px]"
+                        style={{
+                          width: 12,
+                          height: 12,
+                          border: `2px solid ${color}`,
+                          background: 'transparent',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className="rounded-full shrink-0 mt-[7px]"
+                        style={{ width: 8, height: 8, background: color }}
+                      />
+                    )}
                     {!isLast && (
                       <div
                         className="flex-1"

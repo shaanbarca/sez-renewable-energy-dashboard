@@ -14,6 +14,7 @@ interface HoverInfo {
   kek_type: string;
   category: string;
   area_ha: number | null;
+  cbam_exposed: boolean;
 }
 
 interface KekMarkersProps {
@@ -136,6 +137,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           category: row.category ?? '',
           area_ha: row.area_ha ?? null,
           grid_integration_category: row.grid_integration_category ?? '',
+          cbam_exposed: row.cbam_exposed ?? false,
         },
       })),
     };
@@ -178,6 +180,19 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
             'circle-opacity': 0.9,
           }}
         />
+        {/* CBAM exposure ring — amber outline on CBAM-exposed KEKs */}
+        <Layer
+          id="kek-cbam-ring"
+          type="circle"
+          filter={['==', ['get', 'cbam_exposed'], true]}
+          paint={{
+            'circle-radius': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 11, 9],
+            'circle-color': 'transparent',
+            'circle-stroke-color': '#FF6F00',
+            'circle-stroke-width': 1.5,
+            'circle-opacity': 0.8,
+          }}
+        />
       </Source>
       {hoverInfo && (
         <Popup
@@ -211,6 +226,9 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
             >
               {ACTION_FLAG_LABELS[hoverInfo.action_flag] ?? hoverInfo.action_flag}
             </span>
+            {hoverInfo.cbam_exposed && (
+              <span style={{ color: '#FF6F00', fontWeight: 500, marginLeft: 4 }}>CBAM</span>
+            )}
           </div>
         </Popup>
       )}

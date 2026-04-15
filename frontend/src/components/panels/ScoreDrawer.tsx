@@ -1493,7 +1493,9 @@ function DemandTab({ row }: { row: ScorecardRow }) {
                       tip={`Standard gap: ${formatGap(row.solar_competitive_gap_pct)} (LCOE vs grid). CBAM saves $${row.cbam_savings_per_mwh?.toFixed(1)}/MWh (= $${row.cbam_savings_2030_usd_per_tonne?.toLocaleString()}/t ÷ ${({ nickel_rkef: '37.5', steel_eaf: '0.45', steel_bfbof: '0.25', aluminium: '15.0', fertilizer: '10.0', cement: '0.9' } as Record<string, string>)[(row.cbam_product_type ?? '').split(',')[0]] ?? '?'} MWh/t). Adjusted = (LCOE − grid − CBAM savings) / grid. At 2030 rates (51.5% free allocation phased out).`}
                     />
                   )}
-                  {row.cbam_emission_intensity_current != null && <CbamTrajectoryChart row={row} />}
+                  {Number.isFinite(row.cbam_emission_intensity_current) && (
+                    <CbamTrajectoryChart row={row} />
+                  )}
                 </>
               )}
             </div>

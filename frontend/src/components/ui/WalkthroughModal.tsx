@@ -43,7 +43,7 @@ const PERSONAS = [
     title: 'Industrial Investor',
     subtitle: 'KEK tenant or smelter operator',
     description:
-      'Compare KEKs by electricity cost risk, grid reliability, green energy trajectory, and captive coal phase-out exposure.',
+      'Compare KEKs by electricity cost risk, grid reliability, CBAM export exposure, and captive coal phase-out pressure.',
     icon: '🏭',
   },
 ] as const;
@@ -89,7 +89,7 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'Ranked Table',
     description:
-      'Sort by LCOE Gap (ascending) to find KEKs closest to grid parity. Check the Carbon Breakeven column — the carbon price ($/tCO2) needed to close the gap. Low values = easy carbon finance candidates.',
+      'Sort by LCOE Gap (ascending) to find KEKs closest to grid parity. Click a KEK and check Carbon Breakeven in the Economics tab — the carbon price ($/tCO2) needed to close the gap. Low values = easy carbon finance candidates.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
@@ -102,6 +102,12 @@ const ECONOMIST_STEPS: TourStep[] = [
       const scorecard = s.scorecard;
       if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
     },
+  },
+  {
+    title: 'CBAM Carbon Arbitrage',
+    description:
+      'Check the Industry tab for CBAM-exposed KEKs. The CBAM trajectory chart shows EU border tax costs from 2026-2034 as free allocation phases out. Where CBAM savings exceed the RE premium, the "CBAM Urgent" flag fires — carbon arbitrage at the trade border.',
+    target: 'drawer',
   },
   {
     title: 'Export CSV',
@@ -185,7 +191,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: 'Captive Power Exposure',
     description:
-      'Check the Captive column in the table. KEKs near coal plants and nickel smelters face Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar.',
+      'Check the Industry column in the table. KEKs near coal plants and nickel smelters face Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
@@ -217,14 +223,21 @@ const POLICYMAKER_STEPS: TourStep[] = [
     action: (s) => s.setEnergyMode('overall'),
   },
   {
-    title: 'KEK Demand & Action Tabs',
+    title: 'KEK Industry & Action Tabs',
     description:
-      'Click a KEK. The Demand tab shows captive coal/nickel context and RUPTL pipeline status. The Action tab shows the specific policy recommendation — 9 flags, each naming an intervention.',
+      'Click a KEK. The Industry tab shows captive coal/nickel/steel/cement context, CBAM exposure, and RUPTL pipeline status. The Action tab shows the specific policy recommendation — 14 flags across 4 energy modes, each naming an intervention.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
       if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
     },
+  },
+  {
+    title: 'CBAM Trade Pressure',
+    description:
+      'Filter the table to CBAM-exposed KEKs. 12 of 25 KEKs export products subject to EU carbon border tax (nickel, steel, cement, aluminium). The "CBAM Urgent" flag fires where border tax savings alone justify RE. CBAM creates an international financial stick alongside Perpres 112 domestic regulation.',
+    target: 'bottom-panel',
+    action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'Firm Solar Coverage',
@@ -251,7 +264,7 @@ const IPP_STEPS: TourStep[] = [
   {
     title: 'Strong Solar Resource',
     description:
-      'Start with the table. Sort by Capacity (MWp) descending — you want sites large enough for utility-scale development (30+ MWp). Filter to "solar now" or "grid ready" action flags.',
+      'Start with the table. Sort by Capacity (MWp) descending — you want sites large enough for utility-scale development (30+ MWp). Filter Action Flag to "solar now". Also filter Grid Integration to "grid ready" or "within boundary" for grid-connected sites.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
@@ -328,7 +341,7 @@ const INDUSTRIAL_STEPS: TourStep[] = [
   {
     title: 'Captive Coal Exposure',
     description:
-      'Check the Captive column. Coal plants and nickel smelters within 50km face Perpres 112/2022 phase-out by 2050. RKEF smelters need 24/7 baseload — doubles BESS sizing. This is regulatory risk for co-located industry.',
+      'Check the Industry column. Coal plants and nickel smelters within 50km face Perpres 112/2022 phase-out by 2050. RKEF smelters and other 24/7 loads need 14h of BESS bridge-hours storage. This is regulatory and cost risk for co-located industry.',
     target: 'bottom-panel',
   },
   {
@@ -345,9 +358,16 @@ const INDUSTRIAL_STEPS: TourStep[] = [
     action: (s) => s.setActiveTab('ruptl'),
   },
   {
+    title: 'CBAM Exposure',
+    description:
+      'Filter the table to CBAM-exposed KEKs (amber toggle). 12 of 25 KEKs face EU Carbon Border Adjustment Mechanism costs on exports. The CBAM 2030 column shows the carbon border tax per tonne. KEKs flagged "CBAM Urgent" can justify RE switching on trade economics alone.',
+    target: 'bottom-panel',
+    action: (s) => s.setActiveTab('table'),
+  },
+  {
     title: 'KEK Comparison',
     description:
-      'Click a KEK to review its full scorecard. Overview tab: key metrics at a glance. Demand tab: captive power context. Grid tab: infrastructure quality. Compare 3-4 candidate KEKs.',
+      'Click a KEK to review its full scorecard. Overview tab: key metrics. Industry tab: captive power, CBAM trajectory chart (2026-2034), per-product cost breakdown. Grid tab: infrastructure quality. Compare 3-4 candidate KEKs.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;

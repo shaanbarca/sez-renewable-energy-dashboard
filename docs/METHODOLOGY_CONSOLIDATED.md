@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
-**Version:** 3.3 (Consolidated, April 2026)
-**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 398 tests passing.
+**Version:** 3.6 (Consolidated, April 2026)
+**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 402 tests passing. CBAM Layer 3 complete, hybrid optimization, panel degradation modeled.
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -48,7 +48,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [9.4 Solar supply coverage](#94-solar-supply-coverage)
   - [9.5 Firm solar coverage (V3.3)](#95-firm-solar-coverage-v33)
 - [10. Action Flags](#10-action-flags)
-  - [10.1 Flag definitions (9 flags)](#101-flag-definitions-9-flags)
+  - [10.1 Flag definitions (10 solar-mode flags; 14 total across all energy modes)](#101-flag-definitions-10-solar-mode-flags-14-total-across-all-energy-modes)
   - [10.2 Priority ordering](#102-priority-ordering)
   - [10.3 solar_attractive definition](#103-solar_attractive-definition)
   - [10.4 invest_resilience rationale](#104-invest_resilience-rationale)
@@ -119,7 +119,7 @@ Step 3 — Grid cost reference
 Step 4 — Competitiveness gap
   gap = (LCOE - C_grid) / C_grid x 100%
 
-Step 5 — Action flags (9 flags, priority-ordered)
+Step 5 — Action flags (14 flags across 4 energy modes, priority-ordered; includes `cbam_urgent`)
   solar_now | invest_transmission | invest_substation | grid_first
   invest_battery | invest_resilience | plan_late | not_competitive | no_solar_resource
 ```
@@ -882,11 +882,12 @@ At 100% annual wind coverage with 25% firming gap, firm wind coverage = 75%. The
 
 ## 10. Action Flags
 
-### 10.1 Flag definitions (9 flags)
+### 10.1 Flag definitions (10 solar-mode flags; 14 total across all energy modes)
 
 | Flag | Condition | Meaning | Primary audience |
 |---|---|---|---|
 | `solar_now` | `grid_ready`/`within_boundary` AND LCOE < grid cost AND GEAS >= 30% | Ready to build. IPP can proceed, PLN should procure. | IPP, Policy Maker |
+| `cbam_urgent` | CBAM-exposed AND `cbam_adjusted_gap_pct` < 0 | RE + avoided CBAM border tax beats grid cost. Act now. See §14 and [Layer 3 spec](../docs/layer3_green_industrial_products_spec.md). | KEK Tenant, Policy Maker |
 | `invest_transmission` | `invest_transmission` grid category AND solar_attractive | Solar near substation but KEK far. **Build transmission to KEK.** | Policy Maker, DFI |
 | `invest_substation` | `invest_substation` grid category AND solar_attractive | KEK near grid but solar far. **Build substation near solar.** | Policy Maker, DFI |
 | `grid_first` | `grid_first` grid category | No substation near KEK or solar site. New grid infrastructure needed. | Policy Maker |
@@ -896,19 +897,24 @@ At 100% annual wind coverage with 25% firming gap, firm wind coverage = 75%. The
 | `not_competitive` | None of the above AND buildable area > 0 | Solar LCOE exceeds grid cost by too wide a margin. | All |
 | `no_solar_resource` | Buildable area = 0 | No suitable land for solar within 50km after buildability filters. | Policy Maker |
 
+**`cbam_urgent` note (V3.6):** Overrides `not_competitive` and `invest_resilience` when fired. A KEK that would be `not_competitive` on energy economics alone becomes `cbam_urgent` if the CBAM-adjusted competitive gap (§14) is negative, meaning RE + avoided CBAM border tax is cheaper than the current energy source. 12/25 KEKs are CBAM-exposed. The flag speaks to the KEK Tenant persona: CBAM savings justify the renewable switch regardless of pure LCOE economics.
+
 ### 10.2 Priority ordering
 
 When multiple flags could apply, the dashboard displays the **first true** flag:
 
 1. `solar_now` (highest)
-2. `invest_transmission`
-3. `invest_substation`
-4. `grid_first`
-5. `invest_battery`
-6. `invest_resilience`
-7. `plan_late`
-8. `not_competitive`
-9. `no_solar_resource` (lowest — no buildable land)
+2. `cbam_urgent` (overrides `not_competitive` / `invest_resilience` when CBAM-adjusted gap < 0)
+3. `invest_transmission`
+4. `invest_substation`
+5. `grid_first`
+6. `invest_battery`
+7. `invest_resilience`
+8. `plan_late`
+9. `not_competitive`
+10. `no_solar_resource` (lowest — no buildable land)
+
+**Note:** In the frontend, the priority ordering is mode-dependent (solar/wind/hybrid/overall modes have separate hierarchies). The ordering above is for solar mode. Wind mode replaces `solar_now` with `wind_now`; hybrid mode uses `hybrid_now`; overall mode uses whichever technology is best per KEK.
 
 ### 10.3 solar_attractive definition
 
@@ -1093,7 +1099,11 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 
 ## 14. EU CBAM Exposure
 
+**Feature spec:** [docs/layer3_green_industrial_products_spec.md](../docs/layer3_green_industrial_products_spec.md) — describes the product design rationale, persona impact, and calculation logic for this feature layer.
+
 The EU Carbon Border Adjustment Mechanism (CBAM, Regulation 2023/956) imposes a carbon cost on imports of carbon-intensive goods into the EU. For Indonesian KEKs producing CBAM-covered products (iron/steel, aluminium, cement, fertilizer), switching to solar reduces Scope 2 emissions and avoids future CBAM charges. This section documents how the dashboard detects CBAM exposure, computes emission intensities, and projects cost trajectories.
+
+**V3.6 additions:** `cbam_urgent` action flag (§10.1), user-adjustable CBAM certificate price (€30-150) and EUR/USD rate (1.00-1.30) via Tier 2 sliders, 2030 crossover year marker on trajectory chart.
 
 ### 14.1 CBAM signal detection
 
@@ -1272,7 +1282,7 @@ For backward compatibility, flat `cbam_*` fields at the KEK level use the **prim
 | Limitation | Impact | Mitigation |
 |---|---|---|
 | PVOUT from Global Solar Atlas, not site measurement | +/- 5-10% LCOE uncertainty | Use `pvout_best_50km` not centroid; show LCOE bands |
-| Panel degradation not modeled | LCOE understated ~6-7% (0.5%/yr over 27yr) | Standard for screening models (IEA, IRENA). Fix: midpoint approximation `CF × 8760 × (1 - degradation/2 × lifetime)` |
+| ~~Panel degradation not modeled~~ | ~~LCOE understated ~6-7%~~ | ✅ **Resolved (V3.4):** Panel degradation modeled via midpoint approximation: `degradation_factor = 1 - (0.005 × lifetime / 2)`. Default 0.5%/yr over 27yr → factor 0.9325 → ~7% LCOE increase. `lcoe_solar()` param `degradation_annual_pct`. Source: NREL Jordan & Kurtz 2013. |
 | Solar lifecycle emissions excluded from carbon breakeven | Breakeven ~5-8% too optimistic | Corrected formula: gap / (grid_EF - 0.040) |
 | Grid emission factors are 2019 vintage | Indonesia grid mix has shifted | Update when KESDM publishes newer Tier 2 factors |
 | Grid-connected solar requires PLN partnership | PLN controls procurement | Dashboard reads as "if procurement enabled, here are the economics" |
@@ -1293,7 +1303,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 | Finding | Status | Detail |
 |---|---|---|
-| `action_flags()` returns 6 keys, not 8 | By design | `invest_resilience` is computed by a separate `invest_resilience()` function. `not_competitive` is derived in the scorecard builder as the fallback when no other flag fires. Both are merged in `logic.py` before the API serves them. |
+| `action_flags()` returns 6 keys, not 10 | By design | `invest_resilience` is computed by a separate `invest_resilience()` function. `not_competitive` is derived in the scorecard builder as the fallback when no other flag fires. `cbam_urgent` is computed in `logic.py` from CBAM-adjusted gap. All are merged in `logic.py` before the API serves them. Total: 10 flags in solar-mode `ActionFlag` enum (14 across all energy modes). |
 | Docs referenced `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM = 10.0` | Resolved | V3.1 tightened to `SOLAR_TO_SUBSTATION_THRESHOLD_KM = 5.0` in `assumptions.py:216`. This document uses the current 5km value. |
 | Old docs used `invest_grid` (umbrella) | Resolved | V3 splits into `invest_transmission` + `invest_substation`. Code matches. |
 | Old docs used `firming_needed` | Resolved | Renamed to `invest_battery` in V3. Code matches. |
@@ -1310,13 +1320,32 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | Wind resource pipeline | `src/pipeline/build_fct_kek_wind_resource.py` |
 | Wind buildability raster | `src/pipeline/build_wind_buildable_raster.py` |
 | Wind buildability filters | `src/pipeline/wind_buildability_filters.py` |
+| Wind buildable polygons | `src/pipeline/build_wind_buildable_polygons.py` |
 | Substation proximity (3-point) | `src/pipeline/build_fct_substation_proximity.py` |
 | LCOE pipeline | `src/pipeline/build_fct_lcoe.py` |
 | Buildability filters | `src/pipeline/buildability_filters.py` |
 | Scorecard builder | `src/pipeline/build_fct_kek_scorecard.py` |
 | Dashboard logic | `src/dash/logic.py` |
 | API routes | `src/api/routes/scorecard.py` |
-| Tests | `tests/test_model.py`, `tests/test_pipeline.py` |
+| Captive coal pipeline | `src/pipeline/build_fct_captive_coal.py` |
+| Captive nickel pipeline | `src/pipeline/build_fct_captive_nickel.py` |
+| Captive steel pipeline | `src/pipeline/build_fct_captive_steel.py` |
+| Captive cement pipeline | `src/pipeline/build_fct_captive_cement.py` |
+| Hybrid optimization | `src/model/basic_model.py:hybrid_lcoe_optimized()` |
+| Grid cost proxy pipeline | `src/pipeline/build_fct_grid_cost_proxy.py` |
+| Demand pipeline | `src/pipeline/build_fct_kek_demand.py` |
+| Wind LCOE pipeline | `src/pipeline/build_fct_lcoe_wind.py` |
+| RUPTL pipeline | `src/pipeline/build_fct_ruptl_pipeline.py` |
+| Wind tech cost dimension | `src/pipeline/build_dim_tech_cost_wind.py` |
+| KEK dimension table | `src/pipeline/build_dim_kek.py` |
+| Solar tech cost dimension | `src/pipeline/build_dim_tech_cost.py` |
+| Solar buildable raster | `src/pipeline/build_buildable_raster.py` |
+| Solar buildable polygons | `src/pipeline/build_buildable_polygons.py` |
+| CBAM trajectory chart | `frontend/src/components/charts/CbamTrajectoryChart.tsx` |
+| CBAM logic (flag + costs) | `src/dash/logic.py` (CBAM section) |
+| Walkthrough guide | `frontend/src/components/ui/WalkthroughModal.tsx` |
+| Action flag legend | `frontend/src/components/ui/ActionFlagLegend.tsx` |
+| Tests | `tests/test_model.py`, `tests/test_pipeline.py`, `tests/test_action_flag_enum.py` |
 
 ---
 
@@ -1439,7 +1468,7 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 | Transmission lease | $5-15/MWh operating adder | Removed (PLN system cost, in BPP/tariff) |
 | Land cost | Not modeled | $45/kW (grid-connected only, user-adjustable) |
 | Firming/battery | Flat $6/$11/$16 per MWh | BESS LCOE model: 14h bridge-hours + 87% RTE for high-reliability loads (~$290/MWh); 2h cloud-firming for others (~$45/MWh) |
-| Action flags | 5 flags | 9 flags (split invest_grid, add not_competitive, add no_solar_resource) |
+| Action flags | 5 flags | 14 flags across 4 energy modes (split invest_grid, add not_competitive, no_solar_resource, cbam_urgent, wind_now, hybrid_now, no_wind_resource, no_re_resource) |
 | Grid integration | Not present | 5 categories from 3-point proximity |
 | Solar site coordinates | Not stored | `best_solar_site_lat/lon` |
 | Substation connectivity | Not checked | Geometric check against PLN grid lines |

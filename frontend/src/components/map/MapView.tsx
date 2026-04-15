@@ -263,6 +263,8 @@ export default function MapView() {
       kek_type: feature.properties.kek_type as string,
       category: feature.properties.category as string,
       area_ha: feature.properties.area_ha as number | null,
+      cbam_exposed:
+        feature.properties.cbam_exposed === true || feature.properties.cbam_exposed === 'true',
     });
     // Change cursor
     const map = mapRef.current?.getMap();

@@ -98,9 +98,11 @@ class ScorecardRequest(BaseModel):
 
 
 def _clean_nan(value):
-    """Convert NaN/Inf to None for JSON serialization."""
+    """Convert NaN/Inf to None for JSON serialization (recursive for nested dicts)."""
     if isinstance(value, float) and (np.isnan(value) or np.isinf(value)):
         return None
+    if isinstance(value, dict):
+        return {k: _clean_nan(v) for k, v in value.items()}
     return value
 
 

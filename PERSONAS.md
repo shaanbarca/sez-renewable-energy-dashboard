@@ -2,7 +2,7 @@
 
 Five primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
 
-*Updated for Methodology V3.3+ — grid-connected solar model, 9 action flags, BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context (coal/nickel/steel/cement), EU CBAM exposure (12 KEKs, 3-signal detection). See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference.*
+*Updated for Methodology V3.6 — grid-connected solar model, 14 action flags across 4 energy modes (Solar/Wind/Hybrid/Overall), BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context (coal/nickel/steel/cement), EU CBAM exposure (12 KEKs, 3-signal detection, `cbam_urgent` flag), hybrid solar+wind optimization, panel degradation (0.5%/yr). See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference. See [Layer 3 Spec](docs/layer3_green_industrial_products_spec.md) for CBAM feature design.*
 
 **Related:** [DESIGN.md](DESIGN.md) | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
 
@@ -19,12 +19,12 @@ This dashboard answers that question, site by site, for all 25 KEKs. It is the f
 - **Solar economics** — LCOE at adjustable financing rates (Global Solar Atlas, ESDM cost catalogue)
 - **Grid infrastructure** — substation proximity, capacity, connectivity, upgrade costs (PLN SIMOL, PLN grid lines)
 - **Captive power exposure** — coal plants, nickel smelters, steel mills, and cement plants within 50km, subject to Perpres 112/2022 phase-out (GEM GCPT, CGSP Nickel Tracker, GEM Steel/Cement Trackers)
-- **EU CBAM exposure** — 12 KEKs with CBAM-liable products (iron/steel, aluminium, fertilizer, cement); emission intensity, cost trajectory 2026-2034, RE savings quantified
+- **EU CBAM exposure** — 12 KEKs with CBAM-liable products (nickel RKEF, steel EAF, steel BF-BOF, cement, aluminium, fertilizer); emission intensity, cost trajectory 2026-2034, RE savings quantified
 - **Industrial demand** — estimated 2030 electricity demand by KEK type and area
 - **Policy pipeline** — RUPTL planned additions by region and year, GEAS solar allocations
 - **Regional grid cost** — BPP (PLN's actual cost of supply) and I-4 industrial tariff by grid region
 
-No single dataset tells this story. IRENA publishes country-level LCOE ranges. Global Solar Atlas shows radiation but not economics or grid context. RUPTL is a raw PDF. The GEM coal tracker maps plants but not their solar replacement potential. The value is the *cross* — six datasets joined at KEK level with adjustable assumptions, producing 9 action flags that are not labels but specific policy recommendations.
+No single dataset tells this story. IRENA publishes country-level LCOE ranges. Global Solar Atlas shows radiation but not economics or grid context. RUPTL is a raw PDF. The GEM coal tracker maps plants but not their solar replacement potential. The value is the *cross* — six datasets joined at KEK level with adjustable assumptions, producing 14 action flags (across 4 energy modes: Solar, Wind, Hybrid, Overall) that are not labels but specific policy recommendations.
 
 At the current default assumptions, 7 of 25 KEKs flip to solar-competitive under concessional finance (8% WACC). Four more are within 20% of grid parity. The remaining gaps are specific and nameable: a substation upgrade here, a transmission line there, a RUPTL acceleration somewhere else. Each action flag tells you exactly what needs to happen.
 
@@ -44,15 +44,15 @@ At the current default assumptions, 7 of 25 KEKs flip to solar-competitive under
 
 ## Readiness Summary
 
-*Last assessed: 2026-04-13 (V3.3 physics model fixes: bridge-hours BESS, round-trip efficiency, firm solar coverage). Re-assess after each major pipeline change.*
+*Last assessed: 2026-04-15 (V3.6: CBAM Layer 3 complete, hybrid optimization, panel degradation, `cbam_urgent` flag). Re-assess after each major pipeline change.*
 
 | Persona | Score | Status | Top blocking gap |
 |---------|-------|--------|-----------------|
 | Energy Economist | **85%** | Full WACC spectrum (4-20%), carbon breakeven, BPP sourced, V3.3 physically grounded BESS costs (bridge-hours + RTE), firm solar coverage metric | Grid emission factor is 2019 vintage; CAPEX from ESDM catalogue (not market data) |
-| DFI Infrastructure Investor | **85%** | V3.1 grid connectivity, capacity traffic light, transmission cost; V3.2 `grid_investment_needed_usd`; V3.3 honest storage economics | Panel degradation not in LCOE (~6-7% understatement) |
-| Policy Maker *(primary)* | **85%** | 9 action flags; V3.3 firm solar coverage shows daytime-direct vs storage-dependent demand split; honest BESS costs for 24/7 industrial loads | `reliability_req` is type-based proxy, not PLN SAIDI/SAIFI |
+| DFI Infrastructure Investor | **85%** | V3.1 grid connectivity, capacity traffic light, transmission cost; V3.2 `grid_investment_needed_usd`; V3.3 honest storage economics; V3.4 panel degradation modeled | BPP is FY2020 vintage (Gap priority 4) |
+| Policy Maker *(primary)* | **85%** | 14 action flags across 4 energy modes; V3.3 firm solar coverage shows daytime-direct vs storage-dependent demand split; honest BESS costs for 24/7 industrial loads | `reliability_req` is type-based proxy, not PLN SAIDI/SAIFI |
 | IPP / Solar Developer | **85%** | Buildability + resource screening solid; V3.3 bridge-hours BESS sizing + RTE makes `lcoe_with_battery` credible for project finance | Power factor not in capacity assessment (~10-15% overstatement, rarely changes traffic light) |
-| Industrial Investor / KEK Tenant | **65%** | I-4 tariff + BPP (FY2020) available; V3.1 grid infrastructure quality signals (capacity assessment, connectivity) | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
+| Industrial Investor / KEK Tenant | **80%** | I-4 tariff + BPP (FY2020); V3.1 grid infra; CBAM Layer 3 (12 KEKs exposed, trajectory, `cbam_urgent` flag); steel/cement plant proximity; hybrid optimization | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
 
 ---
 
@@ -107,7 +107,7 @@ This is the first site-level evidence base showing that concessional finance dir
 - **Grid emission factor is 2019 vintage** — `carbon_breakeven_usd_tco2` uses KESDM data now 7 years old (Gap priority 5)
 - **BPP is FY2020 vintage** — Kepmen ESDM 169/2021 data sourced, but more recent PLN Statistik 2024 values would be preferable (Gap priority 4)
 - **CAPEX from ESDM catalogue** — $960/kW may be +/-15-20% from current Indonesian EPC market pricing
-- **Panel degradation not in LCOE** — ~6-7% understatement; standard IEA/IRENA simplification but should be noted in economic analysis
+- ✅ **Panel degradation modeled** (V3.4) — midpoint approximation (0.5%/yr, ~7% LCOE increase). Source: NREL Jordan & Kurtz 2013.
 
 ### Key data needs
 
@@ -163,7 +163,7 @@ The biggest bottleneck to clean industrial power in Indonesia isn't solar econom
 ### Readiness — 85%
 
 **What works:**
-- Full 4-layer buildability filter: `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` all populated for all 25 KEKs
+- Full 5-layer buildability filter (kawasan hutan, peatland, land cover, road proximity >10km, slope/elevation): `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` all populated for all 25 KEKs
 - `dist_to_nearest_substation_km` and `nearest_substation_capacity_mva` (19/25 KEKs) — KEK-side grid data available
 - Solar resource data (`pvout_buildable_best_50km`) solid for screening
 - `demand_mwh_2030` provides relative demand ranking for investment prioritization
@@ -177,7 +177,7 @@ The biggest bottleneck to clean industrial power in Indonesia isn't solar econom
 
 **What's missing:**
 - **BPP partially sourced** — regional BPP from Kepmen ESDM 169/2021 (FY2020 vintage). More recent PLN Statistik 2024 data would strengthen the procurement economics case.
-- **Panel degradation not in LCOE** — ~6-7% understatement; standard for screening but should be flagged for detailed investment cases.
+- ✅ **Panel degradation modeled** (V3.4) — midpoint approximation (0.5%/yr, ~7% LCOE increase). Standard for screening; credible for investment cases.
 
 ### Key data needs
 
@@ -235,12 +235,12 @@ Ranked CSV of `invest_transmission`/`invest_substation` KEKs with investment est
 
 ### What only this dashboard shows them
 
-No other public tool crosses solar economics, grid topology, captive coal exposure, RUPTL pipeline timing, and nickel smelter locations at KEK level. A KESDM official can see in one screen: "Galang Batang has a 2,880 MW captive coal plant within 50km. Solar is 34% above grid cost today, but at 8% WACC the gap narrows to single digits. The substation needs capacity, and RUPTL solar additions for this region are mostly post-2030 — accelerate the pipeline." The 9 action flags are not labels — they are the policy playbook. Each one names the specific intervention: build a substation, extend a transmission line, accelerate RUPTL, invest in battery storage. The dashboard maps exactly where Indonesia's industrial ambitions and decarbonization goals align, and where they need a specific policy lever to close the gap. A policymaker preparing input for a RUPTL review or KEK electricity regulation update gets site-by-site, evidence-based recommendations that would take weeks to assemble manually.
+No other public tool crosses solar economics, grid topology, captive coal exposure, RUPTL pipeline timing, and nickel smelter locations at KEK level. A KESDM official can see in one screen: "Galang Batang has a 2,880 MW captive coal plant within 50km. Solar is 34% above grid cost today, but at 8% WACC the gap narrows to single digits. The substation needs capacity, and RUPTL solar additions for this region are mostly post-2030 — accelerate the pipeline." The 14 action flags (across 4 energy modes: Solar, Wind, Hybrid, Overall) are not labels — they are the policy playbook. Each one names the specific intervention: build a substation, extend a transmission line, accelerate RUPTL, invest in battery storage. The dashboard maps exactly where Indonesia's industrial ambitions and decarbonization goals align, and where they need a specific policy lever to close the gap. A policymaker preparing input for a RUPTL review or KEK electricity regulation update gets site-by-site, evidence-based recommendations that would take weeks to assemble manually.
 
 ### Readiness — 85%
 
 **What works:**
-- Action flags now include 9 categories: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`. V3 split `invest_grid` into actionable sub-flags.
+- Action flags now include 14 categories across 4 energy modes: `solar_now`, `cbam_urgent`, `wind_now`, `hybrid_now`, `invest_resilience`, `invest_battery`, `invest_transmission`, `invest_substation`, `grid_first`, `plan_late`, `not_competitive`, `no_solar_resource`, `no_wind_resource`, `no_re_resource`. V3 split `invest_grid` into actionable sub-flags. `cbam_urgent` (V3.6) overrides `not_competitive` when CBAM-adjusted competitive gap < 0. `wind_now`/`hybrid_now`/`no_wind_resource`/`no_re_resource` appear in their respective energy modes.
 - Full RUPTL pipeline context: `pre2030_solar_mw`, `post2030_share`, `grid_upgrade_pre2030`, `ruptl_summary`
 - `green_share_geas` quantifies GEAS allocation as a policy lever
 - `carbon_breakeven_usd_tco2` supports carbon market design arguments
@@ -250,7 +250,11 @@ No other public tool crosses solar economics, grid topology, captive coal exposu
 - ✅ V3.3: `firm_solar_coverage_pct` and `storage_gap_pct` show what fraction of demand solar can serve directly (daytime) vs what requires storage (nighttime ~58%). Grounds the "100% RE coverage" claim in physical reality.
 - ✅ V3.3: BESS costs now reflect bridge-hours sizing (14h for 24/7 industrial loads) with round-trip efficiency. `invest_battery` flag carries honest economics, not understated 2h sizing.
 
-**Note on technology scope:** Wind LCOE is now included (Global Wind Atlas v3, ESDM TECH_WIND_ONSHORE parameters). `best_re_technology` selects the cheaper of solar vs wind per KEK. Geothermal remains deferred. A KESDM adviser reviewing Sulawesi KEKs (which have known geothermal resources) should note that geothermal is not yet in the model.
+- ✅ V3.6: Hybrid solar+wind optimization (`hybrid_lcoe_optimized()`) sweeps 0-100% mix, picks lowest all-in LCOE + reduced BESS sizing. `best_re_technology` now selects from solar, wind, and hybrid per KEK.
+- ✅ V3.6: `cbam_urgent` action flag fires when CBAM-adjusted competitive gap < 0 (RE + avoided border tax beats grid). 12/25 KEKs CBAM-exposed. CBAM cost trajectory 2026-2034 in ScoreDrawer Industry tab.
+- ✅ V3.4: Panel degradation modeled via midpoint approximation (0.5%/yr, ~7% LCOE increase).
+
+**Note on technology scope:** Wind LCOE and hybrid optimization are now included (Global Wind Atlas v3, ESDM TECH_WIND_ONSHORE parameters). `best_re_technology` selects the cheaper of solar vs wind vs hybrid per KEK. Geothermal remains deferred. A KESDM adviser reviewing Sulawesi KEKs (which have known geothermal resources) should note that geothermal is not yet in the model.
 
 **What's missing:**
 - **Geothermal not yet modeled** — Sulawesi/Maluku KEKs with known geothermal resources may appear less favorable than they are
@@ -341,7 +345,7 @@ The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — no
 **What's missing:**
 - **`demand_mwh_2030` is a proxy** — area x intensity estimate, not actual tenant consumption (fundamental limitation)
 - **KEK operational status is coarse** — doesn't distinguish operating KEKs with tenants from greenfield development (Gap priority 7)
-- **Panel degradation not in LCOE** — ~6-7% understatement; standard for screening models but IPPs doing detailed project finance should adjust
+- ✅ **Panel degradation modeled** (V3.4) — midpoint approximation (0.5%/yr, ~7% LCOE increase). Credible for project finance screening.
 
 ### Key data needs
 
@@ -403,7 +407,7 @@ All KEKs pay the same PLN industrial tariff today — the differentiation is *ri
 
 **Forward-looking note on wheeling:** If PLN ever adopts grid wheeling for industrial consumers (legally authorized but rejected in practice), KEKs near strong solar potential and `grid_ready` substations would benefit first. This makes `grid_integration_category` a forward-looking site selection criterion, not just an infrastructure gap indicator.
 
-### Readiness — 65%
+### Readiness — 80%
 
 **What works:**
 - PLN I-4 tariff ($63.08/MWh) available as baseline electricity cost
@@ -414,9 +418,14 @@ All KEKs pay the same PLN industrial tariff today — the differentiation is *ri
 - `green_share_geas_2030_pct` — how much of their power will be renewable by 2030
 - `plan_late` flag — timeline risk for grid infrastructure arrival
 - RUPTL pipeline context for regional grid development trajectory
+- ✅ V3.6: **EU CBAM exposure fully modeled** — 12/25 KEKs exposed. 3-signal detection (nickel process type, plant counts, KEK business sectors). CBAM cost trajectory 2026-2034 with per-product breakdown. `cbam_cost_2030_usd_per_tonne` and `cbam_savings` quantify the financial value of switching to RE. `cbam_urgent` flag fires when CBAM-adjusted gap < 0. See [Layer 3 spec](docs/layer3_green_industrial_products_spec.md).
+- ✅ V3.6: **Steel and cement plant proximity** — GEM Steel Tracker (7 plants, 2 KEKs matched) and Cement Tracker (32 plants, 5 KEKs matched). Map overlays + ScoreDrawer Industry tab.
+- ✅ V3.6: **Hybrid solar+wind optimization** — 3-way technology comparison (solar, wind, hybrid) per KEK. `best_re_technology` selects the lowest all-in LCOE.
+- ✅ V3.4: **Panel degradation modeled** — midpoint approximation (0.5%/yr, ~7% LCOE increase).
+- ✅ V3.6: **User-adjustable CBAM parameters** — certificate price (€30-150) and EUR/USD rate sliders in AssumptionsPanel.
 
 **What's missing:**
-- **BPP is FY2020 vintage** — more recent PLN Statistik 2024 values would strengthen subsidy exposure analysis (Gap priority 🟠 4)
+- **BPP is FY2020 vintage** — more recent PLN Statistik 2024 values would strengthen subsidy exposure analysis (Gap priority 4)
 - **No PLN SAIDI/SAIFI data** — actual grid reliability by region is not available. Substation distance, capacity, and `capacity_assessment` are proxies only.
 - **KEK operational status is coarse** — doesn't distinguish operating KEKs with tenants from greenfield development
 

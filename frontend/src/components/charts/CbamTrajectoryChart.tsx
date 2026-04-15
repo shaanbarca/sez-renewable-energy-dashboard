@@ -127,7 +127,7 @@ function PerProductTooltip({
       {[...products]
         .sort((a, b) => (d[`grid_${b}`] ?? 0) - (d[`grid_${a}`] ?? 0))
         .map((p) => {
-          const colors = PRODUCT_COLORS[p] ?? PRODUCT_COLORS.iron_steel;
+          const colors = PRODUCT_COLORS[p] ?? { grid: '#FF7043', solar: '#FFAB91' };
           const grid = d[`grid_${p}`] ?? 0;
           const solar = d[`solar_${p}`] ?? 0;
           const savings = grid - solar;
@@ -203,15 +203,17 @@ export default function CbamTrajectoryChart({ row }: { row: ScorecardRow }) {
   const hasMultipleProducts = perProduct != null && Object.keys(perProduct).length > 1;
   const [viewMode, setViewMode] = useState<ViewMode>('overall');
   const assumptions = useDashboardStore((s) => s.assumptions);
-  const certPriceUsd =
+  const rawCertPrice =
     assumptions != null
       ? assumptions.cbam_certificate_price_eur * assumptions.cbam_eur_usd_rate
       : DEFAULT_CERT_PRICE_USD;
+  const certPriceUsd = Number.isFinite(rawCertPrice) ? rawCertPrice : DEFAULT_CERT_PRICE_USD;
 
   const overallData = useMemo(() => {
     const eiCurrent = row.cbam_emission_intensity_current;
     const eiSolar = row.cbam_emission_intensity_solar;
     if (eiCurrent == null || eiSolar == null) return [];
+    if (!Number.isFinite(eiCurrent) || !Number.isFinite(eiSolar)) return [];
     return buildOverallData(eiCurrent, eiSolar, certPriceUsd);
   }, [row.cbam_emission_intensity_current, row.cbam_emission_intensity_solar, certPriceUsd]);
 
@@ -274,7 +276,7 @@ export default function CbamTrajectoryChart({ row }: { row: ScorecardRow }) {
       {showPerProduct && perProductResult && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] mb-1.5">
           {perProductResult.products.map((p) => {
-            const colors = PRODUCT_COLORS[p] ?? PRODUCT_COLORS.iron_steel;
+            const colors = PRODUCT_COLORS[p] ?? { grid: '#FF7043', solar: '#FFAB91' };
             return (
               <div key={p} className="flex items-center gap-1">
                 <span
@@ -308,7 +310,7 @@ export default function CbamTrajectoryChart({ row }: { row: ScorecardRow }) {
 // --- Overall chart (original behavior) ---
 
 function OverallChart({ data }: { data: OverallPoint[] }) {
-  const maxCost = Math.max(...data.map((d) => d.costCurrent));
+  const maxCost = Math.max(...data.map((d) => d.costCurrent)) || 100;
   return (
     <ResponsiveContainer width="100%" height={180}>
       <AreaChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
@@ -382,15 +384,14 @@ function PerProductChart({
   data: Record<string, number>[];
   products: string[];
 }) {
-  const maxCost = Math.max(
-    ...data.flatMap((d) => products.map((p) => (d[`grid_${p}`] as number) ?? 0)),
-  );
+  const maxCost =
+    Math.max(...data.flatMap((d) => products.map((p) => (d[`grid_${p}`] as number) ?? 0))) || 100;
   return (
     <ResponsiveContainer width="100%" height={180}>
       <AreaChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
         <defs>
           {products.map((p) => {
-            const colors = PRODUCT_COLORS[p] ?? PRODUCT_COLORS.iron_steel;
+            const colors = PRODUCT_COLORS[p] ?? { grid: '#FF7043', solar: '#FFAB91' };
             return (
               <linearGradient
                 key={`grad_grid_${p}`}
@@ -439,7 +440,7 @@ function PerProductChart({
           }}
         />
         {products.map((p) => {
-          const colors = PRODUCT_COLORS[p] ?? PRODUCT_COLORS.iron_steel;
+          const colors = PRODUCT_COLORS[p] ?? { grid: '#FF7043', solar: '#FFAB91' };
           return (
             <Area
               key={`grid_${p}`}
@@ -453,7 +454,7 @@ function PerProductChart({
           );
         })}
         {products.map((p) => {
-          const colors = PRODUCT_COLORS[p] ?? PRODUCT_COLORS.iron_steel;
+          const colors = PRODUCT_COLORS[p] ?? { grid: '#FF7043', solar: '#FFAB91' };
           return (
             <Area
               key={`solar_${p}`}
