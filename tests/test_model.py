@@ -725,12 +725,23 @@ class TestGridIntegrationCategory:
         result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=1.36)
         assert result == "within_boundary"
 
-    def test_within_boundary_coverage_below_threshold(self):
-        """KEK with < 100% within-boundary solar coverage → no override."""
+    def test_within_boundary_coverage_partial_kek_near(self):
+        """KEK with partial within-boundary solar + near substation → grid_ready."""
         from src.model.basic_model import grid_integration_category
 
+        # 90% coverage, KEK near substation (10 km ≤ 15 km): on-site solar
+        # can connect to the nearby substation → grid_ready
         result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=0.90)
-        assert result == "invest_substation"
+        assert result == "grid_ready"
+
+    def test_within_boundary_coverage_partial_kek_far(self):
+        """KEK with partial within-boundary solar but far from substation → invest_substation."""
+        from src.model.basic_model import grid_integration_category
+
+        # 90% coverage but KEK far from substation (20 km > 15 km): falls through
+        # to distance-based checks (solar_near=False at 15 km, kek_near=False at 20 km)
+        result = grid_integration_category(False, 15.0, 20.0, within_boundary_coverage_pct=0.90)
+        assert result == "grid_first"
 
     def test_within_boundary_coverage_none(self):
         """None within_boundary_coverage_pct → no override (backwards compatible)."""

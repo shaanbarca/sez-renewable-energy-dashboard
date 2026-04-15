@@ -1178,9 +1178,15 @@ def grid_integration_category(
         and capacity_ok
     )
 
+    # V3.X: If within-boundary solar exists and KEK is near a substation, the on-site
+    # solar can connect to the nearby substation. Don't penalise based on remote solar
+    # site distance. Capacity sizing is handled separately by capacity_assessment().
+    if within_boundary_coverage_pct is not None and within_boundary_coverage_pct > 0 and kek_near:
+        return "grid_ready"
+
     # V3.1: Capacity utilization check — substation may be rated high enough but
-    # too loaded to absorb proposed solar generation. This triggers invest_substation
-    # (upgrade needed) rather than grid_first, because the substation IS physically near.
+    # too loaded to absorb proposed solar generation. Only applies when within-boundary
+    # solar isn't available (that case is handled above as grid_ready).
     if (
         capacity_ok
         and substation_capacity_mva is not None
