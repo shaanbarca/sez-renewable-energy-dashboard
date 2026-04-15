@@ -106,6 +106,10 @@ def build_captive_steel_summary(plant_df: pd.DataFrame | None = None) -> pd.Data
             steel_capacity_tpa=("capacity_tpa", "sum"),
             steel_plants=("plant_name", lambda x: "; ".join(x.unique())),
             steel_has_chinese_ownership=("is_chinese_owned", "any"),
+            steel_dominant_technology=(
+                "technology",
+                lambda x: x.mode().iloc[0] if not x.mode().empty else "",
+            ),
         )
         .reset_index()
     )
@@ -123,5 +127,8 @@ if __name__ == "__main__":
 
         summary = build_captive_steel_summary(df)
         if not summary.empty:
+            summary_out = PROCESSED_DIR / "fct_captive_steel_summary.csv"
+            summary.to_csv(summary_out, index=False)
+            print(f"Saved summary to {summary_out}")
             print(f"\nPer-KEK summary ({len(summary)} KEKs):")
             print(summary.to_string(index=False))

@@ -583,18 +583,23 @@ CBAM_FREE_ALLOCATION: dict[int, float] = {
 }
 
 # Electricity intensity by CBAM sector (MWh per tonne of product)
-# Source: JETP Captive Power Study Ch.2 (nickel), IEA (cement/aluminium/fertilizer)
+# Source: JETP Captive Power Study Ch.2 (nickel), IEA (cement/aluminium/fertilizer),
+#         worldsteel Association (steel EAF/BF-BOF)
 CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE: dict[str, float] = {
-    "iron_steel": 37.5,  # Nickel RKEF: 30-45 MWh/t, midpoint. Steel EAF ~0.4-0.5
+    "nickel_rkef": 37.5,  # RKEF ferro-nickel/NPI: 30-45 MWh/t, midpoint (JETP Ch.2)
+    "steel_eaf": 0.45,  # Electric arc furnace steel: 0.4-0.5 MWh/t (scrap-based)
+    "steel_bfbof": 0.25,  # Blast furnace-BOF steel: 0.2-0.3 MWh/t (most energy from coke)
     "aluminium": 15.0,  # Primary aluminium smelting: 13-17 MWh/t
     "fertilizer": 10.0,  # Ammonia/urea: 8-12 MWh/t
     "cement": 0.9,  # Cement: 0.8-1.0 MWh/t (low electricity, high process emissions)
 }
 
 # Process emissions (Scope 1) per tonne — not eliminated by switching to renewables
-# Source: IPCC defaults, JETP report
+# Source: IPCC defaults, JETP report, worldsteel Association
 CBAM_SCOPE1_TCO2_PER_TONNE: dict[str, float] = {
-    "iron_steel": 3.0,  # RKEF process CO₂ (carbon reduction agent)
+    "nickel_rkef": 3.0,  # RKEF process CO₂ (carbon reduction agent)
+    "steel_eaf": 0.3,  # EAF: minor electrode + alloy process emissions
+    "steel_bfbof": 1.8,  # BF-BOF: coke combustion in blast furnace
     "aluminium": 1.5,  # Anode consumption
     "fertilizer": 1.2,  # NH₃ synthesis process CO₂
     "cement": 0.52,  # Calcination (CaCO₃ → CaO + CO₂) — ~60% of total cement emissions

@@ -39,6 +39,17 @@ export type ActionFlag =
   | 'no_wind_resource'
   | 'no_re_resource';
 
+export interface CbamProductMetrics {
+  emission_intensity_current: number;
+  emission_intensity_solar: number;
+  cost_2026_usd_per_tonne: number;
+  cost_2030_usd_per_tonne: number;
+  cost_2034_usd_per_tonne: number;
+  savings_2026_usd_per_tonne: number;
+  savings_2030_usd_per_tonne: number;
+  savings_2034_usd_per_tonne: number;
+}
+
 export interface ScorecardRow {
   kek_id: string;
   kek_name: string;
@@ -153,6 +164,9 @@ export interface ScorecardRow {
   cbam_savings_2026_usd_per_tonne?: number | null;
   cbam_savings_2030_usd_per_tonne?: number | null;
   cbam_savings_2034_usd_per_tonne?: number | null;
+  cbam_per_product?: Record<string, CbamProductMetrics> | null;
+  cbam_savings_per_mwh?: number | null;
+  cbam_adjusted_gap_pct?: number | null;
   bess_sizing_hours?: number | null;
 
   // V3.3: Firm solar metrics (temporal mismatch)

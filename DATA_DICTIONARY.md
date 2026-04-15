@@ -740,10 +740,29 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `steel_capacity_tpa` | float/null | GEM Steel | Sum of capacity (tonnes per annum) for matched steel plants. |
 | `steel_plants` | str/null | GEM Steel | Semicolon-separated plant names. |
 | `steel_has_chinese_ownership` | bool/null | GEM Steel | True if any matched steel facility has Chinese ownership. |
+| `steel_dominant_technology` | str/null | GEM Steel | Mode of steel plant technology within 50 km (`EAF` or `BF-BOF`). From `fct_captive_steel_summary`. |
 | `cement_plant_count` | int/null | GEM Cement | Count of cement plants within 50 km of KEK centroid. |
 | `cement_capacity_mtpa` | float/null | GEM Cement | Sum of capacity (million tonnes per annum) for matched cement plants. |
 | `cement_plants` | str/null | GEM Cement | Semicolon-separated plant names. |
 | `cement_has_chinese_ownership` | bool/null | GEM Cement | True if any matched cement facility has Chinese ownership. |
+
+**CBAM exposure columns** (live-computed in `logic.py`; see METHODOLOGY_CONSOLIDATED.md):
+
+| Column | Type | Source | Formula / Notes |
+|--------|------|--------|-----------------|
+| `cbam_exposed` | bool | Derived | True if KEK has CBAM-covered products nearby. 3-signal detection: (1) nickel process types (RKEF/FeNi), (2) plant-level counts (steel/cement), (3) KEK business sectors. 12/25 KEKs exposed. |
+| `cbam_product_type` | str/null | Derived | Primary CBAM product category. Product types: `nickel_rkef` (37.5 MWh/t), `steel_eaf` (0.45 MWh/t), `steel_bfbof` (0.25 MWh/t), `cement` (0.11 MWh/t), `aluminium`, `fertilizer`. Old `iron_steel` type has been split into `nickel_rkef`, `steel_eaf`, and `steel_bfbof`. |
+| `cbam_emission_intensity_current` | float/null | Derived | Current grid-based emission intensity for this product (tCO2/t product). |
+| `cbam_emission_intensity_solar` | float/null | Derived | Emission intensity if powered by solar (tCO2/t product). Near-zero for electricity-only emissions. |
+| `cbam_cost_2026_usd_per_tonne` | float/null | Derived | CBAM cost per tonne of product in 2026. EU ETS ~EUR80/tCO2 x free allocation phase-out schedule (97.5% free in 2026). |
+| `cbam_cost_2030_usd_per_tonne` | float/null | Derived | CBAM cost per tonne in 2030 (free allocation declining). |
+| `cbam_cost_2034_usd_per_tonne` | float/null | Derived | CBAM cost per tonne in 2034 (0% free allocation). |
+| `cbam_savings_2026_usd_per_tonne` | float/null | Derived | CBAM savings per tonne from switching to solar in 2026. |
+| `cbam_savings_2030_usd_per_tonne` | float/null | Derived | CBAM savings per tonne from switching to solar in 2030. |
+| `cbam_savings_2034_usd_per_tonne` | float/null | Derived | CBAM savings per tonne from switching to solar in 2034. |
+| `cbam_per_product` | dict/null | Derived | Nested dict of per-product CBAM metrics. Keys: product type strings (`nickel_rkef`, `steel_eaf`, `steel_bfbof`, `cement`, etc.). Values: `CbamProductMetrics` with `emission_intensity_current`, `emission_intensity_solar`, cost/savings at 2026/2030/2034. Enables per-product drill-down in ScoreDrawer. |
+| `cbam_savings_per_mwh` | float/null | Derived | CBAM savings converted to $/MWh of electricity: `savings_per_tonne / electricity_intensity_mwh_per_tonne`. Bridges CBAM product-level savings to electricity-cost comparisons. Used for CBAM-adjusted gap calculation. |
+| `cbam_adjusted_gap_pct` | float/null | Derived | Competitive gap with CBAM savings factored in: `(lcoe_mid_usd_mwh - dashboard_rate_usd_mwh - cbam_savings_per_mwh) / dashboard_rate_usd_mwh x 100`. More negative = solar + CBAM avoidance strongly beats grid. Null for non-CBAM-exposed KEKs. |
 
 ---
 
@@ -795,6 +814,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `steel_capacity_tpa` | float | Total capacity in tonnes per annum |
 | `steel_plants` | str | Semicolon-separated plant names |
 | `steel_has_chinese_ownership` | bool | True if any matched facility has Chinese ownership |
+| `steel_dominant_technology` | str | Mode of steel plant technology within 50 km (`EAF` or `BF-BOF`). Determines CBAM product type split: EAF maps to `steel_eaf` (0.45 MWh/t), BF-BOF maps to `steel_bfbof` (0.25 MWh/t). |
 
 **Data source:** GEM Global Iron and Steel Plant Tracker, CC BY 4.0. 7 plants in raw data (`data/captive_power/gem_steel_plants.csv`), 2 KEKs matched after 50 km buffer.
 

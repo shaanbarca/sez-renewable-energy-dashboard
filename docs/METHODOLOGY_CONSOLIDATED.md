@@ -60,12 +60,19 @@ This document is the single authoritative methodology reference for the Indonesi
   - [13.3 Perpres 112/2022 compliance](#133-perpres-1122022-compliance)
   - [13.4 Scorecard fields](#134-scorecard-fields)
   - [13.5 Map overlays](#135-map-overlays)
-- [14. User-Adjustable Parameters](#14-user-adjustable-parameters)
-- [15. Known Limitations](#15-known-limitations)
-- [16. Codebase Audit Notes](#16-codebase-audit-notes)
-- [17. Assumptions Summary](#17-assumptions-summary)
-- [18. Reproducibility](#18-reproducibility)
-- [19. Regulatory References](#19-regulatory-references)
+- [14. EU CBAM Exposure](#14-eu-cbam-exposure)
+  - [14.1 CBAM signal detection](#141-cbam-signal-detection)
+  - [14.2 Product-specific parameters](#142-product-specific-parameters)
+  - [14.3 Emission intensity calculation](#143-emission-intensity-calculation)
+  - [14.4 CBAM cost trajectory](#144-cbam-cost-trajectory)
+  - [14.5 CBAM-adjusted competitive gap](#145-cbam-adjusted-competitive-gap)
+  - [14.6 Per-product breakdown](#146-per-product-breakdown)
+- [15. User-Adjustable Parameters](#15-user-adjustable-parameters)
+- [16. Known Limitations](#16-known-limitations)
+- [17. Codebase Audit Notes](#17-codebase-audit-notes)
+- [18. Assumptions Summary](#18-assumptions-summary)
+- [19. Reproducibility](#19-reproducibility)
+- [20. Regulatory References](#20-regulatory-references)
 - [References](#references)
 - [Appendix A: Buildability Filter Details](#appendix-a-buildability-filter-details)
 - [Appendix B: Legal Framework for Captive Solar](#appendix-b-legal-framework-for-captive-solar)
@@ -1084,7 +1091,147 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 
 ---
 
-## 14. User-Adjustable Parameters
+## 14. EU CBAM Exposure
+
+The EU Carbon Border Adjustment Mechanism (CBAM, Regulation 2023/956) imposes a carbon cost on imports of carbon-intensive goods into the EU. For Indonesian KEKs producing CBAM-covered products (iron/steel, aluminium, cement, fertilizer), switching to solar reduces Scope 2 emissions and avoids future CBAM charges. This section documents how the dashboard detects CBAM exposure, computes emission intensities, and projects cost trajectories.
+
+### 14.1 CBAM signal detection
+
+CBAM exposure is detected via a **three-signal approach**. Signals are evaluated in order; duplicates are suppressed (each product type appears at most once per KEK).
+
+**Signal 1: Nickel process types** (from CGSP Nickel Tracker via `fct_captive_nickel`).
+If `dominant_process_type` is `"Nickel Pig Iron"` or `"Ferro Nickel"`, append `nickel_rkef`. These RKEF/FeNi processes produce ferro-nickel or nickel pig iron — both covered under CBAM as iron and steel precursors.
+
+**Signal 2: Plant-level industrial data** (from GEM trackers via `fct_captive_steel`, `fct_captive_cement`).
+- Steel: if `steel_plant_count > 0`, use `steel_dominant_technology` from GEM. `"BF-BOF"` maps to `steel_bfbof`; all others (including missing) default to `steel_eaf` (EAF is the most common steel technology in Indonesia).
+- Cement: if `cement_plant_count > 0`, append `cement`.
+
+**Signal 3: KEK business sectors** (from `kek_business_sectors.csv`).
+Maps registered KEK industry classifications to CBAM product types:
+
+| KEK Business Sector | CBAM Product Type |
+|---|---|
+| Base Metal Industry | `nickel_rkef` |
+| Nickel Smelter Industry | `nickel_rkef` |
+| Bauxite Industry | `aluminium` |
+| Petrochemical Industry | `fertilizer` |
+| Cement Industry | `cement` |
+
+**Output fields:**
+- `cbam_exposed` (bool): `True` if any signal matched
+- `cbam_product_type` (str/null): comma-separated list of matched product types (e.g., `"nickel_rkef,cement"`)
+
+**Implementation:** Inline in `logic.py:_build_scorecard_rows()`, within the per-KEK loop.
+
+### 14.2 Product-specific parameters
+
+Each CBAM product type has two physical parameters: electricity intensity (MWh consumed per tonne of product) and Scope 1 process emissions (tCO2 per tonne, from chemical reactions, not from electricity).
+
+| Product Type | Electricity Intensity (MWh/t) | Scope 1 (tCO2/t) | Source | Notes |
+|---|---|---|---|---|
+| `nickel_rkef` | 37.5 | 3.0 | JETP Captive Power Study Ch.2 | RKEF/NPI: 30-45 MWh/t, midpoint |
+| `steel_eaf` | 0.45 | 0.3 | worldsteel Association | EAF scrap-based: 0.4-0.5 MWh/t |
+| `steel_bfbof` | 0.25 | 1.8 | worldsteel Association | BF-BOF: most energy from coke, low electricity |
+| `aluminium` | 15.0 | 1.5 | IEA | Primary smelting: 13-17 MWh/t |
+| `fertilizer` | 10.0 | 1.2 | IEA | Ammonia/urea: 8-12 MWh/t |
+| `cement` | 0.9 | 0.52 | IEA | Low electricity, high process emissions (calcination) |
+
+**Constants:** `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` and `CBAM_SCOPE1_TCO2_PER_TONNE` in `src/assumptions.py`.
+
+**Key distinction:** Scope 1 emissions are process-inherent (e.g., calcination in cement, carbon reduction in RKEF) and cannot be eliminated by switching to solar. Only Scope 2 (electricity-related) emissions are affected by the grid-to-solar transition.
+
+### 14.3 Emission intensity calculation
+
+For each KEK x product type combination, two emission intensities are computed:
+
+**Current (grid-powered):**
+$$EI_{\text{current}} = \text{Scope 1} + (\text{electricity\_intensity} \times EF_{\text{grid}}) \quad [\text{tCO}_2/\text{t product}]$$
+
+Where `EF_grid` is the KEK's regional grid emission factor (KESDM 2019 OM, same as Section 9.2). Fallback: 0.8 tCO2/MWh (Indonesia average) if grid EF is unavailable.
+
+**Solar-powered:**
+$$EI_{\text{solar}} = \text{Scope 1} + 0 \quad [\text{tCO}_2/\text{t product}]$$
+
+Solar has zero Scope 2 emissions. Only the irreducible Scope 1 process emissions remain.
+
+**Example (nickel RKEF at Morowali, SULAWESI grid EF = 0.63):**
+- Current: 3.0 + (37.5 x 0.63) = 3.0 + 23.6 = **26.6 tCO2/t**
+- Solar: 3.0 + 0 = **3.0 tCO2/t**
+- Reduction: 23.6 tCO2/t (Scope 2 eliminated)
+
+**Simplification:** This assumes 100% electricity substitution to solar. Partial substitution would reduce Scope 2 proportionally. The model does not currently compute partial substitution scenarios.
+
+### 14.4 CBAM cost trajectory
+
+CBAM charges phase in as free allocation of EU ETS certificates declines from 97.5% (2026) to 0% (2034).
+
+**Certificate price:**
+$$P_{\text{CBAM}} = \text{EU ETS price} \times \text{EUR/USD rate} = \text{€}80/\text{tCO}_2 \times 1.10 = \$88/\text{tCO}_2$$
+
+**Free allocation phase-out schedule** (EU Regulation 2023/956, Art. 31):
+
+| Year | Free Allocation (%) | Effective CBAM Rate (%) |
+|---|---|---|
+| 2026 | 97.5% | 2.5% |
+| 2027 | 95.0% | 5.0% |
+| 2028 | 90.0% | 10.0% |
+| 2029 | 77.5% | 22.5% |
+| 2030 | 51.5% | 48.5% |
+| 2031 | 39.0% | 61.0% |
+| 2032 | 26.5% | 73.5% |
+| 2033 | 14.0% | 86.0% |
+| 2034 | 0.0% | 100.0% |
+
+**Cost per tonne of product at year Y:**
+$$C_{\text{CBAM}}(Y) = EI_{\text{current}} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
+
+**Savings per tonne from switching to solar at year Y:**
+$$S_{\text{CBAM}}(Y) = (EI_{\text{current}} - EI_{\text{solar}}) \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
+
+Since $EI_{\text{current}} - EI_{\text{solar}}$ equals the Scope 2 component:
+$$S_{\text{CBAM}}(Y) = (\text{electricity\_intensity} \times EF_{\text{grid}}) \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y))$$
+
+**Output fields:** `cbam_cost_2026/2030/2034_usd_per_tonne`, `cbam_savings_2026/2030/2034_usd_per_tonne`. Three snapshot years capture the trajectory shape: 2026 (minimal), 2030 (mid-transition), 2034 (full exposure).
+
+**Constants:** `CBAM_CERTIFICATE_PRICE_EUR_TCO2`, `CBAM_EUR_USD_RATE`, `CBAM_FREE_ALLOCATION` in `src/assumptions.py`.
+
+### 14.5 CBAM-adjusted competitive gap
+
+For CBAM-exposed KEKs, the avoided carbon cost effectively reduces the solar LCOE gap versus grid power. The dashboard computes a CBAM-adjusted competitive gap that incorporates these savings.
+
+**Step 1 — Convert savings from per-tonne to per-MWh:**
+$$S_{\text{MWh}} = \frac{S_{\text{CBAM}}(2030)}{\text{electricity\_intensity}} \quad [\text{USD/MWh}]$$
+
+This uses the 2030 savings (mid-transition) and divides by the product's electricity intensity to convert from "savings per tonne of product" to "savings per MWh of electricity consumed." The primary product type (first in the `cbam_product_type` list, i.e., highest electricity intensity) is used.
+
+**Step 2 — Adjusted gap:**
+$$\text{cbam\_adjusted\_gap} = \frac{LCOE_{\text{mid}} - S_{\text{MWh}} - C_{\text{grid}}}{C_{\text{grid}}} \times 100 \quad [\%]$$
+
+A negative adjusted gap means solar is already competitive when CBAM savings are factored in. For high-intensity sectors like nickel RKEF (37.5 MWh/t), even modest per-MWh savings compound into large per-tonne savings, potentially flipping the economics.
+
+**Output fields:** `cbam_savings_per_mwh` (USD/MWh), `cbam_adjusted_gap_pct` (%).
+
+### 14.6 Per-product breakdown
+
+Multi-product KEKs (e.g., a KEK with both nickel smelting and cement production) receive independent CBAM trajectories for each product type. This is necessary because:
+
+1. **Units are incommensurable.** Nickel savings are in USD per tonne of ferro-nickel; cement savings are in USD per tonne of cement. These cannot be summed or averaged.
+2. **Intensities differ by orders of magnitude.** Nickel RKEF consumes 37.5 MWh/t; cement consumes 0.9 MWh/t. The CBAM impact per tonne is vastly different.
+3. **Scope 1 fractions differ.** Cement emissions are 60%+ Scope 1 (calcination), so solar addresses a smaller share. Nickel RKEF emissions are 85%+ Scope 2 (electric furnaces), so solar eliminates the dominant source.
+
+The `cbam_per_product` field (dict, keyed by product type) stores per-product metrics:
+- `emission_intensity_current` — total tCO2/t under current grid
+- `emission_intensity_solar` — total tCO2/t with solar (= Scope 1 only)
+- `cost_2026/2030/2034_usd_per_tonne` — CBAM liability at snapshot years
+- `savings_2026/2030/2034_usd_per_tonne` — avoided CBAM cost from solar switch
+
+For backward compatibility, flat `cbam_*` fields at the KEK level use the **primary product** (first matched, typically the highest electricity intensity). The per-product dict enables the ScoreDrawer CBAM trajectory chart to show independent cost curves for each product at a multi-product KEK.
+
+**Implementation:** `logic.py:_build_scorecard_rows()`. The `CbamTrajectoryChart` component (`frontend/src/components/charts/CbamTrajectoryChart.tsx`) renders per-product trajectories.
+
+---
+
+## 15. User-Adjustable Parameters
 
 **Tier 1 (primary):**
 
@@ -1120,7 +1267,7 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 
 ---
 
-## 15. Known Limitations
+## 16. Known Limitations
 
 | Limitation | Impact | Mitigation |
 |---|---|---|
@@ -1138,7 +1285,7 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 
 ---
 
-## 16. Codebase Audit Notes
+## 17. Codebase Audit Notes
 
 Audit performed April 2026 against the current implementation. The codebase is ~95% aligned with this methodology document.
 
@@ -1173,7 +1320,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 ---
 
-## 17. Assumptions Summary
+## 18. Assumptions Summary
 
 | Assumption | Value | Source | Sensitivity |
 |---|---|---|---|
@@ -1190,7 +1337,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 ---
 
-## 18. Reproducibility
+## 19. Reproducibility
 
 All primary inputs are publicly available. See the [References](#references) section for full citations, URLs, and access details.
 
@@ -1212,7 +1359,7 @@ Pipeline: `run_pipeline.py` -> `outputs/data/processed/` -> `src/model/` -> dash
 
 ---
 
-## 19. Regulatory References
+## 20. Regulatory References
 
 See the [Indonesian Regulatory Framework](#indonesian-regulatory-framework) table in the References section for full regulation titles. Summary of regulations referenced in this methodology:
 
@@ -1315,7 +1462,7 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 
 ---
 
-*This document should be reviewed by an energy economist familiar with Indonesia's power sector before public release. Key review areas: Section 7 (grid cost reference), Section 10 (action flags), Section 11 (GEAS allocation).*
+*This document should be reviewed by an energy economist familiar with Indonesia's power sector before public release. Key review areas: Section 7 (grid cost reference), Section 10 (action flags), Section 11 (GEAS allocation), Section 14 (CBAM exposure and product parameters).*
 
 ---
 
@@ -1357,6 +1504,9 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 
 - KESDM (Kementerian ESDM). (2019). *Grid Emission Factor: Operating Margin by PLN Grid Region*. Used for carbon breakeven price calculation (§9.2). Tier 2 OM factors by grid region.
 - IPCC. (2022). *Climate Change 2022: Mitigation of Climate Change. Contribution of Working Group III to the Sixth Assessment Report of the Intergovernmental Panel on Climate Change*. Cambridge University Press. doi:10.1017/9781009157926. Solar PV lifecycle emissions: ~40 gCO2/kWh.
+- European Parliament and Council. (2023). *Regulation (EU) 2023/956 establishing a carbon border adjustment mechanism*. Official Journal of the European Union, L 130/52. Art. 31: free allocation phase-out schedule 2026-2034. Used for CBAM cost trajectory (§14.4).
+- worldsteel Association. (2023). *Steel Statistical Yearbook 2023*. Brussels. EAF and BF-BOF electricity intensity and process emission benchmarks. Used for steel CBAM parameters (§14.2).
+- JETP Secretariat. (2023). *Indonesia Just Energy Transition Partnership: Captive Power Study*. Ch. 2: nickel RKEF electricity intensity (30-45 MWh/t). Used for nickel CBAM parameters (§14.2).
 
 ### Infrastructure Cost Benchmarks
 

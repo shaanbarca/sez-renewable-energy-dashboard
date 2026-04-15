@@ -32,6 +32,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   best_re_technology: 'Best available renewable energy technology for this KEK',
   dashboard_rate_usd_mwh:
     'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
+  cbam_adjusted_gap_pct:
+    'Competitive gap adjusted for EU CBAM savings. Subtracts avoided carbon border tax ($/MWh) from solar LCOE before comparing to grid cost. At 2030 rates. Only for CBAM-exposed KEKs.',
   grid_integration_category:
     'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
   grid_investment_needed_usd:
@@ -357,5 +359,21 @@ export const columns = [
     header: () => <GridRateHeader />,
     filterFn: 'inRange',
     cell: (info) => <GridRateCell info={info} />,
+  }),
+  col.accessor('cbam_adjusted_gap_pct', {
+    header: () => <HeaderWithTooltip label="CBAM Gap (%)" columnId="cbam_adjusted_gap_pct" />,
+    filterFn: 'inRange',
+    cell: (info) => {
+      const val = info.getValue();
+      if (val == null) return <span style={{ color: '#666' }}>—</span>;
+      const sign = val > 0 ? '+' : '';
+      const color = val < 0 ? '#4CAF50' : val > 0 ? '#EF5350' : '#e0e0e0';
+      return (
+        <span style={{ color }}>
+          {sign}
+          {val.toFixed(1)}%
+        </span>
+      );
+    },
   }),
 ];
