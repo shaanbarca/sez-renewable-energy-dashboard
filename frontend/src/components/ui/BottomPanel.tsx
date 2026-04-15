@@ -68,51 +68,48 @@ export default function BottomPanel() {
       >
         {/* Resize handle + toggle */}
         <div
-          className="w-full flex items-center justify-center shrink-0 select-none relative"
+          className="w-full shrink-0 select-none relative"
           style={{
             background: 'var(--accent-soft)',
             borderTop: '2px solid var(--accent-border)',
           }}
         >
-          {/* Drag handle zone — only when expanded */}
+          {/* Drag handle — full width behind the button */}
           {!collapsed && (
             <div
-              className="flex-1 h-8 flex items-center justify-center"
+              className="absolute inset-0"
               style={{ cursor: 'ns-resize' }}
               onPointerDown={onDragStart}
               onPointerMove={onDragMove}
               onPointerUp={onDragEnd}
-            >
-              <div
-                className="w-10 h-1 rounded-full"
-                style={{ background: 'var(--accent-border)' }}
-              />
-            </div>
+            />
           )}
-          {/* Collapse toggle — centered when collapsed, right-anchored when expanded */}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className={`h-8 px-3 flex items-center gap-1.5
-                       text-xs font-medium tracking-wide
-                       transition-colors cursor-pointer${collapsed ? '' : ' absolute right-0'}`}
-            style={{ color: 'var(--accent)' }}
-            title={collapsed ? 'Show table panel' : 'Hide table panel'}
-          >
-            <span>{collapsed ? 'Show' : 'Hide'}</span>
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+          {/* Collapse toggle — always centered */}
+          <div className="flex items-center justify-center h-8">
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="relative z-10 h-8 px-3 flex items-center gap-1.5
+                         text-xs font-medium tracking-wide
+                         transition-colors cursor-pointer"
+              style={{ color: 'var(--accent)' }}
+              title={collapsed ? 'Show table panel' : 'Hide table panel'}
             >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
+              <span>{collapsed ? 'Show' : 'Hide'}</span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <Tabs.List
