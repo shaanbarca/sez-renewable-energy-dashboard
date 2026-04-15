@@ -10,8 +10,28 @@ import {
   YAxis,
 } from 'recharts';
 import { ACTION_FLAG_COLORS } from '../../lib/constants';
-import type { ScorecardRow } from '../../lib/types';
+import type { EnergyMode, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+
+function getLcoeForMode(row: ScorecardRow, mode: EnergyMode): number | null | undefined {
+  if (mode === 'wind') return row.lcoe_wind_mid_usd_mwh;
+  if (mode === 'hybrid') return row.hybrid_allin_usd_mwh;
+  if (mode === 'overall') return row.best_re_lcoe_mid_usd_mwh;
+  return row.lcoe_mid_usd_mwh;
+}
+
+function getModeLabel(mode: EnergyMode): string {
+  if (mode === 'wind') return 'Wind';
+  if (mode === 'hybrid') return 'Hybrid';
+  if (mode === 'overall') return 'RE';
+  return 'Solar';
+}
+
+function getDeployLabel(mode: EnergyMode): string {
+  if (mode === 'wind') return 'Wind Now';
+  if (mode === 'hybrid') return 'Hybrid Now';
+  return 'Solar Now';
+}
 
 interface DotProps {
   cx?: number;
@@ -22,7 +42,16 @@ interface DotProps {
 function CustomDot(props: DotProps) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null || !payload) return null;
-  return <circle cx={cx} cy={cy} r={6} fill={ACTION_FLAG_COLORS[payload.action_flag] ?? '#666'} />;
+  const fill = ACTION_FLAG_COLORS[payload.action_flag] ?? '#666';
+  if (payload.cbam_exposed) {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={8} fill="none" stroke="#FF6F00" strokeWidth={1.5} />
+        <circle cx={cx} cy={cy} r={5} fill={fill} />
+      </g>
+    );
+  }
+  return <circle cx={cx} cy={cy} r={6} fill={fill} />;
 }
 
 interface TooltipPayload {
@@ -32,20 +61,38 @@ interface TooltipPayload {
 interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipPayload[];
+  energyMode?: EnergyMode;
 }
 
-function CustomTooltip({ active, payload }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, energyMode = 'solar' }: CustomTooltipProps) {
   if (!active || !payload?.[0]?.payload) return null;
   const d = payload[0].payload;
+  const lcoe = getLcoeForMode(d, energyMode);
+  const gridCost = d.dashboard_rate_usd_mwh;
+  const gap = lcoe != null && gridCost ? ((lcoe - gridCost) / gridCost) * 100 : null;
+  const label = getModeLabel(energyMode);
   return (
-    <div className="bg-[#1e1e1e] border border-white/10 rounded px-3 py-2 text-xs text-[#e0e0e0]">
+    <div
+      className="rounded px-3 py-2 text-xs"
+      style={{
+        background: 'var(--popup-bg)',
+        border: '1px solid var(--popup-border)',
+        boxShadow: 'var(--popup-shadow)',
+        color: 'var(--text-primary)',
+      }}
+    >
       <div className="font-medium mb-1">{d.kek_name}</div>
-      <div>LCOE: ${d.lcoe_mid_usd_mwh.toFixed(1)}/MWh</div>
-      <div>Grid: ${d.dashboard_rate_usd_mwh.toFixed(1)}/MWh</div>
-      <div>
-        LCOE Gap: {d.solar_competitive_gap_pct > 0 ? '+' : ''}
-        {d.solar_competitive_gap_pct.toFixed(1)}%
-      </div>
+      <div>{label} LCOE: {lcoe != null ? `$${lcoe.toFixed(1)}/MWh` : 'N/A'}</div>
+      <div>Grid: ${gridCost.toFixed(1)}/MWh</div>
+      {gap != null && (
+        <div>
+          Gap: {gap > 0 ? '+' : ''}
+          {gap.toFixed(1)}%
+        </div>
+      )}
+      {d.cbam_exposed && (
+        <div style={{ color: '#FF6F00' }}>CBAM Exposed</div>
+      )}
     </div>
   );
 }
@@ -54,7 +101,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
  * 4-zone diagonal bands matching action flag thresholds.
  *
  * Gap = (LCOE - Grid) / Grid. The ±20% gap lines create 4 bands:
- *   Solar Now (green):         gap < -20%  →  Grid > 1.25 × LCOE
+ *   Deploy Now (green):        gap < -20%  →  Grid > 1.25 × LCOE
  *   Invest Resilience (amber): gap -20%–0% →  Grid between LCOE and 1.25 × LCOE
  *   Grid First (blue):         gap 0%–20%  →  Grid between 0.833 × LCOE and LCOE
  *   Not Competitive (red):     gap > 20%   →  Grid < 0.833 × LCOE
@@ -62,6 +109,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ZoneShading(props: any) {
   const { xAxisMap, yAxisMap } = props;
+  const energyMode = useDashboardStore((s) => s.energyMode);
   if (!xAxisMap || !yAxisMap) return null;
 
   const xAxis = xAxisMap[Object.keys(xAxisMap)[0]];
@@ -124,7 +172,7 @@ function ZoneShading(props: any) {
         fontWeight={500}
         textAnchor="middle"
       >
-        Solar Now
+        {getDeployLabel(energyMode)}
       </text>
       <text
         x={lx2}
@@ -163,21 +211,27 @@ function ZoneShading(props: any) {
 export default function QuadrantChart() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
+  const energyMode = useDashboardStore((s) => s.energyMode);
 
   const chartData = useMemo(() => {
     if (!scorecard) return [];
-    return scorecard.map((row) => ({
-      ...row,
-      gridCost:
-        benchmarkMode === 'bpp' && row.bpp_usd_mwh != null
-          ? row.bpp_usd_mwh
-          : row.dashboard_rate_usd_mwh,
-    }));
-  }, [scorecard, benchmarkMode]);
+    return scorecard
+      .map((row) => {
+        const lcoe = getLcoeForMode(row, energyMode);
+        const gridCost =
+          benchmarkMode === 'bpp' && row.bpp_usd_mwh != null
+            ? row.bpp_usd_mwh
+            : row.dashboard_rate_usd_mwh;
+        return { ...row, activeLcoe: lcoe ?? null, gridCost };
+      })
+      .filter((d) => d.activeLcoe != null && Number.isFinite(d.activeLcoe));
+  }, [scorecard, benchmarkMode, energyMode]);
+
+  const modeLabel = getModeLabel(energyMode);
 
   const domain = useMemo(() => {
     if (!chartData.length) return { min: 0, max: 200 };
-    const allVals = chartData.flatMap((d) => [d.lcoe_mid_usd_mwh, d.gridCost]);
+    const allVals = chartData.flatMap((d) => [d.activeLcoe as number, d.gridCost]);
     const min = Math.floor(Math.min(...allVals) * 0.8);
     const max = Math.ceil(Math.max(...allVals) * 1.2);
     return { min: Math.max(0, min), max };
@@ -193,12 +247,12 @@ export default function QuadrantChart() {
         <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 20 }}>
           <XAxis
             type="number"
-            dataKey="lcoe_mid_usd_mwh"
-            name="Solar LCOE"
+            dataKey="activeLcoe"
+            name={`${modeLabel} LCOE`}
             domain={[domain.min, domain.max]}
             tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 11 }}
             label={{
-              value: 'Solar LCOE ($/MWh)',
+              value: `${modeLabel} LCOE ($/MWh)`,
               position: 'bottom',
               offset: 10,
               fill: 'rgba(255,255,255,0.6)',
@@ -253,7 +307,7 @@ export default function QuadrantChart() {
             strokeOpacity={0.1}
             strokeDasharray="3 6"
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip energyMode={energyMode} />} />
           <Scatter data={chartData} shape={<CustomDot />} />
         </ScatterChart>
       </ResponsiveContainer>
