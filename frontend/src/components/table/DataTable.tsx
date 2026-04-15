@@ -57,6 +57,7 @@ const RANGE_COLUMNS = new Set([
   'area_ha',
   'solar_replacement_pct',
   'grid_investment_needed_usd',
+  'cbam_cost_2030_usd_per_tonne',
 ]);
 
 function getCaptivePowerType(row: ScorecardRow): string {

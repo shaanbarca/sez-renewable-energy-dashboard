@@ -376,4 +376,13 @@ export const columns = [
       );
     },
   }),
+  col.accessor('cbam_cost_2030_usd_per_tonne', {
+    header: () => <HeaderWithTooltip label="CBAM 2030 ($/t)" columnId="cbam_2030" />,
+    filterFn: 'inRange',
+    cell: (info) => {
+      const val = info.getValue();
+      if (val == null) return <span style={{ color: '#666' }}>—</span>;
+      return <span style={{ color: '#FF6F00' }}>${val.toFixed(0)}/t</span>;
+    },
+  }),
 ];

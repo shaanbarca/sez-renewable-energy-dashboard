@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import type { CbamProductMetrics, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
@@ -335,6 +343,17 @@ function OverallChart({ data }: { data: OverallPoint[] }) {
           }}
         />
         <Tooltip content={<OverallTooltip />} />
+        <ReferenceLine
+          x={2030}
+          stroke="var(--text-muted)"
+          strokeDasharray="3 3"
+          label={{
+            value: '50% exposed',
+            fill: 'var(--text-muted)',
+            fontSize: 9,
+            position: 'insideTopRight',
+          }}
+        />
         <Area
           type="monotone"
           dataKey="costCurrent"
@@ -408,6 +427,17 @@ function PerProductChart({
           }}
         />
         <Tooltip content={<PerProductTooltip products={products} />} />
+        <ReferenceLine
+          x={2030}
+          stroke="var(--text-muted)"
+          strokeDasharray="3 3"
+          label={{
+            value: '50% exposed',
+            fill: 'var(--text-muted)',
+            fontSize: 9,
+            position: 'insideTopRight',
+          }}
+        />
         {products.map((p) => {
           const colors = PRODUCT_COLORS[p] ?? PRODUCT_COLORS.iron_steel;
           return (
