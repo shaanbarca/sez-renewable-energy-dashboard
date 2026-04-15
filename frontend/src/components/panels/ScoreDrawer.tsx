@@ -11,6 +11,7 @@ import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
 import { capitalize, formatGridRegion, formatSnakeLabel } from '../../lib/format';
 import type { ScorecardRow, SubstationWithCosts, UserAssumptions } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import CbamTrajectoryChart from '../charts/CbamTrajectoryChart';
 import EnergyBalanceChart from '../charts/EnergyBalanceChart';
 import LcoeCurveChart from '../charts/LcoeCurveChart';
 import Slider from '../ui/Slider';
@@ -455,7 +456,11 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
           )}
       </StatCard>
 
-      {(row.demand_2030_gwh != null || row.captive_coal_count || row.nickel_smelter_count) && (
+      {(row.demand_2030_gwh != null ||
+        row.captive_coal_count ||
+        row.nickel_smelter_count ||
+        row.steel_plant_count ||
+        row.cement_plant_count) && (
         <StatCard>
           <SectionHeader
             title="Demand Context"
@@ -491,19 +496,43 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
               tip="RKEF smelters run 24/7 baseload, doubling battery storage requirements from 2h to 4h."
             />
           )}
+          {!!row.steel_plant_count && row.steel_plant_count > 0 && (
+            <StatRowWithTip
+              label="Steel Plants"
+              value={
+                row.steel_capacity_tpa
+                  ? `${row.steel_plant_count}, ${(row.steel_capacity_tpa / 1e6).toFixed(1)}M tpa`
+                  : `${row.steel_plant_count}`
+              }
+              tip="CBAM-exposed. BF-BOF has highest emissions. EAF is electricity-intensive (~37.5 MWh/t)."
+            />
+          )}
+          {!!row.cement_plant_count && row.cement_plant_count > 0 && (
+            <StatRowWithTip
+              label="Cement Plants"
+              value={
+                row.cement_capacity_mtpa
+                  ? `${row.cement_plant_count}, ${row.cement_capacity_mtpa.toFixed(1)} Mtpa`
+                  : `${row.cement_plant_count}`
+              }
+              tip="CBAM-exposed. High process emissions (0.52 tCO₂/t from calcination)."
+            />
+          )}
           {row.cbam_exposed && (
             <ColoredStatRow
               label="EU CBAM"
               value={
-                row.cbam_product_type
-                  ? row.cbam_product_type
-                      .split(',')
-                      .map((t) => t.replace('_', '/'))
-                      .join(', ')
-                  : 'Exposed'
+                row.cbam_cost_2030_usd_per_tonne != null
+                  ? `$${row.cbam_cost_2030_usd_per_tonne}/t (2030)`
+                  : row.cbam_product_type
+                    ? row.cbam_product_type
+                        .split(',')
+                        .map((t) => t.replace('_', '/'))
+                        .join(', ')
+                    : 'Exposed'
               }
               color="#FF7043"
-              tip="EU Carbon Border Adjustment Mechanism. Covers iron/steel, aluminium, and fertilizer exports. Carbon pricing escalates from ~€2/tCO₂ (2026) to full EU ETS price (~€80/tCO₂) by 2034."
+              tip="EU Carbon Border Adjustment Mechanism. Covers iron/steel, aluminium, cement, and fertilizer exports. Carbon pricing escalates from ~€2/tCO₂ (2026) to full EU ETS price (~€80/tCO₂) by 2034."
             />
           )}
         </StatCard>
@@ -1226,10 +1255,11 @@ function DemandTab({ row }: { row: ScorecardRow }) {
 
   return (
     <>
+      {/* Demand headline — brief context */}
       <StatCard>
         <SectionHeader
-          title="Electricity Demand"
-          subtitle="How much power does this KEK need by 2030?"
+          title="Demand & Generation"
+          subtitle="How much power does this KEK need, and can RE supply it?"
         />
         <StatRowWithTip
           label="2030 Demand Estimate"
@@ -1262,6 +1292,204 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           />
         )}
       </StatCard>
+
+      {/* Captive Power Context */}
+      {(row.captive_coal_count ||
+        row.nickel_smelter_count ||
+        row.steel_plant_count ||
+        row.cement_plant_count) && (
+        <StatCard>
+          <SectionHeader
+            title="Captive Power & CBAM Industries"
+            subtitle="What fossil generation and CBAM-exposed industry exists nearby?"
+            tip="Coal plants, nickel smelters, steel mills, and cement plants within 50km. These are transition targets and CBAM-exposed industries."
+          />
+          {!!row.captive_coal_count && (
+            <>
+              <StatRow label="Coal Plants" value={row.captive_coal_count} />
+              {row.captive_coal_mw != null && (
+                <StatRow
+                  label="Coal Capacity"
+                  value={`${row.captive_coal_mw.toLocaleString()}`}
+                  unit="MW"
+                />
+              )}
+              {row.captive_coal_generation_gwh != null && (
+                <StatRowWithTip
+                  label="Coal Generation"
+                  value={`${row.captive_coal_generation_gwh.toFixed(1)}`}
+                  unit="GWh/yr"
+                  tip="Estimated annual generation assuming 40% capacity factor x 8,760 hours. Industry standard for captive coal utilization."
+                />
+              )}
+              {row.captive_coal_plants && (
+                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {row.captive_coal_plants}
+                </div>
+              )}
+            </>
+          )}
+          {!!row.captive_coal_count && !!row.nickel_smelter_count && (
+            <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
+          )}
+          {!!row.nickel_smelter_count && (
+            <>
+              <StatRow label="Nickel Smelters" value={row.nickel_smelter_count} />
+              {row.dominant_process_type && (
+                <StatRowWithTip
+                  label="Process Type"
+                  value={row.dominant_process_type}
+                  tip="RKEF = Rotary Kiln Electric Furnace, runs 24/7 at high temperatures. Doubles battery sizing from 2h to 4h. Highest electricity intensity of all nickel processes."
+                />
+              )}
+              {row.nickel_projects && (
+                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {row.nickel_projects}
+                </div>
+              )}
+              {row.has_chinese_ownership && (
+                <StatRowWithTip
+                  label="Chinese Ownership"
+                  value="Present"
+                  tip="Indicates Chinese-invested facilities nearby. Relevant for DFI due diligence and ESG screening. Source: CGSP Nickel Tracker."
+                />
+              )}
+            </>
+          )}
+          {!!row.steel_plant_count && row.steel_plant_count > 0 && (
+            <>
+              {(!!row.captive_coal_count || !!row.nickel_smelter_count) && (
+                <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
+              )}
+              <StatRow label="Steel Plants" value={row.steel_plant_count} />
+              {row.steel_capacity_tpa != null && (
+                <StatRowWithTip
+                  label="Steel Capacity"
+                  value={`${(row.steel_capacity_tpa / 1e6).toFixed(1)}M`}
+                  unit="tpa"
+                  tip="CBAM-exposed. BF-BOF = blast furnace (highest emissions). EAF = electric arc furnace (lower emissions, high electricity intensity ~37.5 MWh/tonne)."
+                />
+              )}
+              {row.steel_plants && (
+                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {row.steel_plants}
+                </div>
+              )}
+              {row.steel_has_chinese_ownership && (
+                <StatRowWithTip
+                  label="Chinese Ownership"
+                  value="Present"
+                  tip="Chinese-invested steel facilities nearby. Source: GEM Global Iron and Steel Plant Tracker."
+                />
+              )}
+            </>
+          )}
+          {!!row.cement_plant_count && row.cement_plant_count > 0 && (
+            <>
+              {(!!row.captive_coal_count ||
+                !!row.nickel_smelter_count ||
+                !!row.steel_plant_count) && (
+                <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
+              )}
+              <StatRow label="Cement Plants" value={row.cement_plant_count} />
+              {row.cement_capacity_mtpa != null && (
+                <StatRowWithTip
+                  label="Cement Capacity"
+                  value={`${row.cement_capacity_mtpa.toFixed(1)}`}
+                  unit="Mtpa"
+                  tip="CBAM-exposed. Cement production has high process emissions (0.52 tCO2/tonne from calcination). Low electricity intensity but high scope 1."
+                />
+              )}
+              {row.cement_plants && (
+                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {row.cement_plants}
+                </div>
+              )}
+              {row.cement_has_chinese_ownership && (
+                <StatRowWithTip
+                  label="Chinese Ownership"
+                  value="Present"
+                  tip="Chinese-invested cement facilities nearby. Source: GEM Global Cement Plant Tracker."
+                />
+              )}
+            </>
+          )}
+          {(row.solar_replacement_pct != null || row.perpres_112_status || row.cbam_exposed) && (
+            <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+              {row.solar_replacement_pct != null && (
+                <ColoredStatRow
+                  label="Solar Replacement"
+                  value={`${row.solar_replacement_pct.toFixed(0)}%`}
+                  color={
+                    row.solar_replacement_pct >= 100
+                      ? '#4CAF50'
+                      : row.solar_replacement_pct >= 50
+                        ? '#FFC107'
+                        : '#F44336'
+                  }
+                  tip="What % of captive coal generation solar could replace. 100%+ (green) = full displacement possible. <50% (red) = supplementary generation needed."
+                />
+              )}
+              {row.perpres_112_status && (
+                <StatRowWithTip
+                  label="Perpres 112/2022"
+                  value={row.perpres_112_status}
+                  tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
+                />
+              )}
+              {row.cbam_exposed && (
+                <>
+                  <ColoredStatRow
+                    label="EU CBAM Exposure"
+                    value={
+                      row.cbam_product_type
+                        ? row.cbam_product_type
+                            .split(',')
+                            .map((t) => {
+                              const labels: Record<string, string> = {
+                                iron_steel: 'Iron/Steel',
+                                aluminium: 'Aluminium',
+                                fertilizer: 'Fertilizer',
+                                cement: 'Cement',
+                              };
+                              return labels[t] ?? t;
+                            })
+                            .join(', ')
+                        : 'Exposed'
+                    }
+                    color="#FF7043"
+                    tip="EU CBAM covers iron/steel (nickel RKEF, base metals), aluminium (bauxite processing), and fertilizer (petrochemical). Exports to EU face carbon border pricing from 2026, escalating to full EU ETS price by 2034."
+                  />
+                  {row.cbam_emission_intensity_current != null && (
+                    <StatRowWithTip
+                      label="Emission Intensity"
+                      value={`${row.cbam_emission_intensity_current} tCO₂/t`}
+                      tip={`Current: ${row.cbam_emission_intensity_current} tCO₂/tonne (grid electricity + process). With solar: ${row.cbam_emission_intensity_solar ?? '?'} tCO₂/tonne (process only, Scope 2 eliminated).`}
+                    />
+                  )}
+                  {row.cbam_cost_2030_usd_per_tonne != null && (
+                    <StatRowWithTip
+                      label="CBAM Cost 2030"
+                      value={`$${row.cbam_cost_2030_usd_per_tonne?.toLocaleString()}/t`}
+                      tip={`CBAM cost per tonne of product at 2030 rates (51.5% free allocation phased out). 2026: $${row.cbam_cost_2026_usd_per_tonne?.toLocaleString()}/t. 2034: $${row.cbam_cost_2034_usd_per_tonne?.toLocaleString()}/t (full exposure).`}
+                    />
+                  )}
+                  {row.cbam_savings_2030_usd_per_tonne != null &&
+                    row.cbam_savings_2030_usd_per_tonne > 0 && (
+                      <ColoredStatRow
+                        label="RE Savings 2030"
+                        value={`$${row.cbam_savings_2030_usd_per_tonne.toLocaleString()}/t`}
+                        color="#4CAF50"
+                        tip={`CBAM cost avoided per tonne by switching to renewable energy (eliminates Scope 2 emissions). By 2034: $${row.cbam_savings_2034_usd_per_tonne?.toLocaleString()}/t saved. Switching to RE doesn't just lower energy cost, it removes the carbon border tax.`}
+                      />
+                    )}
+                  {row.cbam_emission_intensity_current != null && <CbamTrajectoryChart row={row} />}
+                </>
+              )}
+            </div>
+          )}
+        </StatCard>
+      )}
 
       <StatCard>
         <SectionHeader
@@ -1600,142 +1828,6 @@ function DemandTab({ row }: { row: ScorecardRow }) {
           </div>
         </StatCard>
       )}
-
-      {/* Captive Power Context */}
-      {(row.captive_coal_count || row.nickel_smelter_count) && (
-        <StatCard>
-          <SectionHeader
-            title="Captive Power"
-            subtitle="What fossil generation exists nearby that RE could replace?"
-            tip="Coal plants and nickel smelters within 50km. These are transition targets — existing fossil power that renewables could displace."
-          />
-          {!!row.captive_coal_count && (
-            <>
-              <StatRow label="Coal Plants" value={row.captive_coal_count} />
-              {row.captive_coal_mw != null && (
-                <StatRow
-                  label="Coal Capacity"
-                  value={`${row.captive_coal_mw.toLocaleString()}`}
-                  unit="MW"
-                />
-              )}
-              {row.captive_coal_generation_gwh != null && (
-                <StatRowWithTip
-                  label="Coal Generation"
-                  value={`${row.captive_coal_generation_gwh.toFixed(1)}`}
-                  unit="GWh/yr"
-                  tip="Estimated annual generation assuming 40% capacity factor x 8,760 hours. Industry standard for captive coal utilization."
-                />
-              )}
-              {row.captive_coal_plants && (
-                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
-                  {row.captive_coal_plants}
-                </div>
-              )}
-            </>
-          )}
-          {!!row.captive_coal_count && !!row.nickel_smelter_count && (
-            <div className="my-1" style={{ borderTop: '1px solid var(--border-subtle)' }} />
-          )}
-          {!!row.nickel_smelter_count && (
-            <>
-              <StatRow label="Nickel Smelters" value={row.nickel_smelter_count} />
-              {row.dominant_process_type && (
-                <StatRowWithTip
-                  label="Process Type"
-                  value={row.dominant_process_type}
-                  tip="RKEF = Rotary Kiln Electric Furnace, runs 24/7 at high temperatures. Doubles battery sizing from 2h to 4h. Highest electricity intensity of all nickel processes."
-                />
-              )}
-              {row.nickel_projects && (
-                <div className="text-[10px] mt-1 mb-1" style={{ color: 'var(--text-muted)' }}>
-                  {row.nickel_projects}
-                </div>
-              )}
-              {row.has_chinese_ownership && (
-                <StatRowWithTip
-                  label="Chinese Ownership"
-                  value="Present"
-                  tip="Indicates Chinese-invested facilities nearby. Relevant for DFI due diligence and ESG screening. Source: CGSP Nickel Tracker."
-                />
-              )}
-            </>
-          )}
-          {(row.solar_replacement_pct != null || row.perpres_112_status || row.cbam_exposed) && (
-            <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              {row.solar_replacement_pct != null && (
-                <ColoredStatRow
-                  label="Solar Replacement"
-                  value={`${row.solar_replacement_pct.toFixed(0)}%`}
-                  color={
-                    row.solar_replacement_pct >= 100
-                      ? '#4CAF50'
-                      : row.solar_replacement_pct >= 50
-                        ? '#FFC107'
-                        : '#F44336'
-                  }
-                  tip="What % of captive coal generation solar could replace. 100%+ (green) = full displacement possible. <50% (red) = supplementary generation needed."
-                />
-              )}
-              {row.perpres_112_status && (
-                <StatRowWithTip
-                  label="Perpres 112/2022"
-                  value={row.perpres_112_status}
-                  tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
-                />
-              )}
-              {row.cbam_exposed && (
-                <>
-                  <ColoredStatRow
-                    label="EU CBAM Exposure"
-                    value={
-                      row.cbam_product_type
-                        ? row.cbam_product_type
-                            .split(',')
-                            .map((t) => {
-                              const labels: Record<string, string> = {
-                                iron_steel: 'Iron/Steel',
-                                aluminium: 'Aluminium',
-                                fertilizer: 'Fertilizer',
-                                cement: 'Cement',
-                              };
-                              return labels[t] ?? t;
-                            })
-                            .join(', ')
-                        : 'Exposed'
-                    }
-                    color="#FF7043"
-                    tip="EU CBAM covers iron/steel (nickel RKEF, base metals), aluminium (bauxite processing), and fertilizer (petrochemical). Exports to EU face carbon border pricing from 2026, escalating to full EU ETS price by 2034."
-                  />
-                  {row.cbam_emission_intensity_current != null && (
-                    <StatRowWithTip
-                      label="Emission Intensity"
-                      value={`${row.cbam_emission_intensity_current} tCO₂/t`}
-                      tip={`Current: ${row.cbam_emission_intensity_current} tCO₂/tonne (grid electricity + process). With solar: ${row.cbam_emission_intensity_solar ?? '?'} tCO₂/tonne (process only, Scope 2 eliminated).`}
-                    />
-                  )}
-                  {row.cbam_cost_2030_usd_per_tonne != null && (
-                    <StatRowWithTip
-                      label="CBAM Cost 2030"
-                      value={`$${row.cbam_cost_2030_usd_per_tonne?.toLocaleString()}/t`}
-                      tip={`CBAM cost per tonne of product at 2030 rates (51.5% free allocation phased out). 2026: $${row.cbam_cost_2026_usd_per_tonne?.toLocaleString()}/t. 2034: $${row.cbam_cost_2034_usd_per_tonne?.toLocaleString()}/t (full exposure).`}
-                    />
-                  )}
-                  {row.cbam_savings_2030_usd_per_tonne != null &&
-                    row.cbam_savings_2030_usd_per_tonne > 0 && (
-                      <ColoredStatRow
-                        label="RE Savings 2030"
-                        value={`$${row.cbam_savings_2030_usd_per_tonne.toLocaleString()}/t`}
-                        color="#4CAF50"
-                        tip={`CBAM cost avoided per tonne by switching to renewable energy (eliminates Scope 2 emissions). By 2034: $${row.cbam_savings_2034_usd_per_tonne?.toLocaleString()}/t saved. Switching to RE doesn't just lower energy cost, it removes the carbon border tax.`}
-                      />
-                    )}
-                </>
-              )}
-            </div>
-          )}
-        </StatCard>
-      )}
     </>
   );
 }
@@ -1819,7 +1911,7 @@ const TABS = [
   { value: 'resource', label: 'Resource' },
   { value: 'grid', label: 'Grid' },
   { value: 'economics', label: 'Economics' },
-  { value: 'demand', label: 'Demand' },
+  { value: 'industry', label: 'Industry' },
   { value: 'action', label: 'Action' },
 ] as const;
 
@@ -1984,7 +2076,7 @@ export default function ScoreDrawer() {
               <Tabs.Content value="economics">
                 <EconomicsTab row={row} />
               </Tabs.Content>
-              <Tabs.Content value="demand">
+              <Tabs.Content value="industry">
                 <DemandTab row={row} />
               </Tabs.Content>
               <Tabs.Content value="action">

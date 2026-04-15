@@ -26,7 +26,7 @@ _IS_PRODUCTION = os.environ.get("RENDER", "") == "true" or os.environ.get("ENV",
 _SECRET = os.environ.get("SESSION_SECRET", secrets.token_hex(32))
 
 # Access code from env var (required in production)
-ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
+ACCESS_CODE = os.environ.get("ACCESS_CODE", "").strip()
 
 # Session duration: 7 days
 SESSION_DURATION = 60 * 60 * 24 * 7
@@ -96,5 +96,5 @@ async def check_auth(request: Request):
 
 @router.post("/api/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie(COOKIE_NAME)
+    response.delete_cookie(COOKIE_NAME, secure=_IS_PRODUCTION, httponly=True, samesite="lax")
     return {"ok": True}

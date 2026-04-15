@@ -69,6 +69,10 @@ function createIconImage(pathData: string, color: string, size: number): ImageDa
 const NICKEL_PATH = 'M2 20V9l6-3v3l4-2v3l4-2v3l6-3v12H2z';
 // SVG path data (24x24 viewBox) — power plant with smokestacks + smoke
 const COAL_PATH = 'M7 20h10v-9h-3V5h-4v6H7v9zm3-17h1v2h-1V3zm3 0h1v2h-1V3z';
+// SVG path data (24x24 viewBox) — anvil/ingot shape for steel
+const STEEL_PATH = 'M2 18h20v2H2v-2zm1-2h18l-2-4H5L3 16zm4-6h10v2H7v-2zm2-4h6v2H9V6z';
+// SVG path data (24x24 viewBox) — cement kiln/silo
+const CEMENT_PATH = 'M4 20h16v-6H4v6zm2-14h2v6H6V6zm4 0h4v6h-4V6zm6 0h2v6h-2V6zM5 4h14v1H5V4z';
 
 /**
  * Renders toggled vector layers: substations, kek_polygons, peatland,
@@ -132,6 +136,30 @@ interface CoalHover {
   province: string;
 }
 
+interface SteelHover {
+  longitude: number;
+  latitude: number;
+  name: string;
+  capacity_tpa: number;
+  technology: string;
+  status: string;
+  parent_company: string;
+  province: string;
+  is_chinese_owned: boolean;
+}
+
+interface CementHover {
+  longitude: number;
+  latitude: number;
+  name: string;
+  capacity_mtpa: number;
+  plant_type: string;
+  status: string;
+  parent_company: string;
+  province: string;
+  is_chinese_owned: boolean;
+}
+
 export default function VectorOverlay() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const layers = useDashboardStore((s) => s.layers);
@@ -142,6 +170,8 @@ export default function VectorOverlay() {
   const [windBuildableClick, setWindBuildableClick] = useState<WindBuildableClick | null>(null);
   const [nickelHover, setNickelHover] = useState<NickelHover | null>(null);
   const [coalHover, setCoalHover] = useState<CoalHover | null>(null);
+  const [steelHover, setSteelHover] = useState<SteelHover | null>(null);
+  const [cementHover, setCementHover] = useState<CementHover | null>(null);
 
   // Substation hover handlers
   useEffect(() => {
@@ -350,6 +380,78 @@ export default function VectorOverlay() {
     };
   }, [mapRef]);
 
+  // Steel plant hover handlers
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0];
+      if (feat) {
+        const coords = (feat.geometry as GeoJSON.Point).coordinates;
+        setSteelHover({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: (feat.properties?.name as string) ?? '',
+          capacity_tpa: Number(feat.properties?.capacity_tpa) || 0,
+          technology: (feat.properties?.technology as string) ?? '',
+          status: (feat.properties?.status as string) ?? '',
+          parent_company: (feat.properties?.parent_company as string) ?? '',
+          province: (feat.properties?.province as string) ?? '',
+          is_chinese_owned:
+            feat.properties?.is_chinese_owned === true ||
+            feat.properties?.is_chinese_owned === 'true',
+        });
+      }
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      setSteelHover(null);
+    };
+    map.on('mouseenter', 'overlay-steel-symbol', onEnter);
+    map.on('mouseleave', 'overlay-steel-symbol', onLeave);
+    return () => {
+      map.off('mouseenter', 'overlay-steel-symbol', onEnter);
+      map.off('mouseleave', 'overlay-steel-symbol', onLeave);
+    };
+  }, [mapRef]);
+
+  // Cement plant hover handlers
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0];
+      if (feat) {
+        const coords = (feat.geometry as GeoJSON.Point).coordinates;
+        setCementHover({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: (feat.properties?.name as string) ?? '',
+          capacity_mtpa: Number(feat.properties?.capacity_mtpa) || 0,
+          plant_type: (feat.properties?.plant_type as string) ?? '',
+          status: (feat.properties?.status as string) ?? '',
+          parent_company: (feat.properties?.parent_company as string) ?? '',
+          province: (feat.properties?.province as string) ?? '',
+          is_chinese_owned:
+            feat.properties?.is_chinese_owned === true ||
+            feat.properties?.is_chinese_owned === 'true',
+        });
+      }
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      setCementHover(null);
+    };
+    map.on('mouseenter', 'overlay-cement-symbol', onEnter);
+    map.on('mouseleave', 'overlay-cement-symbol', onLeave);
+    return () => {
+      map.off('mouseenter', 'overlay-cement-symbol', onEnter);
+      map.off('mouseleave', 'overlay-cement-symbol', onLeave);
+    };
+  }, [mapRef]);
+
   // Load custom icons onto the map
   useEffect(() => {
     const map = mapRef?.getMap();
@@ -363,6 +465,12 @@ export default function VectorOverlay() {
       }
       if (!map.hasImage('coal-icon')) {
         map.addImage('coal-icon', createIconImage(COAL_PATH, '#B71C1C', 28), { sdf: false });
+      }
+      if (!map.hasImage('steel-icon')) {
+        map.addImage('steel-icon', createIconImage(STEEL_PATH, '#5C6BC0', 28), { sdf: false });
+      }
+      if (!map.hasImage('cement-icon')) {
+        map.addImage('cement-icon', createIconImage(CEMENT_PATH, '#78909C', 28), { sdf: false });
       }
     };
     if (map.isStyleLoaded()) {
@@ -901,6 +1009,206 @@ export default function VectorOverlay() {
             )}
             {coalHover.province && (
               <div style={{ color: 'var(--text-muted)' }}>{coalHover.province}</div>
+            )}
+          </div>
+        </Popup>
+      )}
+
+      {/* Steel Plants (GEM) */}
+      {layerVisibility.steel_plants &&
+        layers.steel_plants &&
+        !(layers.steel_plants as LayerData)._loading &&
+        (() => {
+          const points = (layers.steel_plants as LayerData).points ?? layers.steel_plants;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                name?: string;
+                capacity_tpa?: number;
+                technology?: string;
+                status?: string;
+                parent_company?: string;
+                province?: string;
+                is_chinese_owned?: boolean;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  name: p.name ?? '',
+                  capacity_tpa: p.capacity_tpa ?? 0,
+                  technology: p.technology ?? '',
+                  status: p.status ?? '',
+                  parent_company: p.parent_company ?? '',
+                  province: p.province ?? '',
+                  is_chinese_owned: p.is_chinese_owned ?? false,
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-steel" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-steel-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': 'steel-icon',
+                  'icon-size': 0.8,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{
+                  'icon-opacity': 0.9,
+                }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* Steel plant hover popup */}
+      {steelHover && (
+        <Popup
+          longitude={steelHover.longitude}
+          latitude={steelHover.latitude}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={14}
+          className="steel-popup"
+        >
+          <div
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: 11,
+              lineHeight: 1.5,
+              maxWidth: 240,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 3, color: '#5C6BC0' }}>
+              {steelHover.name}
+            </div>
+            {steelHover.capacity_tpa > 0 && (
+              <div style={{ color: 'var(--text-secondary)' }}>
+                {(steelHover.capacity_tpa / 1e6).toFixed(1)}M tpa
+              </div>
+            )}
+            {steelHover.technology && (
+              <div style={{ color: 'var(--text-secondary)' }}>{steelHover.technology}</div>
+            )}
+            {steelHover.status && (
+              <div style={{ color: 'var(--text-secondary)' }}>Status: {steelHover.status}</div>
+            )}
+            {steelHover.parent_company && (
+              <div style={{ color: 'var(--text-muted)' }}>{steelHover.parent_company}</div>
+            )}
+            {steelHover.province && (
+              <div style={{ color: 'var(--text-muted)' }}>{steelHover.province}</div>
+            )}
+            {steelHover.is_chinese_owned && (
+              <div style={{ color: '#FFAB40', fontSize: 10, marginTop: 2 }}>Chinese ownership</div>
+            )}
+          </div>
+        </Popup>
+      )}
+
+      {/* Cement Plants (GEM) */}
+      {layerVisibility.cement_plants &&
+        layers.cement_plants &&
+        !(layers.cement_plants as LayerData)._loading &&
+        (() => {
+          const points = (layers.cement_plants as LayerData).points ?? layers.cement_plants;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                name?: string;
+                capacity_mtpa?: number;
+                plant_type?: string;
+                status?: string;
+                parent_company?: string;
+                province?: string;
+                is_chinese_owned?: boolean;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  name: p.name ?? '',
+                  capacity_mtpa: p.capacity_mtpa ?? 0,
+                  plant_type: p.plant_type ?? '',
+                  status: p.status ?? '',
+                  parent_company: p.parent_company ?? '',
+                  province: p.province ?? '',
+                  is_chinese_owned: p.is_chinese_owned ?? false,
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-cement" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-cement-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': 'cement-icon',
+                  'icon-size': 0.8,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{
+                  'icon-opacity': 0.9,
+                }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* Cement plant hover popup */}
+      {cementHover && (
+        <Popup
+          longitude={cementHover.longitude}
+          latitude={cementHover.latitude}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={14}
+          className="cement-popup"
+        >
+          <div
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: 11,
+              lineHeight: 1.5,
+              maxWidth: 240,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 3, color: '#78909C' }}>
+              {cementHover.name}
+            </div>
+            {cementHover.capacity_mtpa > 0 && (
+              <div style={{ color: 'var(--text-secondary)' }}>
+                {cementHover.capacity_mtpa.toFixed(1)} Mtpa
+              </div>
+            )}
+            {cementHover.plant_type && (
+              <div style={{ color: 'var(--text-secondary)' }}>{cementHover.plant_type}</div>
+            )}
+            {cementHover.status && (
+              <div style={{ color: 'var(--text-secondary)' }}>Status: {cementHover.status}</div>
+            )}
+            {cementHover.parent_company && (
+              <div style={{ color: 'var(--text-muted)' }}>{cementHover.parent_company}</div>
+            )}
+            {cementHover.province && (
+              <div style={{ color: 'var(--text-muted)' }}>{cementHover.province}</div>
+            )}
+            {cementHover.is_chinese_owned && (
+              <div style={{ color: '#FFAB40', fontSize: 10, marginTop: 2 }}>Chinese ownership</div>
             )}
           </div>
         </Popup>

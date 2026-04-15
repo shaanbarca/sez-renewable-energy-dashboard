@@ -127,6 +127,14 @@ export interface ScorecardRow {
   nickel_projects?: string | null;
   dominant_process_type?: string | null;
   has_chinese_ownership?: boolean | null;
+  steel_plant_count?: number | null;
+  steel_capacity_tpa?: number | null;
+  steel_plants?: string | null;
+  steel_has_chinese_ownership?: boolean | null;
+  cement_plant_count?: number | null;
+  cement_capacity_mtpa?: number | null;
+  cement_plants?: string | null;
+  cement_has_chinese_ownership?: boolean | null;
 
   // H8: Perpres 112/2022 compliance
   has_captive_coal?: boolean;

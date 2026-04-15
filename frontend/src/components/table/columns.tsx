@@ -38,18 +38,10 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'Estimated total grid infrastructure cost: gen-tie + new transmission line + substation upgrade. Scales with project capacity (MWp). Screening estimate for DFI investment sizing.',
   solar_supply_coverage_pct:
     "Maximum % of this KEK's electricity demand coverable by renewable energy (solar) built within 50km. Green = 100%+, yellow = 50-99%, red = under 50%.",
-  captive_power_type:
-    'Captive fossil power near this KEK: Coal (GEM GCPT, within 50km), Nickel smelters (CGSP, within 50km), or both. Subject to Perpres 112/2022 phase-out.',
-  captive_coal_mw:
-    'Total captive coal plant capacity (MW) within 50km of KEK. Source: GEM Global Coal Plant Tracker.',
-  nickel_smelter_count:
-    'Number of nickel processing facilities within 50km. Source: CGSP Nickel Tracker.',
-  dominant_process_type:
-    'Most common nickel smelting process near KEK. RKEF (24/7 baseload, doubles BESS sizing), Ferro Nickel, HPAL, Laterite.',
-  solar_replacement_pct:
-    'What % of captive coal generation could be replaced by buildable solar within 50km. Assumes 40% coal capacity factor.',
-  cbam_exposed:
-    'EU Carbon Border Adjustment Mechanism exposure. Covers iron/steel (nickel RKEF, base metals), aluminium (bauxite), and fertilizer (petrochemical). Exports to EU face escalating carbon pricing: ~€2/tCO₂ (2026) → €80/tCO₂ (2034).',
+  industry:
+    'Nearby industry within 50km: captive coal (GEM GCPT), nickel smelters (CGSP), steel plants (GEM GISPT), cement plants (GEM GCPT). CBAM-exposed sectors face EU carbon border pricing from 2026.',
+  cbam_2030:
+    'EU CBAM cost per tonne of product at 2030 rates (51.5% free allocation remaining). By 2034 free allocation reaches 0% and full EU ETS price applies (~€80/tCO₂). Sortable to find highest-exposure KEKs.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -211,94 +203,109 @@ export const columns = [
     },
   }),
   col.display({
-    id: 'captive_power_type',
-    header: () => <HeaderWithTooltip label="Captive" columnId="captive_power_type" />,
+    id: 'industry',
+    header: () => <HeaderWithTooltip label="Industry" columnId="industry" />,
     enableColumnFilter: true,
     filterFn: (row, _columnId, filterValue: string) => {
       const r = row.original;
-      const hasCoal = !!r.captive_coal_count && r.captive_coal_count > 0;
-      const hasNickel = !!r.nickel_smelter_count && r.nickel_smelter_count > 0;
-      const type =
-        hasCoal && hasNickel ? 'Coal + Nickel' : hasCoal ? 'Coal' : hasNickel ? 'Nickel' : 'None';
-      return type === filterValue;
+      const types: string[] = [];
+      if (r.captive_coal_count && r.captive_coal_count > 0) types.push('Coal');
+      if (r.nickel_smelter_count && r.nickel_smelter_count > 0) types.push('Nickel');
+      if (r.steel_plant_count && r.steel_plant_count > 0) types.push('Steel');
+      if (r.cement_plant_count && r.cement_plant_count > 0) types.push('Cement');
+      if (filterValue === 'None') return types.length === 0;
+      return types.includes(filterValue);
     },
     cell: (info) => {
       const r = info.row.original;
       const hasCoal = !!r.captive_coal_count && r.captive_coal_count > 0;
       const hasNickel = !!r.nickel_smelter_count && r.nickel_smelter_count > 0;
-      if (!hasCoal && !hasNickel) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      const hasSteel = !!r.steel_plant_count && r.steel_plant_count > 0;
+      const hasCement = !!r.cement_plant_count && r.cement_plant_count > 0;
+      if (!hasCoal && !hasNickel && !hasSteel && !hasCement)
+        return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+      const isRkef = r.dominant_process_type?.toUpperCase() === 'RKEF';
       return (
         <span className="flex items-center gap-1 flex-wrap">
           {hasCoal && (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium"
+              className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium"
               style={{ background: '#B71C1C33', color: '#EF5350' }}
+              title={`${r.captive_coal_count} coal plant${r.captive_coal_count! > 1 ? 's' : ''}${r.captive_coal_mw ? `, ${r.captive_coal_mw} MW` : ''}`}
             >
-              Coal {r.captive_coal_mw != null ? `${r.captive_coal_mw} MW` : ''}
+              Coal{r.captive_coal_mw ? ` ${r.captive_coal_mw}MW` : ''}
             </span>
           )}
           {hasNickel && (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium"
+              className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium"
               style={{ background: '#FF6D0033', color: '#FF8F00' }}
+              title={`${r.nickel_smelter_count} smelter${r.nickel_smelter_count! > 1 ? 's' : ''}${r.dominant_process_type ? ` (${r.dominant_process_type})` : ''}`}
             >
               Ni ×{r.nickel_smelter_count}
+              {isRkef ? ' RKEF' : ''}
+            </span>
+          )}
+          {hasSteel && (
+            <span
+              className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium"
+              style={{ background: '#5C6BC033', color: '#7986CB' }}
+              title={`${r.steel_plant_count} steel plant${r.steel_plant_count! > 1 ? 's' : ''}${r.steel_capacity_tpa ? `, ${(r.steel_capacity_tpa / 1e6).toFixed(1)}M tpa` : ''}`}
+            >
+              Steel{r.steel_capacity_tpa ? ` ${(r.steel_capacity_tpa / 1e6).toFixed(1)}Mt` : ''}
+            </span>
+          )}
+          {hasCement && (
+            <span
+              className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium"
+              style={{ background: '#78909C33', color: '#90A4AE' }}
+              title={`${r.cement_plant_count} cement plant${r.cement_plant_count! > 1 ? 's' : ''}${r.cement_capacity_mtpa ? `, ${r.cement_capacity_mtpa.toFixed(1)} Mtpa` : ''}`}
+            >
+              Cement{r.cement_capacity_mtpa ? ` ${r.cement_capacity_mtpa.toFixed(0)}Mt` : ''}
             </span>
           )}
         </span>
       );
     },
   }),
-  col.accessor('dominant_process_type', {
-    header: () => <HeaderWithTooltip label="Ni Process" columnId="dominant_process_type" />,
-    cell: (info) => {
-      const val = info.getValue();
-      if (!val) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-      const isRkef = val.toUpperCase() === 'RKEF';
-      return (
-        <span style={{ color: isRkef ? '#FF8F00' : 'var(--text-primary)' }}>
-          {val}
-          {isRkef ? ' (24/7)' : ''}
-        </span>
-      );
-    },
-  }),
-  col.accessor('solar_replacement_pct', {
-    header: () => <HeaderWithTooltip label="Solar Repl." columnId="solar_replacement_pct" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const val = info.getValue();
-      if (val == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-      const color = val >= 100 ? '#4CAF50' : val >= 50 ? '#FFC107' : '#F44336';
-      return <span style={{ color }}>{val.toFixed(0)}%</span>;
-    },
-  }),
   col.display({
-    id: 'cbam_exposed',
-    header: () => <HeaderWithTooltip label="CBAM" columnId="cbam_exposed" />,
+    id: 'cbam_2030',
+    header: () => <HeaderWithTooltip label="CBAM '30" columnId="cbam_2030" />,
     enableColumnFilter: true,
     filterFn: (row, _columnId, filterValue: string) => {
       const exposed = !!row.original.cbam_exposed;
       return filterValue === 'Yes' ? exposed : !exposed;
     },
     cell: (info) => {
-      if (!info.row.original.cbam_exposed) {
+      const r = info.row.original;
+      if (!r.cbam_exposed) {
         return <span style={{ color: 'var(--text-muted)' }}>—</span>;
       }
-      const productType = info.row.original.cbam_product_type;
-      const label = productType
-        ? productType
+      const cost2030 = r.cbam_cost_2030_usd_per_tonne;
+      const cost2026 = r.cbam_cost_2026_usd_per_tonne;
+      const cost2034 = r.cbam_cost_2034_usd_per_tonne;
+      const types = r.cbam_product_type
+        ? r.cbam_product_type
             .split(',')
-            .map((t: string) => t.replace('_', '/'))
+            .map((t: string) => {
+              const labels: Record<string, string> = {
+                iron_steel: 'Iron/Steel',
+                aluminium: 'Aluminium',
+                fertilizer: 'Fertilizer',
+                cement: 'Cement',
+              };
+              return labels[t] ?? t;
+            })
             .join(', ')
-        : 'exposed';
+        : '';
+      const tooltip = `${types}\n2026: $${cost2026?.toLocaleString() ?? '?'}/t\n2030: $${cost2030?.toLocaleString() ?? '?'}/t\n2034: $${cost2034?.toLocaleString() ?? '?'}/t`;
       return (
         <span
           className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
           style={{ background: '#FF704433', color: '#FF7043' }}
-          title={`CBAM: ${label}`}
+          title={tooltip}
         >
-          EU CBAM
+          {cost2030 != null ? `$${cost2030.toLocaleString()}/t` : 'Exposed'}
         </span>
       );
     },

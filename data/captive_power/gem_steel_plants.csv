@@ -1,0 +1,8 @@
+plant_name,latitude,longitude,capacity_tpa,technology,status,province,parent_company,product_type
+Krakatau Steel Cilegon,-6.007021,106.001766,4000000,EAF,Active,Banten,Krakatau Steel,crude_steel
+Krakatau Posco Cilegon,-5.998661,105.998660,3000000,BF-BOF,Active,Banten,POSCO / Krakatau Steel,crude_steel
+Dexin Steel Morowali,-2.829514,122.174896,7000000,BF-BOF,Active,Central Sulawesi,Delong Holdings (China),crude_steel
+Gunung Raja Paksi Bekasi,-6.282658,107.117683,1820000,EAF,Active,West Java,Gunung Raja Paksi,crude_steel
+Master Steel Jakarta,-6.184210,106.920067,2000000,EAF,Active,DKI Jakarta,Master Steel MFG,crude_steel
+Jakarta Prima Steel Industries,-6.181643,106.932331,900000,EAF,Active,DKI Jakarta,Jakarta Prima Steel,crude_steel
+Ispat Indo Sidoarjo,-7.448,112.718,700000,EAF,Active,East Java,ArcelorMittal,crude_steel

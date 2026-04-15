@@ -63,7 +63,7 @@ Key directories:
 - `frontend/src/components/map/` — MapLibre GL JS map (via react-map-gl), KEK markers, raster/vector overlays, layer control
 - `frontend/src/components/panels/` — AssumptionsPanel (LCOE sliders), ScoreDrawer (KEK detail)
 - `frontend/src/components/table/` — TanStack Table v8 with sortable columns
-- `frontend/src/components/charts/` — Recharts (QuadrantChart, RuptlChart), EnergyBalanceChart (P4 MacKay supply vs demand), LcoeCurveChart
+- `frontend/src/components/charts/` — Recharts (QuadrantChart, RuptlChart), EnergyBalanceChart (P4 MacKay supply vs demand), LcoeCurveChart, CbamTrajectoryChart (CBAM cost trajectory 2026–2034)
 - `frontend/src/components/ui/` — Header, BottomPanel, EnergyToggle, MethodologyModal
 
 UI conventions:

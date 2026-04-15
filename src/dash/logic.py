@@ -1066,6 +1066,44 @@ def compute_scorecard_live(
             else False
         )
 
+        # Steel plant context (GEM Iron and Steel Plant Tracker)
+        row["steel_plant_count"] = (
+            int(kek.get("steel_plant_count", 0)) if pd.notna(kek.get("steel_plant_count")) else None
+        )
+        row["steel_capacity_tpa"] = (
+            float(kek.get("steel_capacity_tpa", 0))
+            if pd.notna(kek.get("steel_capacity_tpa"))
+            else None
+        )
+        row["steel_plants"] = (
+            str(kek.get("steel_plants", "")) if pd.notna(kek.get("steel_plants")) else None
+        )
+        row["steel_has_chinese_ownership"] = (
+            bool(kek.get("steel_has_chinese_ownership"))
+            if pd.notna(kek.get("steel_has_chinese_ownership"))
+            else False
+        )
+
+        # Cement plant context (GEM Global Cement Plant Tracker)
+        row["cement_plant_count"] = (
+            int(kek.get("cement_plant_count", 0))
+            if pd.notna(kek.get("cement_plant_count"))
+            else None
+        )
+        row["cement_capacity_mtpa"] = (
+            float(kek.get("cement_capacity_mtpa", 0))
+            if pd.notna(kek.get("cement_capacity_mtpa"))
+            else None
+        )
+        row["cement_plants"] = (
+            str(kek.get("cement_plants", "")) if pd.notna(kek.get("cement_plants")) else None
+        )
+        row["cement_has_chinese_ownership"] = (
+            bool(kek.get("cement_has_chinese_ownership"))
+            if pd.notna(kek.get("cement_has_chinese_ownership"))
+            else False
+        )
+
         # H8: Perpres 112/2022 compliance status
         coal_count = row.get("captive_coal_count")
         if coal_count and coal_count > 0:
@@ -1084,13 +1122,23 @@ def compute_scorecard_live(
         if process in {"Nickel Pig Iron", "Ferro Nickel"}:
             cbam_types.append("iron_steel")
 
-        # Signal 2: KEK business sectors → CBAM categories
+        # Signal 2: Plant-level data from spatial join
+        steel_count = kek.get("steel_plant_count")
+        if pd.notna(steel_count) and int(steel_count) > 0 and "iron_steel" not in cbam_types:
+            cbam_types.append("iron_steel")
+
+        cement_count = kek.get("cement_plant_count")
+        if pd.notna(cement_count) and int(cement_count) > 0 and "cement" not in cbam_types:
+            cbam_types.append("cement")
+
+        # Signal 3: KEK business sectors → CBAM categories
         # Mapping: KEK sector name → CBAM product type
         _SECTOR_CBAM_MAP = {
             "Base Metal Industry": "iron_steel",
             "Nickel Smelter Industry": "iron_steel",
             "Bauxite Industry": "aluminium",
             "Petrochemical Industry": "fertilizer",
+            "Cement Industry": "cement",
         }
         sectors_str = str(kek.get("business_sectors") or "")
         for sector_name, cbam_type in _SECTOR_CBAM_MAP.items():

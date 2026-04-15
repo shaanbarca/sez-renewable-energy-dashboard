@@ -109,7 +109,12 @@ async def health():
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     # Allow auth endpoints, static assets, and the root page through
-    if path.startswith("/api/auth/") or path.startswith("/assets/") or not path.startswith("/api/"):
+    if (
+        path.startswith("/api/auth/")
+        or path == "/api/health"
+        or path.startswith("/assets/")
+        or not path.startswith("/api/")
+    ):
         return await call_next(request)
     # All other /api routes require auth
     if not is_authenticated(request):
@@ -137,9 +142,9 @@ if FRONTEND_DIST.exists():
     # SPA fallback: serve index.html for all non-API routes
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
-        # Try to serve the exact file first
-        file_path = FRONTEND_DIST / path
-        if file_path.is_file():
+        # Try to serve the exact file first (with path traversal protection)
+        file_path = (FRONTEND_DIST / path).resolve()
+        if file_path.is_relative_to(FRONTEND_DIST.resolve()) and file_path.is_file():
             return FileResponse(file_path)
         # Otherwise serve index.html (SPA routing)
         return FileResponse(FRONTEND_DIST / "index.html")

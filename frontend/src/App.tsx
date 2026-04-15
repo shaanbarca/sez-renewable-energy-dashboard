@@ -65,7 +65,7 @@ function App() {
     fetch('/api/auth/check')
       .then((r) => r.json())
       .then((data) => setAuthed(data.authenticated))
-      .catch(() => setAuthed(true)); // If auth check fails (dev mode), let through
+      .catch(() => setAuthed(false));
   }, []);
 
   if (authed === null) {
