@@ -191,6 +191,22 @@ TIER2_SLIDERS = {
         "unit": "",
         "description": "Indonesian Rupiah to USD exchange rate, affects grid tariff conversion",
     },
+    "cbam_certificate_price_eur": {
+        "min": 30,
+        "max": 150,
+        "step": 5,
+        "label": "CBAM certificate price",
+        "unit": "€/tCO₂",
+        "description": "EU ETS carbon certificate price. Default €80 (Q1 2026). Affects all CBAM cost/savings calculations.",
+    },
+    "cbam_eur_usd_rate": {
+        "min": 1.0,
+        "max": 1.3,
+        "step": 0.01,
+        "label": "EUR/USD rate",
+        "unit": "",
+        "description": "Euro to USD exchange rate for CBAM cost conversion. Default 1.10.",
+    },
 }
 
 TIER3_SLIDERS = {

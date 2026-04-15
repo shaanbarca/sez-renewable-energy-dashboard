@@ -13,6 +13,8 @@ export interface UserAssumptions {
   grant_funded_transmission?: boolean;
   target_capacity_mwp?: number | null;
   hybrid_solar_share?: number | null;
+  cbam_certificate_price_eur: number;
+  cbam_eur_usd_rate: number;
 }
 
 export interface UserThresholds {
@@ -26,6 +28,7 @@ export interface UserThresholds {
 
 export type ActionFlag =
   | 'solar_now'
+  | 'cbam_urgent'
   | 'wind_now'
   | 'hybrid_now'
   | 'invest_transmission'
@@ -167,6 +170,7 @@ export interface ScorecardRow {
   cbam_per_product?: Record<string, CbamProductMetrics> | null;
   cbam_savings_per_mwh?: number | null;
   cbam_adjusted_gap_pct?: number | null;
+  cbam_urgent?: boolean;
   bess_sizing_hours?: number | null;
 
   // V3.3: Firm solar metrics (temporal mismatch)

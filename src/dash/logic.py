@@ -112,6 +112,10 @@ class UserAssumptions:
     # Hybrid RE: solar/wind mix ratio (None = auto-optimize per KEK)
     hybrid_solar_share: float | None = None
 
+    # CBAM scenario parameters
+    cbam_certificate_price_eur: float = CBAM_CERTIFICATE_PRICE_EUR_TCO2
+    cbam_eur_usd_rate: float = CBAM_EUR_USD_RATE
+
     @property
     def wacc_decimal(self) -> float:
         return self.wacc_pct / 100.0
@@ -140,6 +144,8 @@ class UserAssumptions:
             "substation_utilization_pct": self.substation_utilization_pct,
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
+            "cbam_certificate_price_eur": self.cbam_certificate_price_eur,
+            "cbam_eur_usd_rate": self.cbam_eur_usd_rate,
         }
         if self.bess_sizing_hours_override is not None:
             d["bess_sizing_hours_override"] = self.bess_sizing_hours_override
@@ -1159,7 +1165,7 @@ def compute_scorecard_live(
         # Uses grid emission factor + sector electricity intensity + scope 1 process emissions
         if cbam_types:
             grid_ef = row.get("grid_emission_factor_t_co2_mwh") or 0.8  # fallback: Indonesia avg
-            price_usd = CBAM_CERTIFICATE_PRICE_EUR_TCO2 * CBAM_EUR_USD_RATE
+            price_usd = assumptions.cbam_certificate_price_eur * assumptions.cbam_eur_usd_rate
 
             # Per-product breakdown: compute metrics for every CBAM type at this KEK
             per_product: dict[str, dict] = {}
@@ -1217,6 +1223,19 @@ def compute_scorecard_live(
         else:
             row["cbam_savings_per_mwh"] = None
             row["cbam_adjusted_gap_pct"] = None
+
+        # CBAM urgent: CBAM-adjusted gap is negative (RE + avoided CBAM beats grid)
+        # even though standard gap may be positive (RE alone doesn't beat grid)
+        adj_gap = row.get("cbam_adjusted_gap_pct")
+        row["cbam_urgent"] = bool(row.get("cbam_exposed") and adj_gap is not None and adj_gap < 0)
+
+        # Override action flag: if CBAM makes RE win and current flag is not_competitive,
+        # upgrade to cbam_urgent (solar alone doesn't beat grid, but CBAM flips it)
+        if row["cbam_urgent"] and row["action_flag"] in (
+            ActionFlag.NOT_COMPETITIVE,
+            ActionFlag.INVEST_RESILIENCE,
+        ):
+            row["action_flag"] = ActionFlag.CBAM_URGENT
 
         # Solar replacement potential: what % of captive coal generation can solar replace?
         # Assumes 40% capacity factor for coal (Indonesian captive coal typical)

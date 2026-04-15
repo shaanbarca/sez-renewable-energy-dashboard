@@ -159,8 +159,12 @@ export default function DataTable() {
   const [globalFilter, setGlobalFilter] = useState('');
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [cbamOnly, setCbamOnly] = useState(false);
 
-  const data = useMemo(() => scorecard ?? [], [scorecard]);
+  const data = useMemo(
+    () => (cbamOnly ? (scorecard ?? []).filter((r) => r.cbam_exposed) : (scorecard ?? [])),
+    [scorecard, cbamOnly],
+  );
 
   const table = useReactTable({
     data,
@@ -266,6 +270,22 @@ export default function DataTable() {
           )}
         </div>
         <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setCbamOnly(!cbamOnly)}
+          className="px-2 py-1 text-[10px] rounded cursor-pointer transition-colors"
+          style={
+            cbamOnly
+              ? {
+                  color: '#FF6F00',
+                  border: '1px solid rgba(255,111,0,0.4)',
+                  background: 'rgba(255,111,0,0.1)',
+                }
+              : { color: 'var(--text-muted)', border: '1px solid var(--input-border)' }
+          }
+        >
+          CBAM
+        </button>
         <button
           type="button"
           onClick={() => setShowFilters(!showFilters)}

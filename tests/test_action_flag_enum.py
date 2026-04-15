@@ -19,8 +19,8 @@ def test_action_flag_values():
 
 
 def test_action_flag_count():
-    """There are exactly 9 action flags."""
-    assert len(list(ActionFlag)) == 9
+    """There are exactly 10 action flags (including cbam_urgent)."""
+    assert len(list(ActionFlag)) == 10
 
 
 def test_action_flag_str_comparison():

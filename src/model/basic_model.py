@@ -937,6 +937,7 @@ class ActionFlag(StrEnum):
     """Recommended action for a KEK based on solar economics and grid readiness."""
 
     SOLAR_NOW = "solar_now"
+    CBAM_URGENT = "cbam_urgent"  # CBAM savings flip RE economics — switch now
     INVEST_TRANSMISSION = (
         "invest_transmission"  # solar near substation; KEK far — build transmission
     )

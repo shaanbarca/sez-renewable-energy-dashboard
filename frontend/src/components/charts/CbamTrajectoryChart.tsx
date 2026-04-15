@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { CbamProductMetrics, ScorecardRow } from '../../lib/types';
+import { useDashboardStore } from '../../store/dashboard';
 
 // EU free allocation phase-out schedule (fixed in EU regulation)
 const FREE_ALLOCATION: Record<number, number> = {
@@ -17,8 +18,9 @@ const FREE_ALLOCATION: Record<number, number> = {
 
 const YEARS = Object.keys(FREE_ALLOCATION).map(Number);
 
-// EU ETS certificate price: €80/tCO₂ × 1.10 EUR/USD
-const CERT_PRICE_USD = 88;
+// Default EU ETS certificate price: €80/tCO₂ × 1.10 EUR/USD
+// Overridden by user assumptions when available
+const DEFAULT_CERT_PRICE_USD = 88;
 
 // Per-product color scheme
 const PRODUCT_COLORS: Record<string, { grid: string; solar: string }> = {
@@ -144,11 +146,15 @@ function PerProductTooltip({
 
 // --- Helpers ---
 
-function buildOverallData(eiCurrent: number, eiSolar: number): OverallPoint[] {
+function buildOverallData(
+  eiCurrent: number,
+  eiSolar: number,
+  certPriceUsd: number = DEFAULT_CERT_PRICE_USD,
+): OverallPoint[] {
   return YEARS.map((year) => {
     const exposure = 1 - FREE_ALLOCATION[year];
-    const costCurrent = eiCurrent * CERT_PRICE_USD * exposure;
-    const costSolar = eiSolar * CERT_PRICE_USD * exposure;
+    const costCurrent = eiCurrent * certPriceUsd * exposure;
+    const costSolar = eiSolar * certPriceUsd * exposure;
     return {
       year,
       costCurrent: Math.round(costCurrent * 100) / 100,
@@ -159,7 +165,10 @@ function buildOverallData(eiCurrent: number, eiSolar: number): OverallPoint[] {
   });
 }
 
-function buildPerProductData(perProduct: Record<string, CbamProductMetrics>) {
+function buildPerProductData(
+  perProduct: Record<string, CbamProductMetrics>,
+  certPriceUsd: number = DEFAULT_CERT_PRICE_USD,
+) {
   // Sort by emission intensity descending so highest-cost product is first (chart, legend, tooltip)
   const products = Object.keys(perProduct).sort(
     (a, b) => perProduct[b].emission_intensity_current - perProduct[a].emission_intensity_current,
@@ -170,9 +179,9 @@ function buildPerProductData(perProduct: Record<string, CbamProductMetrics>) {
     for (const p of products) {
       const m = perProduct[p];
       point[`grid_${p}`] =
-        Math.round(m.emission_intensity_current * CERT_PRICE_USD * exposure * 100) / 100;
+        Math.round(m.emission_intensity_current * certPriceUsd * exposure * 100) / 100;
       point[`solar_${p}`] =
-        Math.round(m.emission_intensity_solar * CERT_PRICE_USD * exposure * 100) / 100;
+        Math.round(m.emission_intensity_solar * certPriceUsd * exposure * 100) / 100;
     }
     return point;
   });
@@ -185,18 +194,23 @@ export default function CbamTrajectoryChart({ row }: { row: ScorecardRow }) {
   const perProduct = row.cbam_per_product;
   const hasMultipleProducts = perProduct != null && Object.keys(perProduct).length > 1;
   const [viewMode, setViewMode] = useState<ViewMode>('overall');
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const certPriceUsd =
+    assumptions != null
+      ? assumptions.cbam_certificate_price_eur * assumptions.cbam_eur_usd_rate
+      : DEFAULT_CERT_PRICE_USD;
 
   const overallData = useMemo(() => {
     const eiCurrent = row.cbam_emission_intensity_current;
     const eiSolar = row.cbam_emission_intensity_solar;
     if (eiCurrent == null || eiSolar == null) return [];
-    return buildOverallData(eiCurrent, eiSolar);
-  }, [row.cbam_emission_intensity_current, row.cbam_emission_intensity_solar]);
+    return buildOverallData(eiCurrent, eiSolar, certPriceUsd);
+  }, [row.cbam_emission_intensity_current, row.cbam_emission_intensity_solar, certPriceUsd]);
 
   const perProductResult = useMemo(() => {
     if (!perProduct) return null;
-    return buildPerProductData(perProduct);
-  }, [perProduct]);
+    return buildPerProductData(perProduct, certPriceUsd);
+  }, [perProduct, certPriceUsd]);
 
   if (overallData.length === 0) return null;
 

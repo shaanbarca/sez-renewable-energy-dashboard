@@ -63,6 +63,18 @@ class AssumptionsInput(BaseModel):
         le=1.0,
         description="Hybrid solar/wind mix ratio (0-1). None = auto-optimize per KEK.",
     )
+    cbam_certificate_price_eur: float = Field(
+        default=80.0,
+        ge=0,
+        le=200,
+        description="EU ETS carbon certificate price (EUR/tCO2). Default 80.",
+    )
+    cbam_eur_usd_rate: float = Field(
+        default=1.10,
+        ge=0.5,
+        le=2.0,
+        description="EUR/USD exchange rate for CBAM cost conversion. Default 1.10.",
+    )
 
 
 class ThresholdsInput(BaseModel):

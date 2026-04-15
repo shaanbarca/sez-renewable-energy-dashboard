@@ -7,6 +7,7 @@ import type { ActionFlag, EnergyMode, ScorecardRow } from './types';
 export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
   solar: [
     'solar_now',
+    'cbam_urgent',
     'invest_resilience',
     'invest_battery',
     'invest_transmission',
@@ -18,6 +19,7 @@ export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
   ],
   wind: [
     'wind_now',
+    'cbam_urgent',
     'invest_resilience',
     'invest_transmission',
     'invest_substation',
@@ -28,6 +30,7 @@ export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
   ],
   hybrid: [
     'hybrid_now',
+    'cbam_urgent',
     'invest_resilience',
     'invest_battery',
     'invest_transmission',
@@ -41,6 +44,7 @@ export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
     'solar_now',
     'wind_now',
     'hybrid_now',
+    'cbam_urgent',
     'invest_resilience',
     'invest_battery',
     'invest_transmission',
@@ -105,6 +109,9 @@ export function getEffectiveActionFlag(row: ScorecardRow, energyMode: EnergyMode
     return 'grid_first';
   }
 
+  // CBAM urgent: CBAM-adjusted gap is negative (CBAM savings flip economics)
+  if (row.cbam_urgent) return 'cbam_urgent';
+
   // Near-parity resilience check (LCOE within 20% above grid cost)
   const gapPct = ((lcoe - gridCost) / gridCost) * 100;
   if (gapPct > 0 && gapPct <= 20) return 'invest_resilience';
@@ -168,6 +175,13 @@ export function getEffectiveFlagExplanation(
       const reduction =
         row.hybrid_bess_reduction_pct != null ? Math.round(row.hybrid_bess_reduction_pct) : '?';
       return `${techDesc} all-in cost ($${lcoeStr}/MWh) beats grid ($${gridCost}/MWh). Wind reduces storage from 14h to ${bessHrs}h (${reduction}% reduction).`;
+    }
+
+    case 'cbam_urgent': {
+      const adjGap = row.cbam_adjusted_gap_pct?.toFixed(0) ?? '?';
+      const stdGap = row.solar_competitive_gap_pct?.toFixed(0) ?? '?';
+      const savMwh = row.cbam_savings_per_mwh?.toFixed(0) ?? '?';
+      return `${techDesc} alone is ${stdGap}% above grid parity, but EU CBAM avoidance saves $${savMwh}/MWh. CBAM-adjusted gap: ${adjGap}%. Switching to RE is cheaper than paying the border tax.`;
     }
 
     case 'invest_transmission': {
