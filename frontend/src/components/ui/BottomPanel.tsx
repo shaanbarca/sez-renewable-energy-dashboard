@@ -2,13 +2,11 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useRef, useState } from 'react';
 import type { BottomTab } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
-import QuadrantChart from '../charts/QuadrantChart';
 import RuptlChart from '../charts/RuptlChart';
 import DataTable from '../table/DataTable';
 
 const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'table', label: 'Ranked Table' },
-  { value: 'quadrant', label: 'Quadrant Chart' },
   { value: 'ruptl', label: 'RUPTL Context' },
 ];
 
@@ -70,31 +68,33 @@ export default function BottomPanel() {
       >
         {/* Resize handle + toggle */}
         <div
-          className="w-full flex items-center justify-center shrink-0 select-none"
+          className="w-full flex items-center justify-center shrink-0 select-none relative"
           style={{
             background: 'var(--accent-soft)',
             borderTop: '2px solid var(--accent-border)',
           }}
         >
-          {/* Drag handle zone */}
-          <div
-            className="flex-1 h-8 flex items-center justify-center"
-            style={{ cursor: collapsed ? 'default' : 'ns-resize' }}
-            onPointerDown={collapsed ? undefined : onDragStart}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragEnd}
-          >
+          {/* Drag handle zone — only when expanded */}
+          {!collapsed && (
             <div
-              className="w-10 h-1 rounded-full"
-              style={{ background: 'var(--accent-border)' }}
-            />
-          </div>
-          {/* Collapse toggle */}
+              className="flex-1 h-8 flex items-center justify-center"
+              style={{ cursor: 'ns-resize' }}
+              onPointerDown={onDragStart}
+              onPointerMove={onDragMove}
+              onPointerUp={onDragEnd}
+            >
+              <div
+                className="w-10 h-1 rounded-full"
+                style={{ background: 'var(--accent-border)' }}
+              />
+            </div>
+          )}
+          {/* Collapse toggle — centered when collapsed, right-anchored when expanded */}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="h-8 px-3 flex items-center gap-1.5
+            className={`h-8 px-3 flex items-center gap-1.5
                        text-xs font-medium tracking-wide
-                       transition-colors cursor-pointer"
+                       transition-colors cursor-pointer${collapsed ? '' : ' absolute right-0'}`}
             style={{ color: 'var(--accent)' }}
             title={collapsed ? 'Show table panel' : 'Hide table panel'}
           >
@@ -142,9 +142,6 @@ export default function BottomPanel() {
 
         <Tabs.Content value="table" className="flex-1 overflow-hidden">
           <DataTable />
-        </Tabs.Content>
-        <Tabs.Content value="quadrant" className="flex-1 overflow-hidden">
-          <QuadrantChart />
         </Tabs.Content>
         <Tabs.Content value="ruptl" className="flex-1 overflow-hidden">
           <RuptlChart />

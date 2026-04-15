@@ -74,13 +74,6 @@ const ECONOMIST_STEPS: TourStep[] = [
     action: (s) => s.setEnergyMode('overall'),
   },
   {
-    title: 'Quadrant Chart',
-    description:
-      'Plots RE LCOE vs grid cost (BPP). KEKs above the diagonal have grid costs higher than RE — solar or wind is already cheaper. Below = not yet competitive.',
-    target: 'bottom-panel',
-    action: (s) => s.setActiveTab('quadrant'),
-  },
-  {
     title: 'Switch WACC to 8%',
     description:
       'Lower WACC to 8% (concessional DFI financing). Watch which KEKs flip from red to green. This is the case for concessional finance instruments — quantified, site by site.',
@@ -286,13 +279,6 @@ const IPP_STEPS: TourStep[] = [
       'Switch to "Wind" or "Hybrid" mode in the header. Some eastern KEKs have strong wind resource. The Best RE column shows which technology wins. Hybrid mode optimizes solar+wind mix to minimize all-in cost.',
     target: 'header',
     action: (s) => s.setEnergyMode('overall'),
-  },
-  {
-    title: 'Quadrant Confirmation',
-    description:
-      'Open the Quadrant Chart to visually confirm your shortlisted KEKs sit in the competitive quadrant at market WACC (10%). KEKs above the diagonal are your targets.',
-    target: 'bottom-panel',
-    action: (s) => s.setActiveTab('quadrant'),
   },
   {
     title: 'KEK Deep Dive',

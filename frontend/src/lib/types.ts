@@ -255,7 +255,7 @@ export interface ScorecardResponse {
 
 export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
-export type BottomTab = 'table' | 'quadrant' | 'ruptl';
+export type BottomTab = 'table' | 'ruptl';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 
 export interface SavedScenario {
