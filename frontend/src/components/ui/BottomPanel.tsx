@@ -1,5 +1,5 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { BottomTab } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import QuadrantChart from '../charts/QuadrantChart';
@@ -12,18 +12,49 @@ const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'ruptl', label: 'RUPTL Context' },
 ];
 
-const PANEL_HEIGHT = 288; // h-72 = 18rem = 288px
+const TABLE_HEIGHT = 288;
+const CHART_HEIGHT = 420;
+const MIN_HEIGHT = 200;
+const MAX_HEIGHT = 700;
 
 export default function BottomPanel() {
   const activeTab = useDashboardStore((s) => s.activeTab);
   const setActiveTab = useDashboardStore((s) => s.setActiveTab);
   const [collapsed, setCollapsed] = useState(false);
+  const [userHeight, setUserHeight] = useState<number | null>(null);
+  const dragging = useRef(false);
+  const startY = useRef(0);
+  const startH = useRef(0);
+
+  const defaultHeight = activeTab === 'table' ? TABLE_HEIGHT : CHART_HEIGHT;
+  const panelHeight = userHeight ?? defaultHeight;
+
+  const onDragStart = useCallback(
+    (e: React.PointerEvent) => {
+      dragging.current = true;
+      startY.current = e.clientY;
+      startH.current = panelHeight;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    [panelHeight],
+  );
+
+  const onDragMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    const delta = startY.current - e.clientY;
+    setUserHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startH.current + delta)));
+  }, []);
+
+  const onDragEnd = useCallback(() => {
+    dragging.current = false;
+  }, []);
 
   return (
     <div
-      className="relative transition-[height] duration-300 ease-in-out"
+      className="relative"
       style={{
-        height: collapsed ? 34 : PANEL_HEIGHT,
+        height: collapsed ? 34 : panelHeight,
+        transition: dragging.current ? 'none' : 'height 0.3s ease-in-out',
         backdropFilter: 'var(--blur-heavy)',
         WebkitBackdropFilter: 'var(--blur-heavy)',
         background: 'var(--panel-bg)',
@@ -37,34 +68,52 @@ export default function BottomPanel() {
         onValueChange={(v) => setActiveTab(v as BottomTab)}
         className="h-full flex flex-col"
       >
-        {/* Full-width toggle handle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="w-full h-8 flex items-center justify-center gap-2
-                     text-xs font-medium tracking-wide
-                     transition-colors cursor-pointer shrink-0"
+        {/* Resize handle + toggle */}
+        <div
+          className="w-full flex items-center justify-center shrink-0 select-none"
           style={{
-            color: 'var(--accent)',
             background: 'var(--accent-soft)',
             borderTop: '2px solid var(--accent-border)',
           }}
-          title={collapsed ? 'Show table panel' : 'Hide table panel'}
         >
-          <span>{collapsed ? 'Show Table' : 'Hide Table'}</span>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+          {/* Drag handle zone */}
+          <div
+            className="flex-1 h-8 flex items-center justify-center"
+            style={{ cursor: collapsed ? 'default' : 'ns-resize' }}
+            onPointerDown={collapsed ? undefined : onDragStart}
+            onPointerMove={onDragMove}
+            onPointerUp={onDragEnd}
           >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
+            <div
+              className="w-10 h-1 rounded-full"
+              style={{ background: 'var(--accent-border)' }}
+            />
+          </div>
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="h-8 px-3 flex items-center gap-1.5
+                       text-xs font-medium tracking-wide
+                       transition-colors cursor-pointer"
+            style={{ color: 'var(--accent)' }}
+            title={collapsed ? 'Show table panel' : 'Hide table panel'}
+          >
+            <span>{collapsed ? 'Show' : 'Hide'}</span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
 
         <Tabs.List
           className="flex gap-1 px-3 pt-2 pb-0 shrink-0"
