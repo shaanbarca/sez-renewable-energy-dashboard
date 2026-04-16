@@ -103,10 +103,20 @@ export default function EnergyBalanceChart({
   const gapGwh = Math.max(totalDemand - totalSupply, 0);
   const gapPct = 100 - totalSupplyPct;
 
-  // For hybrid/wind: split supply bar into solar + wind segments,
-  // proportional to each other within the capped bar width.
-  const solarPct = totalSupply > 0 ? (scaledSolar / totalSupply) * totalSupplyPct : 0;
-  const windPct = totalSupply > 0 ? (scaledWind / totalSupply) * totalSupplyPct : 0;
+  // For hybrid: temporal demand-matching split.
+  // Wind covers nighttime demand (up to nighttime_coverage_pct).
+  // Solar covers the rest (daytime + any uncovered night via BESS).
+  // For wind-only / solar-only: generation-weighted within bar.
+  let solarPct: number;
+  let windPct: number;
+  if (isHybrid) {
+    const nightCov = row.hybrid_nighttime_coverage_pct ?? 0;
+    windPct = nighttimeFraction * Math.min(nightCov, 1.0) * totalSupplyPct;
+    solarPct = Math.max(totalSupplyPct - windPct, 0);
+  } else {
+    solarPct = totalSupply > 0 ? (scaledSolar / totalSupply) * totalSupplyPct : 0;
+    windPct = totalSupply > 0 ? (scaledWind / totalSupply) * totalSupplyPct : 0;
+  }
 
   // Summary line
   let summary: string;
@@ -198,7 +208,7 @@ export default function EnergyBalanceChart({
             Supply
           </span>
           <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-value)' }}>
-            {totalSupply.toFixed(1)} GWh
+            {isHybrid ? Math.min(totalSupply, totalDemand).toFixed(1) : totalSupply.toFixed(1)} GWh
           </span>
         </div>
         <div className="flex rounded overflow-hidden" style={{ background: 'var(--bar-bg)' }}>
@@ -209,7 +219,7 @@ export default function EnergyBalanceChart({
                   widthPct={solarPct}
                   color={COLORS.solar}
                   label="Solar"
-                  gwh={scaledSolar}
+                  gwh={isHybrid ? (solarPct / 100) * totalDemand : scaledSolar}
                 />
               )}
               {windPct > 0 && (
@@ -217,7 +227,7 @@ export default function EnergyBalanceChart({
                   widthPct={windPct}
                   color={COLORS.wind}
                   label="Wind"
-                  gwh={isWind ? windGwh : scaledWind}
+                  gwh={isHybrid ? (windPct / 100) * totalDemand : (isWind ? windGwh : scaledWind)}
                 />
               )}
             </>
