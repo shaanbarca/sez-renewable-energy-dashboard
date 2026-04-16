@@ -112,8 +112,8 @@ Step 2b — Wind resource
   Wind LCOE via same CRF formula with wind-specific CAPEX/FOM/lifetime
 
 Step 3 — Grid cost reference
-  I-4/TT tariff = 996.74 Rp/kWh ~ $63.1/MWh (uniform nationwide)
-  BPP varies by PLN system ($57-133/MWh)
+  I-4/TT tariff = 996.74 Rp/kWh ~ \$63.1/MWh (uniform nationwide)
+  BPP varies by PLN system (\$57-133/MWh)
   Benchmark mode (user-selectable): tariff or BPP
 
 Step 4 — Competitiveness gap
@@ -132,12 +132,12 @@ Step 5 — Action flags (14 flags across 4 energy modes, priority-ordered; inclu
 | Solar CF | 0.148-0.197 | Derived: PVOUT / 8,760 |
 | Wind speed (100m) | 2-8 m/s | Global Wind Atlas v3 GeoTIFF |
 | Wind CF | 0.00-0.27 | Piecewise-linear from wind speed |
-| Solar CAPEX (central) | 850 USD/kW | Market-adjusted 2025 (ESDM 2023 = 960; IRENA RPGC 2024 Indonesia = $800-1,000) |
+| Solar CAPEX (central) | 850 USD/kW | Market-adjusted 2025 (ESDM 2023 = 960; IRENA RPGC 2024 Indonesia = \$800-1,000) |
 | Solar FOM | 7.5 USD/kW/yr | ESDM Tech Catalogue 2023, p.66 |
 | Solar lifetime | 27 years | ESDM Tech Catalogue 2023, p.66 |
 | WACC | 4-20% (slider, default 10%) | User-adjustable |
-| Grid cost (tariff mode) | $63.1/MWh (I-4/TT) | Permen ESDM No.7/2024, uniform nationwide |
-| Grid cost (BPP mode) | $57-133/MWh by region | Kepmen ESDM 169/2021 |
+| Grid cost (tariff mode) | \$63.1/MWh (I-4/TT) | Permen ESDM No.7/2024, uniform nationwide |
+| Grid cost (BPP mode) | \$57-133/MWh by region | Kepmen ESDM 169/2021 |
 
 ---
 
@@ -300,7 +300,7 @@ Solar farm connects to nearest PLN substation, sells to PLN via PPA. PLN deliver
 The V1 methodology assumed KEKs could build remote captive solar connected by a private 50km gen-tie line. Research revealed:
 
 - **No global precedent exists** for a 50km private gen-tie for captive solar. Not in Indonesia, not in India (the most mature captive solar market), not anywhere.
-- **The economics don't work:** 50km of transmission infrastructure costs ~$40-55M, rivaling the solar plant itself for 20-100 MWp projects.
+- **The economics don't work:** 50km of transmission infrastructure costs ~\$40-55M, rivaling the solar plant itself for 20-100 MWp projects.
 - **What actually exists globally:** on-site/behind-the-meter captive (common), grid-wheeled captive via utility grid (India model), or IPP-to-utility PPA (dominant globally).
 - **Indonesia-specific:** IMIP Morowali (5+ GW captive coal) builds power inside the park. PLN has rejected all wheeling requests in practice despite legal authorization.
 
@@ -333,15 +333,15 @@ $$LCOE_{\text{gc}} = \frac{(CAPEX + C_{\text{connection}} + C_{\text{land}}) \ti
 Where:
 - CF uses `pvout_buildable_best_50km`
 - `C_connection = dist_solar_to_substation x $5/kW-km + $80/kW` (user-adjustable)
-- `C_land = $45/kW` (user-adjustable, grid-connected only)
+- `C_land = \$45/kW` (user-adjustable, grid-connected only)
 
 **Connection cost parameters:**
 
 | Parameter | Default | Range | What it covers |
 |---|---|---|---|
-| `CONNECTION_COST_PER_KW_KM` | $5/kW-km | $2-15/kW-km | MV/HV line from solar plant to PLN substation |
-| `GRID_CONNECTION_FIXED_PER_KW` | $80/kW | $30-200/kW | Switchgear, protection, metering at substation |
-| `LAND_COST_USD_PER_KW` | $45/kW | $0-300/kW | Land for solar farm (grid-connected only) |
+| `CONNECTION_COST_PER_KW_KM` | \$5/kW-km | \$2-15/kW-km | MV/HV line from solar plant to PLN substation |
+| `GRID_CONNECTION_FIXED_PER_KW` | \$80/kW | \$30-200/kW | Switchgear, protection, metering at substation |
+| `LAND_COST_USD_PER_KW` | \$45/kW | \$0-300/kW | Land for solar farm (grid-connected only) |
 
 **Example at defaults (5 km):**
 ```
@@ -349,13 +349,13 @@ Connection cost = 5 km x $5/kW-km + $80/kW = $105/kW
 Effective CAPEX = $960 + $105 + $45 = $1,110/kW
 ```
 
-**Global context note:** The $5/kW-km gen-tie cost translates to real-world figures as follows: at 25 MW and 5 km, the formula gives $105/kW x 25,000 kW = $2.625M, which is ~$0.5M/km, on the low end of industry benchmarks ($1-3M/mile or $0.6-1.9M/km). In Indonesian IPP practice, transmission corridors of 20-40 km from plant to nearest PLN substation are common (practitioner benchmark, Norton Rose Fulbright, 2020). The 5 km screening threshold is therefore an optimistic cutoff for "grid-ready" sites, not the outer limit of what gets built.
+**Global context note:** The \$5/kW-km gen-tie cost translates to real-world figures as follows: at 25 MW and 5 km, the formula gives \$105/kW x 25,000 kW = \$2.625M, which is ~\$0.5M/km, on the low end of industry benchmarks (\$1-3M/mile or \$0.6-1.9M/km). In Indonesian IPP practice, transmission corridors of 20-40 km from plant to nearest PLN substation are common (practitioner benchmark, Norton Rose Fulbright, 2020). The 5 km screening threshold is therefore an optimistic cutoff for "grid-ready" sites, not the outer limit of what gets built.
 
 **Implementation:** `lcoe_solar_grid_connected()` and `grid_connection_cost_per_kw()` in `basic_model.py`
 
 ### 6.3 BESS storage model
 
-V3 replaces the flat firming adder ($6/$11/$16 per MWh) with a proper BESS storage cost model. V3.3 adds physically grounded bridge-hours sizing and round-trip efficiency.
+V3 replaces the flat firming adder (\$6/\$11/\$16 per MWh) with a proper BESS storage cost model. V3.3 adds physically grounded bridge-hours sizing and round-trip efficiency.
 
 **Formula (V3.3):**
 ```
@@ -371,14 +371,14 @@ bess_storage_adder = (bess_capex_per_kw_solar × CRF_bess + FOM_bess_adj) / (eff
 
 | Parameter | Default | Range | Source |
 |---|---|---|---|
-| `BESS_CAPEX_USD_PER_KWH` | $150/kWh | $100-300/kWh | Market-adjusted 2025 (BNEF system $110, Ember $125, +Indonesia premium) |
+| `BESS_CAPEX_USD_PER_KWH` | \$150/kWh | \$100-300/kWh | Market-adjusted 2025 (BNEF system \$110, Ember \$125, +Indonesia premium) |
 | `BESS_DISCHARGE_HOURS` | 4.0h | - | Standard 4-hour system |
 | `BESS_SIZING_HOURS` | 2.0h | - | Cloud-firming default (low-reliability loads) |
 | `BESS_ROUND_TRIP_EFFICIENCY` | 0.87 | 0.75-0.95 | BNEF 2024, utility-scale Li-ion LFP AC-to-AC |
 | `SOLAR_PRODUCTION_HOURS` | 10.0h | - | Effective solar hours/day at equatorial Indonesia |
 | `BESS_BRIDGE_HOURS_ENABLED` | True | - | Enables physics-based bridge-hours sizing |
 | `BESS_LIFETIME_YR` | 15 years | - | Li-ion warranty period |
-| `BESS_FOM_USD_PER_KW_YR` | $5/kW-yr | - | Monitoring, HVAC, insurance |
+| `BESS_FOM_USD_PER_KW_YR` | \$5/kW-yr | - | Monitoring, HVAC, insurance |
 
 **Bridge-hours sizing (V3.3):** For high-reliability loads (reliability_req >= 0.75), BESS is sized to bridge the overnight gap when solar produces nothing:
 
@@ -403,7 +403,7 @@ This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufact
 | RKEF nickel (legacy) | dominant_process_type = "RKEF" | 4h | M19 multiplier, applies when bridge-hours disabled |
 | Standard/tourism | All others | 2h | Cloud-firming and early evening ramp |
 
-**Result at defaults ($150/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~$174/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~$27/MWh. (Prior default of $250/kWh produced ~$290/MWh and ~$45/MWh respectively.)
+**Result at defaults (\$150/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~\$174/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~\$27/MWh. (Prior default of \$250/kWh produced ~\$290/MWh and ~\$45/MWh respectively.)
 
 **Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Storage must bridge the gap between solar production hours and demand hours. At equatorial latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store 14h × load_MW / RTE of energy.
 
@@ -417,7 +417,7 @@ LCOE_with_battery = LCOE_solar + bess_storage_adder
 
 ### 6.4 Technology parameters
 
-**Solar (TECH006):** ESDM Technology Catalogue 2023, p.66 (`VERIFIED_TECH006_DATA` in `pdf_extract_esdm_tech.py`). Pipeline extraction preserves the catalogue value (960 USD/kW). The user-facing slider default is market-adjusted to 850 USD/kW based on IRENA RPGC 2024 Indonesia pricing ($800-1,000/kW range).
+**Solar (TECH006):** ESDM Technology Catalogue 2023, p.66 (`VERIFIED_TECH006_DATA` in `pdf_extract_esdm_tech.py`). Pipeline extraction preserves the catalogue value (960 USD/kW). The user-facing slider default is market-adjusted to 850 USD/kW based on IRENA RPGC 2024 Indonesia pricing (\$800-1,000/kW range).
 
 | Parameter | ESDM Catalogue | Slider Default | Unit |
 |-----------|---------------|----------------|------|
@@ -427,7 +427,7 @@ LCOE_with_battery = LCOE_solar + bess_storage_adder
 | FOM | 7.5 | 7.5 | USD/kW/yr |
 | Lifetime | 27 | 27 | years |
 
-**Wind (TECH_WIND_ONSHORE):** From ESDM Technology Catalogue 2024, p.90. CAPEX $1,650/kW, FOM $40/kW/yr, Lifetime 27 years.
+**Wind (TECH_WIND_ONSHORE):** From ESDM Technology Catalogue 2024, p.90. CAPEX \$1,650/kW, FOM \$40/kW/yr, Lifetime 27 years.
 
 **Unit conversion:** Catalogue stores CAPEX in MUSD/MWe. Convert: MUSD/MWe x 1,000 = USD/kW.
 
@@ -462,7 +462,7 @@ The dashboard includes an "LCOE vs Project Scale" chart that shows how LCOE vari
 | Substation upgrade | Deficit grows with capacity (diseconomy) | `max(0, 1 - avail_mva / (cap_mw x util)) x $80/kW` |
 | CAPEX, land, FOM | Constant per kW | No scale effect |
 
-**Reference calibration:** The connection line total cost ($125k/km) is derived from the per-kW formula at ~25MW reference scale: $5/kW-km x 25,000 kW = $125,000/km. The $2M fixed cost is $80/kW x 25,000 kW. At exactly 25MW, both formulations give the same LCOE.
+**Reference calibration:** The connection line total cost (\$125k/km) is derived from the per-kW formula at ~25MW reference scale: \$5/kW-km x 25,000 kW = \$125,000/km. The \$2M fixed cost is \$80/kW x 25,000 kW. At exactly 25MW, both formulations give the same LCOE.
 
 **Typical curve shape:** Declining at small capacity (connection costs dominate, spread over more kW), flattening at medium capacity, potentially rising at large capacity if substation upgrade costs grow. KEKs with red capacity assessment show a more pronounced uptick at high capacity.
 
@@ -474,9 +474,9 @@ The dashboard includes an "LCOE vs Project Scale" chart that shows how LCOE vari
 
 ### 6A.1 Motivation
 
-Solar-only 24/7 industrial supply requires 14 hours of BESS bridging (nighttime gap from 6pm to 8am). At current Li-ion costs ($200/kWh), this adds $160-380/MWh to solar LCOE, making firm solar structurally uneconomic for most KEKs.
+Solar-only 24/7 industrial supply requires 14 hours of BESS bridging (nighttime gap from 6pm to 8am). At current Li-ion costs (\$200/kWh), this adds \$160-380/MWh to solar LCOE, making firm solar structurally uneconomic for most KEKs.
 
-Wind generation is temporally complementary: it produces power day and night with roughly uniform output across hours. Adding wind to the mix partially fills the nighttime gap, reducing BESS sizing and total system cost. A 60/40 solar/wind blend with wind covering 30% of nighttime demand can cut BESS from 14h to ~10h, saving ~$100/MWh in storage costs.
+Wind generation is temporally complementary: it produces power day and night with roughly uniform output across hours. Adding wind to the mix partially fills the nighttime gap, reducing BESS sizing and total system cost. A 60/40 solar/wind blend with wind covering 30% of nighttime demand can cut BESS from 14h to ~10h, saving ~\$100/MWh in storage costs.
 
 ### 6A.2 RESource abstraction
 
@@ -588,18 +588,18 @@ Hydro's firm nighttime output directly offsets BESS further. No refactoring need
 ### 7.1 I-4 industrial tariff
 
 **Source:** Permen ESDM No. 7/2024, Lampiran IV
-**Value:** 996.74 Rp/kWh ~ $63.08/MWh at 15,800 IDR/USD
+**Value:** 996.74 Rp/kWh ~ \$63.08/MWh at 15,800 IDR/USD
 **Coverage:** Uniform nationwide (all KEKs pay the same)
 **Use:** Primary dashboard comparator for KEK tenant economics
 
-I-3/TM tariff ($65.57/MWh) stored as `tariff_i3_usd_mwh` for smaller tenant analysis.
+I-3/TM tariff (\$65.57/MWh) stored as `tariff_i3_usd_mwh` for smaller tenant analysis.
 
 **Important:** I-4 tariff != BPP. The tariff is what tenants pay. In most regions, PLN supplies at a loss (tariff < BPP). This subsidy gap is itself policy-relevant.
 
 ### 7.2 BPP generation cost
 
 **Source:** Kepmen ESDM 169/2021 (FY2020)
-**Range:** $57/MWh (Java-Bali) to $133/MWh (Papua)
+**Range:** \$57/MWh (Java-Bali) to \$133/MWh (Papua)
 **Use:** Secondary comparator, primarily for IPP economics ("is solar cheaper than PLN's cost of supply?")
 
 BPP is generation cost only (BPP Pembangkitan), not full cost-of-supply including T&D and overhead.
@@ -610,8 +610,8 @@ User-selectable toggle:
 
 | Mode | Comparator | Use case |
 |------|-----------|----------|
-| **Tariff** (default) | I-4/TT ($63.08/MWh) | "Can a KEK tenant save money?" |
-| **BPP** | Regional BPP ($57-133/MWh) | "Is solar cheaper than PLN's generation cost?" |
+| **Tariff** (default) | I-4/TT (\$63.08/MWh) | "Can a KEK tenant save money?" |
+| **BPP** | Regional BPP (\$57-133/MWh) | "Is solar cheaper than PLN's generation cost?" |
 
 When set to BPP, competitive gap, action flags, and carbon breakeven all recompute using `bpp_usd_mwh`. Eastern Indonesia KEKs (high BPP) become solar-competitive even at WACC=10%.
 
@@ -654,7 +654,7 @@ For each KEK:
 
 | Parameter | Default | Rationale |
 |---|---|---|
-| `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 5.0 km | V3.1: tightened from 10km. Gen-tie costs ~$1-3M/mile make longer connections uneconomic. Source: IFC (2015), industry benchmarks. |
+| `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 5.0 km | V3.1: tightened from 10km. Gen-tie costs ~\$1-3M/mile make longer connections uneconomic. Source: IFC (2015), industry benchmarks. |
 | `KEK_TO_SUBSTATION_THRESHOLD_KM` | 15.0 km | PLN distribution reach to industrial estates. Indonesia's grid density varies between Java (dense) and eastern islands (sparse). |
 | `SUBSTATION_MIN_CAPACITY_MVA` | 30 MVA | Minimum for viable grid injection. Allows ~21-24 MW solar at 70-80% utilization. |
 
@@ -705,15 +705,15 @@ When B_solar and B_kek are different substations, the model checks whether an ex
 
 If `inter_substation_connected == False`, the category becomes `invest_transmission` or `grid_first`.
 
-**New line cost (V3.1):** `new_transmission_cost_per_kw()` = dist x $1.25M/km / solar_capacity_mwp. Practical limit: ~10-15km before economics fail.
+**New line cost (V3.1):** `new_transmission_cost_per_kw()` = dist x \$1.25M/km / solar_capacity_mwp. Practical limit: ~10-15km before economics fail.
 
 ### 8.6 Infrastructure cost layers
 
 | # | Cost | Who pays | Implementation |
 |---|---|---|---|
-| 1 | Gen-tie (solar -> B_solar) | Developer/IPP | `grid_connection_cost_per_kw()`: dist x $5/kW-km + $80/kW |
-| 2 | New transmission line (B_solar -> B_kek) | PLN / DFI | `new_transmission_cost_per_kw()`: dist x $1.25M/km / capacity |
-| 3 | Substation upgrade | PLN / DFI | `substation_upgrade_cost_per_kw()`: deficit_fraction x $80/kW |
+| 1 | Gen-tie (solar -> B_solar) | Developer/IPP | `grid_connection_cost_per_kw()`: dist x \$5/kW-km + \$80/kW |
+| 2 | New transmission line (B_solar -> B_kek) | PLN / DFI | `new_transmission_cost_per_kw()`: dist x \$1.25M/km / capacity |
+| 3 | Substation upgrade | PLN / DFI | `substation_upgrade_cost_per_kw()`: deficit_fraction x \$80/kW |
 
 **Substation upgrade cost (V3.2).** When available substation capacity is less than the solar capacity to be injected, a proportional upgrade cost is added to the grid-connected LCOE effective CAPEX. The formula:
 
@@ -723,7 +723,7 @@ $$\text{deficit\_fraction} = \frac{\text{solar\_mwp} - \max(0, \text{available\_
 
 $$\text{upgrade\_cost} = \text{deficit\_fraction} \times \$80/\text{kW}$$
 
-The power factor conversion (0.85, see §8.4) ensures the comparison is between real power quantities. Cost is $0 when available real power exceeds solar capacity, and scales linearly to $80/kW when the substation has zero available capacity. The $80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: $50-150/kW range). Returns $0 when capacity data is unknown (conservative).
+The power factor conversion (0.85, see §8.4) ensures the comparison is between real power quantities. Cost is \$0 when available real power exceeds solar capacity, and scales linearly to \$80/kW when the substation has zero available capacity. The \$80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: \$50-150/kW range). Returns \$0 when capacity data is unknown (conservative).
 
 **Multi-substation comparison (implemented V3.1).** The `/kek/{id}/substations` API endpoint evaluates the top 3 substations within search radius and compares total interconnection cost per substation (connection + upgrade + transmission). Displayed in the ScoreDrawer Grid tab as a side-by-side comparison with capacity traffic lights and rank-coded map markers (gold/silver/cyan).
 
@@ -928,17 +928,17 @@ WACC-dependent. "Solar LCOE <= grid cost at current WACC AND resource is suffici
 
 ### 10.4 invest_resilience rationale
 
-The `not_competitive` label only captures tariff economics. For manufacturing KEKs, unplanned outages cost $500K-$2M per hour in scrapped production. Captive solar with backup eliminates this tail risk.
+The `not_competitive` label only captures tariff economics. For manufacturing KEKs, unplanned outages cost \$500K-\$2M per hour in scrapped production. Captive solar with backup eliminates this tail risk.
 
 | Threshold | Value | Why |
 |---|---|---|
 | Gap > 0 | - | Solar not yet cheaper (otherwise it's `solar_now`) |
-| Gap <= 20% | 20% | At $63/MWh grid cost, premium is ~$12.6/MWh. Manufacturing outage costs are $50-200/MWh, far exceeding the premium. |
+| Gap <= 20% | 20% | At \$63/MWh grid cost, premium is ~\$12.6/MWh. Manufacturing outage costs are \$50-200/MWh, far exceeding the premium. |
 | reliability_req >= 0.75 | 0.75 | Manufacturing/processing sectors (steel, chemicals, automotive). Tourism/services can tolerate interruptions. |
 
 **`reliability_req` values:** Manufacturing=0.8, Service/Digital=0.6, Tourism=0.4 (set in `kek_grid_region_mapping.csv`).
 
-**Current results (WACC=10%):** 4 KEKs fire: Kendal (13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). Carbon breakeven: $10-17/tCO2.
+**Current results (WACC=10%):** 4 KEKs fire: Kendal (13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). Carbon breakeven: \$10-17/tCO2.
 
 **Implementation note:** `invest_resilience()` is a separate function in `basic_model.py`, not part of the `action_flags()` return dict. The scorecard builder (`build_fct_kek_scorecard.py`) and dashboard logic (`logic.py`) compute it separately and merge it into the flag priority chain.
 
@@ -988,7 +988,7 @@ Development Finance Institutions (ADB, World Bank, IFC, AIIB) regularly finance 
 
 $$I_{\text{grid}} = d_{\text{gap}} \times C_{\text{transmission/km}} + N_{\text{substations}} \times C_{\text{substation}}$$
 
-Where $C_{\text{transmission/km}} \approx$ $500K-1M/km for 150kV in Indonesia, $C_{\text{substation}} \approx$ $5-15M per 150/20kV step-down.
+Where $C_{\text{transmission/km}} \approx$ \$500K-1M/km for 150kV in Indonesia, $C_{\text{substation}} \approx$ \$5-15M per 150/20kV step-down.
 
 **Screening heuristic:**
 ```
@@ -1093,7 +1093,7 @@ The M19 RKEF 2x multiplier (2h → 4h) is retained as a fallback when `BESS_BRID
 2. Else if `dominant_process_type == "RKEF"`: **4h** (M19 legacy)
 3. Else: **2h** (cloud-firming default)
 
-Rationale: The 2h/4h defaults were identified as the tool's biggest physics vulnerability (see `docs/physics_vs_tool_technical_gaps.md`, Gaps 1-2). A 24/7 industrial load requires ~14h of overnight bridging. At 2h sizing, LCOE with battery was understated by $170-250/MWh. The bridge-hours model produces honest storage economics without requiring hourly dispatch simulation.
+Rationale: The 2h/4h defaults were identified as the tool's biggest physics vulnerability (see `docs/physics_vs_tool_technical_gaps.md`, Gaps 1-2). A 24/7 industrial load requires ~14h of overnight bridging. At 2h sizing, LCOE with battery was understated by \$170-250/MWh. The bridge-hours model produces honest storage economics without requiring hourly dispatch simulation.
 
 ---
 
@@ -1354,9 +1354,9 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | Assumption | Value | Source | Sensitivity |
 |---|---|---|---|
 | Default WACC | 10% | ADB (2020), IRENA (2023) | Slider: 4-20% |
-| Grid connection cost | $5/kW-km + $80/kW | Industry estimates | Slider: $2-15/kW-km, $30-200/kW |
-| Land cost | $45/kW | $3/m2 x 1.5 ha/MW | Slider: $0-300/kW |
-| BESS CAPEX | $150/kWh | Market-adjusted 2025 (BNEF $110, Ember $125, +Indonesia premium) | Slider: $100-300/kWh |
+| Grid connection cost | \$5/kW-km + \$80/kW | Industry estimates | Slider: \$2-15/kW-km, \$30-200/kW |
+| Land cost | \$45/kW | \$3/m2 x 1.5 ha/MW | Slider: \$0-300/kW |
+| BESS CAPEX | \$150/kWh | Market-adjusted 2025 (BNEF \$110, Ember \$125, +Indonesia premium) | Slider: \$100-300/kWh |
 | PVOUT siting radius | 50km | Typical siting flexibility | Fixed |
 | Regional solar CF (GEAS) | 20% | Representative for Indonesia | Low sensitivity |
 | Plan-late threshold | post2030 >= 60% | Majority post-2030 = late | Low sensitivity |
@@ -1463,11 +1463,11 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 | Change | V1 | V3 (current) |
 |---|---|---|
 | Siting scenario | `remote_captive` (50km private gen-tie) | `grid_connected_solar` (solar to nearest substation) |
-| Gen-tie cost | $5/kW-km + $150/kW fixed | $5/kW-km + $80/kW fixed (short connection) |
+| Gen-tie cost | \$5/kW-km + \$150/kW fixed | \$5/kW-km + \$80/kW fixed (short connection) |
 | Distance used | KEK-to-substation | Solar-to-substation (3-point proximity) |
-| Transmission lease | $5-15/MWh operating adder | Removed (PLN system cost, in BPP/tariff) |
-| Land cost | Not modeled | $45/kW (grid-connected only, user-adjustable) |
-| Firming/battery | Flat $6/$11/$16 per MWh | BESS LCOE model: 14h bridge-hours + 87% RTE for high-reliability loads (~$290/MWh); 2h cloud-firming for others (~$45/MWh) |
+| Transmission lease | \$5-15/MWh operating adder | Removed (PLN system cost, in BPP/tariff) |
+| Land cost | Not modeled | \$45/kW (grid-connected only, user-adjustable) |
+| Firming/battery | Flat \$6/\$11/\$16 per MWh | BESS LCOE model: 14h bridge-hours + 87% RTE for high-reliability loads (~\$290/MWh); 2h cloud-firming for others (~\$45/MWh) |
 | Action flags | 5 flags | 14 flags across 4 energy modes (split invest_grid, add not_competitive, no_solar_resource, cbam_urgent, wind_now, hybrid_now, no_wind_resource, no_re_resource) |
 | Grid integration | Not present | 5 categories from 3-point proximity |
 | Solar site coordinates | Not stored | `best_solar_site_lat/lon` |
@@ -1479,15 +1479,15 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 
 | V1 constant | V3 replacement | Old default | New default |
 |---|---|---|---|
-| `GENTIE_COST_PER_KW_KM` | `CONNECTION_COST_PER_KW_KM` | $5.0 | $5.0 |
-| `SUBSTATION_WORKS_PER_KW` | `GRID_CONNECTION_FIXED_PER_KW` | $150.0 | $80.0 |
-| `TRANSMISSION_LEASE_*` | Deprecated | $5-15/MWh | Removed |
-| `FIRMING_ADDER_MID_USD_MWH` | `BESS_CAPEX_USD_PER_KWH` | $11 flat | $250/kWh |
+| `GENTIE_COST_PER_KW_KM` | `CONNECTION_COST_PER_KW_KM` | \$5.0 | \$5.0 |
+| `SUBSTATION_WORKS_PER_KW` | `GRID_CONNECTION_FIXED_PER_KW` | \$150.0 | \$80.0 |
+| `TRANSMISSION_LEASE_*` | Deprecated | \$5-15/MWh | Removed |
+| `FIRMING_ADDER_MID_USD_MWH` | `BESS_CAPEX_USD_PER_KWH` | \$11 flat | \$250/kWh |
 | - | `BESS_ROUND_TRIP_EFFICIENCY` (V3.3) | - | 0.87 |
 | - | `SOLAR_PRODUCTION_HOURS` (V3.3) | - | 10.0h |
 | - | `BESS_BRIDGE_HOURS_ENABLED` (V3.3) | - | True |
 | `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM` | `SOLAR_TO_SUBSTATION_THRESHOLD_KM` | 10.0 km | 5.0 km |
-| - | `LAND_COST_USD_PER_KW` (new) | - | $45.0 |
+| - | `LAND_COST_USD_PER_KW` (new) | - | \$45.0 |
 
 ---
 
@@ -1505,9 +1505,9 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 ### Technology Cost Parameters
 
 - Kementerian ESDM (Ministry of Energy and Mineral Resources). (2023). *Katalog Teknologi: Katalog Teknologi Energi Baru, Terbarukan, dan Konservasi Energi 2023* (Technology Catalogue for New, Renewable Energy and Energy Conservation). Jakarta: ESDM. Solar PV parameters from p. 66 (TECH006); wind parameters from p. 90. Pipeline extraction preserves catalogue values (960 USD/kW); slider default adjusted to 850 USD/kW per 2025 market data.
-- BloombergNEF. (2025). *Lithium-ion Battery Price Survey 2025*. Global utility-scale system price: $110/kWh (pack-only LFP: $70/kWh). Chinese tender average: $63/kWh. Used for BESS storage model (§6.3).
-- Ember. (2025). *Global Electricity Mid-Year Insights 2025*. Battery system cost for non-China/US markets: $125/kWh. Confirms BNEF pricing trajectory.
-- IRENA. (2024). *Renewable Power Generation Costs in 2023*. Global solar PV: $691/kW; Asia excl. China/India: $1,133/kW; Indonesia range: $800-1,000/kW. Used to market-adjust ESDM 2023 catalogue default.
+- BloombergNEF. (2025). *Lithium-ion Battery Price Survey 2025*. Global utility-scale system price: \$110/kWh (pack-only LFP: \$70/kWh). Chinese tender average: \$63/kWh. Used for BESS storage model (§6.3).
+- Ember. (2025). *Global Electricity Mid-Year Insights 2025*. Battery system cost for non-China/US markets: \$125/kWh. Confirms BNEF pricing trajectory.
+- IRENA. (2024). *Renewable Power Generation Costs in 2023*. Global solar PV: \$691/kW; Asia excl. China/India: \$1,133/kW; Indonesia range: \$800-1,000/kW. Used to market-adjust ESDM 2023 catalogue default.
 - IEA. (2024). *Cost of Capital Observatory*. Indonesia RE project WACC: ~10%. Confirms existing default.
 
 ### Grid Cost and Tariff Data
