@@ -30,7 +30,7 @@ def sample_resource_df():
     """Minimal resource DataFrame for 3 KEKs."""
     return pd.DataFrame(
         {
-            "kek_id": ["kek-kendal", "kek-mandalika", "kek-sorong"],
+            "site_id": ["kek-kendal", "kek-mandalika", "kek-sorong"],
             "pvout_centroid": [1550.0, 1650.0, 1400.0],
             "pvout_best_50km": [1650.0, 1730.0, 1500.0],
             "dist_to_nearest_substation_km": [15.0, 25.0, 40.0],
@@ -57,7 +57,7 @@ def sample_ruptl_metrics():
 def sample_demand_df():
     return pd.DataFrame(
         {
-            "kek_id": ["kek-kendal", "kek-mandalika", "kek-sorong"],
+            "site_id": ["kek-kendal", "kek-mandalika", "kek-sorong"],
             "demand_mwh": [100_000.0, 50_000.0, 20_000.0],
         }
     )
@@ -160,7 +160,7 @@ class TestComputeLcoeLive:
         wb = result[result["scenario"] == "within_boundary"]
 
         # Check kek-kendal (pvout_centroid=1550)
-        kendal = wb[wb["kek_id"] == "kek-kendal"].iloc[0]
+        kendal = wb[wb["site_id"] == "kek-kendal"].iloc[0]
         cf = 1550.0 / 8760.0
         expected = lcoe_solar(assumptions.capex_usd_per_kw, 7.5, 0.10, 27, cf)
         assert abs(kendal["lcoe_mid_usd_mwh"] - round(expected, 2)) < 0.01
@@ -174,10 +174,10 @@ class TestComputeLcoeLive:
         wb_default = default_result[default_result["scenario"] == "within_boundary"]
         wb_low = low_result[low_result["scenario"] == "within_boundary"]
 
-        for kek_id in sample_resource_df["kek_id"]:
-            default_val = wb_default[wb_default["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            low_val = wb_low[wb_low["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            assert low_val < default_val, f"LCOE should decrease with lower CAPEX for {kek_id}"
+        for site_id in sample_resource_df["site_id"]:
+            default_val = wb_default[wb_default["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            low_val = wb_low[wb_low["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            assert low_val < default_val, f"LCOE should decrease with lower CAPEX for {site_id}"
 
     def test_longer_lifetime_lowers_lcoe(self, sample_resource_df):
         """Longer lifetime should reduce LCOE (lower CRF)."""
@@ -188,10 +188,12 @@ class TestComputeLcoeLive:
         wb_default = default_result[default_result["scenario"] == "within_boundary"]
         wb_long = long_result[long_result["scenario"] == "within_boundary"]
 
-        for kek_id in sample_resource_df["kek_id"]:
-            default_val = wb_default[wb_default["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            long_val = wb_long[wb_long["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            assert long_val < default_val, f"LCOE should decrease with longer lifetime for {kek_id}"
+        for site_id in sample_resource_df["site_id"]:
+            default_val = wb_default[wb_default["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            long_val = wb_long[wb_long["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            assert long_val < default_val, (
+                f"LCOE should decrease with longer lifetime for {site_id}"
+            )
 
     def test_higher_wacc_raises_lcoe(self, sample_resource_df):
         """Higher WACC should increase LCOE (higher CRF)."""
@@ -202,10 +204,10 @@ class TestComputeLcoeLive:
         wb_default = default_result[default_result["scenario"] == "within_boundary"]
         wb_high = high_result[high_result["scenario"] == "within_boundary"]
 
-        for kek_id in sample_resource_df["kek_id"]:
-            d = wb_default[wb_default["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            h = wb_high[wb_high["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            assert h > d, f"LCOE should increase with higher WACC for {kek_id}"
+        for site_id in sample_resource_df["site_id"]:
+            d = wb_default[wb_default["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = wb_high[wb_high["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            assert h > d, f"LCOE should increase with higher WACC for {site_id}"
 
     def test_lcoe_band_ordering(self, sample_resource_df):
         """low < mid < high for both scenarios."""
@@ -218,14 +220,14 @@ class TestComputeLcoeLive:
     def test_grid_connected_higher_than_within_boundary(self, sample_resource_df):
         """Grid-connected LCOE should be >= within-boundary LCOE (connection cost adds cost)."""
         result = compute_lcoe_live(sample_resource_df, get_default_assumptions())
-        wb = result[result["scenario"] == "within_boundary"].set_index("kek_id")
-        gc = result[result["scenario"] == "grid_connected_solar"].set_index("kek_id")
+        wb = result[result["scenario"] == "within_boundary"].set_index("site_id")
+        gc = result[result["scenario"] == "grid_connected_solar"].set_index("site_id")
 
-        for kek_id in sample_resource_df["kek_id"]:
-            wb_lcoe = wb.loc[kek_id, "lcoe_mid_usd_mwh"]
-            gc_lcoe = gc.loc[kek_id, "lcoe_mid_usd_mwh"]
+        for site_id in sample_resource_df["site_id"]:
+            wb_lcoe = wb.loc[site_id, "lcoe_mid_usd_mwh"]
+            gc_lcoe = gc.loc[site_id, "lcoe_mid_usd_mwh"]
             if pd.notna(wb_lcoe) and pd.notna(gc_lcoe):
-                assert gc_lcoe >= wb_lcoe, f"Grid-connected should be >= within for {kek_id}"
+                assert gc_lcoe >= wb_lcoe, f"Grid-connected should be >= within for {site_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +262,7 @@ class TestComputeScorecardLive:
             sample_grid_df,
         )
         required = [
-            "kek_id",
+            "site_id",
             "lcoe_mid_usd_mwh",
             "solar_competitive_gap_pct",
             "solar_now",
@@ -287,7 +289,7 @@ class TestComputeScorecardLive:
             sample_demand_df,
             sample_grid_df,
         )
-        sorong_default = default[default["kek_id"] == "kek-sorong"].iloc[0]
+        sorong_default = default[default["site_id"] == "kek-sorong"].iloc[0]
         assert bool(sorong_default["plan_late"]) is True
 
         high_threshold = UserThresholds(plan_late_threshold=0.95)
@@ -299,7 +301,7 @@ class TestComputeScorecardLive:
             sample_demand_df,
             sample_grid_df,
         )
-        sorong_high = result[result["kek_id"] == "kek-sorong"].iloc[0]
+        sorong_high = result[result["site_id"] == "kek-sorong"].iloc[0]
         assert bool(sorong_high["plan_late"]) is False
 
     def test_lower_capex_improves_gap(
@@ -323,11 +325,13 @@ class TestComputeScorecardLive:
             sample_demand_df,
             sample_grid_df,
         )
-        for kek_id in sample_resource_df["kek_id"]:
-            gap_default = default[default["kek_id"] == kek_id]["solar_competitive_gap_pct"].iloc[0]
-            gap_low = result[result["kek_id"] == kek_id]["solar_competitive_gap_pct"].iloc[0]
+        for site_id in sample_resource_df["site_id"]:
+            gap_default = default[default["site_id"] == site_id]["solar_competitive_gap_pct"].iloc[
+                0
+            ]
+            gap_low = result[result["site_id"] == site_id]["solar_competitive_gap_pct"].iloc[0]
             if pd.notna(gap_default) and pd.notna(gap_low):
-                assert gap_low < gap_default, f"Gap should decrease with lower CAPEX for {kek_id}"
+                assert gap_low < gap_default, f"Gap should decrease with lower CAPEX for {site_id}"
 
     def test_carbon_breakeven_present(
         self, sample_resource_df, sample_ruptl_metrics, sample_demand_df, sample_grid_df
@@ -360,10 +364,10 @@ class TestInfrastructureCosts:
         wb_default = default_result[default_result["scenario"] == "within_boundary"]
         wb_high = high_result[high_result["scenario"] == "within_boundary"]
 
-        for kek_id in sample_resource_df["kek_id"]:
-            d = wb_default[wb_default["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            h = wb_high[wb_high["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            assert h > d, f"LCOE should increase with higher FOM for {kek_id}"
+        for site_id in sample_resource_df["site_id"]:
+            d = wb_default[wb_default["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = wb_high[wb_high["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            assert h > d, f"LCOE should increase with higher FOM for {site_id}"
 
     def test_higher_connection_cost_raises_grid_connected_only(self, sample_resource_df):
         """Higher connection cost should raise grid_connected_solar LCOE but not within_boundary."""
@@ -374,21 +378,21 @@ class TestInfrastructureCosts:
         # Within-boundary should be unchanged
         wb_d = default_result[default_result["scenario"] == "within_boundary"]
         wb_h = high_result[high_result["scenario"] == "within_boundary"]
-        for kek_id in sample_resource_df["kek_id"]:
+        for site_id in sample_resource_df["site_id"]:
             assert (
-                wb_d[wb_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-                == wb_h[wb_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+                wb_d[wb_d["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+                == wb_h[wb_h["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
             )
 
         # Grid-connected should increase
         gc_d = default_result[default_result["scenario"] == "grid_connected_solar"]
         gc_h = high_result[high_result["scenario"] == "grid_connected_solar"]
-        for kek_id in sample_resource_df["kek_id"]:
-            d = gc_d[gc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            h = gc_h[gc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+        for site_id in sample_resource_df["site_id"]:
+            d = gc_d[gc_d["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = gc_h[gc_h["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
             if pd.notna(d) and pd.notna(h):
                 assert h > d, (
-                    f"Grid-connected LCOE should increase with higher connection cost for {kek_id}"
+                    f"Grid-connected LCOE should increase with higher connection cost for {site_id}"
                 )
 
     def test_higher_fixed_connection_raises_grid_connected_only(self, sample_resource_df):
@@ -399,12 +403,12 @@ class TestInfrastructureCosts:
 
         gc_d = default_result[default_result["scenario"] == "grid_connected_solar"]
         gc_h = high_result[high_result["scenario"] == "grid_connected_solar"]
-        for kek_id in sample_resource_df["kek_id"]:
-            d = gc_d[gc_d["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
-            h = gc_h[gc_h["kek_id"] == kek_id]["lcoe_mid_usd_mwh"].iloc[0]
+        for site_id in sample_resource_df["site_id"]:
+            d = gc_d[gc_d["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
+            h = gc_h[gc_h["site_id"] == site_id]["lcoe_mid_usd_mwh"].iloc[0]
             if pd.notna(d) and pd.notna(h):
                 assert h > d, (
-                    f"Grid-connected LCOE should increase with higher fixed cost for {kek_id}"
+                    f"Grid-connected LCOE should increase with higher fixed cost for {site_id}"
                 )
 
     def test_idr_usd_rate_affects_grid_benchmark(
@@ -443,7 +447,7 @@ class TestInfrastructureCosts:
         """
         resource_df = pd.DataFrame(
             {
-                "kek_id": ["kek-kendal"],
+                "site_id": ["kek-kendal"],
                 "pvout_centroid": [1550.0],
                 "pvout_best_50km": [1650.0],
                 "dist_to_nearest_substation_km": [5.0],
@@ -493,7 +497,7 @@ class TestInfrastructureCosts:
         """
         resource_df = pd.DataFrame(
             {
-                "kek_id": ["kek-kendal"],
+                "site_id": ["kek-kendal"],
                 "pvout_centroid": [1550.0],
                 "pvout_best_50km": [1650.0],
                 "dist_to_nearest_substation_km": [5.0],
@@ -585,7 +589,7 @@ class TestInfrastructureCosts:
             ):
                 expected = row["lcoe_with_battery_usd_mwh"] <= row["grid_cost_usd_mwh"]
                 assert row["bess_competitive"] == expected, (
-                    f"bess_competitive mismatch for {row['kek_id']}: "
+                    f"bess_competitive mismatch for {row['site_id']}: "
                     f"lcoe_with_battery={row['lcoe_with_battery_usd_mwh']}, "
                     f"grid_cost={row['grid_cost_usd_mwh']}"
                 )

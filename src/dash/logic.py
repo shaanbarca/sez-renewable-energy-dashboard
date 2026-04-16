@@ -208,7 +208,7 @@ def compute_lcoe_live(
     Parameters
     ----------
     resource_df:
-        Must have columns: kek_id, pvout_centroid, pvout_best_50km (or
+        Must have columns: site_id, pvout_centroid, pvout_best_50km (or
         pvout_buildable_best_50km). Optional: dist_solar_to_nearest_substation_km,
         dist_to_nearest_substation_km (fallback).
     assumptions:
@@ -217,7 +217,7 @@ def compute_lcoe_live(
     Returns
     -------
     pd.DataFrame
-        Columns: kek_id, scenario, lcoe_low/mid/high_usd_mwh,
+        Columns: site_id, scenario, lcoe_low/mid/high_usd_mwh,
         connection_cost_per_kw, cf, pvout_used.
     """
     wacc = assumptions.wacc_decimal
@@ -237,7 +237,7 @@ def compute_lcoe_live(
 
     rows = []
     for _, kek in resource_df.iterrows():
-        kek_id = kek["kek_id"]
+        site_id = kek["site_id"]
 
         # V2: prefer solar-to-substation distance; fallback to KEK-to-substation
         dist_solar = kek.get("dist_solar_to_nearest_substation_km")
@@ -262,7 +262,7 @@ def compute_lcoe_live(
 
         rows.append(
             {
-                "kek_id": kek_id,
+                "site_id": site_id,
                 "scenario": "within_boundary",
                 "lcoe_low_usd_mwh": _round(lcoe_l_wb),
                 "lcoe_mid_usd_mwh": _round(lcoe_c_wb),
@@ -344,7 +344,7 @@ def compute_lcoe_live(
 
         rows.append(
             {
-                "kek_id": kek_id,
+                "site_id": site_id,
                 "scenario": "grid_connected_solar",
                 "lcoe_low_usd_mwh": _round(lcoe_l_gc),
                 "lcoe_mid_usd_mwh": _round(lcoe_c_gc),
@@ -375,13 +375,13 @@ def compute_lcoe_wind_live(
 ) -> pd.DataFrame:
     """Compute wind LCOE for all KEKs at user-specified WACC.
 
-    Uses precomputed CF from fct_kek_wind_resource and the same CRF annuity
+    Uses precomputed CF from fct_site_wind_resource and the same CRF annuity
     formula as solar (lcoe_solar is technology-agnostic).
 
     Parameters
     ----------
     resource_df:
-        Must have wind columns from fct_kek_wind_resource merge:
+        Must have wind columns from fct_site_wind_resource merge:
         cf_wind_best_50km, cf_wind_centroid, wind_speed_best_50km_ms,
         wind_speed_centroid_ms.
     wacc_pct:
@@ -392,13 +392,13 @@ def compute_lcoe_wind_live(
     Returns
     -------
     pd.DataFrame
-        One row per KEK: kek_id, lcoe_wind_mid_usd_mwh, cf_wind, wind_speed_ms.
+        One row per KEK: site_id, lcoe_wind_mid_usd_mwh, cf_wind, wind_speed_ms.
     """
     wacc = wacc_pct / 100.0
     rows = []
 
     for _, kek in resource_df.iterrows():
-        kek_id = kek["kek_id"]
+        site_id = kek["site_id"]
 
         # Use precomputed CF (best 50km, fallback centroid)
         cf_best = kek.get("cf_wind_best_50km")
@@ -431,7 +431,7 @@ def compute_lcoe_wind_live(
 
         rows.append(
             {
-                "kek_id": kek_id,
+                "site_id": site_id,
                 "lcoe_wind_mid_usd_mwh": _round(lcoe_wind),
                 "cf_wind": _round(cf, 4),
                 "wind_speed_ms": _round(ws, 2),
@@ -464,7 +464,7 @@ def compute_scorecard_live(
     Parameters
     ----------
     resource_df:
-        fct_kek_resource with PVOUT columns + dist_to_nearest_substation_km.
+        fct_site_resource with PVOUT columns + dist_to_nearest_substation_km.
     assumptions:
         User-adjustable model assumptions.
     thresholds:
@@ -473,7 +473,7 @@ def compute_scorecard_live(
         Pre-aggregated RUPTL metrics per grid_region_id (from ruptl_region_metrics()).
         Columns: grid_region_id, post2030_share, grid_upgrade_pre2030.
     demand_df:
-        fct_kek_demand filtered to target year. Columns: kek_id, demand_mwh.
+        fct_site_demand filtered to target year. Columns: site_id, demand_mwh.
     grid_df:
         fct_grid_cost_proxy. Columns: grid_region_id, grid_emission_factor_t_co2_mwh.
     wind_tech:
@@ -495,23 +495,23 @@ def compute_scorecard_live(
         wind_fom=wind_defaults["fom_usd_per_kw_yr"],
         wind_lifetime=wind_defaults["lifetime_yr"],
     )
-    wind_by_kek = wind_lcoe_df.set_index("kek_id")
+    wind_by_site = wind_lcoe_df.set_index("site_id")
 
     # Extract within_boundary rows for primary comparison
-    wb = lcoe_df[lcoe_df["scenario"] == "within_boundary"].set_index("kek_id")
-    gc = lcoe_df[lcoe_df["scenario"] == "grid_connected_solar"].set_index("kek_id")
+    wb = lcoe_df[lcoe_df["scenario"] == "within_boundary"].set_index("site_id")
+    gc = lcoe_df[lcoe_df["scenario"] == "grid_connected_solar"].set_index("site_id")
 
     default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
 
-    # Index demand by kek_id for fast lookup
-    demand_by_kek: dict[str, float] = {}
+    # Index demand by site_id for fast lookup
+    demand_by_site: dict[str, float] = {}
     if demand_df is not None and not demand_df.empty:
         for _, d_row in demand_df.iterrows():
-            demand_by_kek[d_row["kek_id"]] = float(d_row["demand_mwh"])
+            demand_by_site[d_row["site_id"]] = float(d_row["demand_mwh"])
 
     rows = []
     for _, kek in resource_df.iterrows():
-        kek_id = kek["kek_id"]
+        site_id = kek["site_id"]
         grid_region_id = kek.get("grid_region_id")
 
         # Per-region grid cost (BPP mode) or uniform tariff
@@ -522,14 +522,14 @@ def compute_scorecard_live(
 
         # Primary LCOE: prefer grid-connected (includes connection + upgrade costs)
         # Fall back to within-boundary if gc unavailable
-        if kek_id in gc.index:
-            lcoe_mid = gc.loc[kek_id, "lcoe_mid_usd_mwh"]
-            primary_cf = float(gc.loc[kek_id, "cf"]) if pd.notna(gc.loc[kek_id, "cf"]) else 0.0
+        if site_id in gc.index:
+            lcoe_mid = gc.loc[site_id, "lcoe_mid_usd_mwh"]
+            primary_cf = float(gc.loc[site_id, "cf"]) if pd.notna(gc.loc[site_id, "cf"]) else 0.0
         else:
-            lcoe_mid = wb.loc[kek_id, "lcoe_mid_usd_mwh"] if kek_id in wb.index else np.nan
+            lcoe_mid = wb.loc[site_id, "lcoe_mid_usd_mwh"] if site_id in wb.index else np.nan
             primary_cf = (
-                float(wb.loc[kek_id, "cf"])
-                if kek_id in wb.index and pd.notna(wb.loc[kek_id, "cf"])
+                float(wb.loc[site_id, "cf"])
+                if site_id in wb.index and pd.notna(wb.loc[site_id, "cf"])
                 else 0.0
             )
 
@@ -741,15 +741,15 @@ def compute_scorecard_live(
         )
 
         row = {
-            "kek_id": kek_id,
+            "site_id": site_id,
             "action_flag": action_flag,
             "lcoe_mid_usd_mwh": _round(lcoe_mid),
-            "lcoe_low_usd_mwh": _round(gc.loc[kek_id, "lcoe_low_usd_mwh"])
-            if kek_id in gc.index
-            else (_round(wb.loc[kek_id, "lcoe_low_usd_mwh"]) if kek_id in wb.index else np.nan),
-            "lcoe_high_usd_mwh": _round(gc.loc[kek_id, "lcoe_high_usd_mwh"])
-            if kek_id in gc.index
-            else (_round(wb.loc[kek_id, "lcoe_high_usd_mwh"]) if kek_id in wb.index else np.nan),
+            "lcoe_low_usd_mwh": _round(gc.loc[site_id, "lcoe_low_usd_mwh"])
+            if site_id in gc.index
+            else (_round(wb.loc[site_id, "lcoe_low_usd_mwh"]) if site_id in wb.index else np.nan),
+            "lcoe_high_usd_mwh": _round(gc.loc[site_id, "lcoe_high_usd_mwh"])
+            if site_id in gc.index
+            else (_round(wb.loc[site_id, "lcoe_high_usd_mwh"]) if site_id in wb.index else np.nan),
             "solar_competitive_gap_pct": _round(gap_pct),
             "gap_vs_tariff_pct": _round(gap_vs_tariff_pct),
             "gap_vs_bpp_pct": _round(gap_vs_bpp_pct),
@@ -764,8 +764,8 @@ def compute_scorecard_live(
             "bess_competitive": _bess_competitive,
             "bess_sizing_hours": bess_sizing,
             "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
-            "demand_2030_gwh": round(demand_by_kek[kek_id] / 1000, 1)
-            if kek_id in demand_by_kek
+            "demand_2030_gwh": round(demand_by_site[site_id] / 1000, 1)
+            if site_id in demand_by_site
             else None,
             "max_solar_generation_gwh": _round(
                 float(kek.get("max_captive_capacity_mwp", 0))
@@ -780,11 +780,11 @@ def compute_scorecard_live(
                     float(kek.get("max_captive_capacity_mwp", 0))
                     * float(kek.get("pvout_best_50km", 0))
                 )
-                / demand_by_kek[kek_id],
+                / demand_by_site[site_id],
                 3,
             )
-            if kek_id in demand_by_kek
-            and demand_by_kek[kek_id] > 0
+            if site_id in demand_by_site
+            and demand_by_site[site_id] > 0
             and pd.notna(kek.get("max_captive_capacity_mwp"))
             and pd.notna(kek.get("pvout_best_50km"))
             else None,
@@ -809,11 +809,11 @@ def compute_scorecard_live(
                         else kek.get("pvout_centroid", 0)
                     )
                 )
-                / demand_by_kek[kek_id],
+                / demand_by_site[site_id],
                 3,
             )
-            if kek_id in demand_by_kek
-            and demand_by_kek[kek_id] > 0
+            if site_id in demand_by_site
+            and demand_by_site[site_id] > 0
             and pd.notna(kek.get("within_boundary_capacity_mwp"))
             and (pd.notna(kek.get("pvout_within_boundary")) or pd.notna(kek.get("pvout_centroid")))
             else None,
@@ -828,8 +828,8 @@ def compute_scorecard_live(
         }
 
         # Wind LCOE (live-computed, responds to WACC slider)
-        if kek_id in wind_by_kek.index:
-            w = wind_by_kek.loc[kek_id]
+        if site_id in wind_by_site.index:
+            w = wind_by_site.loc[site_id]
             row["lcoe_wind_mid_usd_mwh"] = w["lcoe_wind_mid_usd_mwh"]
             row["cf_wind"] = w["cf_wind"]
             row["wind_speed_ms"] = w["wind_speed_ms"]
@@ -879,7 +879,7 @@ def compute_scorecard_live(
         wind_gen_gwh = (
             wind_cap * wind_cf_best * 8760 / 1000 if wind_cap > 0 and wind_cf_best > 0 else 0.0
         )
-        _demand_mwh = demand_by_kek.get(kek_id, 0.0)
+        _demand_mwh = demand_by_site.get(site_id, 0.0)
         demand_gwh = _demand_mwh / 1000 if _demand_mwh > 0 else 0.0
 
         row["max_wind_capacity_mwp"] = _round(wind_cap, 1)
@@ -912,7 +912,7 @@ def compute_scorecard_live(
             and pd.notna(kek.get("pvout_best_50km"))
             else 0.0
         )
-        demand_mwh_val = demand_by_kek.get(kek_id, 0.0)
+        demand_mwh_val = demand_by_site.get(site_id, 0.0)
         firm_metrics = firm_solar_metrics(solar_gen_mwh, demand_mwh_val)
         row["firm_solar_coverage_pct"] = firm_metrics["firm_solar_coverage_pct"]
         row["nighttime_demand_mwh"] = firm_metrics["nighttime_demand_mwh"]
@@ -974,10 +974,10 @@ def compute_scorecard_live(
         )
 
         # Within-boundary LCOE (secondary, for reference — captive solar, no connection costs)
-        if kek_id in wb.index:
-            row["lcoe_within_boundary_usd_mwh"] = _round(wb.loc[kek_id, "lcoe_mid_usd_mwh"])
-            row["lcoe_within_boundary_low_usd_mwh"] = _round(wb.loc[kek_id, "lcoe_low_usd_mwh"])
-            row["lcoe_within_boundary_high_usd_mwh"] = _round(wb.loc[kek_id, "lcoe_high_usd_mwh"])
+        if site_id in wb.index:
+            row["lcoe_within_boundary_usd_mwh"] = _round(wb.loc[site_id, "lcoe_mid_usd_mwh"])
+            row["lcoe_within_boundary_low_usd_mwh"] = _round(wb.loc[site_id, "lcoe_low_usd_mwh"])
+            row["lcoe_within_boundary_high_usd_mwh"] = _round(wb.loc[site_id, "lcoe_high_usd_mwh"])
         else:
             row["lcoe_within_boundary_usd_mwh"] = np.nan
             row["lcoe_within_boundary_low_usd_mwh"] = np.nan
@@ -985,7 +985,7 @@ def compute_scorecard_live(
 
         # Connection cost from gc scenario (for display)
         row["connection_cost_per_kw"] = (
-            gc.loc[kek_id, "connection_cost_per_kw"] if kek_id in gc.index else 0.0
+            gc.loc[site_id, "connection_cost_per_kw"] if site_id in gc.index else 0.0
         )
 
         # V3.1: Live-computed grid integration + capacity (uses user's utilization slider)
@@ -1001,15 +1001,15 @@ def compute_scorecard_live(
 
         # V3.2: Use live-computed transmission + upgrade costs from compute_lcoe_live
         row["transmission_cost_per_kw"] = (
-            gc.loc[kek_id, "transmission_cost_per_kw"] if kek_id in gc.index else 0.0
+            gc.loc[site_id, "transmission_cost_per_kw"] if site_id in gc.index else 0.0
         )
         row["substation_upgrade_cost_per_kw"] = (
-            gc.loc[kek_id, "substation_upgrade_cost_per_kw"] if kek_id in gc.index else 0.0
+            gc.loc[site_id, "substation_upgrade_cost_per_kw"] if site_id in gc.index else 0.0
         )
 
         # H10: effective capacity used for this KEK (may be capped by user target)
         row["effective_capacity_mwp"] = (
-            gc.loc[kek_id, "effective_capacity_mwp"] if kek_id in gc.index else None
+            gc.loc[site_id, "effective_capacity_mwp"] if site_id in gc.index else None
         )
 
         # Grid investment needed (USD): total infra cost × effective capacity (kW)

@@ -8,7 +8,7 @@ import {
   getEffectiveModifiers,
   getInfraReadinessLabel,
 } from '../../lib/actionFlags';
-import { fetchKekSubstations } from '../../lib/api';
+import { fetchSiteSubstations } from '../../lib/api';
 import {
   ECONOMIC_TIER_COLORS,
   ECONOMIC_TIER_HIERARCHY,
@@ -361,8 +361,8 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         <SectionHeader title="KEK Identity" subtitle="Zone classification, size, and location" />
         <StatRowWithTip
           label="Type"
-          value={row.kek_type ?? null}
-          tip="Industrial KEKs have high baseload demand and strong transition incentives. Tourism KEKs have lighter loads."
+          value={row.zone_classification ?? null}
+          tip="Site classification. KEKs: Industrial/Tourism/Mixed. Industrial sites: by sector."
         />
         <StatRowWithTip
           label="Category"
@@ -2010,7 +2010,7 @@ const TABS = [
 ] as const;
 
 export default function ScoreDrawer() {
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
   const drawerOpen = useDashboardStore((s) => s.drawerOpen);
   const scorecard = useDashboardStore((s) => s.scorecard);
   const closeDrawer = useDashboardStore((s) => s.closeDrawer);
@@ -2019,15 +2019,15 @@ export default function ScoreDrawer() {
   const [substations, setSubstations] = useState<SubstationWithCosts[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
 
-  const row = scorecard?.find((r) => r.kek_id === selectedKek) ?? null;
+  const row = scorecard?.find((r) => r.site_id === selectedSite) ?? null;
 
   const handleClose = useCallback(() => {
     closeDrawer();
   }, [closeDrawer]);
 
-  // Fetch substations when selected KEK changes
+  // Fetch substations when selected site changes
   useEffect(() => {
-    if (!selectedKek) {
+    if (!selectedSite) {
       setSubstations([]);
       return;
     }
@@ -2035,7 +2035,7 @@ export default function ScoreDrawer() {
     let cancelled = false;
     setLoadingSubs(true);
 
-    fetchKekSubstations(selectedKek, 50)
+    fetchSiteSubstations(selectedSite, 50)
       .then((data) => {
         if (!cancelled) {
           const parsed = data as { substations: SubstationWithCosts[] };
@@ -2052,7 +2052,7 @@ export default function ScoreDrawer() {
     return () => {
       cancelled = true;
     };
-  }, [selectedKek]);
+  }, [selectedSite]);
 
   // Keyboard escape to close
   useEffect(() => {
@@ -2099,7 +2099,7 @@ export default function ScoreDrawer() {
                   className="text-sm font-semibold truncate"
                   style={{ color: 'var(--text-primary)' }}
                 >
-                  {row.kek_name}
+                  {row.site_name}
                 </h2>
                 <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                   {row.province} &middot; {formatGridRegion(row.grid_region_id)}

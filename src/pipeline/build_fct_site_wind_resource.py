@@ -1,14 +1,14 @@
 """
-build_fct_kek_wind_resource — wind speed, CF, and buildable area for each KEK.
+build_fct_site_wind_resource — wind speed, CF, and buildable area for each site.
 
 Sources:
-    processed: dim_kek.csv                       KEK centroids (lat/lon)
+    processed: dim_sites.csv                     site centroids (lat/lon)
     data/wind/IDN_wind-speed_100m.tif            Global Wind Atlas v3, mean wind speed at 100m
     data/buildability/                           Shared buildability layers (DEM, forest, peat, land cover)
 
 Output columns:
-    kek_id                          slug from dim_kek — join key
-    kek_name                        display name
+    site_id                         slug from dim_sites — join key
+    site_name                       display name
     latitude                        centroid latitude
     longitude                       centroid longitude
     wind_speed_centroid_ms          mean wind speed at centroid (m/s)
@@ -58,7 +58,7 @@ from src.pipeline.assumptions import (
     WIND_BUFFER_KM,
     WIND_SOURCE,
 )
-from src.pipeline.build_fct_kek_resource import _pixel_area_ha
+from src.pipeline.build_fct_site_resource import _pixel_area_ha
 from src.pipeline.buildability_filters import (
     compute_distance_mask_km,
     haversine_km,
@@ -68,7 +68,7 @@ from src.pipeline.wind_buildability_filters import WIND_HA_PER_MWP
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WIND_TIF = REPO_ROOT / "data" / "wind" / "IDN_wind-speed_100m.tif"
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
 
 
 # ─── Raster extraction helpers ────────────────────────────────────────────────
@@ -207,9 +207,9 @@ def _extract_buildable_from_raster(
 # ─── Builder ──────────────────────────────────────────────────────────────────
 
 
-def build_fct_kek_wind_resource(
+def build_fct_site_wind_resource(
     wind_tif: Path = WIND_TIF,
-    kek_csv: Path = DIM_KEK_CSV,
+    sites_csv: Path = DIM_SITES_CSV,
 ) -> pd.DataFrame:
     """Extract wind speed, CF, and buildable area for all KEKs.
 
@@ -219,7 +219,7 @@ def build_fct_kek_wind_resource(
     extracts per-KEK buildability stats from the pre-built raster.
     """
 
-    kek_df = pd.read_csv(kek_csv)
+    sites_df = pd.read_csv(sites_csv)
 
     if not wind_tif.exists():
         raise FileNotFoundError(
@@ -239,7 +239,7 @@ def build_fct_kek_wind_resource(
     try:
         with rasterio.open(wind_tif) as src:
             arr = src.read(1)
-            for _, row in kek_df.iterrows():
+            for _, row in sites_df.iterrows():
                 lat = float(row["latitude"])
                 lon = float(row["longitude"])
 
@@ -250,7 +250,7 @@ def build_fct_kek_wind_resource(
                 cf_b = wind_speed_to_cf(ws_best) if np.isfinite(ws_best) else np.nan
 
                 print(
-                    f"  {row['kek_id']}: centroid={ws_centroid:.2f} m/s, best50km={ws_best:.2f} m/s"
+                    f"  {row['site_id']}: centroid={ws_centroid:.2f} m/s, best50km={ws_best:.2f} m/s"
                 )
 
                 # Buildability from pre-built raster
@@ -275,8 +275,8 @@ def build_fct_kek_wind_resource(
 
                 records.append(
                     {
-                        "kek_id": row["kek_id"],
-                        "kek_name": row["kek_name"],
+                        "site_id": row["site_id"],
+                        "site_name": row["site_name"],
                         "latitude": lat,
                         "longitude": lon,
                         "wind_speed_centroid_ms": round(ws_centroid, 2)
@@ -313,10 +313,10 @@ def build_fct_kek_wind_resource(
 
 
 def main() -> None:
-    print(f"Loading KEK centroids from {DIM_KEK_CSV.relative_to(REPO_ROOT)}")
+    print(f"Loading KEK centroids from {DIM_SITES_CSV.relative_to(REPO_ROOT)}")
     print(f"Loading wind speed raster from {WIND_TIF.relative_to(REPO_ROOT)}")
 
-    df = build_fct_kek_wind_resource()
+    df = build_fct_site_wind_resource()
 
     n_miss_c = df["wind_speed_centroid_ms"].isna().sum()
     n_miss_b = df["wind_speed_best_50km_ms"].isna().sum()
@@ -341,12 +341,12 @@ def main() -> None:
         f"    constraint breakdown: {df['wind_buildability_constraint'].value_counts().to_dict()}"
     )
 
-    out = PROCESSED / "fct_kek_wind_resource.csv"
+    out = PROCESSED / "fct_site_wind_resource.csv"
     PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     print(f"\nWrote {out.relative_to(REPO_ROOT)}")
     display_cols = [
-        "kek_id",
+        "site_id",
         "wind_speed_best_50km_ms",
         "cf_wind_best_50km",
         "wind_class",

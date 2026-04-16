@@ -4,7 +4,7 @@
 Source: China-Global South Project Nickel Tracker (CC license)
 URL: https://nickel.chinaglobalsouth.com/
 
-Produces per-smelter rows with kek_id (null if outside all KEKs + 50km buffer),
+Produces per-smelter rows with site_id (null if outside all sites + 50km buffer),
 plus per-KEK aggregates for scorecard enrichment.
 """
 
@@ -34,14 +34,14 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def build_fct_captive_nickel(
     cgsp_path: Path | str = DATA_DIR / "cgsp_nickel_tracker.csv",
-    kek_path: Path | str = PROCESSED_DIR / "dim_kek.csv",
+    sites_path: Path | str = PROCESSED_DIR / "dim_sites.csv",
     kek_polygons_path: Path | str = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson",
     buffer_km: float = 50.0,
 ) -> pd.DataFrame:
     """Load CGSP nickel data and spatial-join against KEKs.
 
     Returns DataFrame with one row per smelter: project_name, lat, lon,
-    project_type, capacity, status, owner, kek_id (nearest within buffer), dist_km.
+    project_type, capacity, status, owner, site_id (nearest within buffer), dist_km.
     """
     cgsp_path = Path(cgsp_path)
     if not cgsp_path.exists():
@@ -57,14 +57,14 @@ def build_fct_captive_nickel(
     df["longitude"] = df["longitude"].astype(float)
 
     # Load KEK centroids
-    kek_path = Path(kek_path)
-    if not kek_path.exists():
-        print(f"  dim_kek not found at {kek_path}")
+    sites_path = Path(sites_path)
+    if not sites_path.exists():
+        print(f"  dim_sites not found at {sites_path}")
         return pd.DataFrame()
 
-    keks = pd.read_csv(kek_path)
+    keks = pd.read_csv(sites_path)
     kek_points = [
-        {"kek_id": r["kek_id"], "lat": r["latitude"], "lon": r["longitude"]}
+        {"site_id": r["site_id"], "lat": r["latitude"], "lon": r["longitude"]}
         for _, r in keks.iterrows()
         if pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))
     ]
@@ -78,7 +78,7 @@ def build_fct_captive_nickel(
             d = _haversine_km(s["latitude"], s["longitude"], kek["lat"], kek["lon"])
             if d < best_dist:
                 best_dist = d
-                best_kek = kek["kek_id"]
+                best_kek = kek["site_id"]
 
         # Parse ownership
         ownership = s.get("country_ownership", "")
@@ -101,8 +101,8 @@ def build_fct_captive_nickel(
                 "is_chinese_owned": is_chinese,
                 "esg_ecological": s.get("esg_impact_ecological", ""),
                 "esg_social": s.get("esg_impact_social", ""),
-                "kek_id": best_kek if best_dist <= buffer_km else None,
-                "dist_to_kek_km": round(best_dist, 1) if best_dist <= buffer_km else None,
+                "site_id": best_kek if best_dist <= buffer_km else None,
+                "dist_to_site_km": round(best_dist, 1) if best_dist <= buffer_km else None,
             }
         )
 
@@ -123,12 +123,12 @@ def build_captive_nickel_summary(
     if smelter_df.empty:
         return pd.DataFrame()
 
-    matched = smelter_df[smelter_df["kek_id"].notna()].copy()
+    matched = smelter_df[smelter_df["site_id"].notna()].copy()
     if matched.empty:
         return pd.DataFrame()
 
     summary = (
-        matched.groupby("kek_id")
+        matched.groupby("site_id")
         .agg(
             nickel_smelter_count=("project_name", "count"),
             nickel_projects=("project_name", lambda x: "; ".join(x.unique())),
@@ -146,7 +146,7 @@ def build_captive_nickel_summary(
 if __name__ == "__main__":
     df = build_fct_captive_nickel()
     print(f"Total processing smelters: {len(df)}")
-    print(f"Matched to KEKs: {df['kek_id'].notna().sum()}")
+    print(f"Matched to sites: {df['site_id'].notna().sum()}")
     if not df.empty:
         out = PROCESSED_DIR / "fct_captive_nickel.csv"
         df.to_csv(out, index=False)

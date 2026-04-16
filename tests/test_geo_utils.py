@@ -44,29 +44,29 @@ class TestProximityMatch:
         return pd.DataFrame(rows)
 
     def test_finds_nearby_plant(self):
-        sites = self._make_sites([{"kek_id": "site-a", "latitude": -6.0, "longitude": 106.0}])
+        sites = self._make_sites([{"site_id": "site-a", "latitude": -6.0, "longitude": 106.0}])
         plants = self._make_plants([{"plant": "P1", "latitude": -6.01, "longitude": 106.01}])
         result = proximity_match(sites, plants, buffer_km=50)
-        assert result.iloc[0]["kek_id"] == "site-a"
+        assert result.iloc[0]["site_id"] == "site-a"
         assert result.iloc[0]["dist_km"] is not None
         assert result.iloc[0]["dist_km"] < 50
 
     def test_no_match_outside_buffer(self):
-        sites = self._make_sites([{"kek_id": "site-a", "latitude": -6.0, "longitude": 106.0}])
+        sites = self._make_sites([{"site_id": "site-a", "latitude": -6.0, "longitude": 106.0}])
         plants = self._make_plants([{"plant": "P1", "latitude": 0.0, "longitude": 110.0}])
         result = proximity_match(sites, plants, buffer_km=50)
-        assert result.iloc[0]["kek_id"] is None
+        assert result.iloc[0]["site_id"] is None
         assert result.iloc[0]["dist_km"] is None
 
     def test_empty_sites(self):
-        sites = pd.DataFrame(columns=["kek_id", "latitude", "longitude"])
+        sites = pd.DataFrame(columns=["site_id", "latitude", "longitude"])
         plants = self._make_plants([{"plant": "P1", "latitude": -6.0, "longitude": 106.0}])
         result = proximity_match(sites, plants, buffer_km=50)
         assert len(result) == 1
-        assert result.iloc[0]["kek_id"] is None
+        assert result.iloc[0]["site_id"] is None
 
     def test_empty_plants(self):
-        sites = self._make_sites([{"kek_id": "site-a", "latitude": -6.0, "longitude": 106.0}])
+        sites = self._make_sites([{"site_id": "site-a", "latitude": -6.0, "longitude": 106.0}])
         plants = pd.DataFrame(columns=["plant", "latitude", "longitude"])
         result = proximity_match(sites, plants, buffer_km=50)
         assert len(result) == 0
@@ -74,13 +74,13 @@ class TestProximityMatch:
     def test_picks_nearest_site(self):
         sites = self._make_sites(
             [
-                {"kek_id": "far", "latitude": -6.5, "longitude": 106.5},
-                {"kek_id": "near", "latitude": -6.001, "longitude": 106.001},
+                {"site_id": "far", "latitude": -6.5, "longitude": 106.5},
+                {"site_id": "near", "latitude": -6.001, "longitude": 106.001},
             ]
         )
         plants = self._make_plants([{"plant": "P1", "latitude": -6.0, "longitude": 106.0}])
         result = proximity_match(sites, plants, buffer_km=100)
-        assert result.iloc[0]["kek_id"] == "near"
+        assert result.iloc[0]["site_id"] == "near"
 
     def test_custom_id_column(self):
         sites = pd.DataFrame([{"site_id": "s1", "latitude": -6.0, "longitude": 106.0}])

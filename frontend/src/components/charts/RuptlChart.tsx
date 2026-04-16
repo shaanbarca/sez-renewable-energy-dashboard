@@ -32,7 +32,7 @@ interface PivotedRow {
 }
 
 export default function RuptlChart() {
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
   const scorecard = useDashboardStore((s) => s.scorecard);
   const [data, setData] = useState<RuptlRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,10 +94,10 @@ export default function RuptlChart() {
   }, [data]);
 
   const highlightRegion = useMemo(() => {
-    if (!selectedKek || !scorecard) return null;
-    const row = scorecard.find((r) => r.kek_id === selectedKek);
+    if (!selectedSite || !scorecard) return null;
+    const row = scorecard.find((r) => r.site_id === selectedSite);
     return row?.grid_region_id ?? null;
-  }, [selectedKek, scorecard]);
+  }, [selectedSite, scorecard]);
 
   const post2030Stats = useMemo(() => {
     if (!highlightRegion || !data.length) return null;

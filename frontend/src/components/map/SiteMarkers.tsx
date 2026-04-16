@@ -13,27 +13,27 @@ import { useDashboardStore } from '../../store/dashboard';
 interface HoverInfo {
   longitude: number;
   latitude: number;
-  kek_name: string;
+  site_name: string;
   action_flag: ActionFlag;
   economic_tier: EconomicTier;
   infrastructure_readiness: InfrastructureReadiness;
   province: string;
-  kek_type: string;
+  site_type: string;
   category: string;
   area_ha: number | null;
   cbam_exposed: boolean;
 }
 
-interface KekMarkersProps {
+interface SiteMarkersProps {
   hoverInfo: HoverInfo | null;
 }
 
 const PULSE_DURATION_MS = 5000;
 const PULSE_CYCLES = 3;
 
-export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
+export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
   const scorecard = useDashboardStore((s) => s.scorecard);
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
   const { current: mapInstance } = useMap();
   const hasPulsed = useRef(false);
   const prevFlagsRef = useRef<Record<string, string>>({});
@@ -49,39 +49,39 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
     // Build current flag map
     const currentFlags: Record<string, string> = {};
     for (const row of scorecard) {
-      currentFlags[row.kek_id] = row.action_flag;
+      currentFlags[row.site_id] = row.action_flag;
     }
 
     // Determine which KEKs to pulse
-    let changedKekIds: string[];
+    let changedSiteIds: string[];
     if (!hasPulsed.current) {
       // First load: pulse all
       hasPulsed.current = true;
-      changedKekIds = scorecard.map((r) => r.kek_id);
+      changedSiteIds = scorecard.map((r) => r.site_id);
     } else {
-      // Subsequent updates: only pulse KEKs whose action_flag changed
+      // Subsequent updates: only pulse sites whose action_flag changed
       const prev = prevFlagsRef.current;
-      changedKekIds = [];
+      changedSiteIds = [];
       for (const row of scorecard) {
-        if (prev[row.kek_id] != null && prev[row.kek_id] !== row.action_flag) {
-          changedKekIds.push(row.kek_id);
+        if (prev[row.site_id] != null && prev[row.site_id] !== row.action_flag) {
+          changedSiteIds.push(row.site_id);
         }
       }
     }
 
     prevFlagsRef.current = currentFlags;
 
-    if (changedKekIds.length === 0) return;
+    if (changedSiteIds.length === 0) return;
 
     // Set filter on pulse layer to only show changed markers
-    const isInitial = changedKekIds.length === scorecard.length;
+    const isInitial = changedSiteIds.length === scorecard.length;
     const duration = PULSE_DURATION_MS;
 
     if (map.getLayer('kek-pulse')) {
       if (isInitial) {
         map.setFilter('kek-pulse', null);
       } else {
-        map.setFilter('kek-pulse', ['in', ['get', 'kek_id'], ['literal', changedKekIds]]);
+        map.setFilter('kek-pulse', ['in', ['get', 'site_id'], ['literal', changedSiteIds]]);
       }
     }
 
@@ -124,11 +124,11 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
   }, [scorecard, mapInstance]);
 
   const energyMode = useDashboardStore((s) => s.energyMode);
-  const filteredKekIds = useDashboardStore((s) => s.filteredKekIds);
+  const filteredSiteIds = useDashboardStore((s) => s.filteredSiteIds);
 
   const geojson = useMemo(() => {
     if (!scorecard) return null;
-    const rows = filteredKekIds ? scorecard.filter((r) => filteredKekIds.has(r.kek_id)) : scorecard;
+    const rows = filteredSiteIds ? scorecard.filter((r) => filteredSiteIds.has(r.site_id)) : scorecard;
     return {
       type: 'FeatureCollection' as const,
       features: rows.map((row) => ({
@@ -138,12 +138,12 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           coordinates: [row.longitude, row.latitude],
         },
         properties: {
-          kek_id: row.kek_id,
-          kek_name: row.kek_name,
+          site_id: row.site_id,
+          site_name: row.site_name,
           action_flag: getEffectiveActionFlag(row, energyMode),
           economic_tier: getEffectiveEconomicTier(row, energyMode),
           province: row.province,
-          kek_type: row.kek_type ?? '',
+          site_type: row.site_type ?? '',
           category: row.category ?? '',
           area_ha: row.area_ha ?? null,
           grid_integration_category: row.grid_integration_category ?? '',
@@ -152,7 +152,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
         },
       })),
     };
-  }, [scorecard, energyMode, filteredKekIds]);
+  }, [scorecard, energyMode, filteredSiteIds]);
 
   // Build the match expression for circle-color from economic tier
   const colorMatch = useMemo(() => {
@@ -196,10 +196,10 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           id="kek-circles"
           type="circle"
           paint={{
-            'circle-radius': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 8, 6],
+            'circle-radius': ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 8, 6],
             'circle-color': colorMatch as unknown as string,
             'circle-stroke-color': infraStrokeMatch as unknown as string,
-            'circle-stroke-width': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 3, 1.5],
+            'circle-stroke-width': ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 3, 1.5],
             'circle-opacity': 0.9,
           }}
         />
@@ -209,7 +209,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           type="circle"
           filter={['==', ['get', 'cbam_exposed'], true]}
           paint={{
-            'circle-radius': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 11, 9],
+            'circle-radius': ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 11, 9],
             'circle-color': 'transparent',
             'circle-stroke-color': '#FF6F00',
             'circle-stroke-width': 1.5,
@@ -228,10 +228,10 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           className="kek-tooltip"
         >
           <div style={{ color: 'var(--text-primary)', fontSize: 11, lineHeight: 1.5 }}>
-            <strong style={{ fontSize: 12 }}>{hoverInfo.kek_name}</strong>
+            <strong style={{ fontSize: 12 }}>{hoverInfo.site_name}</strong>
             <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
               {hoverInfo.province}
-              {hoverInfo.kek_type ? ` · ${hoverInfo.kek_type}` : ''}
+              {hoverInfo.site_type ? ` · ${hoverInfo.site_type}` : ''}
             </div>
             {hoverInfo.category && (
               <div style={{ color: 'var(--text-secondary)' }}>{hoverInfo.category}</div>

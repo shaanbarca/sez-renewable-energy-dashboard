@@ -23,9 +23,9 @@ declare module '@tanstack/react-table' {
 /* ---------- Column header tooltips ---------- */
 
 const COLUMN_TOOLTIPS: Record<string, string> = {
-  kek_name: 'Special Economic Zone (Kawasan Ekonomi Khusus) name',
+  site_name: 'Site name (KEK, industrial plant, or industrial park)',
   province: 'Indonesian province where the KEK is located',
-  kek_type: 'KEK classification: Industrial, Tourism, or Mixed',
+  zone_classification: 'Site classification: Industrial, Tourism, or Mixed',
   category: 'Development stage: Established, Proposed, or Under Construction',
   area_ha: 'Total designated KEK area in hectares',
   max_captive_capacity_mwp:
@@ -177,16 +177,16 @@ function GridRateCell({ info }: { info: CellContext<ScorecardRow, number> }) {
 const col = createColumnHelper<ScorecardRow>();
 
 export const columns = [
-  col.accessor('kek_name', {
-    header: () => <HeaderWithTooltip label="KEK Name" columnId="kek_name" />,
+  col.accessor('site_name', {
+    header: () => <HeaderWithTooltip label="Site Name" columnId="site_name" />,
     cell: (info) => info.getValue(),
   }),
   col.accessor('province', {
     header: () => <HeaderWithTooltip label="Province" columnId="province" />,
     cell: (info) => info.getValue(),
   }),
-  col.accessor('kek_type', {
-    header: () => <HeaderWithTooltip label="Type" columnId="kek_type" />,
+  col.accessor('zone_classification', {
+    header: () => <HeaderWithTooltip label="Type" columnId="zone_classification" />,
     cell: (info) => info.getValue() ?? '—',
   }),
   col.accessor('category', {

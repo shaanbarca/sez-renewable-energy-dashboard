@@ -22,7 +22,7 @@ interface DashboardStore {
   scorecard: ScorecardRow[] | null;
 
   // UI state
-  selectedKek: string | null;
+  selectedSite: string | null;
   drawerOpen: boolean;
   assumptionsExpanded: boolean;
   activeTab: BottomTab;
@@ -36,7 +36,7 @@ interface DashboardStore {
   walkthroughDismissed: boolean;
   savedScenarios: SavedScenario[];
   flyToTarget: { lat: number; lon: number; zoom?: number } | null;
-  filteredKekIds: Set<string> | null;
+  filteredSiteIds: Set<string> | null;
 
   // Cached layer data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,7 +45,7 @@ interface DashboardStore {
   // Actions
   setAssumptions: (a: Partial<UserAssumptions>) => void;
   setThresholds: (t: Partial<UserThresholds>) => void;
-  selectKek: (id: string | null) => void;
+  selectSite: (id: string | null) => void;
   closeDrawer: () => void;
   setActiveTab: (tab: BottomTab) => void;
   setEnergyMode: (mode: EnergyMode) => void;
@@ -65,7 +65,7 @@ interface DashboardStore {
   restartWalkthrough: () => void;
   flyTo: (lat: number, lon: number, zoom?: number) => void;
   clearFlyTo: () => void;
-  setFilteredKekIds: (ids: Set<string> | null) => void;
+  setFilteredSiteIds: (ids: Set<string> | null) => void;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -81,7 +81,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   scorecard: null,
 
   // UI state
-  selectedKek: null,
+  selectedSite: null,
   drawerOpen: false,
   assumptionsExpanded: false,
   activeTab: 'table',
@@ -101,7 +101,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     }
   })(),
   flyToTarget: null,
-  filteredKekIds: null,
+  filteredSiteIds: null,
 
   // Cached layer data
   layers: {},
@@ -117,10 +117,10 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       thresholds: state.thresholds ? { ...state.thresholds, ...t } : null,
     })),
 
-  selectKek: (id) =>
+  selectSite: (id) =>
     set((state) => {
       if (!id)
-        return { selectedKek: null, drawerOpen: false, layerVisibility: state.layerVisibility };
+        return { selectedSite: null, drawerOpen: false, layerVisibility: state.layerVisibility };
       const lv = { ...state.layerVisibility };
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;
@@ -132,7 +132,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         lv.buildable_polygons = true;
         lv.wind_buildable_polygons = true;
       }
-      return { selectedKek: id, drawerOpen: true, layerVisibility: lv };
+      return { selectedSite: id, drawerOpen: true, layerVisibility: lv };
     }),
 
   closeDrawer: () => set({ drawerOpen: false }),
@@ -216,7 +216,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   flyTo: (lat, lon, zoom) => set({ flyToTarget: { lat, lon, zoom } }),
   clearFlyTo: () => set({ flyToTarget: null }),
-  setFilteredKekIds: (ids) => set({ filteredKekIds: ids }),
+  setFilteredSiteIds: (ids) => set({ filteredSiteIds: ids }),
 
   saveScenario: (name) => {
     const { assumptions, thresholds, benchmarkMode, savedScenarios } = get();

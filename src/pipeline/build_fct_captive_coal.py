@@ -5,7 +5,7 @@ Source: Global Energy Monitor — Global Coal Plant Tracker (CC BY 4.0)
 URL: https://globalenergymonitor.org/projects/global-coal-plant-tracker/
 Data mirror: KAPSARC OpenDataSoft portal
 
-Produces per-plant rows with kek_id (null if outside all KEKs + 50km buffer),
+Produces per-plant rows with site_id (null if outside all sites + 50km buffer),
 plus per-KEK aggregates for scorecard enrichment.
 """
 
@@ -50,7 +50,7 @@ def _is_captive(row: pd.Series) -> bool:
 
 def build_fct_captive_coal(
     gem_path: Path | str = DATA_DIR / "gem_coal_plant_tracker_indonesia.csv",
-    kek_path: Path | str = PROCESSED_DIR / "dim_kek.csv",
+    sites_path: Path | str = PROCESSED_DIR / "dim_sites.csv",
     buffer_km: float = 50.0,
     include_all: bool = False,
 ) -> pd.DataFrame:
@@ -62,7 +62,7 @@ def build_fct_captive_coal(
         If True, include all Indonesian plants (not just captive). Default False.
 
     Returns DataFrame with one row per plant: plant_name, lat, lon,
-    capacity_mw, status, parent, is_captive, kek_id, dist_km.
+    capacity_mw, status, parent, is_captive, site_id, dist_km.
     """
     gem_path = Path(gem_path)
     if not gem_path.exists():
@@ -97,14 +97,14 @@ def build_fct_captive_coal(
     )
 
     # Load KEK centroids
-    kek_path = Path(kek_path)
-    if not kek_path.exists():
-        print(f"  dim_kek not found at {kek_path}")
+    sites_path = Path(sites_path)
+    if not sites_path.exists():
+        print(f"  dim_sites not found at {sites_path}")
         return pd.DataFrame()
 
-    keks = pd.read_csv(kek_path)
+    keks = pd.read_csv(sites_path)
     kek_points = [
-        {"kek_id": r["kek_id"], "lat": r["latitude"], "lon": r["longitude"]}
+        {"site_id": r["site_id"], "lat": r["latitude"], "lon": r["longitude"]}
         for _, r in keks.iterrows()
         if pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))
     ]
@@ -118,7 +118,7 @@ def build_fct_captive_coal(
             d = _haversine_km(p["latitude"], p["longitude"], kek["lat"], kek["lon"])
             if d < best_dist:
                 best_dist = d
-                best_kek = kek["kek_id"]
+                best_kek = kek["site_id"]
 
         rows.append(
             {
@@ -131,8 +131,8 @@ def build_fct_captive_coal(
                 "parent": p["parent"],
                 "province": p.get("subnational_unit", ""),
                 "is_captive": p["is_captive"],
-                "kek_id": best_kek if best_dist <= buffer_km else None,
-                "dist_to_kek_km": round(best_dist, 1) if best_dist <= buffer_km else None,
+                "site_id": best_kek if best_dist <= buffer_km else None,
+                "dist_to_site_km": round(best_dist, 1) if best_dist <= buffer_km else None,
             }
         )
 
@@ -153,12 +153,12 @@ def build_captive_coal_summary(
     if coal_df.empty:
         return pd.DataFrame()
 
-    matched = coal_df[coal_df["kek_id"].notna()].copy()
+    matched = coal_df[coal_df["site_id"].notna()].copy()
     if matched.empty:
         return pd.DataFrame()
 
     summary = (
-        matched.groupby("kek_id")
+        matched.groupby("site_id")
         .agg(
             captive_coal_count=("plant_name", "count"),
             captive_coal_mw=("capacity_mw", "sum"),
@@ -173,7 +173,7 @@ def build_captive_coal_summary(
 if __name__ == "__main__":
     df = build_fct_captive_coal()
     print(f"Captive coal plants: {len(df)}")
-    print(f"Matched to KEKs: {df['kek_id'].notna().sum()}")
+    print(f"Matched to sites: {df['site_id'].notna().sum()}")
     if not df.empty:
         out = PROCESSED_DIR / "fct_captive_coal.csv"
         df.to_csv(out, index=False)

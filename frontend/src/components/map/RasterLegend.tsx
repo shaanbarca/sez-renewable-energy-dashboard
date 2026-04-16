@@ -22,11 +22,11 @@ const RASTER_LEGENDS = [
 
 export default function RasterLegend() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
   const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
 
   const visible = RASTER_LEGENDS.filter(({ key }) => !!layerVisibility[key]);
-  const showRadius = !!selectedKek;
+  const showRadius = !!selectedSite;
   const showWindBuildable = !!layerVisibility.wind_buildable_polygons;
   const showSolarBuildable = !!layerVisibility.buildable_polygons;
 

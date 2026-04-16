@@ -93,7 +93,7 @@ const ECONOMIST_STEPS: TourStep[] = [
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
-      if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
+      if (scorecard?.length) s.selectSite(scorecard[0].site_id);
     },
   },
   {
@@ -150,7 +150,7 @@ const DFI_STEPS: TourStep[] = [
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
-      if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
+      if (scorecard?.length) s.selectSite(scorecard[0].site_id);
     },
   },
   {
@@ -222,7 +222,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
-      if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
+      if (scorecard?.length) s.selectSite(scorecard[0].site_id);
     },
   },
   {
@@ -287,7 +287,7 @@ const IPP_STEPS: TourStep[] = [
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
-      if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
+      if (scorecard?.length) s.selectSite(scorecard[0].site_id);
     },
   },
   {
@@ -357,7 +357,7 @@ const INDUSTRIAL_STEPS: TourStep[] = [
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
-      if (scorecard?.length) s.selectKek(scorecard[0].kek_id);
+      if (scorecard?.length) s.selectSite(scorecard[0].site_id);
     },
   },
   {

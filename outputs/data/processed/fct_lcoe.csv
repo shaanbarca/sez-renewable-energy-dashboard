@@ -1,4 +1,4 @@
-kek_id,wacc_pct,scenario,pvout_used,cf_used,connection_cost_per_kw,transmission_cost_per_kw,effective_capex_usd_per_kw,lcoe_usd_mwh,lcoe_low_usd_mwh,lcoe_high_usd_mwh,is_cf_provisional,is_capex_provisional,tech_id,lifetime_yr
+site_id,wacc_pct,scenario,pvout_used,cf_used,connection_cost_per_kw,transmission_cost_per_kw,effective_capex_usd_per_kw,lcoe_usd_mwh,lcoe_low_usd_mwh,lcoe_high_usd_mwh,is_cf_provisional,is_capex_provisional,tech_id,lifetime_yr
 industropolis-batang,4.0,within_boundary,pvout_within_boundary,0.1751,0.0,0.0,960.0,43.21,38.02,64.76,False,False,TECH006,27
 industropolis-batang,6.0,within_boundary,pvout_within_boundary,0.1751,0.0,0.0,960.0,52.25,45.84,78.9,False,False,TECH006,27
 industropolis-batang,8.0,within_boundary,pvout_within_boundary,0.1751,0.0,0.0,960.0,62.11,54.36,94.3,False,False,TECH006,27

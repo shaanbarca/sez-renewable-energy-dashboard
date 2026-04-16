@@ -56,7 +56,7 @@ def load_nickel_smelters() -> list[dict]:
 
     Returns list of {lat, lon, name, project_type, capacity_tons, cost_usd,
     shareholder, esg_ecological, esg_social, status, province,
-    is_chinese_owned, kek_id, dist_to_kek_km}.
+    is_chinese_owned, site_id, dist_to_site_km}.
     """
     path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_nickel.csv"
     if not path.exists():
@@ -128,9 +128,9 @@ def load_nickel_smelters() -> list[dict]:
                 "is_chinese_owned": bool(r.get("is_chinese_owned", False))
                 if pd.notna(r.get("is_chinese_owned"))
                 else False,
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
@@ -141,7 +141,7 @@ def load_captive_coal() -> list[dict]:
     """Load GEM captive coal plant points from processed CSV.
 
     Returns list of {lat, lon, name, capacity_mw, status, parent, province,
-    kek_id, dist_to_kek_km}.
+    site_id, dist_to_site_km}.
     """
     path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_coal.csv"
     if not path.exists():
@@ -166,9 +166,9 @@ def load_captive_coal() -> list[dict]:
                 "status": str(r.get("status", "")) if pd.notna(r.get("status")) else "",
                 "parent": str(r.get("parent", "")) if pd.notna(r.get("parent")) else "",
                 "province": str(r.get("province", "")) if pd.notna(r.get("province")) else "",
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
@@ -205,9 +205,9 @@ def load_steel_plants() -> list[dict]:
                 "is_chinese_owned": bool(r.get("is_chinese_owned", False))
                 if pd.notna(r.get("is_chinese_owned"))
                 else False,
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
@@ -246,16 +246,16 @@ def load_cement_plants() -> list[dict]:
                 "is_chinese_owned": bool(r.get("is_chinese_owned", False))
                 if pd.notna(r.get("is_chinese_owned"))
                 else False,
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
     return results
 
 
-def load_kek_polygons() -> dict | None:
+def load_site_polygons() -> dict | None:
     """Load KEK boundary polygons as raw GeoJSON dict for Choroplethmapbox."""
     path = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
     if not path.exists():
@@ -264,17 +264,17 @@ def load_kek_polygons() -> dict | None:
         return json.load(f)
 
 
-def get_kek_polygon_by_id(kek_id: str) -> dict | None:
-    """Extract a single KEK polygon feature from the full GeoJSON by slug/kek_id.
+def get_kek_polygon_by_id(site_id: str) -> dict | None:
+    """Extract a single KEK polygon feature from the full GeoJSON by slug/site_id.
 
     Returns the GeoJSON feature dict with geometry and properties, or None.
     """
-    gj = load_kek_polygons()
+    gj = load_site_polygons()
     if not gj:
         return None
     for feat in gj.get("features", []):
         props = feat.get("properties", {})
-        if props.get("slug") == kek_id:
+        if props.get("slug") == site_id:
             return feat
     return None
 
@@ -632,7 +632,7 @@ def _strip_z_coords(coords: list | tuple) -> list:
     return [_strip_z_coords(c) for c in coords]
 
 
-def get_within_boundary_buildable(kek_id: str) -> dict | None:
+def get_within_boundary_buildable(site_id: str) -> dict | None:
     """Return buildable polygon fragments clipped to a KEK boundary.
 
     Loads the KEK polygon and all buildable polygons, buffers the buildable
@@ -642,7 +642,7 @@ def get_within_boundary_buildable(kek_id: str) -> dict | None:
     """
     from shapely.geometry import mapping, shape
 
-    kek_feat = get_kek_polygon_by_id(kek_id)
+    kek_feat = get_kek_polygon_by_id(site_id)
     if kek_feat is None:
         return None
 
@@ -718,7 +718,7 @@ def get_all_layers() -> dict:
 
     Returns dict with keys:
         substations: list of dicts
-        kek_polygons: GeoJSON dict or None
+        site_polygons: GeoJSON dict or None
         pvout: (base64_png, coordinates) or None
         wind: (base64_png, coordinates) or None
     """
@@ -732,8 +732,8 @@ def get_all_layers() -> dict:
     layers["substations"] = load_substations()
     print(f"    Substations: {len(layers['substations'])} points")
 
-    layers["kek_polygons"] = load_kek_polygons()
-    print(f"    KEK polygons: {'loaded' if layers['kek_polygons'] else 'not found'}")
+    layers["site_polygons"] = load_site_polygons()
+    print(f"    KEK polygons: {'loaded' if layers['site_polygons'] else 'not found'}")
 
     try:
         layers["pvout"] = load_pvout_raster()
@@ -833,7 +833,7 @@ def get_all_layers() -> dict:
 # Available layer options for the UI checklist
 LAYER_OPTIONS = [
     {"label": "Substations (PLN)", "value": "substations"},
-    {"label": "KEK Boundaries", "value": "kek_polygons"},
+    {"label": "KEK Boundaries", "value": "site_polygons"},
     {"label": "Solar Potential (PVOUT)", "value": "pvout"},
     {"label": "Solar Buildable Areas", "value": "buildable_polygons"},
     {"label": "Wind Buildable Areas", "value": "wind_buildable_polygons"},

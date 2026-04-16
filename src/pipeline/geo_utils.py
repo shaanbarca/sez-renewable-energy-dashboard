@@ -38,7 +38,7 @@ def proximity_match(
     sites_df: pd.DataFrame,
     plants_df: pd.DataFrame,
     buffer_km: float,
-    site_id_col: str = "kek_id",
+    site_id_col: str = "site_id",
     site_lat_col: str = "latitude",
     site_lon_col: str = "longitude",
     plant_lat_col: str = "latitude",

@@ -4,13 +4,13 @@ build_fct_substation_proximity — nearest PLN substation per KEK + grid integra
 Sources:
     data/substation.geojson                      2,913 PLN substations (WGS84 point features)
     data/pln_grid_lines.geojson                  1,595 PLN transmission lines (WGS84 line features)
-    outputs/data/processed/dim_kek.csv           KEK centroids (lat, lon)
-    outputs/data/processed/fct_kek_resource.csv  best solar site coordinates (V2)
-    outputs/data/raw/kek_polygons.geojson        KEK boundary polygons (MultiPolygon)
+    outputs/data/processed/dim_sites.csv           site centroids (lat, lon)
+    outputs/data/processed/fct_site_resource.csv  best solar site coordinates (V2)
+    outputs/data/raw/kek_polygons.geojson        site boundary polygons (MultiPolygon)
 
-Output columns (one row per kek_id):
-    kek_id                             join key
-    kek_name                           display name
+Output columns (one row per site_id):
+    site_id                            join key
+    site_name                          display name
     nearest_substation_name            namobj of nearest operational PLN substation (to KEK)
     nearest_substation_voltage_kv      teggi field (e.g. "150 kV")
     nearest_substation_capacity_mva    kapgi field (MVA)
@@ -62,8 +62,8 @@ RAW = REPO_ROOT / "outputs" / "data" / "raw"
 
 SUBSTATION_GEOJSON = REPO_ROOT / "data" / "substation.geojson"
 GRID_LINES_GEOJSON = REPO_ROOT / "data" / "pln_grid_lines.geojson"
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
-FKT_KEK_RESOURCE_CSV = PROCESSED / "fct_kek_resource.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
+FKT_SITE_RESOURCE_CSV = PROCESSED / "fct_site_resource.csv"
 KEK_POLYGONS_GEOJSON = RAW / "kek_polygons.geojson"
 
 _OPERATIONAL_STATUS = "Operasi"
@@ -245,9 +245,9 @@ def _has_internal_substation(
 def build_fct_substation_proximity(
     substation_geojson: Path = SUBSTATION_GEOJSON,
     grid_lines_geojson: Path = GRID_LINES_GEOJSON,
-    dim_kek_csv: Path = DIM_KEK_CSV,
+    dim_sites_csv: Path = DIM_SITES_CSV,
     kek_polygons_geojson: Path = KEK_POLYGONS_GEOJSON,
-    fct_kek_resource_csv: Path = FKT_KEK_RESOURCE_CSV,
+    fct_site_resource_csv: Path = FKT_SITE_RESOURCE_CSV,
     substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
 ) -> pd.DataFrame:
     """Compute nearest PLN substation distance, siting scenario, and grid integration category.
@@ -260,22 +260,22 @@ def build_fct_substation_proximity(
     substations = _load_substations(substation_geojson)
     kek_polygons = _load_kek_polygons(kek_polygons_geojson)
     grid_lines = _load_grid_lines(grid_lines_geojson)
-    dim_kek = pd.read_csv(dim_kek_csv)[["kek_id", "kek_name", "latitude", "longitude"]]
+    dim_sites = pd.read_csv(dim_sites_csv)[["site_id", "site_name", "latitude", "longitude"]]
 
     print(f"  Substations: {len(substations)} operational")
     print(f"  Grid lines: {len(grid_lines)} loaded")
 
-    # V2: Load best solar site coordinates from fct_kek_resource
+    # V2: Load best solar site coordinates from fct_site_resource
     solar_data: dict[str, dict] = {}
-    if fct_kek_resource_csv.exists():
-        resource_df = pd.read_csv(fct_kek_resource_csv)
+    if fct_site_resource_csv.exists():
+        resource_df = pd.read_csv(fct_site_resource_csv)
         if "best_solar_site_lat" in resource_df.columns:
             for _, r in resource_df.iterrows():
                 lat = r.get("best_solar_site_lat")
                 lon = r.get("best_solar_site_lon")
                 cap = r.get("max_captive_capacity_mwp")
                 if pd.notna(lat) and pd.notna(lon):
-                    solar_data[r["kek_id"]] = {
+                    solar_data[r["site_id"]] = {
                         "lat": float(lat),
                         "lon": float(lon),
                         "capacity_mwp": float(cap) if pd.notna(cap) else None,
@@ -285,20 +285,20 @@ def build_fct_substation_proximity(
             )
         else:
             print(
-                "  V2: fct_kek_resource.csv exists but missing best_solar_site_lat — skipping solar proximity"
+                "  V2: fct_site_resource.csv exists but missing best_solar_site_lat — skipping solar proximity"
             )
     else:
-        print(f"  V2: {fct_kek_resource_csv.name} not found — solar proximity columns will be NaN")
+        print(f"  V2: {fct_site_resource_csv.name} not found — solar proximity columns will be NaN")
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
-    for _, row in dim_kek.iterrows():
-        kek_id = row["kek_id"]
+    for _, row in dim_sites.iterrows():
+        site_id = row["site_id"]
         kek_lat = float(row["latitude"])
         kek_lon = float(row["longitude"])
 
         nearest_to_kek, dist_km = _nearest_substation(kek_lat, kek_lon, substations)
-        internal = _has_internal_substation(kek_id, kek_polygons, substations)
+        internal = _has_internal_substation(site_id, kek_polygons, substations)
 
         # V2: Compute solar-to-substation distance
         dist_solar_to_sub = np.nan
@@ -306,8 +306,8 @@ def build_fct_substation_proximity(
         nearest_to_solar_regpln = None
         nearest_to_solar_sub = None
         solar_cap_mwp = None
-        if kek_id in solar_data:
-            sd = solar_data[kek_id]
+        if site_id in solar_data:
+            sd = solar_data[site_id]
             solar_lat, solar_lon = sd["lat"], sd["lon"]
             solar_cap_mwp = sd.get("capacity_mwp")
             nearest_to_solar_sub, dist_solar = _nearest_substation(
@@ -378,8 +378,8 @@ def build_fct_substation_proximity(
 
         records.append(
             {
-                "kek_id": kek_id,
-                "kek_name": row["kek_name"],
+                "site_id": site_id,
+                "site_name": row["site_name"],
                 "nearest_substation_name": nearest_to_kek["name"] if nearest_to_kek else None,
                 "nearest_substation_voltage_kv": nearest_to_kek["voltage_kv"]
                 if nearest_to_kek
@@ -442,7 +442,7 @@ def main() -> None:
     print(
         df[
             [
-                "kek_id",
+                "site_id",
                 "nearest_substation_name",
                 "dist_to_nearest_substation_km",
                 "grid_integration_category",

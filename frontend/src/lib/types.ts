@@ -70,8 +70,10 @@ export interface CbamProductMetrics {
 }
 
 export interface ScorecardRow {
-  kek_id: string;
-  kek_name: string;
+  site_id: string;
+  site_name: string;
+  site_type: string;
+  sector: string;
   province: string;
   latitude: number;
   longitude: number;
@@ -92,8 +94,8 @@ export interface ScorecardRow {
   bpp_usd_mwh: number | null;
   grid_region_id: string;
 
-  // KEK info fields
-  kek_type?: string;
+  // Site info fields
+  zone_classification?: string;
   category?: string;
   area_ha?: number;
   developer?: string;

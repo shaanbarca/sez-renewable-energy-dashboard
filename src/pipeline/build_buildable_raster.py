@@ -1,7 +1,7 @@
 """
 build_buildable_raster — Nationwide solar buildable area raster.
 
-Applies the same 4-layer buildability cascade used per-KEK in build_fct_kek_resource.py,
+Applies the same 4-layer buildability cascade used per-site in build_fct_site_resource.py,
 but across the entire Indonesia PVOUT grid. Produces a GeoTIFF where:
   - Buildable pixels retain their PVOUT value (daily kWh/kWp)
   - Excluded pixels are NaN

@@ -1,4 +1,4 @@
-plant_name,latitude,longitude,capacity_mw,unit_count,status,parent,province,is_captive,kek_id,dist_to_kek_km
+plant_name,latitude,longitude,capacity_mw,unit_count,status,parent,province,is_captive,site_id,dist_to_kek_km
 Adaro Aluminum Smelter Power Station,2.528,117.858,2200,2,Pre-Permit,Pt Adaro Power,North Kalimantan,True,,
 Amman Mineral Power Station,-8.90121,116.7393,300,2,Cancelled,Amman Mineral Nusa Tenggara,West Nusa Tenggara,True,kek-mandalika,49.3
 Asahimas Chemical Power Station,-6.02475,105.94264,300,2,Operating,Agc Inc [52.5%]; Ableman Finance [18.0%]; Rodamas [18.0%]; Mitsubishi Corporation Energy Solutions [11.5%],Banten,True,,

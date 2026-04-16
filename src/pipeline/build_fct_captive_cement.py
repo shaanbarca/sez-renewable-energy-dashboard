@@ -4,7 +4,7 @@
 Source: Global Energy Monitor Global Cement Plant Tracker
 URL: https://globalenergymonitor.org/projects/global-cement-plant-tracker/
 
-Produces per-plant rows with kek_id (null if outside all KEKs + 50km buffer),
+Produces per-plant rows with site_id (null if outside all sites + 50km buffer),
 plus per-KEK aggregates for scorecard enrichment and CBAM calculations.
 """
 
@@ -33,7 +33,7 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def build_fct_captive_cement(
     cement_path: Path | str = DATA_DIR / "gem_cement_plants.csv",
-    kek_path: Path | str = PROCESSED_DIR / "dim_kek.csv",
+    sites_path: Path | str = PROCESSED_DIR / "dim_sites.csv",
     buffer_km: float = 50.0,
 ) -> pd.DataFrame:
     """Spatial-join GEM cement plants against KEK centroids within buffer_km."""
@@ -45,14 +45,14 @@ def build_fct_captive_cement(
     df = pd.read_csv(cement_path)
     df = df[df["latitude"].notna() & df["longitude"].notna()].copy()
 
-    kek_path = Path(kek_path)
-    if not kek_path.exists():
-        print(f"  dim_kek not found at {kek_path}")
+    sites_path = Path(sites_path)
+    if not sites_path.exists():
+        print(f"  dim_sites not found at {sites_path}")
         return pd.DataFrame()
 
-    keks = pd.read_csv(kek_path)
+    keks = pd.read_csv(sites_path)
     kek_points = [
-        {"kek_id": r["kek_id"], "lat": r["latitude"], "lon": r["longitude"]}
+        {"site_id": r["site_id"], "lat": r["latitude"], "lon": r["longitude"]}
         for _, r in keks.iterrows()
         if pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))
     ]
@@ -65,7 +65,7 @@ def build_fct_captive_cement(
             d = _haversine_km(s["latitude"], s["longitude"], kek["lat"], kek["lon"])
             if d < best_dist:
                 best_dist = d
-                best_kek = kek["kek_id"]
+                best_kek = kek["site_id"]
 
         is_chinese = "china" in str(s.get("parent_company", "")).lower()
 
@@ -80,8 +80,8 @@ def build_fct_captive_cement(
                 "province": s.get("province", ""),
                 "parent_company": s.get("parent_company", ""),
                 "is_chinese_owned": is_chinese,
-                "kek_id": best_kek if best_dist <= buffer_km else None,
-                "dist_to_kek_km": round(best_dist, 1) if best_dist <= buffer_km else None,
+                "site_id": best_kek if best_dist <= buffer_km else None,
+                "dist_to_site_km": round(best_dist, 1) if best_dist <= buffer_km else None,
             }
         )
 
@@ -95,12 +95,12 @@ def build_captive_cement_summary(plant_df: pd.DataFrame | None = None) -> pd.Dat
     if plant_df.empty:
         return pd.DataFrame()
 
-    matched = plant_df[plant_df["kek_id"].notna()].copy()
+    matched = plant_df[plant_df["site_id"].notna()].copy()
     if matched.empty:
         return pd.DataFrame()
 
     summary = (
-        matched.groupby("kek_id")
+        matched.groupby("site_id")
         .agg(
             cement_plant_count=("plant_name", "count"),
             cement_capacity_mtpa=("capacity_mtpa", "sum"),
@@ -115,7 +115,7 @@ def build_captive_cement_summary(plant_df: pd.DataFrame | None = None) -> pd.Dat
 if __name__ == "__main__":
     df = build_fct_captive_cement()
     print(f"Total cement plants: {len(df)}")
-    print(f"Matched to KEKs: {df['kek_id'].notna().sum()}")
+    print(f"Matched to sites: {df['site_id'].notna().sum()}")
     if not df.empty:
         out = PROCESSED_DIR / "fct_captive_cement.csv"
         df.to_csv(out, index=False)

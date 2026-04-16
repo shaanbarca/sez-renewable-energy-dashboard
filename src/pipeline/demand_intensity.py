@@ -8,7 +8,7 @@ For KEKs and KIs with area data, the existing area-based method is used instead.
 
 This module is dispatched by SiteTypeConfig.demand_method:
     "sector_intensity" → estimate_demand_sector_intensity() (this module)
-    "area_based"       → existing build_fct_kek_demand logic
+    "area_based"       → existing build_fct_site_demand logic
 
 Sources:
     IEA Cement Roadmap 2018, worldsteel 2023, IAI 2023, IFA 2022, JETP Ch.2

@@ -62,7 +62,7 @@ function exportCsv(rows: Record<string, unknown>[], headers: string[], metadata?
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'kek_scorecard.csv';
+  a.download = 'site_scorecard.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -71,7 +71,7 @@ function exportCsv(rows: Record<string, unknown>[], headers: string[], metadata?
 const DROPDOWN_COLUMNS = new Set([
   'action_flag',
   'province',
-  'kek_type',
+  'zone_classification',
   'category',
   'best_re_technology',
   'grid_integration_category',
@@ -211,8 +211,8 @@ export default function DataTable() {
   const thresholds = useDashboardStore((s) => s.thresholds);
   const energyMode = useDashboardStore((s) => s.energyMode);
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
-  const selectKek = useDashboardStore((s) => s.selectKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
+  const selectSite = useDashboardStore((s) => s.selectSite);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -233,7 +233,7 @@ export default function DataTable() {
     onColumnFiltersChange: setColumnFilters,
     globalFilterFn: (row, _columnId, filterValue: string) => {
       const search = filterValue.toLowerCase();
-      const name = (row.original.kek_name ?? '').toLowerCase();
+      const name = (row.original.site_name ?? '').toLowerCase();
       const province = (row.original.province ?? '').toLowerCase();
       return name.includes(search) || province.includes(search);
     },
@@ -253,18 +253,18 @@ export default function DataTable() {
   });
 
   // Sync filtered rows to Zustand so map markers update
-  const setFilteredKekIds = useDashboardStore((s) => s.setFilteredKekIds);
+  const setFilteredSiteIds = useDashboardStore((s) => s.setFilteredSiteIds);
   const filteredRows = table.getRowModel().rows;
   useEffect(() => {
-    const ids = new Set(filteredRows.map((r) => r.original.kek_id));
-    setFilteredKekIds(ids);
-    return () => setFilteredKekIds(null);
-  }, [filteredRows, setFilteredKekIds]);
+    const ids = new Set(filteredRows.map((r) => r.original.site_id));
+    setFilteredSiteIds(ids);
+    return () => setFilteredSiteIds(null);
+  }, [filteredRows, setFilteredSiteIds]);
 
   const handleExport = useCallback(() => {
     if (!scorecard) return;
     const headers = [
-      'kek_name',
+      'site_name',
       'province',
       'action_flag',
       'lcoe_mid_usd_mwh',
@@ -346,7 +346,7 @@ export default function DataTable() {
             type="text"
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Search KEK or province..."
+            placeholder="Search site or province..."
             className="bg-transparent text-xs outline-none w-full"
             style={{ color: 'var(--text-primary)' }}
           />
@@ -465,9 +465,9 @@ export default function DataTable() {
                 className="cursor-pointer"
                 style={{
                   background:
-                    row.original.kek_id === selectedKek ? 'var(--selected-bg)' : undefined,
+                    row.original.site_id === selectedSite ? 'var(--selected-bg)' : undefined,
                 }}
-                onClick={() => selectKek(row.original.kek_id)}
+                onClick={() => selectSite(row.original.site_id)}
               >
                 {row.getVisibleCells().map((cell) => (
                   <td

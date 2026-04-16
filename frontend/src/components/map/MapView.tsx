@@ -4,13 +4,13 @@ import Map, { Layer, NavigationControl, Source } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useMapLayers } from '../../hooks/useMapLayers';
-import { fetchKekBuildable, fetchKekPolygon } from '../../lib/api';
+import { fetchSiteBuildable, fetchSitePolygon } from '../../lib/api';
 import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
-import type { HoverInfo } from './KekMarkers';
-import KekMarkers from './KekMarkers';
+import type { HoverInfo } from './SiteMarkers';
+import SiteMarkers from './SiteMarkers';
 
 import MeasureTool from './MeasureTool';
 import RasterOverlay from './RasterOverlay';
@@ -59,8 +59,8 @@ interface PolygonData {
 
 export default function MapView() {
   const mapRef = useRef<MapRef>(null);
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
-  const selectKek = useDashboardStore((s) => s.selectKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
+  const selectSite = useDashboardStore((s) => s.selectSite);
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
   const [wbBuildable, setWbBuildable] = useState<GeoJSON.FeatureCollection | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
@@ -77,18 +77,18 @@ export default function MapView() {
   // Activate lazy layer loading
   useMapLayers();
 
-  // Fly to selected KEK (works from table clicks, search, etc.)
+  // Fly to selected site (works from table clicks, search, etc.)
   const scorecard = useDashboardStore((s) => s.scorecard);
   useEffect(() => {
-    if (!selectedKek || !scorecard) return;
-    const row = scorecard.find((r) => r.kek_id === selectedKek);
+    if (!selectedSite || !scorecard) return;
+    const row = scorecard.find((r) => r.site_id === selectedSite);
     if (!row) return;
     mapRef.current?.flyTo({
       center: [row.longitude, row.latitude],
       zoom: KEK_ZOOM,
       duration: 2200,
     });
-  }, [selectedKek, scorecard]);
+  }, [selectedSite, scorecard]);
 
   // Fly to arbitrary target (e.g. substation clicked in comparison table)
   const flyToTarget = useDashboardStore((s) => s.flyToTarget);
@@ -103,13 +103,13 @@ export default function MapView() {
     clearFlyTo();
   }, [flyToTarget, clearFlyTo]);
 
-  // Fetch KEK polygon when selected
+  // Fetch site polygon when selected
   useEffect(() => {
-    if (!selectedKek) {
+    if (!selectedSite) {
       setPolygon(null);
       return;
     }
-    fetchKekPolygon(selectedKek)
+    fetchSitePolygon(selectedSite)
       .then((data) => {
         // API returns { feature, bbox, center } — wrap single feature into FeatureCollection
         const resp = data as { feature: unknown; bbox: unknown; center: unknown };
@@ -123,23 +123,23 @@ export default function MapView() {
         }
       })
       .catch((err) => {
-        console.error('Failed to fetch KEK polygon:', err);
+        console.error('Failed to fetch site polygon:', err);
         setPolygon(null);
       });
-  }, [selectedKek]);
+  }, [selectedSite]);
 
-  // Fetch within-boundary buildable overlay when KEK is selected
+  // Fetch within-boundary buildable overlay when site is selected
   useEffect(() => {
-    if (!selectedKek) {
+    if (!selectedSite) {
       setWbBuildable(null);
       return;
     }
-    fetchKekBuildable(selectedKek)
+    fetchSiteBuildable(selectedSite)
       .then((data) => {
         setWbBuildable(data.features?.length ? data : null);
       })
       .catch(() => setWbBuildable(null));
-  }, [selectedKek]);
+  }, [selectedSite]);
 
   // Radiate animation: buildable polygons pulse outward when KEK is selected
   const radiateAnimRef = useRef<number>(0);
@@ -244,10 +244,10 @@ export default function MapView() {
     (e: MapLayerMouseEvent) => {
       const feature = e.features?.[0];
       if (!feature?.properties) return;
-      const kekId = feature.properties.kek_id as string;
-      selectKek(kekId);
+      const siteId = feature.properties.site_id as string;
+      selectSite(siteId);
     },
-    [selectKek],
+    [selectSite],
   );
 
   const handleMouseEnter = useCallback((e: MapLayerMouseEvent) => {
@@ -257,13 +257,13 @@ export default function MapView() {
     setHoverInfo({
       longitude: coords[0],
       latitude: coords[1],
-      kek_name: feature.properties.kek_name as string,
+      site_name: feature.properties.site_name as string,
       action_flag: feature.properties.action_flag as ActionFlag,
       economic_tier: (feature.properties.economic_tier as EconomicTier) ?? 'not_competitive',
       infrastructure_readiness:
         (feature.properties.infrastructure_readiness as InfrastructureReadiness) ?? 'grid_first',
       province: feature.properties.province as string,
-      kek_type: feature.properties.kek_type as string,
+      site_type: feature.properties.site_type as string,
       category: feature.properties.category as string,
       area_ha: feature.properties.area_ha as number | null,
       cbam_exposed:
@@ -280,22 +280,22 @@ export default function MapView() {
     if (map) map.getCanvas().style.cursor = '';
   }, []);
 
-  // 50km radius circle around selected KEK
+  // 50km radius circle around selected site
   const radiusCircle = useMemo(() => {
-    if (!selectedKek || !scorecard) return null;
-    const row = scorecard.find((r) => r.kek_id === selectedKek);
+    if (!selectedSite || !scorecard) return null;
+    const row = scorecard.find((r) => r.site_id === selectedSite);
     if (!row) return null;
     return createCircleGeoJSON(row.longitude, row.latitude, RADIUS_KM);
-  }, [selectedKek, scorecard]);
+  }, [selectedSite, scorecard]);
 
   const resetView = useCallback(() => {
-    selectKek(null);
+    selectSite(null);
     mapRef.current?.flyTo({
       center: [INITIAL_CENTER.longitude, INITIAL_CENTER.latitude],
       zoom: INITIAL_ZOOM,
       duration: 2000,
     });
-  }, [selectKek]);
+  }, [selectSite]);
 
   return (
     <div className="absolute inset-0">
@@ -315,7 +315,7 @@ export default function MapView() {
       >
         <NavigationControl position="bottom-right" />
 
-        <KekMarkers hoverInfo={hoverInfo} />
+        <SiteMarkers hoverInfo={hoverInfo} />
         <RasterOverlay />
         <VectorOverlay />
         <InfraMarkers />
@@ -393,7 +393,7 @@ export default function MapView() {
       </Map>
 
       {/* Back to National View button — centered top, above assumptions panel */}
-      {(selectedKek || isZoomedIn) && (
+      {(selectedSite || isZoomedIn) && (
         <button
           onClick={resetView}
           className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 rounded-xl px-5 py-2 text-sm font-medium transition-all cursor-pointer hover:scale-[1.02]"
