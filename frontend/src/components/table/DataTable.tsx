@@ -8,7 +8,8 @@ import {
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { getEffectiveEconomicTier, getEffectiveInfraReadiness } from '../../lib/actionFlags';
 import { formatFilterValue } from '../../lib/format';
 import type { ScorecardRow, UserAssumptions, UserThresholds } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -77,6 +78,10 @@ const DROPDOWN_COLUMNS = new Set([
   'captive_power_type',
   'dominant_process_type',
   'cbam_exposed',
+  'economic_tier',
+  'infrastructure_readiness',
+  'industry',
+  'cbam_2030',
 ]);
 // Columns that get range filters (numeric)
 const RANGE_COLUMNS = new Set([
@@ -101,18 +106,36 @@ function getCaptivePowerType(row: ScorecardRow): string {
 
 function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: ScorecardRow[] }) {
   const filterValue = (column.getFilterValue() as string) ?? '';
+  const energyMode = useDashboardStore((s) => s.energyMode);
   const options = useMemo(() => {
     const vals = new Set<string>();
     for (const row of data) {
       if (column.id === 'captive_power_type') {
         vals.add(getCaptivePowerType(row));
+      } else if (column.id === 'industry') {
+        const hasCoal = !!row.captive_coal_count && row.captive_coal_count > 0;
+        const hasNickel = !!row.nickel_smelter_count && row.nickel_smelter_count > 0;
+        const hasSteel = !!row.steel_plant_count && row.steel_plant_count > 0;
+        const hasCement = !!row.cement_plant_count && row.cement_plant_count > 0;
+        if (hasCoal) vals.add('Coal');
+        if (hasNickel) vals.add('Nickel');
+        if (hasSteel) vals.add('Steel');
+        if (hasCement) vals.add('Cement');
+        if (!hasCoal && !hasNickel && !hasSteel && !hasCement) vals.add('None');
+      } else if (column.id === 'cbam_2030') {
+        vals.add('Yes');
+        vals.add('No');
+      } else if (column.id === 'economic_tier') {
+        vals.add(getEffectiveEconomicTier(row, energyMode));
+      } else if (column.id === 'infrastructure_readiness') {
+        vals.add(getEffectiveInfraReadiness(row));
       } else {
         const v = row[column.id as keyof ScorecardRow];
         if (v != null && v !== '') vals.add(String(v));
       }
     }
     return Array.from(vals).sort();
-  }, [data, column.id]);
+  }, [data, column.id, energyMode]);
 
   return (
     <select
@@ -228,6 +251,15 @@ export default function DataTable() {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   });
+
+  // Sync filtered rows to Zustand so map markers update
+  const setFilteredKekIds = useDashboardStore((s) => s.setFilteredKekIds);
+  const filteredRows = table.getRowModel().rows;
+  useEffect(() => {
+    const ids = new Set(filteredRows.map((r) => r.original.kek_id));
+    setFilteredKekIds(ids);
+    return () => setFilteredKekIds(null);
+  }, [filteredRows, setFilteredKekIds]);
 
   const handleExport = useCallback(() => {
     if (!scorecard) return;

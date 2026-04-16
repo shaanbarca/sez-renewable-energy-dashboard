@@ -5,7 +5,11 @@ import {
   getEffectiveEconomicTier,
   getEffectiveInfraReadiness,
 } from '../../lib/actionFlags';
-import { ECONOMIC_TIER_COLORS, INFRA_READINESS_LABELS } from '../../lib/constants';
+import {
+  ECONOMIC_TIER_COLORS,
+  INFRA_READINESS_COLORS,
+  INFRA_READINESS_LABELS,
+} from '../../lib/constants';
 import { capitalize, formatSnakeLabel } from '../../lib/format';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -39,6 +43,10 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'PLN grid cost proxy (BPP cost of supply, not the subsidized industrial tariff)',
   cbam_adjusted_gap_pct:
     'Competitive gap adjusted for EU CBAM savings. Subtracts avoided carbon border tax ($/MWh) from solar LCOE before comparing to grid cost. At 2030 rates. Only for CBAM-exposed KEKs.',
+  economic_tier:
+    'Economic competitiveness: Full RE (RE+storage beats grid), Partial RE (daytime RE beats grid), Near Parity (within 20%), Not Competitive, No Resource. Mode-aware (solar/wind/hybrid).',
+  infrastructure_readiness:
+    'Infrastructure readiness: Within Boundary, Grid Ready, Invest Transmission, Invest/Upgrade Substation, Grid First. Based on three-point proximity analysis.',
   grid_integration_category:
     'Grid readiness: within_boundary (solar inside KEK), grid_ready (substation near both), invest_transmission (build transmission to KEK), invest_substation (build substation near solar), grid_first (major grid expansion needed)',
   grid_investment_needed_usd:
@@ -212,6 +220,53 @@ export const columns = [
     cell: (info) => {
       const val = info.getValue();
       return val ? formatSnakeLabel(val) : '—';
+    },
+  }),
+  col.display({
+    id: 'economic_tier',
+    header: () => <HeaderWithTooltip label="Econ. Tier" columnId="economic_tier" />,
+    enableColumnFilter: true,
+    filterFn: (row, _columnId, filterValue: string) => {
+      const tier = getEffectiveEconomicTier(row.original, useDashboardStore.getState().energyMode);
+      return tier === filterValue;
+    },
+    cell: (info) => {
+      const energyMode = useDashboardStore.getState().energyMode;
+      const tier = getEffectiveEconomicTier(info.row.original, energyMode);
+      const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
+      const label = getEconomicTierLabel(tier, energyMode);
+      return (
+        <span className="flex items-center gap-1">
+          <span
+            className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+            style={{ background: color }}
+          />
+          <span style={{ color, fontSize: 11 }}>{label}</span>
+        </span>
+      );
+    },
+  }),
+  col.display({
+    id: 'infrastructure_readiness',
+    header: () => <HeaderWithTooltip label="Infra Ready" columnId="infrastructure_readiness" />,
+    enableColumnFilter: true,
+    filterFn: (row, _columnId, filterValue: string) => {
+      const infra = getEffectiveInfraReadiness(row.original);
+      return infra === filterValue;
+    },
+    cell: (info) => {
+      const infra = getEffectiveInfraReadiness(info.row.original);
+      const color = INFRA_READINESS_COLORS[infra] ?? '#666';
+      const label = INFRA_READINESS_LABELS[infra] ?? formatSnakeLabel(infra);
+      return (
+        <span className="flex items-center gap-1">
+          <span
+            className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+            style={{ background: color }}
+          />
+          <span style={{ color, fontSize: 11 }}>{label}</span>
+        </span>
+      );
     },
   }),
   col.accessor('grid_investment_needed_usd', {

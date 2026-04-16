@@ -36,6 +36,7 @@ interface DashboardStore {
   walkthroughDismissed: boolean;
   savedScenarios: SavedScenario[];
   flyToTarget: { lat: number; lon: number; zoom?: number } | null;
+  filteredKekIds: Set<string> | null;
 
   // Cached layer data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,6 +65,7 @@ interface DashboardStore {
   restartWalkthrough: () => void;
   flyTo: (lat: number, lon: number, zoom?: number) => void;
   clearFlyTo: () => void;
+  setFilteredKekIds: (ids: Set<string> | null) => void;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -99,6 +101,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     }
   })(),
   flyToTarget: null,
+  filteredKekIds: null,
 
   // Cached layer data
   layers: {},
@@ -213,6 +216,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   flyTo: (lat, lon, zoom) => set({ flyToTarget: { lat, lon, zoom } }),
   clearFlyTo: () => set({ flyToTarget: null }),
+  setFilteredKekIds: (ids) => set({ filteredKekIds: ids }),
 
   saveScenario: (name) => {
     const { assumptions, thresholds, benchmarkMode, savedScenarios } = get();

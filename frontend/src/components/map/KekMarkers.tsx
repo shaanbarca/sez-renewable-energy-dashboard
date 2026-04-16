@@ -124,12 +124,14 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
   }, [scorecard, mapInstance]);
 
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const filteredKekIds = useDashboardStore((s) => s.filteredKekIds);
 
   const geojson = useMemo(() => {
     if (!scorecard) return null;
+    const rows = filteredKekIds ? scorecard.filter((r) => filteredKekIds.has(r.kek_id)) : scorecard;
     return {
       type: 'FeatureCollection' as const,
-      features: scorecard.map((row) => ({
+      features: rows.map((row) => ({
         type: 'Feature' as const,
         geometry: {
           type: 'Point' as const,
@@ -150,7 +152,7 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
         },
       })),
     };
-  }, [scorecard, energyMode]);
+  }, [scorecard, energyMode, filteredKekIds]);
 
   // Build the match expression for circle-color from economic tier
   const colorMatch = useMemo(() => {
