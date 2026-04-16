@@ -372,7 +372,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         <StatRow label="Grid Region" value={formatGridRegion(row.grid_region_id)} />
       </StatCard>
 
-      {energyMode !== 'wind' && <EnergyBalanceChart row={row} energyMode={energyMode} />}
+      <EnergyBalanceChart row={row} energyMode={energyMode} />
 
       <StatCard>
         <SectionHeader
@@ -423,20 +423,40 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
             tip="Total grid infrastructure cost: gen-tie + transmission + substation upgrade. Green (<$100M), yellow ($100-500M), red (>$500M)."
           />
         )}
-        {row.solar_supply_coverage_pct != null && (
-          <ColoredStatRow
-            label={energyMode !== 'solar' ? 'Solar Coverage (Annual)' : 'RE Coverage (Annual)'}
-            value={`${(row.solar_supply_coverage_pct * 100).toFixed(0)}%`}
-            color={
-              row.solar_supply_coverage_pct >= 1.0
-                ? '#4CAF50'
-                : row.solar_supply_coverage_pct >= 0.5
-                  ? '#FFC107'
-                  : '#F44336'
-            }
-            tip="Total annual solar generation / total annual demand. Does NOT account for day/night mismatch."
-          />
-        )}
+        {(() => {
+          const covPct =
+            energyMode === 'wind'
+              ? row.wind_supply_coverage_pct
+              : energyMode === 'hybrid'
+                ? row.hybrid_supply_coverage_pct ?? row.solar_supply_coverage_pct
+                : row.solar_supply_coverage_pct;
+          const covLabel =
+            energyMode === 'wind'
+              ? 'Wind Coverage (Annual)'
+              : energyMode === 'hybrid'
+                ? 'Hybrid Coverage (Annual)'
+                : 'RE Coverage (Annual)';
+          const covTip =
+            energyMode === 'hybrid'
+              ? 'Combined solar+wind generation at optimal mix / total annual demand.'
+              : energyMode === 'wind'
+                ? 'Total annual wind generation / total annual demand.'
+                : 'Total annual solar generation / total annual demand. Does NOT account for day/night mismatch.';
+          return covPct != null ? (
+            <ColoredStatRow
+              label={covLabel}
+              value={`${(covPct * 100).toFixed(0)}%`}
+              color={
+                covPct >= 1.0
+                  ? '#4CAF50'
+                  : covPct >= 0.5
+                    ? '#FFC107'
+                    : '#F44336'
+              }
+              tip={covTip}
+            />
+          ) : null;
+        })()}
         {energyMode !== 'wind' &&
           row.bess_competitive != null &&
           row.battery_adder_usd_mwh != null &&
