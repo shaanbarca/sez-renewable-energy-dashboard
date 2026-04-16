@@ -1,0 +1,24 @@
+site_id,site_name,site_type,sector,primary_product,province,latitude,longitude,area_ha,capacity_annual,capacity_annual_tonnes,technology,parent_company,cbam_product_type
+krakatau-steel-cilegon,Krakatau Steel Cilegon,standalone,steel,crude_steel,Banten,-6.007021,106.001766,,4000000 TPA,4000000.0,EAF,Krakatau Steel,iron_steel
+krakatau-posco-cilegon,Krakatau Posco Cilegon,standalone,steel,crude_steel,Banten,-5.998661,105.998660,,3000000 TPA,3000000.0,BF-BOF,POSCO / Krakatau Steel,iron_steel
+dexin-steel-morowali,Dexin Steel Morowali,standalone,steel,crude_steel,Central Sulawesi,-2.829514,122.174896,,7000000 TPA,7000000.0,BF-BOF,Delong Holdings (China),iron_steel
+gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,standalone,steel,crude_steel,West Java,-6.282658,107.117683,,1820000 TPA,1820000.0,EAF,Gunung Raja Paksi,iron_steel
+master-steel-jakarta,Master Steel Jakarta,standalone,steel,crude_steel,DKI Jakarta,-6.184210,106.920067,,2000000 TPA,2000000.0,EAF,Master Steel MFG,iron_steel
+jakarta-prima-steel,Jakarta Prima Steel Industries,standalone,steel,crude_steel,DKI Jakarta,-6.181643,106.932331,,900000 TPA,900000.0,EAF,Jakarta Prima Steel,iron_steel
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,standalone,steel,crude_steel,East Java,-7.448,112.718,,700000 TPA,700000.0,EAF,ArcelorMittal,iron_steel
+semen-gresik-tuban,Semen Gresik Tuban,standalone,cement,clinker,East Java,-6.87,112.04,,15000000 TPA,15000000.0,Integrated,Semen Indonesia Group,cement
+indocement-citeureup,Indocement Citeureup,standalone,cement,clinker,West Java,-6.479811,106.899118,,11900000 TPA,11900000.0,Integrated,Indocement / Heidelberg,cement
+semen-padang-indarung,Semen Padang Indarung,standalone,cement,clinker,West Sumatra,-0.947827,100.469967,,8800000 TPA,8800000.0,Integrated,Semen Indonesia Group,cement
+semen-tonasa,Semen Tonasa,standalone,cement,clinker,South Sulawesi,-4.789565,119.616409,,7400000 TPA,7400000.0,Integrated,Semen Indonesia Group,cement
+sbi-narogong,SBI Narogong,standalone,cement,clinker,West Java,-6.48,106.96,,6060000 TPA,6060000.0,Integrated,Semen Indonesia Group,cement
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,standalone,cement,clinker,North Sulawesi,0.895624,124.081963,,4400000 TPA,4400000.0,Integrated,Anhui Conch (China),cement
+semen-bosowa-maros,Semen Bosowa Maros,standalone,cement,clinker,South Sulawesi,-4.95,119.58,,4200000 TPA,4200000.0,Integrated,Bosowa Corp,cement
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,standalone,cement,clinker,East Kalimantan,0.988195,117.481986,,4000000 TPA,4000000.0,Integrated,Hongshi (China),cement
+inalum-asahan,Inalum Asahan,standalone,aluminium,primary_aluminium,North Sumatra,2.703,99.243,,250000 TPA,250000.0,Hall-Heroult,Indonesia Asahan Aluminium (Inalum),aluminium
+freeport-smelter-gresik,Freeport Smelter Gresik,standalone,aluminium,copper_cathode,East Java,-7.161,112.654,,300000 TPA,300000.0,Flash Smelting,Freeport Indonesia / Inalum,aluminium
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,standalone,fertilizer,urea,East Kalimantan,0.121,117.500,,2400000 TPA,2400000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
+pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,standalone,fertilizer,urea,South Sumatra,-2.990,104.757,,2000000 TPA,2000000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
+petrokimia-gresik,Petrokimia Gresik,standalone,fertilizer,urea,East Java,-7.151,112.651,,3400000 TPA,3400000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
+weda-bay-industrial-park,Weda Bay Industrial Park,standalone,nickel,ferronickel,North Maluku,0.398,127.987,,60000 TPA,60000.0,RKEF,Tsingshan / Eramet,iron_steel
+obi-island-nickel,Obi Island Nickel,standalone,nickel,nickel_matte,North Maluku,-1.545,127.555,,30000 TPA,30000.0,HPAL,Harita Nickel,iron_steel
+konawe-industrial-park,Konawe Industrial Park,standalone,nickel,ferronickel,Southeast Sulawesi,-3.560,122.230,,45000 TPA,45000.0,RKEF,Obsidian Stainless Steel,iron_steel

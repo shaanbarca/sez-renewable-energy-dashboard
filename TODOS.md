@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-04-12 (JETP captive power integration priorities added).
+Last updated: 2026-04-16 (Industrial Parks Expansion cross-references added).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
@@ -79,11 +79,13 @@ From [physics_vs_tool_technical_gaps.md](docs/physics_vs_tool_technical_gaps.md)
 
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
-| M17 | **30 km "technically possible" grid integration layer** | JETP P1 #7 | P3 | Secondary, more permissive threshold (30km to substation) for policymaker view. JETP uses 30km for grid integration screening. Aligns with Norton Rose Fulbright 20-40km Indonesian IPP corridor. Keep existing 5km/15km thresholds for investor view. |
+| M17 | **30 km "technically possible" grid integration layer** | JETP P1 #7 | P3 | Secondary, more permissive threshold (30km to substation) for policymaker view. JETP uses 30km for grid integration screening. Aligns with Norton Rose Fulbright 20-40km Indonesian IPP corridor. Keep existing 5km/15km thresholds for investor view. **Expansion note:** New standalone plants outside KEK 5km/15km thresholds benefit from the 30km view. Scope expands to cover non-KEK sites. |
 | M18 | **Grant-funded transmission scenario toggle** | JETP P1 #8 | P2, P4 | Toggle that sets connection cost contribution to zero — models DFI grant scenario (e.g. UK MENTARI programme). Shows: "if a DFI covers the gen-tie cost, here's the LCOE impact." |
 | ~~M19~~ | ~~**BESS high-reliability multiplier for RKEF KEKs**~~ | JETP P1 #9 | P4 | ✅ Done (2026-04-12) — Auto-doubles BESS sizing (2h → 4h) when `dominant_process_type == "RKEF"`. Doubles battery CAPEX component ($500→$1,000/kW-solar). Visible in `invest_battery` flag description and `lcoe_with_battery_usd_mwh`. |
 | M20 | **CIT waiver impact on LCOE** | JETP P1 #11 | P2, P4 | Model post-tax LCOE with/without corporate income tax waiver (PMK 130/2020: 100% CIT waiver for 10 years if investment > IDR 100B). Checkbox toggle in assumptions. |
 | M21 | **Hydropower potential layer** | JETP P1 #12 | P2, P3 | MEMR One Map run-of-river data, 30km radius from KEKs. JETP found 3.2 GW run-of-river potential near captive sites. For Sulawesi KEKs (Morowali, Konawe), hydro may beat solar. Needs new LCOE model for hydro. |
+| M22 | **Priority 2-3 industrial sites** | Industrial Parks Expansion | All | Petrochemical (Chandra Asri, TPPI), refining, non-KEK nickel expansion. SiteTypeConfig registry makes this a data-only addition (1 dict entry per type). |
+| M23 | **Col class for column name constants** | Industrial Parks Expansion | All | Replace string literals with `Col.SITE_ID` etc. Prevents rename bugs (silent NaN joins from Pandas). Incremental adoption, one pipeline file at a time. See `docs/PLAN_INDUSTRIAL_PARKS_EXPANSION.md` Design Decision 4. |
 
 ---
 
@@ -92,7 +94,7 @@ From [physics_vs_tool_technical_gaps.md](docs/physics_vs_tool_technical_gaps.md)
 | # | Item | Source | Personas | Notes |
 |---|------|--------|----------|-------|
 | L1 | **Datasette REST API** | PLAN.md CEO review | All | Mirror processed CSVs via REST API for programmatic access. |
-| L2 | **SAIDI/SAIFI reliability indicators** | PLAN.md CEO review | P3 | Replace hardcoded `reliability_req` with PLN SAIDI/SAIFI by grid system. Strengthens `invest_resilience` flag. |
+| L2 | **SAIDI/SAIFI reliability indicators** | PLAN.md CEO review | P3 | Replace hardcoded `reliability_req` with PLN SAIDI/SAIFI by grid system. Strengthens `invest_resilience` flag. **Expansion note:** `SECTOR_RELIABILITY_REQUIREMENT` now provides sector-based defaults for non-KEK sites (steel=0.90, aluminium=0.95). SAIDI/SAIFI data would replace both KEK type-based and sector-based proxies. |
 | L3 | **Flood hazard layer (Layer 2d)** | PERSONAS.md gap 9 | P2 | BNPB portal inaccessible. Low incremental value over slope layer. Blocked on data access. |
 | L4 | **Excel/PDF export pipeline** | Autoplan CEO subagent | All | Formatted Excel workbook with charts + PDF scorecard per KEK. |
 | L5 | **Multilingual (EN/ID)** | — | P3 | Indonesian language option for BKPM/KESDM officials. |
@@ -109,10 +111,13 @@ From [physics_vs_tool_technical_gaps.md](docs/physics_vs_tool_technical_gaps.md)
 | L11 | **Cross-reference ESDM Minerba Geoportal** | JETP P2 #12 | All | Government-authoritative validation of CGSP/GEM data. Mining concession boundaries, processing facility permits, regulatory status. May require manual extraction. |
 | L12 | **Geothermal potential layer** | JETP P2 #13 | P2, P3 | MEMR One Map, 30km radius. Fills gap for Sulawesi and North Sumatra KEKs. Needs new LCOE model for geothermal. |
 | L13 | **Biomass potential layer** | JETP P2 #14 | P3 | MEMR One Map, province-level. Niche but relevant for pulp & paper KEKs. Simpler than point-based layers. |
-| L14 | **Import JETP demand projections** | JETP P2 #15 | All | Replaces area × intensity proxy with activity-driven demand for overlapping KEKs. Requires JETP Secretariat data sharing or database access. |
+| L14 | **Import JETP demand projections** | JETP P2 #15 | All | Replaces area x intensity proxy with activity-driven demand for overlapping KEKs. Requires JETP Secretariat data sharing or database access. **Expansion note:** sector-intensity demand estimation now provides production-based demand for non-KEK sites, partially addressing this gap. JETP projections would further improve accuracy for overlapping KEK/industrial sites. |
 | L15 | **REC pathway indicator** | JETP P2 #16 | P5 | Model REC cost vs. solar LCOE as alternative decarbonization path. Tenant can achieve ESG compliance via certificate purchase without physical solar. Distinct from GEAS green share. |
-| L16 | **Industrial clustering benefit on LCOE** | JETP P2 #17 | P2, P4 | Model how aggregated demand within KEK (multiple tenants) affects solar+BESS sizing and LCOE. KEKs are clusters by design but app doesn't model the scaling benefit. High effort. |
+| L16 | **Industrial clustering benefit on LCOE** | JETP P2 #17 | P2, P4 | Model how aggregated demand within KEK (multiple tenants) affects solar+BESS sizing and LCOE. KEKs are clusters by design but app doesn't model the scaling benefit. High effort. **Expansion note:** Cluster `site_type` now models aggregated demand. BESS sizing reflects cluster-level demand. Full shared-infrastructure LCOE discount still deferred. |
 | L17 | **Social/environmental impact flags from CGSP** | JETP P2 #18 | P2, P5 | CGSP includes social and ecological impact flags for nickel projects. ESG-relevant for Tenant and DFI personas. Low effort once CGSP data (H6) is integrated. |
+| L18 | **Process emissions (Scope 1) for CBAM** | Industrial Parks Expansion | P1, P2, P3 | Cement calcination, aluminum electrolysis, steel reduction. Current CBAM model covers Scope 2 (electricity) only. Requires sector-specific process emission models. See `docs/PLAN_INDUSTRIAL_PARKS_EXPANSION.md` Phase 5. |
+| L19 | **PyPSA grid optimization integration** | Industrial Parks Expansion | P2, P3 | Export dim_sites + fact tables as `pypsa.Network` for capacity expansion planning. Star schema join path `site -> substation -> grid_region -> RUPTL` is the natural adapter boundary. Public data first, private data later. |
+| L20 | **PLN Supergrid corridor visualization** | Industrial Parks Expansion | P2, P3 | RUPTL Super Grid corridor data -> map overlay + `corridor_arrival_year` column per site. `pln_grid_lines.geojson` (1,595 lines) already exists. Requires RUPTL data parsing for corridor schedule. |
 
 ---
 
@@ -174,10 +179,10 @@ These are data limitations. The dashboard should display clear labels/tooltips f
 
 | # | Caveat | Display treatment | Source |
 |---|--------|------------------|--------|
-| C1 | `demand_mwh_2030` is area x intensity proxy | Tooltip: "Estimated from KEK area x industrial intensity. Not suitable for PPA sizing; field surveys required." | PERSONAS.md P4 data gaps |
+| C1 | `demand_mwh_2030` is area x intensity proxy (KEKs) / production-based (industrial sites) | Tooltip: "KEK demand estimated from area x industrial intensity. Industrial sites use production-based calculation (capacity x sector electricity intensity). Not suitable for PPA sizing; field surveys required." | PERSONAS.md P4 data gaps, Industrial Parks Expansion |
 | C2 | GEAS pro-rata allocation is indicative | Label: "Indicative GEAS allocation, not contractual. Actual allocation depends on PLN tender design." | PERSONAS.md P3 data gaps |
 | C3 | Substation capacity nulls (6/25 KEKs) | Display "—" with tooltip: "Capacity not recorded by PLN" | PERSONAS.md P2 data gaps |
-| C4 | `reliability_req` is type-based proxy | Label on `invest_resilience` flag: "Based on KEK type (manufacturing=0.8, tourism=0.4), pending PLN SAIDI/SAIFI data" | PERSONAS.md P3 data gaps |
+| C4 | `reliability_req` is type-based proxy (KEKs) / sector-based (industrial sites) | Label on `invest_resilience` flag: "KEKs: based on KEK type (manufacturing=0.8, tourism=0.4). Industrial sites: based on sector (steel=0.90, aluminium=0.95). Pending PLN SAIDI/SAIFI data." | PERSONAS.md P3 data gaps, Industrial Parks Expansion |
 | ~~C5~~ | ~~Panel degradation not modeled~~ | ✅ Resolved (V3.4, P5): 0.5%/yr midpoint degradation now included in `lcoe_solar()`. LCOE corrected upward ~7%. | Methodology audit F7 |
 | C6 | Carbon breakeven excludes solar lifecycle emissions | Tooltip on carbon breakeven: "Assumes zero solar lifecycle emissions. Actual ~40 gCO2/MWh (IPCC AR6). Breakeven ~5-8% optimistic." | Methodology audit F9 |
 | ~~C7~~ | ~~IDR/USD rate hardcoded~~ | ✅ Resolved: IDR/USD rate is now a Tier 2 slider (range 14,000-18,000, step 100). User-adjustable. | Methodology audit F10 |
