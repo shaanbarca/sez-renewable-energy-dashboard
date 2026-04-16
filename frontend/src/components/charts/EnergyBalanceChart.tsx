@@ -103,9 +103,10 @@ export default function EnergyBalanceChart({
   const gapGwh = Math.max(totalDemand - totalSupply, 0);
   const gapPct = 100 - totalSupplyPct;
 
-  // For hybrid: split supply bar into solar + wind segments
-  const solarPct = totalSupply > 0 ? (scaledSolar / totalDemand) * 100 : 0;
-  const windPct = totalSupply > 0 ? (scaledWind / totalDemand) * 100 : 0;
+  // For hybrid/wind: split supply bar into solar + wind segments,
+  // proportional to each other within the capped bar width.
+  const solarPct = totalSupply > 0 ? (scaledSolar / totalSupply) * totalSupplyPct : 0;
+  const windPct = totalSupply > 0 ? (scaledWind / totalSupply) * totalSupplyPct : 0;
 
   // Summary line
   let summary: string;
@@ -203,17 +204,17 @@ export default function EnergyBalanceChart({
         <div className="flex rounded overflow-hidden" style={{ background: 'var(--bar-bg)' }}>
           {isHybrid || isWind ? (
             <>
-              {scaledSolar > 0 && (
+              {solarPct > 0 && (
                 <BarSegment
-                  widthPct={Math.min(solarPct, 100)}
+                  widthPct={solarPct}
                   color={COLORS.solar}
                   label="Solar"
                   gwh={scaledSolar}
                 />
               )}
-              {(scaledWind > 0 || isWind) && (
+              {windPct > 0 && (
                 <BarSegment
-                  widthPct={Math.min(windPct, 100 - (scaledSolar > 0 ? Math.min(solarPct, 100) : 0))}
+                  widthPct={windPct}
                   color={COLORS.wind}
                   label="Wind"
                   gwh={isWind ? windGwh : scaledWind}
