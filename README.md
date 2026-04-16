@@ -132,7 +132,8 @@ If you use this software or dataset in your research, please cite:
   title     = {SEZ Renewable Energy Dashboard},
   year      = {2026},
   version   = {1.0.0},
-  url       = {https://github.com/shaanbarca/sez-renewable-energy-dashboard}
+  doi       = {10.5281/zenodo.19570542},
+  url       = {https://doi.org/10.5281/zenodo.19570542}
 }
 ```
 
