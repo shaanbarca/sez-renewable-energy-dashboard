@@ -1,0 +1,27 @@
+xid,slug,title,address,latitude,longitude,legalBasis,category.id,category.name,status.id,status.name,createdAt,updatedAt
+FHE4Z6LV,industropolis-batang,Industropolis Batang,"Batang Regency, Central Java",-6.930301,109.9617023,Government Regulation (PP) Number 12 of 2025,2,Manufacturing,1,Active,1753330255,1768380100
+K105PK59,batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,"Batam City, Riau Islands",1.1377283591127,103.92457856774,Government Regulation (PP) Number 39 of 2024,1,Service,1,Active,1729671628,1768448649
+DM31BTSP,bumi-serpong-damai,"Banten International Education, Technology, and Health","Tangerang Regency, Banten Province",-6.308799293523,106.65753024663,Government Regulation No. 38 of 2024,1,Service,1,Active,1729670585,1768380555
+WQMIDXT7,setangga,Setangga,"Tanah Bumbu Regency, South Kalimantan Province",-3.2813775344249,116.07748257442,Government Regulation Number 26 of 2024,2,Manufacturing,1,Active,1718357309,1718357313
+R0DHB01G,tanjung-sauh,Tanjung Sauh,"Pulau Tanjung Sauh, Kecamatan Nongsa, Kota Batam, Provinsi Kepulauan Riau",1.0429294494269,104.17274106649,Government Regulation Number 24 of 2024,2,Manufacturing,1,Active,1717404019,1717476764
+T7K767GK,kek-arun-lhokseumawe,Arun Lhokseumawe,"Jl. Medan - Banda Aceh, Industri, Kec. Muara Satu, Kota Lhokseumawe, Aceh",5.2199197298726,97.080259039528,Government Regulation Number 5 of 2017,2,Manufacturing,1,Active,1703069577,1710910851
+2O0SBMIR,kek-sanur,Sanur,"South Denpasar District, Denpasar City, Bali Province",-8.6942352931407,115.26295962249,Government Regulation Number 41 of 2022,1,Service,1,Active,1703069199,1768380655
+EQ2V15E9,kek-kendal,Kendal,"Jl. Raya Arteri KM. 19, Brangsong, Brangsong Utara, Brangsong, Kec. Brangsong, Kabupaten Kendal, Jawa Tengah 51371",-6.9355648813555,110.24833446931,PP no 85 2019,2,Manufacturing,1,Active,1703069101,1768380691
+X3WP2H7T,kek-sorong,Sorong,"Arar, Mayamuk, Sorong Regency, West Papua 98451",-1.0292733746334,131.24345068184,Government Regulation Number 31 of 2016,2,Manufacturing,1,Active,1703068846,1768380737
+2TVFCFHS,kek-singhasari,Singhasari,"Jl. Trunojoyo No.4, Ngadiluwih, Kedungpedaringan, Kec. Kepanjen, Malang, Jawa Timur 65163",-7.5151962757576,112.7434025685,PP 68 Tahun 2019,1,Service,1,Active,1703067941,1768380761
+2RX5BA2F,kek-morotai,Morotai,"Kabupaten Pulau Morotai, North Maluku",2.3750901219475,128.41811690865,Government Regulation no. 50 of 2014,1,Service,1,Active,1703067756,1705990921
+OD27JLMB,kek-gresik,Gresik,"Gresik district, East Java province",-7.0854668845705,112.60680989557,Peraturan Pemerintah nomor 71 tahun 2021,2,Manufacturing,1,Active,1703067505,1705982708
+S77Y6E3H,kek-likupang,Likupang,"Kawasan Pemkab, Airmadidi Atas, Kec. Airmadidi, Kabupaten Minahasa Utara, Sulawesi Utara
+Telp : (0431) 893059",1.680721711081,125.15739596932,PP 84 tahun 2019,1,Service,1,Active,1703067220,1722832274
+9ADZ60P4,kek-bitung,Bitung,"Jl. Piere Tendean, Kelurahan Sagerat, Kec. Matuari, Kota Bitung, Sulawesi Utara 95546",1.4243289186209,125.10987982233,Government Regulation Number 32 of 2014,2,Manufacturing,1,Active,1703067010,1705992514
+58AXOGQP,kek-palu,Palu,"Baiya, Palu, Palu City, Central Sulawesi 94352",-0.71188721731303,119.8703393558,Government Regulation Number 31 of 2014,2,Manufacturing,1,Active,1703066344,1705996342
+4AY0KWIF,kek-kura-kura,Kura Kura Bali,"Pulau Serangan, Kota Denpasar, Provinsi Bali",-8.7312613066451,115.23086607725,PP No 23 Tahun 2023,1,Service,1,Active,1703065909,1711519433
+6PMG1FT2,kek-galang-batang,Galang Batang,"Jalan Samudera no 1 Desa Gunung Kijang, Bintan Regency, Riau Islands 29151",0.91112087616108,104.65970479459,PP 42 tahun 2017,3,Processing,1,Active,1703065131,1730277708
+IL2HNTNA,kek-maloy-batuta,Maloy Batuta Trans Kalimantan,"Citra Manunggal Jaya, Kaliorang, East Kutai Regency, East Kalimantan 75618",0.81659915671314,117.93022440699,PP No 85 Tahun 2014,2,Manufacturing,1,Active,1703065097,1706072996
+HA1RIV48,kek-nongsa,Nongsa,"Jl. Hang Lekiu, Sambau, Kecamatan Nongsa, Kota Batam, Kepulauan Riau 29465",1.191175886339,104.09214803974,PP no 68 Tahun 2021,1,Service,1,Active,1703064241,1769055893
+BJMRJZF8,kek-mandalika,Mandalika,"Kuta, Pujut, Central Lombok Regency, West Nusa Tenggara 83573",-8.8963124944653,116.29090641579,PP No 52 Tahun 2014,1,Service,1,Active,1703063909,1706003141
+C69QX69X,kek-batam-aero-technic,Batam Aero Technic,"Hang Nadim Airport Area, Batu Besar, Nongsa, Batam City, Riau Islands Province",1.1393365211312,104.12432224421,PP No 67 tahun 2021,2,Manufacturing,1,Active,1703063265,1769055801
+TZEL8L3M,kek-tanjung-kelayang,Tanjung Kelayang,"Tanjung Binga, Sijuk, Belitung Regency, Bangka Belitung Islands 33414",-2.5711927695212,107.65499155301,PP No 6 Tahun 2016,1,Service,1,Active,1703062418,1706004192
+CL8NNO30,kek-lido,Lido,"Jl. Raya Bogor - Sukabumi No.Km 21, Watesjaya, Kec. Cigombong, Kabupaten Bogor, Jawa Barat 16110",-6.7536528309529,106.81210085326,PP no 69 tahun 2021,1,Service,1,Active,1703060551,1722832360
+XYSSV7P3,kek-tanjung-lesung,Tanjung Lesung,"Tanjungjaya, Panimbang, Pandeglang Regency, Banten 42281",-6.4817887185833,105.65248380886,KEK Tanjung Lesung,1,Service,1,Active,1703002929,1710903667
+GDDN9GE1,kek-sei-mangkei,Sei Mangkei,"Jl. Kelapa Sawit II No.1, Sei Mangkei, Kec. Bosar Maligas, Kabupaten Simalungun, Sumatera Utara 21183",3.1324879221829,99.340577853012,PP No 29 Tahun 2012,3,Processing,1,Active,1703002909,1710903654
