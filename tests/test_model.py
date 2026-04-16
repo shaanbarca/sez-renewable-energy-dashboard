@@ -300,11 +300,11 @@ class TestLcoeSolarWithFirming:
 
 class TestBessStorageAdder:
     def test_plausible_range(self):
-        """Battery adder at defaults (2h, $250/kWh, CF=0.18) should be $25-60/MWh."""
+        """Battery adder at defaults (2h, $150/kWh, CF=0.18) should be $15-40/MWh."""
         from src.model.basic_model import bess_storage_adder
 
         result = bess_storage_adder()
-        assert 25.0 < result < 60.0, f"Battery adder = ${result:.1f}/MWh, expected $25-60"
+        assert 15.0 < result < 40.0, f"Battery adder = ${result:.1f}/MWh, expected $15-40"
 
     def test_higher_capex_higher_adder(self):
         from src.model.basic_model import bess_storage_adder
@@ -1686,3 +1686,74 @@ class TestHybridRE:
         )
         # At share=1.0: total_gen = 1M solar + 0 wind = 1M
         assert abs(result["hybrid_supply_coverage_pct"] - 0.5) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# EconomicTier — 2D classification system
+# ---------------------------------------------------------------------------
+
+
+class TestEconomicTier:
+    def test_full_re(self):
+        """All-in (RE + storage) beats grid → deploy 24/7."""
+        from src.model.basic_model import economic_tier
+
+        assert economic_tier(50.0, 60.0, 63.0, has_resource=True) == "full_re"
+
+    def test_partial_re(self):
+        """Bare RE beats grid, but all-in with storage doesn't."""
+        from src.model.basic_model import economic_tier
+
+        assert economic_tier(55.0, 75.0, 63.0, has_resource=True) == "partial_re"
+
+    def test_near_parity(self):
+        """RE LCOE within 20% of grid cost."""
+        from src.model.basic_model import economic_tier
+
+        # 70/63 - 1 = 11.1% gap < 20%
+        assert economic_tier(70.0, 120.0, 63.0, has_resource=True) == "near_parity"
+
+    def test_not_competitive(self):
+        """RE LCOE > 20% above grid cost."""
+        from src.model.basic_model import economic_tier
+
+        # 100/63 - 1 = 58.7% gap > 20%
+        assert economic_tier(100.0, 200.0, 63.0, has_resource=True) == "not_competitive"
+
+    def test_no_resource(self):
+        """No buildable area overrides everything."""
+        from src.model.basic_model import economic_tier
+
+        assert economic_tier(50.0, 60.0, 63.0, has_resource=False) == "no_resource"
+
+    def test_none_inputs(self):
+        """Missing LCOE data → not competitive."""
+        from src.model.basic_model import economic_tier
+
+        assert economic_tier(None, None, 63.0, has_resource=True) == "not_competitive"
+
+    def test_near_parity_exact_boundary(self):
+        """At exactly 20% gap → near_parity (inclusive)."""
+        from src.model.basic_model import economic_tier
+
+        # 75.6 / 63 - 1 = 20.0%
+        assert economic_tier(75.6, 120.0, 63.0, has_resource=True) == "near_parity"
+
+    def test_full_re_boundary(self):
+        """All-in exactly equal to grid → full_re."""
+        from src.model.basic_model import economic_tier
+
+        assert economic_tier(50.0, 63.0, 63.0, has_resource=True) == "full_re"
+
+    def test_allin_none_with_valid_lcoe(self):
+        """Missing all-in but bare LCOE beats grid → partial_re (not not_competitive)."""
+        from src.model.basic_model import economic_tier
+
+        assert economic_tier(50.0, None, 63.0, has_resource=True) == "partial_re"
+
+    def test_allin_none_near_parity(self):
+        """Missing all-in, bare LCOE within 20% of grid → near_parity."""
+        from src.model.basic_model import economic_tier
+
+        # 70/63 - 1 = 11.1% gap < 20%
+        assert economic_tier(70.0, None, 63.0, has_resource=True) == "near_parity"

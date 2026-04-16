@@ -1,6 +1,11 @@
 import { type CellContext, createColumnHelper, type FilterFn } from '@tanstack/react-table';
-import { getEffectiveActionFlag, getEffectiveFlagExplanation } from '../../lib/actionFlags';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import {
+  getEconomicTierDescription,
+  getEconomicTierLabel,
+  getEffectiveEconomicTier,
+  getEffectiveInfraReadiness,
+} from '../../lib/actionFlags';
+import { ECONOMIC_TIER_COLORS, INFRA_READINESS_LABELS } from '../../lib/constants';
 import { capitalize, formatSnakeLabel } from '../../lib/format';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -85,18 +90,20 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
   );
 }
 
-/* ---------- Action flag cell (energy-mode-aware) ---------- */
+/* ---------- RE Assessment cell (2D: economic tier + infrastructure) ---------- */
 
-function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> }) {
+function ReAssessmentCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
   const row = info.row.original;
-  const flag = getEffectiveActionFlag(row, energyMode);
-  const color = ACTION_FLAG_COLORS[flag] ?? '#666';
-  const label = ACTION_FLAG_LABELS[flag] ?? flag;
-  const explanation = getEffectiveFlagExplanation(flag, row, energyMode);
+  const tier = getEffectiveEconomicTier(row, energyMode);
+  const infra = getEffectiveInfraReadiness(row);
+  const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
+  const tierLabel = getEconomicTierLabel(tier, energyMode);
+  const infraLabel = INFRA_READINESS_LABELS[infra] ?? infra;
+  const description = getEconomicTierDescription(tier, energyMode);
 
   return (
-    <span className="relative group/flag flex items-center gap-2">
+    <span className="relative group/flag flex items-center gap-1.5">
       <span
         className="relative inline-flex items-center justify-center flex-shrink-0"
         style={{ width: 12, height: 12 }}
@@ -105,15 +112,20 @@ function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> 
         {row.cbam_exposed && (
           <span
             className="absolute inset-0 rounded-full"
-            style={{
-              border: '1.5px solid #FF6F00',
-            }}
+            style={{ border: '1.5px solid #FF6F00' }}
             title="CBAM Exposed"
           />
         )}
       </span>
-      <span>{label}</span>
-      {explanation && (
+      <span className="flex flex-col leading-tight">
+        <span className="text-xs" style={{ color }}>
+          {tierLabel}
+        </span>
+        <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+          {infraLabel}
+        </span>
+      </span>
+      {description && (
         <span
           className="absolute left-0 top-full mt-1 w-56 px-2.5 py-2
                      text-[10px] leading-relaxed text-zinc-300 font-normal whitespace-normal
@@ -128,9 +140,9 @@ function ActionFlagCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> 
           }}
         >
           <span className="font-medium" style={{ color }}>
-            {label}:
+            {tierLabel}:
           </span>{' '}
-          {explanation}
+          {description}
         </span>
       )}
     </span>
@@ -190,8 +202,8 @@ export const columns = [
     },
   }),
   col.accessor('action_flag', {
-    header: () => <HeaderWithTooltip label="Action Flag" columnId="action_flag" />,
-    cell: (info) => <ActionFlagCell info={info} />,
+    header: () => <HeaderWithTooltip label="RE Assessment" columnId="action_flag" />,
+    cell: (info) => <ReAssessmentCell info={info} />,
   }),
   col.accessor('grid_integration_category', {
     header: () => (

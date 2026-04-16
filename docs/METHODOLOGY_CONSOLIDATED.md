@@ -132,7 +132,7 @@ Step 5 — Action flags (14 flags across 4 energy modes, priority-ordered; inclu
 | Solar CF | 0.148-0.197 | Derived: PVOUT / 8,760 |
 | Wind speed (100m) | 2-8 m/s | Global Wind Atlas v3 GeoTIFF |
 | Wind CF | 0.00-0.27 | Piecewise-linear from wind speed |
-| Solar CAPEX (central) | 960 USD/kW | ESDM Tech Catalogue 2023, p.66 |
+| Solar CAPEX (central) | 850 USD/kW | Market-adjusted 2025 (ESDM 2023 = 960; IRENA RPGC 2024 Indonesia = $800-1,000) |
 | Solar FOM | 7.5 USD/kW/yr | ESDM Tech Catalogue 2023, p.66 |
 | Solar lifetime | 27 years | ESDM Tech Catalogue 2023, p.66 |
 | WACC | 4-20% (slider, default 10%) | User-adjustable |
@@ -371,7 +371,7 @@ bess_storage_adder = (bess_capex_per_kw_solar × CRF_bess + FOM_bess_adj) / (eff
 
 | Parameter | Default | Range | Source |
 |---|---|---|---|
-| `BESS_CAPEX_USD_PER_KWH` | $250/kWh | $100-500/kWh | BNEF 2024 Asia utility-scale Li-ion |
+| `BESS_CAPEX_USD_PER_KWH` | $150/kWh | $100-300/kWh | Market-adjusted 2025 (BNEF system $110, Ember $125, +Indonesia premium) |
 | `BESS_DISCHARGE_HOURS` | 4.0h | - | Standard 4-hour system |
 | `BESS_SIZING_HOURS` | 2.0h | - | Cloud-firming default (low-reliability loads) |
 | `BESS_ROUND_TRIP_EFFICIENCY` | 0.87 | 0.75-0.95 | BNEF 2024, utility-scale Li-ion LFP AC-to-AC |
@@ -403,7 +403,7 @@ This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufact
 | RKEF nickel (legacy) | dominant_process_type = "RKEF" | 4h | M19 multiplier, applies when bridge-hours disabled |
 | Standard/tourism | All others | 2h | Cloud-firming and early evening ramp |
 
-**Result at defaults ($250/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~$290/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~$45/MWh.
+**Result at defaults ($150/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~$174/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~$27/MWh. (Prior default of $250/kWh produced ~$290/MWh and ~$45/MWh respectively.)
 
 **Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Storage must bridge the gap between solar production hours and demand hours. At equatorial latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store 14h × load_MW / RTE of energy.
 
@@ -417,15 +417,15 @@ LCOE_with_battery = LCOE_solar + bess_storage_adder
 
 ### 6.4 Technology parameters
 
-**Solar (TECH006):** Verified from ESDM Technology Catalogue 2023, p.66 (`VERIFIED_TECH006_DATA` in `pdf_extract_esdm_tech.py`).
+**Solar (TECH006):** ESDM Technology Catalogue 2023, p.66 (`VERIFIED_TECH006_DATA` in `pdf_extract_esdm_tech.py`). Pipeline extraction preserves the catalogue value (960 USD/kW). The user-facing slider default is market-adjusted to 850 USD/kW based on IRENA RPGC 2024 Indonesia pricing ($800-1,000/kW range).
 
-| Parameter | Value | Unit |
-|-----------|-------|------|
-| CAPEX (central) | 960 | USD/kW |
-| CAPEX (lower) | 840 | USD/kW |
-| CAPEX (upper) | 1,080 | USD/kW |
-| FOM | 7.5 | USD/kW/yr |
-| Lifetime | 27 | years |
+| Parameter | ESDM Catalogue | Slider Default | Unit |
+|-----------|---------------|----------------|------|
+| CAPEX (central) | 960 | 850 | USD/kW |
+| CAPEX (lower) | 840 | - | USD/kW |
+| CAPEX (upper) | 1,080 | - | USD/kW |
+| FOM | 7.5 | 7.5 | USD/kW/yr |
+| Lifetime | 27 | 27 | years |
 
 **Wind (TECH_WIND_ONSHORE):** From ESDM Technology Catalogue 2024, p.90. CAPEX $1,650/kW, FOM $40/kW/yr, Lifetime 27 years.
 
@@ -1258,7 +1258,7 @@ For backward compatibility, flat `cbam_*` fields at the KEK level use the **prim
 | Fixed O&M | 7.5 $/kW-yr | 3-15 | Annual maintenance |
 | Connection cost | 5 $/kW-km | 2-15 | Solar-to-substation line |
 | Grid connection fixed | 80 $/kW | 30-200 | Substation interconnection |
-| BESS CAPEX | 250 $/kWh | 100-500 | Battery storage cost |
+| BESS CAPEX | 150 $/kWh | 100-300 | Battery storage cost |
 | BESS Sizing Override | None (auto) | 1-16h | Override auto sizing (2h/4h/14h) to explore tradeoffs |
 | IDR/USD rate | 15,800 | 14,000-18,000 | Exchange rate |
 
@@ -1356,7 +1356,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | Default WACC | 10% | ADB (2020), IRENA (2023) | Slider: 4-20% |
 | Grid connection cost | $5/kW-km + $80/kW | Industry estimates | Slider: $2-15/kW-km, $30-200/kW |
 | Land cost | $45/kW | $3/m2 x 1.5 ha/MW | Slider: $0-300/kW |
-| BESS CAPEX | $250/kWh | BNEF 2024 Asia | Slider: $100-500/kWh |
+| BESS CAPEX | $150/kWh | Market-adjusted 2025 (BNEF $110, Ember $125, +Indonesia premium) | Slider: $100-300/kWh |
 | PVOUT siting radius | 50km | Typical siting flexibility | Fixed |
 | Regional solar CF (GEAS) | 20% | Representative for Indonesia | Low sensitivity |
 | Plan-late threshold | post2030 >= 60% | Majority post-2030 = late | Low sensitivity |
@@ -1504,8 +1504,11 @@ The 50km radius in this model is a siting economics constraint, not a legal limi
 
 ### Technology Cost Parameters
 
-- Kementerian ESDM (Ministry of Energy and Mineral Resources). (2023). *Katalog Teknologi: Katalog Teknologi Energi Baru, Terbarukan, dan Konservasi Energi 2023* (Technology Catalogue for New, Renewable Energy and Energy Conservation). Jakarta: ESDM. Solar PV parameters from p. 66 (TECH006); wind parameters from p. 90.
-- BloombergNEF. (2024). *Energy Storage System Cost Survey 2024*. Battery pack price for Asia utility-scale Li-ion: $250/kWh (2024 central estimate). Used for BESS storage model (§6.3).
+- Kementerian ESDM (Ministry of Energy and Mineral Resources). (2023). *Katalog Teknologi: Katalog Teknologi Energi Baru, Terbarukan, dan Konservasi Energi 2023* (Technology Catalogue for New, Renewable Energy and Energy Conservation). Jakarta: ESDM. Solar PV parameters from p. 66 (TECH006); wind parameters from p. 90. Pipeline extraction preserves catalogue values (960 USD/kW); slider default adjusted to 850 USD/kW per 2025 market data.
+- BloombergNEF. (2025). *Lithium-ion Battery Price Survey 2025*. Global utility-scale system price: $110/kWh (pack-only LFP: $70/kWh). Chinese tender average: $63/kWh. Used for BESS storage model (§6.3).
+- Ember. (2025). *Global Electricity Mid-Year Insights 2025*. Battery system cost for non-China/US markets: $125/kWh. Confirms BNEF pricing trajectory.
+- IRENA. (2024). *Renewable Power Generation Costs in 2023*. Global solar PV: $691/kW; Asia excl. China/India: $1,133/kW; Indonesia range: $800-1,000/kW. Used to market-adjust ESDM 2023 catalogue default.
+- IEA. (2024). *Cost of Capital Observatory*. Indonesia RE project WACC: ~10%. Confirms existing default.
 
 ### Grid Cost and Tariff Data
 

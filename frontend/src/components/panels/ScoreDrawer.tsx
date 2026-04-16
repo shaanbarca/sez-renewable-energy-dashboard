@@ -1,13 +1,24 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ACTION_FLAG_HIERARCHY_BY_MODE,
-  getActionSectionTitle,
-  getEffectiveActionFlag,
-  getEffectiveFlagExplanation,
+  getEconomicTierDescription,
+  getEconomicTierLabel,
+  getEffectiveEconomicTier,
+  getEffectiveInfraReadiness,
+  getEffectiveModifiers,
+  getInfraReadinessLabel,
 } from '../../lib/actionFlags';
 import { fetchKekSubstations } from '../../lib/api';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import {
+  ECONOMIC_TIER_COLORS,
+  ECONOMIC_TIER_HIERARCHY,
+  INFRA_READINESS_COLORS,
+  INFRA_READINESS_DESCRIPTIONS,
+  INFRA_READINESS_HIERARCHY,
+  INFRA_READINESS_LABELS,
+  MODIFIER_BADGE_COLORS,
+  MODIFIER_BADGE_LABELS,
+} from '../../lib/constants';
 import { capitalize, formatGridRegion, formatSnakeLabel } from '../../lib/format';
 import type { ScorecardRow, SubstationWithCosts, UserAssumptions } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -428,7 +439,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
             energyMode === 'wind'
               ? row.wind_supply_coverage_pct
               : energyMode === 'hybrid'
-                ? row.hybrid_supply_coverage_pct ?? row.solar_supply_coverage_pct
+                ? (row.hybrid_supply_coverage_pct ?? row.solar_supply_coverage_pct)
                 : row.solar_supply_coverage_pct;
           const covLabel =
             energyMode === 'wind'
@@ -446,13 +457,7 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
             <ColoredStatRow
               label={covLabel}
               value={`${(covPct * 100).toFixed(0)}%`}
-              color={
-                covPct >= 1.0
-                  ? '#4CAF50'
-                  : covPct >= 0.5
-                    ? '#FFC107'
-                    : '#F44336'
-              }
+              color={covPct >= 1.0 ? '#4CAF50' : covPct >= 0.5 ? '#FFC107' : '#F44336'}
               tip={covTip}
             />
           ) : null;
@@ -1868,36 +1873,93 @@ function DemandTab({ row }: { row: ScorecardRow }) {
 
 function ActionTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
-  const activeFlag = getEffectiveActionFlag(row, energyMode);
-  const hierarchy = ACTION_FLAG_HIERARCHY_BY_MODE[energyMode];
-  const activeIdx = hierarchy.indexOf(activeFlag);
+  const activeTier = getEffectiveEconomicTier(row, energyMode);
+  const activeInfra = getEffectiveInfraReadiness(row);
+  const modifiers = getEffectiveModifiers(row);
+  const activeTierIdx = ECONOMIC_TIER_HIERARCHY.indexOf(activeTier);
+  const activeInfraIdx = INFRA_READINESS_HIERARCHY.indexOf(activeInfra);
 
   return (
     <>
+      {/* Two-column: Economic Viability + Infrastructure Readiness */}
       <StatCard>
-        <SectionHeader
-          title={getActionSectionTitle(energyMode)}
-          subtitle="Where this KEK sits on the path from analysis to deployment"
-          tip="Flags are ranked best to worst. The active flag (highlighted) is this KEK's primary action recommendation based on RE economics, grid readiness, and pipeline status."
-        />
-        {hierarchy.map((flag, i) => {
-          const isActive = activeFlag === flag;
-          const isAbove = activeIdx >= 0 && i < activeIdx;
-          return (
-            <FlagStep
-              key={flag}
-              label={ACTION_FLAG_LABELS[flag] ?? flag}
-              color={ACTION_FLAG_COLORS[flag] ?? '#666'}
-              active={isActive}
-              above={isAbove}
-              isFirst={i === 0}
-              isLast={i === hierarchy.length - 1}
-              explanation={
-                isActive ? getEffectiveFlagExplanation(flag, row, energyMode) : undefined
-              }
-            />
-          );
-        })}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Left column: Economic Viability */}
+          <div>
+            <p
+              className="text-[10px] uppercase tracking-wider mb-2 font-medium"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Economic Viability
+            </p>
+            {ECONOMIC_TIER_HIERARCHY.map((tier, i) => {
+              const isActive = activeTier === tier;
+              const isAbove = activeTierIdx >= 0 && i < activeTierIdx;
+              return (
+                <FlagStep
+                  key={tier}
+                  label={getEconomicTierLabel(tier, energyMode)}
+                  color={ECONOMIC_TIER_COLORS[tier]}
+                  active={isActive}
+                  above={isAbove}
+                  isFirst={i === 0}
+                  isLast={i === ECONOMIC_TIER_HIERARCHY.length - 1}
+                  explanation={isActive ? getEconomicTierDescription(tier, energyMode) : undefined}
+                />
+              );
+            })}
+          </div>
+          {/* Right column: Infrastructure Readiness */}
+          <div>
+            <p
+              className="text-[10px] uppercase tracking-wider mb-2 font-medium"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Infrastructure
+            </p>
+            {INFRA_READINESS_HIERARCHY.map((infra, i) => {
+              const isActive = activeInfra === infra;
+              const isAbove = activeInfraIdx >= 0 && i < activeInfraIdx;
+              const color =
+                INFRA_READINESS_COLORS[infra] === 'transparent'
+                  ? '#4CAF50'
+                  : INFRA_READINESS_COLORS[infra];
+              return (
+                <FlagStep
+                  key={infra}
+                  label={INFRA_READINESS_LABELS[infra]}
+                  color={color}
+                  active={isActive}
+                  above={isAbove}
+                  isFirst={i === 0}
+                  isLast={i === INFRA_READINESS_HIERARCHY.length - 1}
+                  explanation={isActive ? INFRA_READINESS_DESCRIPTIONS[infra] : undefined}
+                />
+              );
+            })}
+          </div>
+        </div>
+        {/* Modifier badges */}
+        {modifiers.length > 0 && (
+          <div
+            className="mt-3 pt-2 flex gap-2 flex-wrap"
+            style={{ borderTop: '1px solid var(--border-subtle)' }}
+          >
+            {modifiers.map((badge) => (
+              <span
+                key={badge}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
+                style={{
+                  backgroundColor: `${MODIFIER_BADGE_COLORS[badge]}22`,
+                  color: MODIFIER_BADGE_COLORS[badge],
+                  border: `1px solid ${MODIFIER_BADGE_COLORS[badge]}44`,
+                }}
+              >
+                {MODIFIER_BADGE_LABELS[badge]}
+              </span>
+            ))}
+          </div>
+        )}
       </StatCard>
       <StatCard>
         <SectionHeader title="Key Numbers" subtitle="The metrics behind this recommendation" />
@@ -2003,11 +2065,14 @@ export default function ScoreDrawer() {
     return () => document.removeEventListener('keydown', handler);
   }, [drawerOpen, handleClose]);
 
-  const effectiveFlag = row ? getEffectiveActionFlag(row, energyMode) : null;
-  const flagColor = effectiveFlag ? (ACTION_FLAG_COLORS[effectiveFlag] ?? '#666') : '#666';
-  const flagLabel = effectiveFlag ? (ACTION_FLAG_LABELS[effectiveFlag] ?? effectiveFlag) : '';
-  const flagDescription =
-    row && effectiveFlag ? getEffectiveFlagExplanation(effectiveFlag, row, energyMode) : '';
+  const effectiveTier = row ? getEffectiveEconomicTier(row, energyMode) : null;
+  const tierColor = effectiveTier ? (ECONOMIC_TIER_COLORS[effectiveTier] ?? '#666') : '#666';
+  const tierLabel = effectiveTier ? getEconomicTierLabel(effectiveTier, energyMode) : '';
+  const tierDescription = effectiveTier
+    ? getEconomicTierDescription(effectiveTier, energyMode)
+    : '';
+  const infraLabel = row ? getInfraReadinessLabel(row) : '';
+  const modifiers = row ? getEffectiveModifiers(row) : [];
 
   return (
     <div
@@ -2050,27 +2115,52 @@ export default function ScoreDrawer() {
               </button>
             </div>
 
-            {/* Action flag banner */}
+            {/* Economic tier + infrastructure banner */}
             <div
               className="mt-3 px-3 py-2 rounded-md"
-              style={{ background: `${flagColor}22`, border: `1px solid ${flagColor}44` }}
+              style={{ background: `${tierColor}22`, border: `1px solid ${tierColor}44` }}
             >
               <div className="flex items-center gap-2">
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ background: flagColor }}
+                  style={{ background: tierColor }}
                 />
-                <span className="text-xs font-medium" style={{ color: flagColor }}>
-                  {flagLabel}
+                <span className="text-xs font-medium" style={{ color: tierColor }}>
+                  {tierLabel}
                 </span>
+                {infraLabel && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded"
+                    style={{ background: 'var(--glass)', color: 'var(--text-secondary)' }}
+                  >
+                    {infraLabel}
+                  </span>
+                )}
               </div>
-              {flagDescription && (
+              {tierDescription && (
                 <p
                   className="text-[10px] mt-1 leading-relaxed pl-[18px]"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  {flagDescription}
+                  {tierDescription}
                 </p>
+              )}
+              {modifiers.length > 0 && (
+                <div className="flex gap-1.5 mt-1.5 pl-[18px]">
+                  {modifiers.map((badge) => (
+                    <span
+                      key={badge}
+                      className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                      style={{
+                        backgroundColor: `${MODIFIER_BADGE_COLORS[badge]}22`,
+                        color: MODIFIER_BADGE_COLORS[badge],
+                        border: `1px solid ${MODIFIER_BADGE_COLORS[badge]}44`,
+                      }}
+                    >
+                      {MODIFIER_BADGE_LABELS[badge]}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </div>

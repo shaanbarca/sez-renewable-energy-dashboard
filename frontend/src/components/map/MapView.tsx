@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapLayers } from '../../hooks/useMapLayers';
 import { fetchKekBuildable, fetchKekPolygon } from '../../lib/api';
 import { MAP_STYLES } from '../../lib/constants';
-import type { ActionFlag } from '../../lib/types';
+import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
 import type { HoverInfo } from './KekMarkers';
@@ -259,6 +259,9 @@ export default function MapView() {
       latitude: coords[1],
       kek_name: feature.properties.kek_name as string,
       action_flag: feature.properties.action_flag as ActionFlag,
+      economic_tier: (feature.properties.economic_tier as EconomicTier) ?? 'not_competitive',
+      infrastructure_readiness:
+        (feature.properties.infrastructure_readiness as InfrastructureReadiness) ?? 'grid_first',
       province: feature.properties.province as string,
       kek_type: feature.properties.kek_type as string,
       category: feature.properties.category as string,

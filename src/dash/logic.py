@@ -50,12 +50,14 @@ from src.assumptions import (
 )
 from src.model.basic_model import (
     ActionFlag,
+    EconomicTier,
     RESource,
     action_flags,
     bess_bridge_hours,
     bess_storage_adder,
     capacity_factor_from_pvout,
     carbon_breakeven_price,
+    economic_tier,
     firm_solar_metrics,
     firm_wind_metrics,
     grid_connection_cost_per_kw,
@@ -1011,6 +1013,8 @@ def compute_scorecard_live(
         )
 
         # Grid investment needed (USD): total infra cost × effective capacity (kW)
+        # Costs are conditional on grid_integration_category — only include
+        # components that actually apply for this KEK's infrastructure situation.
         gc_conn = (
             float(row["connection_cost_per_kw"]) if pd.notna(row["connection_cost_per_kw"]) else 0.0
         )
@@ -1024,6 +1028,18 @@ def compute_scorecard_live(
             if pd.notna(row["substation_upgrade_cost_per_kw"])
             else 0.0
         )
+        if gi_cat == "within_boundary":
+            gc_conn = 0.0
+            gc_trans = 0.0
+            gc_upgrade = 0.0
+        elif gi_cat == "grid_ready":
+            gc_trans = 0.0
+            gc_upgrade = 0.0
+        elif gi_cat == "invest_transmission":
+            gc_upgrade = 0.0
+        elif gi_cat == "invest_substation":
+            gc_trans = 0.0
+        # grid_first: all three costs apply
         infra_cost = gc_conn + gc_trans + gc_upgrade
         # Use effective capacity for investment calculation (respects user target)
         eff_mwp = row.get("effective_capacity_mwp") or kek.get("max_captive_capacity_mwp", 0.0)
@@ -1236,6 +1252,79 @@ def compute_scorecard_live(
             ActionFlag.INVEST_RESILIENCE,
         ):
             row["action_flag"] = ActionFlag.CBAM_URGENT
+
+        # ── 2D Economic Tier × Infrastructure Readiness ──────────────────────
+        # Resolve best bare LCOE and best all-in (with storage) across technologies.
+        _solar_lcoe_val = float(lcoe_mid) if pd.notna(lcoe_mid) else None
+        _wind_lcoe_val = (
+            float(row["lcoe_wind_mid_usd_mwh"])
+            if pd.notna(row.get("lcoe_wind_mid_usd_mwh"))
+            else None
+        )
+        _hybrid_lcoe_val = (
+            float(row["hybrid_lcoe_usd_mwh"])
+            if row.get("hybrid_lcoe_usd_mwh") is not None
+            and pd.notna(row.get("hybrid_lcoe_usd_mwh"))
+            else None
+        )
+
+        _lcoe_candidates = [
+            v for v in [_solar_lcoe_val, _wind_lcoe_val, _hybrid_lcoe_val] if v is not None
+        ]
+        _best_lcoe_re = min(_lcoe_candidates) if _lcoe_candidates else None
+
+        # All-in with storage for 24/7 coverage
+        _solar_allin = float(_lcoe_with_bess) if pd.notna(_lcoe_with_bess) else None
+        _hybrid_allin = (
+            float(row["hybrid_allin_usd_mwh"])
+            if row.get("hybrid_allin_usd_mwh") is not None
+            and pd.notna(row.get("hybrid_allin_usd_mwh"))
+            else None
+        )
+        # Wind all-in: wind LCOE + BESS for firming hours
+        _wind_allin = None
+        _wind_firming_h = row.get("wind_firming_hours")
+        if (
+            _wind_lcoe_val is not None
+            and wind_cf_best > 0
+            and _wind_firming_h
+            and _wind_firming_h > 0
+        ):
+            _w_bess_adder = bess_storage_adder(
+                assumptions.bess_capex_usd_per_kwh,
+                solar_cf=wind_cf_best,
+                wacc=assumptions.wacc_decimal,
+                sizing_hours=float(_wind_firming_h),
+            )
+            _wind_allin = round(_wind_lcoe_val + _w_bess_adder, 2)
+
+        _allin_candidates = [v for v in [_solar_allin, _wind_allin, _hybrid_allin] if v is not None]
+        _best_allin = min(_allin_candidates) if _allin_candidates else None
+        row["lcoe_wind_allin_mid_usd_mwh"] = _wind_allin
+
+        _has_re_resource = max_mwp > 0 or wind_cap > 0
+
+        _econ_tier = economic_tier(
+            lcoe_re=_best_lcoe_re,
+            allin_24_7=_best_allin,
+            grid_cost=grid_cost,
+            has_resource=_has_re_resource,
+            near_parity_threshold_pct=thresholds.resilience_gap_pct,
+        )
+
+        row["economic_tier"] = _econ_tier
+        row["infrastructure_readiness"] = gi_cat
+
+        # Modifier badges
+        _badges: list[str] = []
+        if flags["plan_late"]:
+            _badges.append("plan_late")
+        if row.get("cbam_urgent"):
+            _badges.append("cbam_urgent")
+        if _econ_tier in (EconomicTier.PARTIAL_RE, EconomicTier.NEAR_PARITY):
+            if reliability_req >= thresholds.reliability_threshold:
+                _badges.append("storage_info")
+        row["modifier_badges"] = _badges
 
         # Solar replacement potential: what % of captive coal generation can solar replace?
         # Assumes 40% capacity factor for coal (Indonesian captive coal typical)

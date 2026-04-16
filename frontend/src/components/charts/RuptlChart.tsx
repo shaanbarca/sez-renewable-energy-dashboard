@@ -149,9 +149,8 @@ export default function RuptlChart() {
           }}
         >
           <span>
-            <strong>{post2030Stats.label}</strong>:{' '}
-            {post2030Stats.pct.toFixed(0)}% of solar additions are post-2030
-            ({post2030Stats.post2030MW} / {post2030Stats.totalMW} MW)
+            <strong>{post2030Stats.label}</strong>: {post2030Stats.pct.toFixed(0)}% of solar
+            additions are post-2030 ({post2030Stats.post2030MW} / {post2030Stats.totalMW} MW)
           </span>
           {post2030Stats.isPlanLate && (
             <span style={{ color: '#7B1FA2', fontWeight: 600 }}>Plan Late</span>

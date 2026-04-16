@@ -1,4 +1,16 @@
-import type { ActionFlag, EnergyMode, ScorecardRow } from './types';
+import {
+  ECONOMIC_TIER_DESCRIPTIONS,
+  ECONOMIC_TIER_LABELS,
+  INFRA_READINESS_LABELS,
+} from './constants';
+import type {
+  ActionFlag,
+  EconomicTier,
+  EnergyMode,
+  InfrastructureReadiness,
+  ModifierBadge,
+  ScorecardRow,
+} from './types';
 
 /**
  * Priority-ordered flag hierarchy per energy mode.
@@ -247,4 +259,162 @@ export function getActionSectionTitle(energyMode: EnergyMode): string {
     default:
       return 'Solar Readiness';
   }
+}
+
+// ── 2D Classification System (Option C) ──────────────────────────────────
+
+/** Resolve economic tier per energy mode using mode-specific LCOE/all-in fields. */
+export function getEffectiveEconomicTier(row: ScorecardRow, energyMode: EnergyMode): EconomicTier {
+  // Overall mode uses backend's precomputed tier (best across all technologies)
+  if (energyMode === 'overall') {
+    return row.economic_tier || 'not_competitive';
+  }
+
+  const gridCost = row.grid_cost_usd_mwh;
+  if (!gridCost || gridCost <= 0) return 'not_competitive';
+
+  let hasResource: boolean;
+  let lcoeRe: number | null;
+  let allin247: number | null;
+
+  switch (energyMode) {
+    case 'solar':
+      hasResource = row.buildable_area_ha > 0;
+      lcoeRe = row.lcoe_mid_usd_mwh ?? null;
+      allin247 = row.lcoe_with_battery_usd_mwh ?? null;
+      break;
+    case 'wind':
+      hasResource = (row.wind_buildable_area_ha ?? 0) > 0;
+      lcoeRe = row.lcoe_wind_mid_usd_mwh ?? null;
+      allin247 = row.lcoe_wind_allin_mid_usd_mwh ?? null;
+      break;
+    case 'hybrid':
+      hasResource = row.buildable_area_ha > 0 || (row.wind_buildable_area_ha ?? 0) > 0;
+      lcoeRe = row.hybrid_lcoe_usd_mwh ?? null;
+      allin247 = row.hybrid_allin_usd_mwh ?? null;
+      break;
+    default:
+      return row.economic_tier || 'not_competitive';
+  }
+
+  if (!hasResource) return 'no_resource';
+  if (lcoeRe == null) return 'not_competitive';
+  if (allin247 != null && allin247 <= gridCost) return 'full_re';
+  if (lcoeRe <= gridCost) return 'partial_re';
+  const gapPct = ((lcoeRe - gridCost) / gridCost) * 100;
+  if (gapPct <= 20) return 'near_parity';
+  return 'not_competitive';
+}
+
+/** Mode-specific label for an economic tier. */
+export function getEconomicTierLabel(tier: EconomicTier, energyMode: EnergyMode): string {
+  if (tier === 'full_re') {
+    switch (energyMode) {
+      case 'solar':
+        return 'Full Solar';
+      case 'wind':
+        return 'Full Wind';
+      default:
+        return 'Full RE';
+    }
+  }
+  if (tier === 'partial_re') {
+    switch (energyMode) {
+      case 'solar':
+        return 'Partial Solar';
+      case 'wind':
+        return 'Partial Wind';
+      default:
+        return 'Partial RE';
+    }
+  }
+  if (tier === 'no_resource') {
+    switch (energyMode) {
+      case 'solar':
+        return 'No Solar Resource';
+      case 'wind':
+        return 'No Wind Resource';
+      default:
+        return 'No Resource';
+    }
+  }
+  return ECONOMIC_TIER_LABELS[tier];
+}
+
+/** Mode-specific description for an economic tier. */
+export function getEconomicTierDescription(tier: EconomicTier, energyMode: EnergyMode): string {
+  if (tier === 'full_re') {
+    switch (energyMode) {
+      case 'solar':
+        return 'Solar + storage beats grid for 24/7 supply. Deploy now.';
+      case 'wind':
+        return 'Wind + firming beats grid for 24/7 supply. Deploy now.';
+      case 'hybrid':
+        return 'Hybrid solar+wind beats grid for 24/7 supply. Deploy now.';
+      default:
+        return 'RE + storage beats grid for 24/7 supply. Deploy now.';
+    }
+  }
+  if (tier === 'partial_re') {
+    switch (energyMode) {
+      case 'solar':
+        return 'Daytime solar beats grid. Nighttime stays on grid. Still cuts 42% of energy cost.';
+      case 'wind':
+        return 'Wind generation beats grid cost, but firming for 24/7 pushes above grid.';
+      case 'hybrid':
+        return 'Hybrid generation beats grid, but 24/7 storage cost exceeds grid.';
+      default:
+        return 'Daytime RE beats grid. Nighttime stays on grid. Still cuts 42% of energy cost.';
+    }
+  }
+  if (tier === 'no_resource') {
+    switch (energyMode) {
+      case 'solar':
+        return 'No buildable solar land within 50 km.';
+      case 'wind':
+        return 'No viable wind resource within 50 km.';
+      default:
+        return 'No viable renewable resource within 50 km.';
+    }
+  }
+  return ECONOMIC_TIER_DESCRIPTIONS[tier];
+}
+
+/** Context-aware infrastructure readiness label.
+ *  Distinguishes "Upgrade Substation" (capacity issue) from "Build Substation" (distance issue). */
+export function getInfraReadinessLabel(row: ScorecardRow): string {
+  const infra = row.infrastructure_readiness || row.grid_integration_category;
+  if (infra === 'invest_substation') {
+    // If substation exists nearby but capacity is insufficient, it's an upgrade not a build
+    const cap = row.capacity_assessment;
+    if (cap === 'red' || cap === 'yellow') return 'Upgrade Substation';
+  }
+  return (
+    INFRA_READINESS_LABELS[infra as InfrastructureReadiness] ?? INFRA_READINESS_LABELS.grid_first
+  );
+}
+
+/** Resolve infrastructure readiness from backend field or grid_integration_category. */
+export function getEffectiveInfraReadiness(row: ScorecardRow): InfrastructureReadiness {
+  if (row.infrastructure_readiness) return row.infrastructure_readiness;
+  const cat = row.grid_integration_category;
+  if (
+    cat === 'within_boundary' ||
+    cat === 'grid_ready' ||
+    cat === 'invest_transmission' ||
+    cat === 'invest_substation' ||
+    cat === 'grid_first'
+  ) {
+    return cat;
+  }
+  return 'grid_first';
+}
+
+/** Resolve modifier badges from backend field or derive from existing booleans. */
+export function getEffectiveModifiers(row: ScorecardRow): ModifierBadge[] {
+  if (row.modifier_badges) return row.modifier_badges;
+  const badges: ModifierBadge[] = [];
+  if (row.cbam_urgent) badges.push('cbam_urgent');
+  if (row.action_flag === 'plan_late') badges.push('plan_late');
+  return badges;
 }

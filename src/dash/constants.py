@@ -153,7 +153,7 @@ TIER2_SLIDERS = {
     },
     "bess_capex_usd_per_kwh": {
         "min": 100,
-        "max": 500,
+        "max": 300,
         "step": 10,
         "label": "Battery CAPEX",
         "unit": "$/kWh",

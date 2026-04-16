@@ -1,41 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACTION_FLAG_HIERARCHY_BY_MODE, getActionSectionTitle } from '../../lib/actionFlags';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { getEconomicTierDescription, getEconomicTierLabel } from '../../lib/actionFlags';
+import { ECONOMIC_TIER_COLORS, ECONOMIC_TIER_HIERARCHY } from '../../lib/constants';
 import { useDashboardStore } from '../../store/dashboard';
 
-const FLAG_DESCRIPTIONS: Record<string, string> = {
-  solar_now:
-    'Solar is cost-competitive today. Grid upgrades are planned and GEAS allocation is sufficient.',
-  cbam_urgent:
-    'RE not grid-competitive alone, but EU CBAM border tax on exports tips the economics. CBAM-adjusted gap < 0.',
-  wind_now: 'Wind is cost-competitive today. Deploy wind generation.',
-  hybrid_now:
-    'Hybrid solar+wind all-in cost beats grid. Wind reduces nighttime storage requirements.',
-  invest_resilience:
-    'RE is within ~20% of grid parity. Investing now builds resilience against future grid cost increases.',
-  invest_battery:
-    'RE economics work, but high reliability requirements mean battery storage is needed, adding cost.',
-  invest_transmission:
-    'RE can reach a substation, but the KEK is far from grid infrastructure. Build transmission to KEK.',
-  invest_substation:
-    'KEK is grid-connected, but the best RE site is far from any substation. Build a substation near the generation site.',
-  grid_first:
-    'No substation near the KEK or the RE site. New grid infrastructure must be built before RE can connect.',
-  plan_late:
-    'Over 60% of planned RE additions in this grid region slip past 2030. RUPTL pipeline needs acceleration.',
-  not_competitive: 'RE LCOE exceeds grid cost under current assumptions.',
-  no_solar_resource:
-    'All land within the search radius is protected forest, peatland, or unbuildable. No area available for solar.',
-  no_wind_resource:
-    'No viable wind resource within 50 km. Wind speeds below cut-in threshold or all land is unbuildable.',
-  no_re_resource: 'No viable renewable resource (solar or wind) within 50 km.',
-};
+const INFRA_RING_KEY = [
+  { label: 'Grid Ready', color: '#ffffff', description: 'Within boundary or nearby substation' },
+  {
+    label: 'Needs Grid Investment',
+    color: '#42A5F5',
+    description: 'Transmission line or substation upgrade needed',
+  },
+  {
+    label: 'Major Grid Work',
+    color: '#1565C0',
+    description: 'No substation near KEK or RE site',
+  },
+];
 
 export default function ActionFlagLegend() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const energyMode = useDashboardStore((s) => s.energyMode);
-  const hierarchy = ACTION_FLAG_HIERARCHY_BY_MODE[energyMode];
 
   useEffect(() => {
     if (!open) return;
@@ -58,11 +43,11 @@ export default function ActionFlagLegend() {
       >
         {/* Show compact dot strip as a preview */}
         <span className="flex items-center gap-0.5">
-          {hierarchy.slice(0, 4).map((flag) => (
+          {ECONOMIC_TIER_HIERARCHY.map((tier) => (
             <span
-              key={flag}
+              key={tier}
               className="inline-block w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: ACTION_FLAG_COLORS[flag] }}
+              style={{ backgroundColor: ECONOMIC_TIER_COLORS[tier] }}
             />
           ))}
         </span>
@@ -89,36 +74,24 @@ export default function ActionFlagLegend() {
             boxShadow: 'var(--popup-shadow)',
           }}
         >
+          {/* Economic tier section */}
           <p
             className="text-[10px] uppercase tracking-wider mb-2 font-medium"
             style={{ color: 'var(--text-muted)' }}
           >
-            {getActionSectionTitle(energyMode)} Ladder
+            Fill = RE Viability
           </p>
           <div>
-            {hierarchy.map((flag, i) => {
-              const color = ACTION_FLAG_COLORS[flag];
-              const isLast = i === hierarchy.length - 1;
+            {ECONOMIC_TIER_HIERARCHY.map((tier, i) => {
+              const color = ECONOMIC_TIER_COLORS[tier];
+              const isLast = i === ECONOMIC_TIER_HIERARCHY.length - 1;
               return (
-                <div key={flag} className="group flex items-stretch gap-0">
-                  {/* Vertical track */}
+                <div key={tier} className="group flex items-stretch gap-0">
                   <div className="flex flex-col items-center" style={{ width: 16 }}>
-                    {flag === 'cbam_urgent' ? (
-                      <div
-                        className="rounded-full shrink-0 mt-[5px]"
-                        style={{
-                          width: 12,
-                          height: 12,
-                          border: `2px solid ${color}`,
-                          background: 'transparent',
-                        }}
-                      />
-                    ) : (
-                      <div
-                        className="rounded-full shrink-0 mt-[7px]"
-                        style={{ width: 8, height: 8, background: color }}
-                      />
-                    )}
+                    <div
+                      className="rounded-full shrink-0 mt-[7px]"
+                      style={{ width: 8, height: 8, background: color }}
+                    />
                     {!isLast && (
                       <div
                         className="flex-1"
@@ -130,21 +103,76 @@ export default function ActionFlagLegend() {
                       />
                     )}
                   </div>
-                  {/* Label + hover description */}
                   <div className="pl-1.5 pb-1.5">
                     <span className="text-xs" style={{ color: 'var(--text-value)' }}>
-                      {ACTION_FLAG_LABELS[flag]}
+                      {getEconomicTierLabel(tier, energyMode)}
                     </span>
                     <p
                       className="text-[10px] leading-snug hidden group-hover:block mt-0.5"
                       style={{ color: 'var(--text-muted)' }}
                     >
-                      {FLAG_DESCRIPTIONS[flag]}
+                      {getEconomicTierDescription(tier, energyMode)}
                     </p>
                   </div>
                 </div>
               );
             })}
+          </div>
+
+          {/* Infrastructure ring section */}
+          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <p
+              className="text-[10px] uppercase tracking-wider mb-2 font-medium"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Ring = Infrastructure
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {INFRA_RING_KEY.map((item) => (
+                <div key={item.label} className="group flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 14 14" className="shrink-0">
+                    <circle cx="7" cy="7" r="5" fill="#666" stroke={item.color} strokeWidth="2" />
+                  </svg>
+                  <div>
+                    <span className="text-xs" style={{ color: 'var(--text-value)' }}>
+                      {item.label}
+                    </span>
+                    <p
+                      className="text-[10px] leading-snug hidden group-hover:block"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CBAM exposure section */}
+          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <p
+              className="text-[10px] uppercase tracking-wider mb-2 font-medium"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Outer Ring = CBAM Exposure
+            </p>
+            <div className="group flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 14 14" className="shrink-0">
+                <circle cx="7" cy="7" r="5" fill="none" stroke="#FF6F00" strokeWidth="1.5" />
+              </svg>
+              <div>
+                <span className="text-xs" style={{ color: '#FF6F00' }}>
+                  CBAM Exposed
+                </span>
+                <p
+                  className="text-[10px] leading-snug hidden group-hover:block"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  EU Carbon Border Adjustment Mechanism applies to exports from this KEK
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

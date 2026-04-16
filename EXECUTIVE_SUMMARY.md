@@ -101,6 +101,8 @@ Step 5 — What action does each KEK need?
 | **RUPTL** | PLN's 10-year electricity supply plan (2025–2034), which sets the schedule for new power plants by region. |
 | **I-4/TT tariff** | The official industrial electricity rate for large users connected to the high-voltage grid. ~$63/MWh nationwide. |
 | **Action flag** | A one-line recommendation per KEK based on the analysis. Nine flags from best to worst: `solar_now`, `invest_transmission`, `invest_substation`, `grid_first`, `invest_battery`, `invest_resilience`, `plan_late`, `not_competitive`, `no_solar_resource`. |
+| **Economic tier** | 2D classification axis: how economically viable is RE at this KEK? Five tiers: `full_re` (RE+storage beats grid 24/7), `partial_re` (daytime RE beats grid), `near_parity` (within 20%), `not_competitive`, `no_resource`. |
+| **Infrastructure readiness** | 2D classification axis: what grid infrastructure exists? Five levels: `within_boundary`, `grid_ready`, `invest_transmission`, `invest_substation`, `grid_first`. |
 
 ---
 
@@ -122,11 +124,11 @@ A set of Python scripts that pull from eight public data sources and produce thi
 - CGSP Nickel Tracker (nickel smelter locations, process types, ownership)
 
 ### 2. Analytical Model
-A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (421 automated tests) and produces a scorecard table covering all 25 KEKs with LCOE bands, competitive gap, action flags, and green energy share estimates.
+A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (433 automated tests) and produces a scorecard table covering all 25 KEKs with LCOE bands, competitive gap, action flags, 2D classification (economic tier x infrastructure readiness), and green energy share estimates.
 
 ### 3. Dashboard
 An interactive web dashboard (React + Vite frontend with FastAPI backend) that lets analysts adjust assumptions — financing rate, capital cost, BESS parameters — and instantly see how the rankings change. Six views:
-- **Map** — 25 KEKs colored by action flag on MapLibre GL with 3D terrain, buildable area overlays, substation markers
+- **Map** — 25 KEKs with 2D classification encoding (circle fill = economic tier, stroke = infrastructure readiness, outer ring = modifier badges) on MapLibre GL with 3D terrain, buildable area overlays, substation markers
 - **Ranked table** — sortable, filterable TanStack Table with column filters, CSV export
 - **Quadrant chart** — solar cost vs. grid cost scatter with action flag zones
 - **RUPTL context** — regional grid pipeline timing by technology

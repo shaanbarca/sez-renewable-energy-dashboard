@@ -764,6 +764,14 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `cbam_savings_per_mwh` | float/null | Derived | CBAM savings converted to $/MWh of electricity: `savings_per_tonne / electricity_intensity_mwh_per_tonne`. Bridges CBAM product-level savings to electricity-cost comparisons. Used for CBAM-adjusted gap calculation. |
 | `cbam_adjusted_gap_pct` | float/null | Derived | Competitive gap with CBAM savings factored in: `(lcoe_mid_usd_mwh - dashboard_rate_usd_mwh - cbam_savings_per_mwh) / dashboard_rate_usd_mwh x 100`. More negative = solar + CBAM avoidance strongly beats grid. Null for non-CBAM-exposed KEKs. |
 
+**2D classification columns** (live-computed in `logic.py`; V3.7):
+
+| Column | Type | Source | Formula / Notes |
+|--------|------|--------|-----------------|
+| `economic_tier` | str | Live | Economic competitiveness tier: `full_re` (RE+storage ≤ grid), `partial_re` (bare RE ≤ grid), `near_parity` (RE within 20% of grid), `not_competitive` (RE > 20% above grid), `no_resource` (no buildable area). Computed via `economic_tier()` from `basic_model.py`. |
+| `infrastructure_readiness` | str | Live | Infrastructure readiness axis: reuses `grid_integration_category` values (`within_boundary`, `grid_ready`, `invest_transmission`, `invest_substation`, `grid_first`). |
+| `modifier_badges` | list[str] | Live | Overlay modifier badges that cross-cut both axes: `cbam_urgent` (CBAM-adjusted gap < 0), `plan_late` (post2030_share ≥ 0.60), `storage_info` (BESS sizing > 2h). |
+
 ---
 
 ### 3.7 `outputs/data/processed/fct_captive_coal_summary.csv`

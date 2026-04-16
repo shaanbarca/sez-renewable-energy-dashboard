@@ -305,20 +305,63 @@ Fields sourced from `POST /api/scorecard` response (~80 fields per KEK). See [DA
 | `cbam_savings_2026/2030/2034_usd_per_tonne` | CBAM savings from RE | Avoided border tax |
 | **CbamTrajectoryChart** | CBAM cost trajectory 2026-2034 | Per-product breakdown (nickel_rkef, steel_eaf, steel_bfbof, cement, aluminium, fertilizer). 2030 crossover year marker ("50% exposed"). User-adjustable certificate price + EUR/USD rate. |
 
-**Action tab** — "What should be done?"
+**Action tab** — "What should be done?" (V3.7: 2D classification layout)
 | Field | Display label | Notes |
 |-------|--------------|-------|
-| `action_flag` | Recommended action | Mode-aware (solar/wind/hybrid/overall flags) |
-| Implementation guidance | Explanation text | Per-flag actionable description |
+| `economic_tier` | RE Viability | Two-column layout: left column shows economic tier with mode-specific label (Full Solar/Full Wind/Full RE) |
+| `infrastructure_readiness` | Infrastructure | Right column shows infrastructure readiness with context-aware label (Upgrade vs Build Substation) |
+| `modifier_badges` | Modifier badges | Pill badges for cbam_urgent, plan_late, storage_info |
+| `action_flag` | Legacy action flag | Retained for backwards compatibility |
+| Implementation guidance | Explanation text | Per-tier and per-readiness actionable descriptions |
 | RUPTL context | Regional grid pipeline | Planned capacity additions for this KEK's grid region |
 
 ---
 
 ## §4 Colour & Visual Language
 
-### Action flag colours
+### 2D Classification Visual System (V3.7)
 
-14 flags defined in `frontend/src/lib/constants.ts`. Energy mode determines which flags are shown (e.g. solar mode shows `solar_now`, wind mode shows `wind_now`, overall mode shows `best_re_technology`-aware flags).
+KEKs are now classified on two independent axes plus overlay modifier badges. The map encodes all three dimensions on a single circle marker:
+
+- **Circle fill** = Economic Tier (how viable is RE?)
+- **Circle stroke** = Infrastructure Readiness (what infrastructure exists?)
+- **Outer ring** = Modifier Badge (CBAM urgency, plan-late, storage)
+
+#### Economic Tier colours (circle fill)
+
+| Tier | Colour | Hex | Meaning |
+|------|--------|-----|---------|
+| `full_re` | Green | `#2E7D32` | RE + storage beats grid 24/7 |
+| `partial_re` | Light Green | `#66BB6A` | Daytime RE beats grid, storage too expensive |
+| `near_parity` | Yellow | `#FFA726` | RE LCOE within 20% of grid |
+| `not_competitive` | Red | `#C62828` | RE LCOE > 20% above grid |
+| `no_resource` | Grey | `#78909C` | No buildable RE land |
+
+Mode-aware labels: Solar mode shows "Full Solar"/"Partial Solar", Wind mode shows "Full Wind"/"Partial Wind", Overall/Hybrid shows "Full RE"/"Partial RE". Derived in `frontend/src/lib/actionFlags.ts:getEconomicTierLabel()`.
+
+#### Infrastructure Readiness colours (circle stroke)
+
+| Readiness | Colour | Hex | Meaning |
+|-----------|--------|-----|---------|
+| `within_boundary` | Green | `#4CAF50` | Solar buildable inside KEK boundary |
+| `grid_ready` | Blue | `#42A5F5` | Existing grid infrastructure sufficient |
+| `invest_transmission` | Orange | `#FF9800` | Build transmission line to KEK |
+| `invest_substation` | Deep Orange | `#FF5722` | Build/upgrade substation near solar site |
+| `grid_first` | Red | `#F44336` | Grid infrastructure must come first |
+
+Context-aware labels: `invest_substation` shows "Upgrade Substation" when capacity_assessment is yellow/red (existing substation, insufficient capacity) vs "Build Substation" when no nearby substation. Derived in `frontend/src/lib/actionFlags.ts:getInfraReadinessLabel()`.
+
+#### Modifier Badge colours (outer ring / badge pills)
+
+| Badge | Colour | Hex | Meaning |
+|-------|--------|-----|---------|
+| `cbam_urgent` | Amber | `#FF6F00` | CBAM-adjusted gap < 0. RE + avoided border tax beats grid. |
+| `plan_late` | Purple | `#7B1FA2` | >60% of RUPTL solar planned after 2030. |
+| `storage_info` | Blue-grey | `#546E7A` | BESS sizing > 2h (bridge or overnight firming). |
+
+### Legacy action flag colours
+
+14 flags still defined in `frontend/src/lib/constants.ts` for backwards compatibility with `action_flag` column. Energy mode determines which flags are shown (e.g. solar mode shows `solar_now`, wind mode shows `wind_now`, overall mode shows `best_re_technology`-aware flags).
 
 | Flag | Colour | Hex | Meaning |
 |------|--------|-----|---------|

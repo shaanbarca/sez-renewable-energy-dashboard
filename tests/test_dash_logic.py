@@ -81,7 +81,7 @@ def sample_grid_df():
 class TestUserAssumptions:
     def test_defaults_match_assumptions_py(self):
         a = get_default_assumptions()
-        assert a.capex_usd_per_kw == 960.0
+        assert a.capex_usd_per_kw == 850.0
         assert a.lifetime_yr == 27
         assert a.wacc_pct == 10.0
         assert a.fom_usd_per_kw_yr == 7.5
@@ -162,7 +162,7 @@ class TestComputeLcoeLive:
         # Check kek-kendal (pvout_centroid=1550)
         kendal = wb[wb["kek_id"] == "kek-kendal"].iloc[0]
         cf = 1550.0 / 8760.0
-        expected = lcoe_solar(960.0, 7.5, 0.10, 27, cf)
+        expected = lcoe_solar(assumptions.capex_usd_per_kw, 7.5, 0.10, 27, cf)
         assert abs(kendal["lcoe_mid_usd_mwh"] - round(expected, 2)) < 0.01
 
     def test_lower_capex_lowers_lcoe(self, sample_resource_df):

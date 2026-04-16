@@ -118,8 +118,10 @@ SOLAR_TECH_YEAR: int = 2023
 # Default TECH006 parameters used by build_scorecard() when dim_tech_cost is unavailable.
 # Verified from ESDM Technology Catalogue 2023, datasheet p.66 (PV ground-mounted, utility-scale).
 # Stored as VERIFIED_TECH006_DATA in src/pipeline/pdf_extract_esdm_tech.py.
-TECH006_CAPEX_USD_PER_KW: float = 960.0
-# Source: ESDM Technology Catalogue 2023, p.66. 0.96 MUSD/MWe × 1000 = 960 USD/kW.
+TECH006_CAPEX_USD_PER_KW: float = 850.0
+# Market-adjusted default (2025). ESDM catalogue 2023 = 960 USD/kW (0.96 MUSD/MWe × 1000).
+# IRENA RPGC 2024 Indonesia range = $800–1,000/kW. Pipeline dim_tech_cost still extracts
+# 960 from ESDM PDF — this default reflects current market pricing for user-facing sliders.
 
 TECH006_FOM_USD_PER_KW_YR: float = 7.5
 # Source: ESDM Technology Catalogue 2023, p.66. 7,500 USD/MWe/yr ÷ 1000 = 7.5 USD/kW/yr.
@@ -339,10 +341,11 @@ FIRMING_ADDER_MID_USD_MWH: float = (FIRMING_ADDER_LOW_USD_MWH + FIRMING_ADDER_HI
 
 # ─── BESS (Battery Energy Storage System) ────────────────────────────────────
 
-BESS_CAPEX_USD_PER_KWH: float = 250.0
+BESS_CAPEX_USD_PER_KWH: float = 150.0
 # Battery pack + BOS installed cost (USD/kWh of usable capacity).
-# Source: BNEF 2024 Lithium-ion Battery Price Survey — utility-scale Asia benchmark.
-# Range: $150–400/kWh. $250 = mid-range for Indonesia 2025.
+# Market-adjusted default (2025). BNEF 2025 global system = $110/kWh; Ember Dec 2025
+# non-China/US = $125/kWh. $150 = conservative Indonesia estimate accounting for
+# logistics, import duties, and smaller project scale. Range: $100–300/kWh.
 
 BESS_DISCHARGE_HOURS: float = 4.0
 # Battery system duration (hours). 4-hour systems are the utility-scale standard.
@@ -350,7 +353,7 @@ BESS_DISCHARGE_HOURS: float = 4.0
 BESS_SIZING_HOURS: float = 2.0
 # Hours of battery per kW of solar for industrial firming applications.
 # 2h = enough to bridge cloud events and early evening ramp.
-# This determines battery kWh per kW-solar: 2h × $250/kWh = $500/kW-solar CAPEX.
+# This determines battery kWh per kW-solar: 2h × $150/kWh = $300/kW-solar CAPEX.
 # NOTE: For 24/7 industrial loads, use bridge-hours scaling (see BESS_BRIDGE_HOURS_ENABLED).
 
 BESS_BRIDGE_HOURS_ENABLED: bool = True

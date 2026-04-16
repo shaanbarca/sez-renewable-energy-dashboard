@@ -42,6 +42,22 @@ export type ActionFlag =
   | 'no_wind_resource'
   | 'no_re_resource';
 
+export type EconomicTier =
+  | 'full_re'
+  | 'partial_re'
+  | 'near_parity'
+  | 'not_competitive'
+  | 'no_resource';
+
+export type InfrastructureReadiness =
+  | 'within_boundary'
+  | 'grid_ready'
+  | 'invest_transmission'
+  | 'invest_substation'
+  | 'grid_first';
+
+export type ModifierBadge = 'cbam_urgent' | 'plan_late' | 'storage_info';
+
 export interface CbamProductMetrics {
   emission_intensity_current: number;
   emission_intensity_solar: number;
@@ -200,6 +216,11 @@ export interface ScorecardRow {
   hybrid_nighttime_coverage_pct?: number | null;
   hybrid_bess_reduction_pct?: number | null;
   hybrid_carbon_breakeven_usd_tco2?: number | null;
+
+  // 2D classification system (Option C)
+  economic_tier?: EconomicTier;
+  infrastructure_readiness?: InfrastructureReadiness;
+  modifier_badges?: ModifierBadge[];
 }
 
 export interface SubstationWithCosts {

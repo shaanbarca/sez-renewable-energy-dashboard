@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre';
-import { getEffectiveActionFlag } from '../../lib/actionFlags';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
-import type { ActionFlag } from '../../lib/types';
+import {
+  getEconomicTierLabel,
+  getEffectiveActionFlag,
+  getEffectiveEconomicTier,
+  getEffectiveInfraReadiness,
+} from '../../lib/actionFlags';
+import { ECONOMIC_TIER_COLORS, INFRA_READINESS_LABELS } from '../../lib/constants';
+import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 interface HoverInfo {
@@ -10,6 +15,8 @@ interface HoverInfo {
   latitude: number;
   kek_name: string;
   action_flag: ActionFlag;
+  economic_tier: EconomicTier;
+  infrastructure_readiness: InfrastructureReadiness;
   province: string;
   kek_type: string;
   category: string;
@@ -132,24 +139,38 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           kek_id: row.kek_id,
           kek_name: row.kek_name,
           action_flag: getEffectiveActionFlag(row, energyMode),
+          economic_tier: getEffectiveEconomicTier(row, energyMode),
           province: row.province,
           kek_type: row.kek_type ?? '',
           category: row.category ?? '',
           area_ha: row.area_ha ?? null,
           grid_integration_category: row.grid_integration_category ?? '',
+          infrastructure_readiness: getEffectiveInfraReadiness(row),
           cbam_exposed: row.cbam_exposed ?? false,
         },
       })),
     };
   }, [scorecard, energyMode]);
 
-  // Build the match expression for circle-color from constants
+  // Build the match expression for circle-color from economic tier
   const colorMatch = useMemo(() => {
-    const entries: (string | string[])[] = ['match', ['get', 'action_flag']];
-    for (const [flag, color] of Object.entries(ACTION_FLAG_COLORS)) {
-      entries.push(flag, color);
+    const entries: (string | string[])[] = ['match', ['get', 'economic_tier']];
+    for (const [tier, color] of Object.entries(ECONOMIC_TIER_COLORS)) {
+      entries.push(tier, color);
     }
     entries.push('#999999'); // fallback
+    return entries;
+  }, []);
+
+  // Build the match expression for circle-stroke-color from infrastructure readiness
+  const infraStrokeMatch = useMemo(() => {
+    const entries: (string | string[])[] = ['match', ['get', 'infrastructure_readiness']];
+    entries.push('within_boundary', '#ffffff');
+    entries.push('grid_ready', '#ffffff');
+    entries.push('invest_transmission', '#42A5F5');
+    entries.push('invest_substation', '#00838F');
+    entries.push('grid_first', '#1565C0');
+    entries.push('#ffffff'); // fallback
     return entries;
   }, []);
 
@@ -175,8 +196,8 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
           paint={{
             'circle-radius': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 8, 6],
             'circle-color': colorMatch as unknown as string,
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 2.5, 1],
+            'circle-stroke-color': infraStrokeMatch as unknown as string,
+            'circle-stroke-width': ['case', ['==', ['get', 'kek_id'], selectedKek ?? ''], 3, 1.5],
             'circle-opacity': 0.9,
           }}
         />
@@ -218,17 +239,22 @@ export default function KekMarkers({ hoverInfo }: KekMarkersProps) {
                 {hoverInfo.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })} ha
               </div>
             )}
-            <span
-              style={{
-                color: ACTION_FLAG_COLORS[hoverInfo.action_flag] ?? '#999',
-                fontWeight: 500,
-              }}
-            >
-              {ACTION_FLAG_LABELS[hoverInfo.action_flag] ?? hoverInfo.action_flag}
-            </span>
-            {hoverInfo.cbam_exposed && (
-              <span style={{ color: '#FF6F00', fontWeight: 500, marginLeft: 4 }}>CBAM</span>
-            )}
+            <div style={{ marginTop: 2 }}>
+              <span
+                style={{
+                  color: ECONOMIC_TIER_COLORS[hoverInfo.economic_tier] ?? '#999',
+                  fontWeight: 500,
+                }}
+              >
+                {getEconomicTierLabel(hoverInfo.economic_tier, energyMode)}
+              </span>
+              {hoverInfo.cbam_exposed && (
+                <span style={{ color: '#FF6F00', fontWeight: 500, marginLeft: 4 }}>CBAM</span>
+              )}
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 10 }}>
+              {INFRA_READINESS_LABELS[hoverInfo.infrastructure_readiness] ?? ''}
+            </div>
           </div>
         </Popup>
       )}

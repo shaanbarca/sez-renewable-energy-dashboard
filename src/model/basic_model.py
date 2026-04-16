@@ -559,7 +559,7 @@ def bess_storage_adder(
     Parameters
     ----------
     bess_capex_usd_per_kwh:
-        Installed battery cost per kWh of capacity (default $250).
+        Installed battery cost per kWh of capacity (default $150).
     solar_cf:
         Solar capacity factor at the site (0-1).
     wacc:
@@ -970,6 +970,50 @@ class ActionFlag(StrEnum):
     PLAN_LATE = "plan_late"
     NOT_COMPETITIVE = "not_competitive"
     NO_SOLAR_RESOURCE = "no_solar_resource"  # buildable area = 0, no land for solar
+
+
+class EconomicTier(StrEnum):
+    """Economic competitiveness tier for RE investment at a KEK.
+
+    Two-dimensional classification (Option C): this axis captures
+    *how viable* RE is, independent of infrastructure readiness.
+    """
+
+    FULL_RE = "full_re"  # RE + storage beats grid 24/7
+    PARTIAL_RE = "partial_re"  # daytime RE beats grid, storage too expensive
+    NEAR_PARITY = "near_parity"  # RE LCOE within 20% of grid
+    NOT_COMPETITIVE = "not_competitive"  # RE LCOE > 20% above grid
+    NO_RESOURCE = "no_resource"  # no buildable area or insufficient resource
+
+
+def economic_tier(
+    lcoe_re: float | None,
+    allin_24_7: float | None,
+    grid_cost: float,
+    has_resource: bool,
+    near_parity_threshold_pct: float = 20.0,
+) -> EconomicTier:
+    """Classify a KEK into an economic competitiveness tier.
+
+    Args:
+        lcoe_re: Best bare RE LCOE (solar, wind, or hybrid) in USD/MWh.
+        allin_24_7: Best all-in cost including storage for 24/7 coverage.
+        grid_cost: Grid electricity cost (BPP or tariff) in USD/MWh.
+        has_resource: Whether buildable RE land exists (solar or wind).
+        near_parity_threshold_pct: Max gap % for near-parity (default 20).
+    """
+    if not has_resource:
+        return EconomicTier.NO_RESOURCE
+    if lcoe_re is None or grid_cost <= 0:
+        return EconomicTier.NOT_COMPETITIVE
+    if allin_24_7 is not None and allin_24_7 <= grid_cost:
+        return EconomicTier.FULL_RE
+    if lcoe_re <= grid_cost:
+        return EconomicTier.PARTIAL_RE
+    gap_pct = (lcoe_re - grid_cost) / grid_cost * 100
+    if gap_pct <= near_parity_threshold_pct:
+        return EconomicTier.NEAR_PARITY
+    return EconomicTier.NOT_COMPETITIVE
 
 
 def action_flags(

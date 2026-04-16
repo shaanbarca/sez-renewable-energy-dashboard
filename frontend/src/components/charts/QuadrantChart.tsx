@@ -9,13 +9,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ACTION_FLAG_COLORS } from '../../lib/constants';
+import { getEffectiveEconomicTier } from '../../lib/actionFlags';
+import { ECONOMIC_TIER_COLORS } from '../../lib/constants';
 import type { EnergyMode, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 interface ChartRow extends ScorecardRow {
   activeLcoe: number | null;
   gridCost: number;
+  economicTierColor: string;
 }
 
 function getLcoeForMode(row: ScorecardRow, mode: EnergyMode): number | null | undefined {
@@ -41,7 +43,7 @@ interface DotProps {
 function CustomDot(props: DotProps) {
   const { cx, cy, payload } = props;
   if (cx == null || cy == null || !payload) return null;
-  const fill = ACTION_FLAG_COLORS[payload.action_flag] ?? '#666';
+  const fill = payload.economicTierColor ?? '#666';
   if (payload.cbam_exposed) {
     return (
       <g>
@@ -64,7 +66,12 @@ interface CustomTooltipProps {
   benchmarkLabel?: string;
 }
 
-function CustomTooltip({ active, payload, energyMode = 'solar', benchmarkLabel = 'Tariff' }: CustomTooltipProps) {
+function CustomTooltip({
+  active,
+  payload,
+  energyMode = 'solar',
+  benchmarkLabel = 'Tariff',
+}: CustomTooltipProps) {
   if (!active || !payload?.[0]?.payload) return null;
   const d = payload[0].payload;
   const lcoe = d.activeLcoe;
@@ -82,17 +89,19 @@ function CustomTooltip({ active, payload, energyMode = 'solar', benchmarkLabel =
       }}
     >
       <div className="font-medium mb-1">{d.kek_name}</div>
-      <div>{label} LCOE: {lcoe != null ? `$${lcoe.toFixed(1)}/MWh` : 'N/A'}</div>
-      <div>Grid ({benchmarkLabel}): ${gridCost.toFixed(1)}/MWh</div>
+      <div>
+        {label} LCOE: {lcoe != null ? `$${lcoe.toFixed(1)}/MWh` : 'N/A'}
+      </div>
+      <div>
+        Grid ({benchmarkLabel}): ${gridCost.toFixed(1)}/MWh
+      </div>
       {gap != null && (
         <div>
           Gap: {gap > 0 ? '+' : ''}
           {gap.toFixed(1)}%
         </div>
       )}
-      {d.cbam_exposed && (
-        <div style={{ color: '#FF6F00' }}>CBAM Exposed</div>
-      )}
+      {d.cbam_exposed && <div style={{ color: '#FF6F00' }}>CBAM Exposed</div>}
     </div>
   );
 }
@@ -169,7 +178,13 @@ export default function QuadrantChart() {
           benchmarkMode === 'bpp' && row.bpp_usd_mwh != null
             ? row.bpp_usd_mwh
             : row.dashboard_rate_usd_mwh;
-        return { ...row, activeLcoe: lcoe ?? null, gridCost };
+        const tier = getEffectiveEconomicTier(row, energyMode);
+        return {
+          ...row,
+          activeLcoe: lcoe ?? null,
+          gridCost,
+          economicTierColor: ECONOMIC_TIER_COLORS[tier],
+        };
       })
       .filter((d) => d.activeLcoe != null && Number.isFinite(d.activeLcoe));
   }, [scorecard, benchmarkMode, energyMode]);
@@ -234,7 +249,14 @@ export default function QuadrantChart() {
             strokeOpacity={0.25}
             strokeDasharray="5 5"
           />
-          <Tooltip content={<CustomTooltip energyMode={energyMode} benchmarkLabel={benchmarkMode === 'bpp' ? 'BPP' : 'Tariff'} />} />
+          <Tooltip
+            content={
+              <CustomTooltip
+                energyMode={energyMode}
+                benchmarkLabel={benchmarkMode === 'bpp' ? 'BPP' : 'Tariff'}
+              />
+            }
+          />
           <Scatter data={chartData} shape={<CustomDot />} />
         </ScatterChart>
       </ResponsiveContainer>
