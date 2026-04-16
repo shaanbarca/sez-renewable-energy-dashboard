@@ -1639,12 +1639,16 @@ class TestHybridRE:
         assert abs(result["hybrid_lcoe_usd_mwh"] - expected_lcoe) < 0.1
 
     def test_bess_reduction_positive(self):
-        """Hybrid BESS hours should be less than 14h when wind is available."""
+        """Wind nighttime coverage should reduce hybrid BESS hours below 14h.
+        Uses explicit share override to isolate BESS reduction from optimizer floor."""
         from src.model.basic_model import RESource, hybrid_lcoe_optimized
 
         solar = RESource("solar", 70.0, 1_000_000, 0.18, nighttime_fraction=0.0)
         wind = RESource("wind", 90.0, 600_000, 0.22, nighttime_fraction=14.0 / 24.0)
-        result = hybrid_lcoe_optimized([solar, wind], demand_mwh=2_000_000)
+        # Force 70/30 solar-wind mix to test BESS reduction mechanism
+        result = hybrid_lcoe_optimized(
+            [solar, wind], demand_mwh=2_000_000, solar_share_override=0.7
+        )
         assert result["hybrid_bess_hours"] < 14.0
         assert result["hybrid_bess_hours"] > 0.0
 
@@ -1655,6 +1659,21 @@ class TestHybridRE:
         wind = RESource("wind", 90.0, 600_000, 0.22, nighttime_fraction=14.0 / 24.0)
         result = hybrid_lcoe_optimized([wind], demand_mwh=2_000_000)
         assert result["hybrid_lcoe_usd_mwh"] is None
+
+    def test_hybrid_floor_wind_standalone(self):
+        """Hybrid all-in should never exceed standalone wind LCOE (no BESS)."""
+        from src.model.basic_model import RESource, hybrid_lcoe_optimized
+
+        # Wind is cheap, solar is expensive. Optimizer will always add BESS
+        # which makes every hybrid mix worse than standalone wind.
+        wind = RESource("wind", 80.0, 500_000, 0.30, nighttime_fraction=14.0 / 24.0)
+        solar = RESource("solar", 120.0, 300_000, 0.18, nighttime_fraction=0.0)
+        result = hybrid_lcoe_optimized([solar, wind], demand_mwh=400_000)
+        assert result["hybrid_allin_usd_mwh"] <= wind.lcoe_usd_mwh, (
+            f"Hybrid ${result['hybrid_allin_usd_mwh']} should not exceed standalone wind ${wind.lcoe_usd_mwh}"
+        )
+        assert result["hybrid_bess_hours"] == 0.0
+        assert result["optimal_solar_share"] == 0.0
 
     def test_supply_coverage_combined(self):
         """Combined supply coverage should sum both sources' generation."""

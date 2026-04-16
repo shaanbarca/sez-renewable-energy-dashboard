@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 - Bottom panel drag-to-resize (200-700px range)
 
 ### Fixed
+- Hybrid LCOE floor: optimizer now returns standalone wind when no hybrid mix can beat it (was adding BESS to 100% wind unnecessarily)
+- Wind energy balance chart now renders in wind mode (was only showing in hybrid mode)
 - QuadrantChart tooltip now reads correct grid cost in BPP mode (was showing tariff value)
 - Show/Hide toggle centered in both collapsed and expanded states
 

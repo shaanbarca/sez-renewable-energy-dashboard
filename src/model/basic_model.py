@@ -513,6 +513,26 @@ def hybrid_lcoe_optimized(
                 "hybrid_nighttime_coverage_pct": round(night_cov, 3),
             }
 
+    # Floor: hybrid all-in should never exceed standalone wind (no BESS).
+    # If the optimizer can't beat wind alone, report 100% wind with no storage.
+    # Skip when user explicitly set a solar_share_override — respect their choice.
+    if solar_share_override is None and wind.lcoe_usd_mwh < best_allin:
+        bridge = bess_bridge_hours()
+        night_demand = demand_mwh * (bridge / 24.0) if demand_mwh > 0 else 0.0
+        night_gen = wind.generation_mwh * HYBRID_WIND_NIGHTTIME_FRACTION
+        night_cov = min(night_gen / night_demand, 1.0) if night_demand > 0 else 0.0
+        best_result = {
+            "hybrid_lcoe_usd_mwh": round(wind.lcoe_usd_mwh, 2),
+            "hybrid_bess_hours": 0.0,
+            "hybrid_bess_adder_usd_mwh": 0.0,
+            "hybrid_allin_usd_mwh": round(wind.lcoe_usd_mwh, 2),
+            "optimal_solar_share": 0.0,
+            "hybrid_supply_coverage_pct": round(wind.generation_mwh / demand_mwh, 3)
+            if demand_mwh > 0
+            else None,
+            "hybrid_nighttime_coverage_pct": round(night_cov, 3),
+        }
+
     return best_result
 
 
