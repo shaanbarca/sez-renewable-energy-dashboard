@@ -1,0 +1,33 @@
+plant_name,latitude,longitude,capacity_mtpa,plant_type,status,province,parent_company,is_chinese_owned,site_id,dist_to_kek_km
+Semen Gresik Tuban,-6.87,112.04,15.0,Integrated,Active,East Java,Semen Indonesia Group,False,,
+Indocement Citeureup,-6.479811,106.899118,11.9,Integrated,Active,West Java,Indocement / Heidelberg,False,kek-lido,31.9
+Semen Padang Indarung,-0.947827,100.469967,8.8,Integrated,Active,West Sumatra,Semen Indonesia Group,False,,
+Semen Tonasa,-4.789565,119.616409,7.4,Integrated,Active,South Sulawesi,Semen Indonesia Group,False,,
+SBI Narogong,-6.48,106.96,6.06,Integrated,Active,West Java,Semen Indonesia Group,False,kek-lido,34.5
+Conch Cement Serang,-5.892955,106.082135,4.4,Grinding,Active,Banten,Anhui Conch (China),True,,
+Conch Cement North Sulawesi,0.895624,124.081963,4.4,Integrated,Active,North Sulawesi,Anhui Conch (China),True,,
+Semen Bosowa Maros,-4.95,119.58,4.2,Integrated,Active,South Sulawesi,Bosowa Corp,False,,
+Red Lion Hongshi Tonga,0.988195,117.481986,4.0,Integrated,Active,East Kalimantan,Hongshi (China),True,,
+Semen Baturaja,-4.116636,104.161351,3.85,Integrated,Active,South Sumatra,Semen Indonesia Group,False,,
+SBI Tuban,-6.816488,111.885383,3.73,Integrated,Active,East Java,Semen Indonesia Group,False,,
+Indocement Palimanan,-6.72,108.38,3.62,Integrated,Active,West Java,Indocement / Heidelberg,False,,
+Cemindo Gemilang Bayah,-6.954596,106.247008,3.5,Integrated,Active,Banten,Cemindo Gemilang,False,,
+SBI Cilacap,-7.687489,109.022305,3.23,Integrated,Active,Central Java,Semen Indonesia Group,False,,
+Semen Imasco Asiatic Jember,-8.348729,113.49255,3.0,Integrated,Active,East Java,Hongshi (China),True,,
+SI Gresik Rembang,-6.866206,111.458833,3.0,Integrated,Active,Central Java,Semen Indonesia Group,False,,
+Semeru Surya Semen Kutai,-0.541619,117.146701,3.0,Grinding,Active,East Kalimantan,Semeru Surya Semen,False,,
+Indocement Kotabaru Tarjun,-3.271007,116.105835,2.6,Integrated,Active,South Kalimantan,Indocement / Heidelberg,False,setangga,3.4
+Semen Grobogan,-7.089975,110.622539,2.5,Integrated,Active,Central Java,Indocement / Heidelberg,False,kek-kendal,44.7
+Semen Garuda Bekasi,-6.460507,107.212892,2.5,Integrated,Active,West Java,Jui Shin Indonesia,False,,
+SBI Andalas Lhoknga,5.451139,95.246351,1.84,Integrated,Active,Aceh,Semen Indonesia Group,False,,
+Semen Jawa SCG Sukabumi,-6.976314,106.861777,1.8,Integrated,Active,West Java,Siam Cement Group,False,kek-lido,25.4
+Semen Bosowa Banyuwangi,-8.169003,114.391943,1.8,Grinding,Active,East Java,Bosowa Corp,False,,
+Cemindo Gemilang Ciwandan,-6.022556,105.960336,1.75,Grinding,Active,Banten,Cemindo Gemilang,False,,
+Conch South Kalimantan,-2.05,115.42,1.5,Integrated,Active,South Kalimantan,Anhui Conch (China),True,,
+Cemindo Gemilang Batam,1.058643,104.135548,1.2,Grinding,Active,Riau Islands,Cemindo Gemilang,False,tanjung-sauh,4.5
+Semen Bosowa Batam,1.058782,104.136023,1.2,Grinding,Active,Riau Islands,Bosowa Corp,False,tanjung-sauh,4.4
+Semen Jakarta,-6.037574,105.985182,1.0,Grinding,Active,Banten,Semen Jakarta,False,,
+Semen Gresik City,-7.170242,112.645549,0.9,Grinding,Active,East Java,Semen Indonesia Group,False,kek-gresik,10.4
+Solusi Bangun Cilegon,-6.020475,105.958559,0.6,Grinding,Active,Banten,Semen Indonesia Group,False,,
+Semen Kupang,-10.194909,123.540076,0.5,Integrated,Active,NTT,Semen Indonesia Group,False,,
+Conch West Kalimantan,0.032069,109.23757,0.5,Grinding,Active,West Kalimantan,Anhui Conch (China),True,,
