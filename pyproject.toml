@@ -80,12 +80,23 @@ max-statements = 50
     "PLR0913",  # test fixtures/helpers occasionally take many params
 ]
 # TODOS M24: scoped src/ deferrals — magic-value comparisons (year 2030, EPSG 4326,
-# WACC 8.0) and high-arity build_* functions are pre-existing patterns. Cleanup pass
-# will hoist constants and split functions; until then these files are exempt so
-# unrelated edits don't trip the hook.
+# WACC 8.0, wind-speed thresholds, CF tier breakpoints) and high-arity build_* /
+# model helpers are pre-existing patterns. Cleanup pass will hoist constants and
+# split functions; until then these files are exempt so unrelated edits don't trip
+# the hook.
+"src/api/auth.py" = ["PLR2004"]
 "src/dash/data_loader.py" = ["PLR2004"]
+"src/model/basic_model.py" = ["PLR2004", "PLR0913"]
+"src/pipeline/build_fct_lcoe.py" = ["PLR2004"]
+"src/pipeline/build_fct_lcoe_wind.py" = ["PLR2004"]
 "src/pipeline/build_fct_site_resource.py" = ["PLR2004", "PLR0913"]
 "src/pipeline/build_fct_site_scorecard.py" = ["PLR2004", "PLR0913"]
+"src/pipeline/build_fct_site_wind_resource.py" = ["PLR2004"]
+"src/pipeline/buildability_filters.py" = ["PLR0913"]
+"src/pipeline/geo_utils.py" = ["PLR0913"]
+"src/pipeline/pdf_extract_esdm_tech.py" = ["PLR2004"]
+"src/pipeline/pdf_extract_ruptl.py" = ["PLR2004"]
+"src/pipeline/wind_buildability_filters.py" = ["PLR0913"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
