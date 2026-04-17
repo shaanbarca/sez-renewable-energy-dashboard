@@ -1,0 +1,80 @@
+site_id,site_name,latitude,longitude,pvout_daily_centroid,pvout_centroid,cf_centroid,pvout_daily_best_50km,pvout_best_50km,cf_best_50km,pvout_source,pvout_buildable_best_50km,buildable_area_ha,max_captive_capacity_mwp,buildability_constraint,best_solar_site_lat,best_solar_site_lon,best_solar_site_dist_km,within_boundary_area_ha,within_boundary_capacity_mwp,pvout_within_boundary,within_boundary_source
+industropolis-batang,Industropolis Batang,-6.930301,109.9617023,4.224,1541.8,0.176,4.339,1583.7,0.1808,GlobalSolarAtlas-v2,1560.4,768.9,512.6,land_cover,-6.92698,110.26341,33.31,256.3,170.9,1543.1,raster
+batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,1.1377283591127,103.92457856774,3.63,1325.0,0.1513,3.728,1360.7,0.1553,GlobalSolarAtlas-v2,1342.8,1376.6,917.7,land_cover,1.01605,104.28783,42.59,0.0,0.0,,theoretical
+bumi-serpong-damai,"Banten International Education, Technology, and Health",-6.308799293523,106.65753024663,3.63,1325.0,0.1513,4.035,1472.8,0.1681,GlobalSolarAtlas-v2,1457.1,1539.6,1026.4,kawasan_hutan,-6.13881,107.06814,49.17,0.0,0.0,,theoretical
+setangga,Setangga,-3.2813775344249,116.07748257442,3.665,1337.7,0.1527,3.889,1419.5,0.162,GlobalSolarAtlas-v2,1363.3,5069.0,3379.3,land_cover,-3.18639,116.15676,13.75,0.0,0.0,,theoretical
+tanjung-sauh,Tanjung Sauh,1.0429294494269,104.17274106649,3.594,1311.8,0.1498,3.789,1383.0,0.1579,GlobalSolarAtlas-v2,1351.6,9894.9,6596.6,land_cover,1.22125,104.55268,46.66,0.0,0.0,,theoretical
+kek-arun-lhokseumawe,Arun Lhokseumawe,5.2199197298726,97.080259039528,3.876,1414.7,0.1615,3.978,1452.0,0.1657,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+kek-sanur,Sanur,-8.6942352931407,115.26295962249,4.582,1672.4,0.1909,4.693,1712.9,0.1955,GlobalSolarAtlas-v2,1618.4,850.7,567.1,kawasan_hutan,-8.74925,115.60442,38.02,0.0,0.0,,theoretical
+kek-kendal,Kendal,-6.9355648813555,110.24833446931,4.281,1562.6,0.1784,4.339,1583.7,0.1808,GlobalSolarAtlas-v2,1561.1,1196.0,797.3,land_cover,-6.92391,110.2667,2.41,85.4,56.9,1561.1,raster
+kek-sorong,Sorong,-1.0292733746334,131.24345068184,3.844,1403.1,0.1602,4.197,1531.9,0.1749,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+kek-singhasari,Singhasari,-7.5151962757576,112.7434025685,4.45,1624.2,0.1854,4.641,1694.0,0.1934,GlobalSolarAtlas-v2,1693.6,4863.1,3242.1,land_cover,-7.67854,113.05286,38.64,0.0,0.0,,theoretical
+kek-morotai,Morotai,2.3750901219475,128.41811690865,3.59,1310.3,0.1496,4.308,1572.4,0.1795,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+kek-gresik,Gresik,-7.0854668845705,112.60680989557,4.237,1546.5,0.1765,4.481,1635.6,0.1867,GlobalSolarAtlas-v2,1612.2,4270.0,2846.7,land_cover,-7.52381,112.70003,49.81,256.2,170.8,1539.8,raster
+kek-likupang,Likupang,1.680721711081,125.15739596932,4.331,1580.8,0.1805,4.435,1618.8,0.1848,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+kek-bitung,Bitung,1.4243289186209,125.10987982233,4.123,1504.9,0.1718,4.435,1618.8,0.1848,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+kek-palu,Palu,-0.71188721731303,119.8703393558,3.977,1451.6,0.1657,4.222,1541.0,0.1759,GlobalSolarAtlas-v2,1517.7,13165.6,8777.1,land_cover,-0.87523,120.20032,40.94,0.0,0.0,,theoretical
+kek-kura-kura,Kura Kura Bali,-8.7312613066451,115.23086607725,4.615,1684.5,0.1923,4.693,1712.9,0.1955,GlobalSolarAtlas-v2,1614.8,850.6,567.1,land_cover,-8.80294,115.59728,41.05,0.0,0.0,,theoretical
+kek-galang-batang,Galang Batang,0.91112087616108,104.65970479459,3.633,1326.0,0.1514,3.886,1418.4,0.1619,GlobalSolarAtlas-v2,1351.6,13423.1,8948.7,land_cover,1.22278,104.55633,36.51,1376.7,917.8,1315.5,raster
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,0.81659915671314,117.93022440699,3.734,1362.9,0.1556,3.898,1422.8,0.1624,GlobalSolarAtlas-v2,1388.1,8776.9,5851.3,land_cover,0.78659,118.01852,10.37,0.0,0.0,,theoretical
+kek-nongsa,Nongsa,1.191175886339,104.09214803974,3.616,1319.8,0.1507,3.784,1381.2,0.1577,GlobalSolarAtlas-v2,1342.8,2581.1,1720.7,land_cover,1.0195,104.28873,29.02,0.0,0.0,,theoretical
+kek-mandalika,Mandalika,-8.8963124944653,116.29090641579,4.528,1652.7,0.1887,4.741,1730.5,0.1975,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+kek-batam-aero-technic,Batam Aero Technic,1.1393365211312,104.12432224421,3.643,1329.7,0.1518,3.8,1387.0,0.1583,GlobalSolarAtlas-v2,1342.8,3527.6,2351.7,land_cover,1.01766,104.28758,22.64,0.0,0.0,,theoretical
+kek-tanjung-kelayang,Tanjung Kelayang,-2.5711927695212,107.65499155301,3.551,1296.1,0.148,3.857,1407.8,0.1607,GlobalSolarAtlas-v2,1310.7,4556.4,3037.6,land_cover,-2.69287,108.08455,49.6,0.0,0.0,,theoretical
+kek-lido,Lido,-6.7536528309529,106.81210085326,3.566,1301.6,0.1486,4.007,1462.6,0.167,GlobalSolarAtlas-v2,1416.6,2820.2,1880.1,land_cover,-6.45033,107.09731,46.15,256.4,170.9,1298.4,raster
+kek-tanjung-lesung,Tanjung Lesung,-6.4817887185833,105.65248380886,3.782,1380.4,0.1576,4.033,1472.0,0.168,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+kek-sei-mangkei,Sei Mangkei,3.1324879221829,99.340577853012,3.626,1323.5,0.1511,3.785,1381.5,0.1577,GlobalSolarAtlas-v2,1365.5,85.9,57.3,kawasan_hutan,3.40248,99.36992,30.2,0.0,0.0,,theoretical
+semen-gresik-tuban,Semen Gresik Tuban,-6.87,112.04,4.32,1576.8,0.18,4.453,1625.3,0.1855,GlobalSolarAtlas-v2,1618.8,1623.3,1082.2,land_cover,-6.80834,111.98343,9.27,0.0,0.0,,theoretical
+indocement-citeureup,Indocement Citeureup,-6.479811,106.899118,3.791,1383.7,0.158,4.02,1467.3,0.1675,GlobalSolarAtlas-v2,1457.1,4788.4,3192.3,land_cover,-6.13482,107.06791,42.66,0.0,0.0,,theoretical
+semen-padang-indarung,Semen Padang Indarung,-0.947827,100.469967,3.677,1342.1,0.1532,4.024,1468.8,0.1677,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+semen-tonasa,Semen Tonasa,-4.789565,119.616409,4.0,1460.0,0.1667,4.29,1565.8,0.1787,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+sbi-narogong,SBI Narogong,-6.48,106.96,3.839,1401.2,0.16,4.022,1468.0,0.1676,GlobalSolarAtlas-v2,1450.5,5215.9,3477.3,land_cover,-6.24334,107.21212,38.32,0.0,0.0,,theoretical
+conch-cement-serang,Conch Cement Serang,-5.892955,106.082135,3.972,1449.8,0.1655,4.021,1467.7,0.1675,GlobalSolarAtlas-v2,1439.9,85.6,57.1,kawasan_hutan,-5.9813,106.10143,10.05,0.0,0.0,,theoretical
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,0.895624,124.081963,4.215,1538.5,0.1756,4.419,1612.9,0.1841,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+semen-bosowa-maros,Semen Bosowa Maros,-4.95,119.58,4.128,1506.7,0.172,4.29,1565.8,0.1787,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,0.988195,117.481986,3.559,1299.0,0.1483,3.879,1415.8,0.1616,GlobalSolarAtlas-v2,1379.7,17294.8,11529.9,kawasan_hutan,0.69152,117.7036,41.17,0.0,0.0,,theoretical
+semen-baturaja,Semen Baturaja,-4.116636,104.161351,3.833,1399.0,0.1597,3.957,1444.3,0.1649,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+sbi-tuban,SBI Tuban,-6.816488,111.885383,4.32,1576.8,0.18,4.448,1623.5,0.1853,GlobalSolarAtlas-v2,1618.8,2392.6,1595.1,land_cover,-6.80483,111.97886,10.4,0.0,0.0,,theoretical
+indocement-palimanan,Indocement Palimanan,-6.72,108.38,3.959,1445.0,0.165,4.268,1557.8,0.1778,GlobalSolarAtlas-v2,1535.9,1709.3,1139.5,land_cover,-6.77501,108.6319,28.48,0.0,0.0,,theoretical
+cemindo-gemilang-bayah,Cemindo Gemilang Bayah,-6.954596,106.247008,3.895,1421.7,0.1623,4.093,1493.9,0.1705,GlobalSolarAtlas-v2,1372.0,170.8,113.9,kawasan_hutan,-7.15961,106.54869,40.35,0.0,0.0,,theoretical
+sbi-cilacap,SBI Cilacap,-7.687489,109.022305,4.158,1517.7,0.1732,4.261,1555.3,0.1775,GlobalSolarAtlas-v2,1512.9,255.8,170.5,land_cover,-7.7425,108.97324,8.16,0.0,0.0,,theoretical
+semen-imasco-asiatic-jember,Semen Imasco Asiatic Jember,-8.348729,113.49255,4.385,1600.5,0.1827,4.617,1685.2,0.1924,GlobalSolarAtlas-v2,1631.5,851.4,567.6,land_cover,-8.28707,113.25108,27.44,0.0,0.0,,theoretical
+si-gresik-rembang,SI Gresik Rembang,-6.866206,111.458833,3.968,1448.3,0.1653,4.396,1604.5,0.1832,GlobalSolarAtlas-v2,1546.9,2221.4,1480.9,land_cover,-6.82955,111.86893,45.46,0.0,0.0,,theoretical
+semeru-surya-semen-kutai,Semeru Surya Semen Kutai,-0.541619,117.146701,3.399,1240.6,0.1416,3.773,1377.1,0.1572,GlobalSolarAtlas-v2,1320.9,25471.6,16981.1,land_cover,-0.89663,117.21003,40.1,0.0,0.0,,theoretical
+indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun,-3.271007,116.105835,3.656,1334.4,0.1523,3.892,1420.6,0.1622,GlobalSolarAtlas-v2,1363.3,5240.9,3493.9,land_cover,-3.18435,116.15178,10.9,0.0,0.0,,theoretical
+semen-grobogan,Semen Grobogan,-7.089975,110.622539,4.188,1528.6,0.1745,4.328,1579.7,0.1803,GlobalSolarAtlas-v2,1560.4,1281.0,854.0,land_cover,-6.92832,110.26576,43.28,0.0,0.0,,theoretical
+semen-garuda-bekasi,Semen Garuda Bekasi,-6.460507,107.212892,3.855,1407.1,0.1606,4.127,1506.4,0.172,GlobalSolarAtlas-v2,1451.6,5045.1,3363.4,land_cover,-6.24885,107.21503,23.54,0.0,0.0,,theoretical
+sbi-andalas-lhoknga,SBI Andalas Lhoknga,5.451139,95.246351,3.863,1410.0,0.161,4.017,1466.2,0.1674,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+semen-jawa-scg-sukabumi,Semen Jawa SCG Sukabumi,-6.976314,106.861777,3.754,1370.2,0.1564,4.086,1491.4,0.1702,GlobalSolarAtlas-v2,1393.6,2648.0,1765.3,land_cover,-7.01466,106.78844,9.15,0.0,0.0,,theoretical
+semen-bosowa-banyuwangi,Semen Bosowa Banyuwangi,-8.169003,114.391943,4.426,1615.5,0.1844,4.717,1721.7,0.1965,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+cemindo-gemilang-ciwandan,Cemindo Gemilang Ciwandan,-6.022556,105.960336,3.792,1384.1,0.158,4.032,1471.7,0.168,GlobalSolarAtlas-v2,1441.4,256.7,171.1,kawasan_hutan,-5.9609,106.10452,17.36,0.0,0.0,,theoretical
+conch-south-kalimantan,Conch South Kalimantan,-2.05,115.42,3.581,1307.1,0.1492,3.77,1376.0,0.1571,GlobalSolarAtlas-v2,1375.0,12900.2,8600.1,land_cover,-2.42168,115.18306,49.0,0.0,0.0,,theoretical
+cemindo-gemilang-batam,Cemindo Gemilang Batam,1.058643,104.135548,3.586,1308.9,0.1494,3.77,1376.0,0.1571,GlobalSolarAtlas-v2,1342.8,5850.8,3900.5,land_cover,1.0203,104.29048,17.74,0.0,0.0,,theoretical
+semen-bosowa-batam,Semen Bosowa Batam,1.058782,104.136023,3.586,1308.9,0.1494,3.77,1376.0,0.1571,GlobalSolarAtlas-v2,1342.8,6109.0,4072.7,land_cover,1.02044,104.29096,17.75,0.0,0.0,,theoretical
+semen-jakarta,Semen Jakarta,-6.037574,105.985182,3.731,1361.8,0.1555,4.03,1471.0,0.1679,GlobalSolarAtlas-v2,1441.4,256.7,171.1,kawasan_hutan,-5.95925,106.10435,15.8,0.0,0.0,,theoretical
+semen-gresik-city,Semen Gresik City,-7.170242,112.645549,4.273,1559.6,0.178,4.543,1658.2,0.1893,GlobalSolarAtlas-v2,1621.0,3927.6,2618.4,land_cover,-7.53359,112.71369,41.1,0.0,0.0,,theoretical
+solusi-bangun-cilegon,Solusi Bangun Cilegon,-6.020475,105.958559,3.792,1384.1,0.158,4.032,1471.7,0.168,GlobalSolarAtlas-v2,1440.3,171.2,114.1,kawasan_hutan,-5.97549,106.10275,16.71,0.0,0.0,,theoretical
+semen-kupang,Semen Kupang,-10.194909,123.540076,4.572,1668.8,0.1905,4.89,1784.8,0.2037,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+conch-west-kalimantan,Conch West Kalimantan,0.032069,109.23757,3.732,1362.2,0.1555,3.952,1442.5,0.1647,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+krakatau-steel-cilegon,Krakatau Steel Cilegon,-6.007021,106.001766,3.803,1388.1,0.1585,4.028,1470.2,0.1678,GlobalSolarAtlas-v2,1441.4,256.8,171.2,kawasan_hutan,-5.96203,106.1043,12.39,0.0,0.0,,theoretical
+krakatau-posco-cilegon,Krakatau Posco Cilegon,-5.998661,105.99866,3.812,1391.4,0.1588,4.028,1470.2,0.1678,GlobalSolarAtlas-v2,1442.1,171.2,114.1,kawasan_hutan,-5.96201,106.10953,12.92,0.0,0.0,,theoretical
+dexin-steel-morowali,Dexin Steel Morowali,-2.829514,122.174896,3.98,1452.7,0.1658,4.036,1473.1,0.1682,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,-6.282658,107.117683,3.81,1390.6,0.1587,4.124,1505.3,0.1718,GlobalSolarAtlas-v2,1457.1,5132.4,3421.6,land_cover,-6.13767,107.06998,16.96,0.0,0.0,,theoretical
+master-steel-jakarta,Master Steel Jakarta,-6.18421,106.920067,3.779,1379.3,0.1575,4.096,1495.0,0.1707,GlobalSolarAtlas-v2,1451.6,3593.3,2395.5,land_cover,-6.24755,107.21412,33.26,0.0,0.0,,theoretical
+jakarta-prima-steel-industries,Jakarta Prima Steel Industries,-6.181643,106.932331,3.814,1392.1,0.1589,4.099,1496.1,0.1708,GlobalSolarAtlas-v2,1457.1,4448.9,2965.9,land_cover,-6.13665,107.06805,15.82,0.0,0.0,,theoretical
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,-7.448,112.718,4.401,1606.4,0.1834,4.641,1694.0,0.1934,GlobalSolarAtlas-v2,1690.0,5973.1,3982.1,land_cover,-7.66134,113.03586,42.31,0.0,0.0,,theoretical
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),-3.890235466,122.4379273,3.948,1441.0,0.1645,4.183,1526.8,0.1743,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),-5.581220134,120.0574004,4.239,1547.2,0.1766,4.528,1652.7,0.1887,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+obi-island-industrial-park,Obi Island Industrial Park,-1.532699668,127.4192247,3.678,1342.5,0.1532,4.275,1560.4,0.1781,GlobalSolarAtlas-v2,,0.0,0.0,land_cover,,,,0.0,0.0,,theoretical
+indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),-4.291228621,121.5584167,3.957,1444.3,0.1649,4.345,1585.9,0.181,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+nusantara-industri-sejati,Nusantara Industri Sejati,-3.835193078,122.4033594,3.973,1450.1,0.1655,4.183,1526.8,0.1743,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),-2.831769936,122.1651827,3.965,1447.2,0.1652,4.036,1473.1,0.1682,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),-1.935932805,121.6115391,4.042,1475.3,0.1684,4.153,1515.8,0.173,GlobalSolarAtlas-v2,1445.4,602.1,401.4,kawasan_hutan,-1.75761,121.76629,26.25,0.0,0.0,,theoretical
+industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),0.4890843334,128.0476444,3.857,1407.8,0.1607,4.231,1544.3,0.1763,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+buli-industrial-park,Buli Industrial Park,0.8408315536,128.2559372,4.018,1466.6,0.1674,4.223,1541.4,0.176,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),-3.016794486,121.8324283,3.713,1355.2,0.1547,4.07,1485.6,0.1696,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+inalum-asahan,Inalum Asahan,2.703,99.243,3.528,1287.7,0.147,3.847,1404.2,0.1603,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+freeport-smelter-gresik,Freeport Smelter Gresik,-7.161,112.654,4.261,1555.3,0.1775,4.542,1657.8,0.1892,GlobalSolarAtlas-v2,1621.0,4696.2,3130.8,land_cover,-7.53268,112.71381,41.85,0.0,0.0,,theoretical
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,0.121,117.5,3.723,1358.9,0.1551,3.893,1420.9,0.1622,GlobalSolarAtlas-v2,1393.9,6368.2,4245.5,kawasan_hutan,0.46599,117.58834,39.6,0.0,0.0,,theoretical
+pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,-2.99,104.757,3.582,1307.4,0.1493,3.747,1367.7,0.1561,GlobalSolarAtlas-v2,,0.0,0.0,kawasan_hutan,,,,0.0,0.0,,theoretical
+petrokimia-gresik,Petrokimia Gresik,-7.151,112.651,4.251,1551.6,0.1771,4.538,1656.4,0.1891,GlobalSolarAtlas-v2,1634.1,4440.1,2960.1,land_cover,-7.54768,112.77749,46.26,0.0,0.0,,theoretical

@@ -3,12 +3,12 @@ tests/test_pipeline.py — pipeline builder tests.
 
 Covers:
   - Unit conversions (MUSD→USD/kW, Rp/kWh→USD/MWh) — math must be exact
-  - dim_kek: row count, slug uniqueness, polygon dedup logic
+  - dim_sites: row count, slug uniqueness, polygon dedup logic
   - fct_lcoe: CF fallback (centroid when best_50km missing), is_capex_provisional propagation
-  - fct_kek_resource: cf columns present and in plausible range
+  - fct_site_resource: cf columns present and in plausible range
   - fct_grid_cost_proxy: all regions present, correct conversion
-  - fct_kek_scorecard: all KEKs present, gap sign logic, data_completeness, green_share_geas
-  - fct_kek_demand: demand_mwh_user column (nullable Float64, all null by default)
+  - fct_site_scorecard: all KEKs present, gap sign logic, data_completeness, green_share_geas
+  - fct_site_demand: demand_mwh_user column (nullable Float64, all null by default)
   - assumptions: two-factor derivation (BUILDING_INTENSITY × BUILDING_FOOTPRINT_RATIO × 10)
   - run_pipeline: topo_sort correctness, cycle detection, unknown dep error
 """
@@ -293,23 +293,23 @@ class TestDimTechCostWind:
         assert bool(df.iloc[0]["is_provisional"]) is False
 
 
-# ── dim_kek ──────────────────────────────────────────────────────────────────
+# ── dim_sites ──────────────────────────────────────────────────────────────────
 
 
-class TestDimKek:
+class TestDimSites:
     def test_row_count(self):
-        """Should produce exactly 25 KEKs (one per scraper row)."""
-        from src.pipeline.build_dim_kek import build_dim_kek
+        """Should produce 79 sites (25 KEKs + 44 standalone + 10 cluster)."""
+        from src.pipeline.build_dim_sites import build_dim_sites
 
-        df = build_dim_kek()
-        assert len(df) == 25
+        df = build_dim_sites()
+        assert len(df) >= 25  # at least 25 KEKs, plus industrial sites
 
-    def test_kek_id_unique(self):
-        """kek_id is the primary key — no duplicates allowed."""
-        from src.pipeline.build_dim_kek import build_dim_kek
+    def test_site_id_unique(self):
+        """site_id is the primary key — no duplicates allowed."""
+        from src.pipeline.build_dim_sites import build_dim_sites
 
-        df = build_dim_kek()
-        assert df["kek_id"].is_unique
+        df = build_dim_sites()
+        assert df["site_id"].is_unique
 
     def test_polygon_dedup_largest_area_wins(self):
         """Polygon file has 30 features for 25 KEKs. Largest area per kek_id survives."""
@@ -320,23 +320,23 @@ class TestDimKek:
 
     def test_grid_region_id_no_nulls(self):
         """All 25 KEKs must have a grid_region_id (from manual mapping file)."""
-        from src.pipeline.build_dim_kek import build_dim_kek
+        from src.pipeline.build_dim_sites import build_dim_sites
 
-        df = build_dim_kek()
+        df = build_dim_sites()
         assert df["grid_region_id"].notna().all(), (
-            f"Missing grid_region_id: {df.loc[df['grid_region_id'].isna(), 'kek_id'].tolist()}"
+            f"Missing grid_region_id: {df.loc[df['grid_region_id'].isna(), 'site_id'].tolist()}"
         )
 
     def test_required_columns_present(self):
-        from src.pipeline.build_dim_kek import build_dim_kek
+        from src.pipeline.build_dim_sites import build_dim_sites
 
-        df = build_dim_kek()
+        df = build_dim_sites()
         required = [
-            "kek_id",
-            "kek_name",
+            "site_id",
+            "site_name",
             "province",
             "grid_region_id",
-            "kek_type",
+            "zone_classification",
             "latitude",
             "longitude",
             "data_vintage",
@@ -346,26 +346,26 @@ class TestDimKek:
 
     def test_coordinates_in_indonesia_bounds(self):
         """All KEK centroids should fall roughly within Indonesia's bounding box."""
-        from src.pipeline.build_dim_kek import build_dim_kek
+        from src.pipeline.build_dim_sites import build_dim_sites
 
-        df = build_dim_kek()
+        df = build_dim_sites()
         assert df["latitude"].between(-12, 8).all()
         assert df["longitude"].between(95, 142).all()
 
 
-# ── fct_kek_resource ─────────────────────────────────────────────────────────
+# ── fct_site_resource ─────────────────────────────────────────────────────────
 
 
 class TestFctKekResource:
     def test_cf_columns_present(self):
         """cf_centroid and cf_best_50km must be in the output (added in this session)."""
-        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        resource = pd.read_csv(PROCESSED / "fct_site_resource.csv")
         assert "cf_centroid" in resource.columns
         assert "cf_best_50km" in resource.columns
 
     def test_cf_in_plausible_range(self):
         """Indonesian solar CF should be roughly 0.14–0.22 for utility-scale."""
-        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        resource = pd.read_csv(PROCESSED / "fct_site_resource.csv")
         cf = resource["cf_best_50km"].dropna()
         assert cf.between(0.10, 0.30).all(), f"CF out of range: {cf.describe()}"
 
@@ -376,7 +376,7 @@ class TestFctKekResource:
         computed from the unrounded value.  Max rounding error ≈ 0.05 / 8760
         ≈ 0.000006, so atol=0.0001 is a tight but fair bound.
         """
-        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        resource = pd.read_csv(PROCESSED / "fct_site_resource.csv")
         valid = resource.dropna(subset=["pvout_best_50km", "cf_best_50km"])
         expected_cf = valid["pvout_best_50km"] / 8760
         import numpy as np
@@ -385,13 +385,13 @@ class TestFctKekResource:
 
     def test_pvout_in_plausible_annual_range(self):
         """Annual PVOUT should be 1000–2500 kWh/kWp/yr for Indonesia."""
-        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        resource = pd.read_csv(PROCESSED / "fct_site_resource.csv")
         pvout = resource["pvout_best_50km"].dropna()
         assert pvout.between(1000, 2500).all()
 
     def test_buildability_columns_present(self):
-        """v1.1: fct_kek_resource must contain the 4 buildability columns."""
-        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        """v1.1: fct_site_resource must contain the 4 buildability columns."""
+        resource = pd.read_csv(PROCESSED / "fct_site_resource.csv")
         for col in [
             "pvout_buildable_best_50km",
             "buildable_area_ha",
@@ -404,7 +404,7 @@ class TestFctKekResource:
         """buildability_constraint must be one of the 7 defined string values."""
         from src.pipeline.buildability_filters import VALID_CONSTRAINTS
 
-        resource = pd.read_csv(PROCESSED / "fct_kek_resource.csv")
+        resource = pd.read_csv(PROCESSED / "fct_site_resource.csv")
         vals = resource["buildability_constraint"].dropna().unique()
         invalid = [v for v in vals if v not in VALID_CONSTRAINTS]
         assert not invalid, f"Invalid constraint values: {invalid}"
@@ -422,11 +422,13 @@ class TestFctLcoe:
         assert set(df["wacc_pct"].unique()) == {4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0}
 
     def test_row_count(self):
-        """25 KEKs × 9 WACC values × 2 scenarios = 450 rows."""
+        """N sites × 9 WACC values × 2 scenarios (within_boundary, grid_connected_solar)."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
         df = build_fct_lcoe()
-        assert len(df) == 450
+        # 79 sites x 9 WACC x 2 scenarios = 1,422 (parameterized, not hardcoded)
+        n_sites = df["site_id"].nunique()
+        assert len(df) == n_sites * 9 * 2
 
     def test_two_scenarios(self):
         """Each KEK/WACC combination must have both within_boundary and grid_connected_solar."""
@@ -440,10 +442,10 @@ class TestFctLcoe:
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
         df = build_fct_lcoe()
-        wb = df[df["scenario"] == "within_boundary"].set_index(["kek_id", "wacc_pct"])[
+        wb = df[df["scenario"] == "within_boundary"].set_index(["site_id", "wacc_pct"])[
             "effective_capex_usd_per_kw"
         ]
-        gc = df[df["scenario"] == "grid_connected_solar"].set_index(["kek_id", "wacc_pct"])[
+        gc = df[df["scenario"] == "grid_connected_solar"].set_index(["site_id", "wacc_pct"])[
             "effective_capex_usd_per_kw"
         ]
         assert (gc > wb).all(), (
@@ -472,7 +474,7 @@ class TestFctLcoe:
 
         df = build_fct_lcoe()
         pivot = df.pivot(
-            index=["kek_id", "scenario"], columns="wacc_pct", values="lcoe_usd_mwh"
+            index=["site_id", "scenario"], columns="wacc_pct", values="lcoe_usd_mwh"
         ).dropna()
         assert (pivot[8.0] < pivot[10.0]).all()
         assert (pivot[10.0] < pivot[12.0]).all()
@@ -499,10 +501,10 @@ class TestFctLcoe:
         """When pvout_best_50km is NaN, CF should fall back to pvout_centroid for both scenarios."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
-        dim_kek = pd.DataFrame({"kek_id": ["kek-test"]})
+        dim_sites = pd.DataFrame({"site_id": ["kek-test"]})
         resource = pd.DataFrame(
             {
-                "kek_id": ["kek-test"],
+                "site_id": ["kek-test"],
                 "pvout_centroid": [1500.0],
                 "pvout_best_50km": [np.nan],
             }
@@ -526,20 +528,20 @@ class TestFctLcoe:
         )
         proximity = pd.DataFrame(
             {
-                "kek_id": ["kek-test"],
+                "site_id": ["kek-test"],
                 "dist_to_nearest_substation_km": [10.0],
                 "dist_solar_to_nearest_substation_km": [5.0],
             }
         )
 
-        dim_kek.to_csv(tmp_path / "dim_kek.csv", index=False)
-        resource.to_csv(tmp_path / "fct_kek_resource.csv", index=False)
+        dim_sites.to_csv(tmp_path / "dim_sites.csv", index=False)
+        resource.to_csv(tmp_path / "fct_site_resource.csv", index=False)
         tech.to_csv(tmp_path / "dim_tech_cost.csv", index=False)
         proximity.to_csv(tmp_path / "fct_substation_proximity.csv", index=False)
 
         df = build_fct_lcoe(
-            dim_kek_csv=tmp_path / "dim_kek.csv",
-            fct_kek_resource_csv=tmp_path / "fct_kek_resource.csv",
+            dim_sites_csv=tmp_path / "dim_sites.csv",
+            fct_site_resource_csv=tmp_path / "fct_site_resource.csv",
             dim_tech_cost_csv=tmp_path / "dim_tech_cost.csv",
             fct_substation_proximity_csv=tmp_path / "fct_substation_proximity.csv",
             wacc_values=[10.0],
@@ -559,10 +561,10 @@ class TestFctLcoe:
         """KEK with no PVOUT data should produce NaN LCOE, not raise."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
-        dim_kek = pd.DataFrame({"kek_id": ["kek-nodata"]})
+        dim_sites = pd.DataFrame({"site_id": ["kek-nodata"]})
         resource = pd.DataFrame(
             {
-                "kek_id": ["kek-nodata"],
+                "site_id": ["kek-nodata"],
                 "pvout_centroid": [np.nan],
                 "pvout_best_50km": [np.nan],
             }
@@ -586,20 +588,20 @@ class TestFctLcoe:
         )
         proximity = pd.DataFrame(
             {
-                "kek_id": ["kek-nodata"],
+                "site_id": ["kek-nodata"],
                 "dist_to_nearest_substation_km": [5.0],
                 "dist_solar_to_nearest_substation_km": [3.0],
             }
         )
 
-        dim_kek.to_csv(tmp_path / "dim_kek.csv", index=False)
-        resource.to_csv(tmp_path / "fct_kek_resource.csv", index=False)
+        dim_sites.to_csv(tmp_path / "dim_sites.csv", index=False)
+        resource.to_csv(tmp_path / "fct_site_resource.csv", index=False)
         tech.to_csv(tmp_path / "dim_tech_cost.csv", index=False)
         proximity.to_csv(tmp_path / "fct_substation_proximity.csv", index=False)
 
         df = build_fct_lcoe(
-            dim_kek_csv=tmp_path / "dim_kek.csv",
-            fct_kek_resource_csv=tmp_path / "fct_kek_resource.csv",
+            dim_sites_csv=tmp_path / "dim_sites.csv",
+            fct_site_resource_csv=tmp_path / "fct_site_resource.csv",
             dim_tech_cost_csv=tmp_path / "dim_tech_cost.csv",
             fct_substation_proximity_csv=tmp_path / "fct_substation_proximity.csv",
             wacc_values=[10.0],
@@ -623,10 +625,10 @@ class TestFctLcoe:
         """V2: grid_connected_solar uses dist_solar_to_nearest_substation_km for connection cost."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
-        dim_kek = pd.DataFrame({"kek_id": ["kek-v2"]})
+        dim_sites = pd.DataFrame({"site_id": ["kek-v2"]})
         resource = pd.DataFrame(
             {
-                "kek_id": ["kek-v2"],
+                "site_id": ["kek-v2"],
                 "pvout_centroid": [1600.0],
                 "pvout_best_50km": [1700.0],
             }
@@ -651,20 +653,20 @@ class TestFctLcoe:
         # Solar is 5 km from substation, KEK is 30 km — V2 should use 5 km
         proximity = pd.DataFrame(
             {
-                "kek_id": ["kek-v2"],
+                "site_id": ["kek-v2"],
                 "dist_to_nearest_substation_km": [30.0],
                 "dist_solar_to_nearest_substation_km": [5.0],
             }
         )
 
-        dim_kek.to_csv(tmp_path / "dim_kek.csv", index=False)
-        resource.to_csv(tmp_path / "fct_kek_resource.csv", index=False)
+        dim_sites.to_csv(tmp_path / "dim_sites.csv", index=False)
+        resource.to_csv(tmp_path / "fct_site_resource.csv", index=False)
         tech.to_csv(tmp_path / "dim_tech_cost.csv", index=False)
         proximity.to_csv(tmp_path / "fct_substation_proximity.csv", index=False)
 
         df = build_fct_lcoe(
-            dim_kek_csv=tmp_path / "dim_kek.csv",
-            fct_kek_resource_csv=tmp_path / "fct_kek_resource.csv",
+            dim_sites_csv=tmp_path / "dim_sites.csv",
+            fct_site_resource_csv=tmp_path / "fct_site_resource.csv",
             dim_tech_cost_csv=tmp_path / "dim_tech_cost.csv",
             fct_substation_proximity_csv=tmp_path / "fct_substation_proximity.csv",
             wacc_values=[10.0],
@@ -688,8 +690,9 @@ class TestFctLcoeWind:
         return build_fct_lcoe_wind()
 
     def test_row_count(self, wind_lcoe):
-        """25 KEKs × 9 WACC values × 2 scenarios = 450 rows."""
-        assert len(wind_lcoe) == 450
+        """n_sites × 9 WACC values × 2 scenarios."""
+        n_sites = wind_lcoe["site_id"].nunique()
+        assert len(wind_lcoe) == n_sites * 9 * 2
 
     def test_wacc_values_full_range(self, wind_lcoe):
         assert set(wind_lcoe["wacc_pct"].unique()) == {
@@ -713,7 +716,7 @@ class TestFctLcoeWind:
 
     def test_higher_wacc_higher_lcoe(self, wind_lcoe):
         pivot = wind_lcoe.pivot(
-            index=["kek_id", "scenario"], columns="wacc_pct", values="lcoe_usd_mwh"
+            index=["site_id", "scenario"], columns="wacc_pct", values="lcoe_usd_mwh"
         ).dropna()
         assert (pivot[8.0] < pivot[10.0]).all()
         assert (pivot[10.0] < pivot[12.0]).all()
@@ -765,7 +768,8 @@ class TestFctSubstationProximity:
         from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
 
         df = build_fct_substation_proximity()
-        assert len(df) == 25
+        dim_sites = pd.read_csv(PROCESSED / "dim_sites.csv")
+        assert len(df) == len(dim_sites)
 
     def test_distance_plausibility(self):
         """All distances must be > 0 and < 500 km (no KEK is >500 km from a substation)."""
@@ -798,8 +802,8 @@ class TestFctSubstationProximity:
 
         df = build_fct_substation_proximity()
         required = {
-            "kek_id",
-            "kek_name",
+            "site_id",
+            "site_name",
             "nearest_substation_name",
             "nearest_substation_voltage_kv",
             "nearest_substation_capacity_mva",
@@ -920,10 +924,10 @@ class TestFctGridCostProxy:
         assert result == pytest.approx(63.08, rel=1e-3)
 
     def test_all_expected_regions_present(self):
-        """Every grid region in dim_kek must have a cost proxy row."""
-        dim_kek = pd.read_csv(PROCESSED / "dim_kek.csv")
+        """Every grid region in dim_sites must have a cost proxy row."""
+        dim_sites = pd.read_csv(PROCESSED / "dim_sites.csv")
         proxy = pd.read_csv(PROCESSED / "fct_grid_cost_proxy.csv")
-        kek_regions = set(dim_kek["grid_region_id"].dropna().unique())
+        kek_regions = set(dim_sites["grid_region_id"].dropna().unique())
         proxy_regions = set(proxy["grid_region_id"].unique())
         assert kek_regions.issubset(proxy_regions), (
             f"Missing regions in proxy: {kek_regions - proxy_regions}"
@@ -983,11 +987,11 @@ class TestFctGridCostProxy:
 
 class TestBppExtraction:
     def test_get_regional_bpp_covers_all_grid_regions(self):
-        """get_regional_bpp() must return a value for every grid_region_id in dim_kek."""
+        """get_regional_bpp() must return a value for every grid_region_id in dim_sites."""
         from src.pipeline.pdf_extract_bpp import get_regional_bpp
 
-        dim_kek = pd.read_csv(PROCESSED / "dim_kek.csv")
-        expected = set(dim_kek["grid_region_id"].dropna().unique())
+        dim_sites = pd.read_csv(PROCESSED / "dim_sites.csv")
+        expected = set(dim_sites["grid_region_id"].dropna().unique())
         bpp = get_regional_bpp()
         assert expected.issubset(set(bpp.keys())), f"Missing regions: {expected - set(bpp.keys())}"
 
@@ -1012,19 +1016,19 @@ class TestBppExtraction:
             assert val > 0, f"{region} has non-positive BPP: {val}"
 
 
-# ── fct_kek_scorecard ─────────────────────────────────────────────────────────
+# ── fct_site_scorecard ─────────────────────────────────────────────────────────
 
 
 class TestFctKekScorecard:
     def test_row_count(self):
-        """One row per KEK, no duplicates."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
-        assert len(sc) == 25
-        assert sc["kek_id"].is_unique
+        """One row per site, no duplicates."""
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
+        assert len(sc) >= 25  # at least 25 KEKs; grows as industrial sites are added
+        assert sc["site_id"].is_unique
 
     def test_solar_competitive_gap_sign(self):
         """Negative gap = solar LCOE < grid cost = solar is already cheaper."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         gap_row = sc.dropna(
             subset=["solar_competitive_gap_pct", "lcoe_mid_usd_mwh", "dashboard_rate_usd_mwh"]
         )
@@ -1033,19 +1037,19 @@ class TestFctKekScorecard:
 
     def test_clean_power_advantage_is_negated_gap(self):
         """clean_power_advantage = −solar_competitive_gap_pct."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         valid = sc.dropna(subset=["solar_competitive_gap_pct", "clean_power_advantage"])
         expected = (-valid["solar_competitive_gap_pct"]).round(1)
         assert (expected == valid["clean_power_advantage"]).all()
 
     def test_data_completeness_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "data_completeness" in sc.columns
         assert sc["data_completeness"].isin(["complete", "partial", "provisional"]).all()
 
     def test_action_flag_values(self):
         """action_flag must only contain valid values."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         valid_flags = {
             "solar_now",
             "invest_transmission",
@@ -1063,61 +1067,61 @@ class TestFctKekScorecard:
 
     def test_lcoe_in_plausible_range(self):
         """Indonesia solar LCOE should be roughly $35–$100/MWh at WACC=10%."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         lcoe = sc["lcoe_mid_usd_mwh"].dropna()
         assert lcoe.between(30, 120).all(), f"LCOE out of range: {lcoe.describe()}"
 
     def test_green_share_geas_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "green_share_geas" in sc.columns
 
     def test_green_share_geas_in_valid_range(self):
         """green_share_geas is a fraction: 0 ≤ value ≤ 1 for all rows."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         vals = sc["green_share_geas"].dropna()
         assert (vals >= 0).all() and (vals <= 1).all()
 
     def test_green_share_geas_not_all_zero(self):
-        """Now that fct_kek_demand feeds the scorecard, green_share_geas > 0 for some KEKs."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        """Now that fct_site_demand feeds the scorecard, green_share_geas > 0 for some KEKs."""
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert (sc["green_share_geas"] > 0).any(), (
-            "All green_share_geas are 0 — likely fct_kek_demand not being read"
+            "All green_share_geas are 0 — likely fct_site_demand not being read"
         )
 
-    def test_scorecard_depends_on_fct_kek_demand(self):
-        """Pipeline DAG: fct_kek_scorecard must list fct_kek_demand as a dependency."""
+    def test_scorecard_depends_on_fct_site_demand(self):
+        """Pipeline DAG: fct_site_scorecard must list fct_site_demand as a dependency."""
         import sys
 
         sys.path.insert(0, str(REPO_ROOT))
         import run_pipeline
 
-        scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_kek_scorecard")
-        assert "fct_kek_demand" in scorecard_step.depends_on
+        scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_site_scorecard")
+        assert "fct_site_demand" in scorecard_step.depends_on
 
     def test_invest_resilience_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "invest_resilience" in sc.columns
 
     def test_invest_resilience_is_boolean(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         vals = sc["invest_resilience"].dropna()
         assert vals.isin([True, False, 0, 1]).all()
 
     def test_carbon_breakeven_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "carbon_breakeven_usd_tco2" in sc.columns
 
     def test_carbon_breakeven_nonnegative(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         vals = sc["carbon_breakeven_usd_tco2"].dropna()
         assert (vals >= 0).all(), "Carbon breakeven price must be ≥ 0"
 
     def test_invest_resilience_fires_for_manufacturing_keks(self):
         """Manufacturing KEKs with LCOE < 20% above grid should get invest_resilience=True."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         # Any KEK with gap in (0, 20] and reliability_req >= 0.75 should fire
         # At WACC=10%, some manufacturing KEKs (Batang, Sorong) should be in the resilience zone
-        manufacturing = sc[sc["kek_type"].str.contains("Industri", na=False)]
+        manufacturing = sc[sc["zone_classification"].str.contains("Industri", na=False)]
         low_gap = manufacturing[
             manufacturing["solar_competitive_gap_pct"].between(0, 20, inclusive="right")
         ]
@@ -1127,20 +1131,20 @@ class TestFctKekScorecard:
             )
 
     def test_wacc8_lcoe_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "lcoe_mid_wacc8_usd_mwh" in sc.columns
         assert "solar_competitive_gap_wacc8_pct" in sc.columns
         assert "solar_now_at_wacc8" in sc.columns
 
     def test_solar_now_at_wacc8_is_boolean(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert sc["solar_now_at_wacc8"].dtype == bool or set(
             sc["solar_now_at_wacc8"].unique()
         ).issubset({True, False})
 
     def test_wacc8_gap_leq_wacc10_gap(self):
         """LCOE at WACC=8% must be ≤ LCOE at WACC=10% for every KEK — lower WACC = lower LCOE."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         both = sc[sc["lcoe_mid_wacc8_usd_mwh"].notna() & sc["lcoe_mid_usd_mwh"].notna()]
         assert (both["lcoe_mid_wacc8_usd_mwh"] <= both["lcoe_mid_usd_mwh"]).all(), (
             "LCOE at WACC=8% should never exceed LCOE at WACC=10%"
@@ -1148,7 +1152,7 @@ class TestFctKekScorecard:
 
     def test_v2_grid_connected_columns_present(self):
         """V2: grid-connected solar columns replace V1 remote captive columns."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         for col in [
             "lcoe_grid_connected_usd_mwh",
             "lcoe_grid_connected_low_usd_mwh",
@@ -1159,7 +1163,7 @@ class TestFctKekScorecard:
 
     def test_v1_columns_removed_from_scorecard(self):
         """V2: deprecated V1 columns should no longer appear in scorecard."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         for col in [
             "transmission_lease_adder_usd_mwh",
             "lcoe_remote_captive_allin_usd_mwh",
@@ -1170,7 +1174,7 @@ class TestFctKekScorecard:
 
     def test_grid_connected_exceeds_within_boundary_lcoe(self):
         """Grid-connected LCOE must exceed within_boundary LCOE (connection + land cost)."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         valid = sc.dropna(subset=["lcoe_mid_usd_mwh", "lcoe_grid_connected_usd_mwh"])
         assert (valid["lcoe_grid_connected_usd_mwh"] > valid["lcoe_mid_usd_mwh"]).all(), (
             "lcoe_grid_connected must always exceed within_boundary lcoe_mid (connection + land cost)"
@@ -1178,23 +1182,23 @@ class TestFctKekScorecard:
 
     def test_grid_investment_needed_usd_column(self):
         """grid_investment_needed_usd = (connection + transmission) cost × capacity."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "grid_investment_needed_usd" in sc.columns
         valid = sc.dropna(subset=["grid_investment_needed_usd"])
         assert len(valid) > 0, "Expected at least some KEKs with grid investment estimate"
         assert (valid["grid_investment_needed_usd"] >= 0).all(), "Investment must be non-negative"
 
     def test_project_viable_column_present(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert "project_viable" in sc.columns
 
     def test_project_viable_is_boolean(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         assert sc["project_viable"].isin([True, False]).all()
 
     def test_wind_columns_present(self):
         """Scorecard must have wind LCOE and best RE technology columns."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         wind_cols = [
             "lcoe_wind_mid_usd_mwh",
             "lcoe_wind_allin_mid_usd_mwh",
@@ -1208,31 +1212,31 @@ class TestFctKekScorecard:
             assert col in sc.columns, f"Missing wind column: {col}"
 
     def test_best_re_technology_valid_values(self):
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         valid = {"solar", "wind", "both", "none"}
         assert set(sc["best_re_technology"].unique()).issubset(valid)
 
     def test_best_re_lcoe_leq_both(self):
         """best_re_lcoe must be <= both solar and wind LCOE."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         valid = sc.dropna(subset=["best_re_lcoe_mid_usd_mwh", "lcoe_mid_usd_mwh"])
         assert (valid["best_re_lcoe_mid_usd_mwh"] <= valid["lcoe_mid_usd_mwh"] + 0.01).all()
 
     def test_scorecard_depends_on_fct_lcoe_wind(self):
-        """Pipeline DAG: fct_kek_scorecard must list fct_lcoe_wind as a dependency."""
+        """Pipeline DAG: fct_site_scorecard must list fct_lcoe_wind as a dependency."""
         import sys
 
         sys.path.insert(0, str(REPO_ROOT))
         import run_pipeline
 
-        scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_kek_scorecard")
+        scorecard_step = next(s for s in run_pipeline.PIPELINE if s.name == "fct_site_scorecard")
         assert "fct_lcoe_wind" in scorecard_step.depends_on
 
     def test_project_viable_reflects_buildability(self):
         """With detailed kawasan hutan (66K polygons), some KEKs have zero buildable area.
         KEKs with buildable_area_ha=0 should NOT be project_viable.
         KEKs with buildable_area_ha>0 should be project_viable."""
-        sc = pd.read_csv(PROCESSED / "fct_kek_scorecard.csv")
+        sc = pd.read_csv(PROCESSED / "fct_site_scorecard.csv")
         has_area = sc["buildable_area_ha"] > 0
         # KEKs with buildable area should be viable
         assert sc.loc[has_area, "project_viable"].all(), (
@@ -1246,23 +1250,23 @@ class TestFctKekScorecard:
 
 # ── run_pipeline: topo sort ───────────────────────────────────────────────────
 
-# ── fct_kek_demand ──────────────────────────────────────────────────────────
+# ── fct_site_demand ──────────────────────────────────────────────────────────
 
 
-class TestFctKekDemand:
+class TestFctSiteDemand:
     @pytest.fixture(scope="class")
     def demand(self):
-        from src.pipeline.build_fct_kek_demand import build_fct_kek_demand
+        from src.pipeline.build_fct_site_demand import build_fct_site_demand
 
-        return build_fct_kek_demand()
+        return build_fct_site_demand()
 
-    def test_row_count_matches_dim_kek(self, demand):
-        dim_kek = pd.read_csv(PROCESSED / "dim_kek.csv")
-        assert len(demand) == len(dim_kek)
+    def test_row_count_matches_dim_sites(self, demand):
+        dim_sites = pd.read_csv(PROCESSED / "dim_sites.csv")
+        assert len(demand) == len(dim_sites)
 
-    def test_all_kek_ids_present(self, demand):
-        dim_kek = pd.read_csv(PROCESSED / "dim_kek.csv")
-        assert set(demand["kek_id"]) == set(dim_kek["kek_id"])
+    def test_all_site_ids_present(self, demand):
+        dim_sites = pd.read_csv(PROCESSED / "dim_sites.csv")
+        assert set(demand["site_id"]) == set(dim_sites["site_id"])
 
     def test_demand_positive_for_all_rows(self, demand):
         assert (demand["demand_mwh"] > 0).all(), "Every KEK must have demand_mwh > 0"
@@ -1280,10 +1284,10 @@ class TestFctKekDemand:
 
         for _, row in demand.iterrows():
             expected = ENERGY_INTENSITY_MWH_PER_HA_YR.get(
-                row["kek_type"], ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR
+                row["zone_classification"], ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR
             )
             assert row["energy_intensity_mwh_per_ha_yr"] == pytest.approx(expected), (
-                f"{row['kek_id']}: expected intensity {expected}, got {row['energy_intensity_mwh_per_ha_yr']}"
+                f"{row['site_id']}: expected intensity {expected}, got {row['energy_intensity_mwh_per_ha_yr']}"
             )
 
     def test_all_provisional(self, demand):
@@ -1396,7 +1400,7 @@ class TestAssumptions:
     (unit conversion: kWh/m² × 10,000 m²/ha ÷ 1,000 kWh/MWh = × 10)
     """
 
-    def test_all_kek_types_have_both_factors(self):
+    def test_all_zone_types_have_both_factors(self):
         from src.assumptions import BUILDING_FOOTPRINT_RATIO, BUILDING_INTENSITY_KWH_M2_YR
 
         assert set(BUILDING_INTENSITY_KWH_M2_YR.keys()) == set(BUILDING_FOOTPRINT_RATIO.keys())
@@ -1408,13 +1412,13 @@ class TestAssumptions:
             ENERGY_INTENSITY_MWH_PER_HA_YR,
         )
 
-        for kek_type in BUILDING_INTENSITY_KWH_M2_YR:
+        for zone_type in BUILDING_INTENSITY_KWH_M2_YR:
             expected = round(
-                BUILDING_INTENSITY_KWH_M2_YR[kek_type] * BUILDING_FOOTPRINT_RATIO[kek_type] * 10,
+                BUILDING_INTENSITY_KWH_M2_YR[zone_type] * BUILDING_FOOTPRINT_RATIO[zone_type] * 10,
                 1,
             )
-            assert ENERGY_INTENSITY_MWH_PER_HA_YR[kek_type] == pytest.approx(expected), (
-                f"{kek_type}: expected {expected}, got {ENERGY_INTENSITY_MWH_PER_HA_YR[kek_type]}"
+            assert ENERGY_INTENSITY_MWH_PER_HA_YR[zone_type] == pytest.approx(expected), (
+                f"{zone_type}: expected {expected}, got {ENERGY_INTENSITY_MWH_PER_HA_YR[zone_type]}"
             )
 
     def test_industri_dan_pariwisata_is_weighted_average(self):
@@ -1445,8 +1449,8 @@ class TestAssumptions:
     def test_building_footprint_ratio_is_fraction(self):
         from src.assumptions import BUILDING_FOOTPRINT_RATIO
 
-        for kek_type, ratio in BUILDING_FOOTPRINT_RATIO.items():
-            assert 0 < ratio <= 1, f"{kek_type}: footprint ratio {ratio} must be (0, 1]"
+        for zone_type, ratio in BUILDING_FOOTPRINT_RATIO.items():
+            assert 0 < ratio <= 1, f"{zone_type}: footprint ratio {ratio} must be (0, 1]"
 
 
 # ── M12: Substation upgrade cost in precomputed LCOE ──────────────────────────
@@ -1476,7 +1480,7 @@ class TestFctLcoeSubstationUpgrade:
         assert (gc["substation_upgrade_cost_per_kw"] >= 0.0).all()
 
     def test_scorecard_has_column(self):
-        from src.pipeline.build_fct_kek_scorecard import build_fct_kek_scorecard
+        from src.pipeline.build_fct_site_scorecard import build_fct_site_scorecard
 
-        df = build_fct_kek_scorecard()
+        df = build_fct_site_scorecard()
         assert "substation_upgrade_cost_per_kw" in df.columns

@@ -180,10 +180,10 @@ export default function EnergyBalanceChart({
           style={{ color: 'var(--text-muted)', opacity: 0.7 }}
         >
           {isHybrid
-            ? 'Can solar + wind power this KEK?'
+            ? 'Can solar + wind power this site?'
             : isWind
-              ? 'Can wind power this KEK?'
-              : 'Can solar actually power this KEK?'}
+              ? 'Can wind power this site?'
+              : 'Can solar actually power this site?'}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 [project]
 name = "sez-renewable-energy-dashboard"
-version = "1.0.0"
+version = "1.1.0"
 description = "SEZ Renewable Energy Dashboard — clean energy competitiveness model for Indonesia's Special Economic Zones"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -49,11 +49,54 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+select = [
+    "E",        # pycodestyle errors
+    "F",        # pyflakes
+    "I",        # isort
+    "PLE",      # pylint errors (all — these are real bugs)
+    "PLW0120",  # useless else on loop
+    "PLW0127",  # self-assignment
+    "PLW1510",  # subprocess without check
+    "PLW2901",  # overwriting loop var
+    "PLR0913",  # too many arguments
+    "PLR1714",  # repeated equality
+    "PLR2004",  # magic values
+    "PLR5501",  # collapsible elif
+    "PLC0415",  # in-function imports
+]
 ignore = ["E501"]
+
+[tool.ruff.lint.pylint]
+max-args = 6          # default is 5, adjust to taste
+max-branches = 12
+max-returns = 8
+max-statements = 50
 
 [tool.ruff.lint.per-file-ignores]
 "run_pipeline.py" = ["E402"]   # REPO_ROOT path setup must precede pipeline imports
+"tests/*" = [
+    "PLC0415",  # tests often lazily import to avoid collection-time side effects
+    "PLR2004",  # tests compare against literal row counts and thresholds
+    "PLR0913",  # test fixtures/helpers occasionally take many params
+]
+# TODOS M24: scoped src/ deferrals — magic-value comparisons (year 2030, EPSG 4326,
+# WACC 8.0, wind-speed thresholds, CF tier breakpoints) and high-arity build_* /
+# model helpers are pre-existing patterns. Cleanup pass will hoist constants and
+# split functions; until then these files are exempt so unrelated edits don't trip
+# the hook.
+"src/api/auth.py" = ["PLR2004"]
+"src/dash/data_loader.py" = ["PLR2004"]
+"src/model/basic_model.py" = ["PLR2004", "PLR0913"]
+"src/pipeline/build_fct_lcoe.py" = ["PLR2004"]
+"src/pipeline/build_fct_lcoe_wind.py" = ["PLR2004"]
+"src/pipeline/build_fct_site_resource.py" = ["PLR2004", "PLR0913"]
+"src/pipeline/build_fct_site_scorecard.py" = ["PLR2004", "PLR0913"]
+"src/pipeline/build_fct_site_wind_resource.py" = ["PLR2004"]
+"src/pipeline/buildability_filters.py" = ["PLR0913"]
+"src/pipeline/geo_utils.py" = ["PLR0913"]
+"src/pipeline/pdf_extract_esdm_tech.py" = ["PLR2004"]
+"src/pipeline/pdf_extract_ruptl.py" = ["PLR2004"]
+"src/pipeline/wind_buildability_filters.py" = ["PLR0913"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -4,13 +4,13 @@
 build_fct_lcoe — precomputed LCOE bands per KEK × WACC × siting scenario.
 
 Sources:
-    processed: dim_kek.csv                  kek_id list
-    processed: fct_kek_resource.csv         pvout_centroid, pvout_best_50km
+    processed: dim_sites.csv                site_id list
+    processed: fct_site_resource.csv         pvout_centroid, pvout_best_50km
     processed: dim_tech_cost.csv            TECH006 capex / fixed_om / lifetime
     processed: fct_substation_proximity.csv dist_to_nearest_substation_km, dist_solar_to_nearest_substation_km
 
-Output columns (one row per kek_id × wacc_pct × scenario):
-    kek_id                  join key
+Output columns (one row per site_id × wacc_pct × scenario):
+    site_id                 join key
     wacc_pct                WACC assumption: 8.0, 10.0, 12.0
     scenario                'within_boundary' or 'grid_connected_solar'
     pvout_used              'pvout_centroid' or 'pvout_best_50km'
@@ -64,15 +64,15 @@ from src.pipeline.assumptions import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
-FKR_CSV = PROCESSED / "fct_kek_resource.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
+FKR_CSV = PROCESSED / "fct_site_resource.csv"
 DIM_TECH_CSV = PROCESSED / "dim_tech_cost.csv"
 FSP_CSV = PROCESSED / "fct_substation_proximity.csv"
 
 
 def build_fct_lcoe(
-    dim_kek_csv: Path = DIM_KEK_CSV,
-    fct_kek_resource_csv: Path = FKR_CSV,
+    dim_sites_csv: Path = DIM_SITES_CSV,
+    fct_site_resource_csv: Path = FKR_CSV,
     dim_tech_cost_csv: Path = DIM_TECH_CSV,
     fct_substation_proximity_csv: Path = FSP_CSV,
     wacc_values: list[float] = WACC_VALUES,
@@ -84,8 +84,8 @@ def build_fct_lcoe(
     """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
-    dim_kek = pd.read_csv(dim_kek_csv)[["kek_id"]]
-    resource_raw = pd.read_csv(fct_kek_resource_csv)
+    dim_sites = pd.read_csv(dim_sites_csv)[["site_id"]]
+    resource_raw = pd.read_csv(fct_site_resource_csv)
     # Use pvout_buildable_best_50km for grid-connected scenario when available
     gc_pvout_col = (
         "pvout_buildable_best_50km"
@@ -99,7 +99,7 @@ def build_fct_lcoe(
         and resource_raw["pvout_within_boundary"].notna().any()
         else "pvout_centroid"
     )
-    resource_cols = ["kek_id", "pvout_centroid", "pvout_best_50km"]
+    resource_cols = ["site_id", "pvout_centroid", "pvout_best_50km"]
     if gc_pvout_col not in resource_cols:
         resource_cols.append(gc_pvout_col)
     if wb_pvout_col not in resource_cols:
@@ -112,7 +112,7 @@ def build_fct_lcoe(
 
     # V2: read solar-to-substation distance for grid-connected scenario
     # V3.1: also read inter-substation connectivity for transmission cost
-    proximity_cols = ["kek_id", "dist_to_nearest_substation_km"]
+    proximity_cols = ["site_id", "dist_to_nearest_substation_km"]
     prox_raw = pd.read_csv(fct_substation_proximity_csv)
     for col in [
         "dist_solar_to_nearest_substation_km",
@@ -140,8 +140,8 @@ def build_fct_lcoe(
         ("grid_connected_solar", gc_pvout_col),
     ]
 
-    df = dim_kek.merge(resource, on="kek_id", how="left")
-    df = df.merge(proximity, on="kek_id", how="left")
+    df = dim_sites.merge(resource, on="site_id", how="left")
+    df = df.merge(proximity, on="site_id", how="left")
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
@@ -242,7 +242,7 @@ def build_fct_lcoe(
 
                 records.append(
                     {
-                        "kek_id": kek_row["kek_id"],
+                        "site_id": kek_row["site_id"],
                         "wacc_pct": wacc,
                         "scenario": scenario,
                         "pvout_used": actual_pvout_col,
@@ -270,8 +270,8 @@ def main() -> None:
     df = build_fct_lcoe()
     df.to_csv(out, index=False)
     print(f"fct_lcoe: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
-    sample = df[(df["wacc_pct"] == 10.0)].sort_values(["kek_id", "scenario"])[
-        ["kek_id", "scenario", "lcoe_usd_mwh", "connection_cost_per_kw", "cf_used"]
+    sample = df[(df["wacc_pct"] == 10.0)].sort_values(["site_id", "scenario"])[
+        ["site_id", "scenario", "lcoe_usd_mwh", "connection_cost_per_kw", "cf_used"]
     ]
     print("\nLCOE at WACC=10% by scenario (USD/MWh):")
     print(sample.to_string(index=False))

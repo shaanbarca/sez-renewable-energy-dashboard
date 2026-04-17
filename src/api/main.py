@@ -97,7 +97,7 @@ FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 @app.get("/api/health")
 async def health():
     """Health check for Render / load balancers."""
-    return {"status": "ok", "keks": len(tables.get("dim_kek", []))}
+    return {"status": "ok", "sites": len(tables.get("dim_sites", []))}
 
 
 # ---------------------------------------------------------------------------

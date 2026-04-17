@@ -1,0 +1,80 @@
+site_id,site_name,latitude,longitude,wind_speed_centroid_ms,wind_speed_best_50km_ms,cf_wind_centroid,cf_wind_best_50km,wind_class,wind_source,wind_buildable_area_ha,max_wind_capacity_mwp,wind_buildability_constraint,wind_speed_buildable_best_ms,cf_wind_buildable_best,best_wind_site_lat,best_wind_site_lon,best_wind_site_dist_km
+industropolis-batang,Industropolis Batang,-6.930301,109.9617023,3.01,7.74,0.05,0.2822,II,GlobalWindAtlas-v3,80477.4,3219.1,unconstrained,4.25,0.0973,-7.29368,110.18009,47.05
+batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,1.1377283591127,103.92457856774,4.16,5.28,0.0909,0.1695,III,GlobalWindAtlas-v3,1634.8,65.4,unconstrained,4.22,0.0951,1.02436,104.23785,37.04
+bumi-serpong-damai,"Banten International Education, Technology, and Health",-6.308799293523,106.65753024663,3.07,5.64,0.05,0.1945,III,GlobalWindAtlas-v3,12488.9,499.6,unconstrained,4.09,0.0862,-6.08882,106.75148,26.57
+setangga,Setangga,-3.2813775344249,116.07748257442,3.2,5.61,0.05,0.1929,III,GlobalWindAtlas-v3,8248.3,329.9,unconstrained,3.64,0.0513,-3.61142,115.89843,41.73
+tanjung-sauh,Tanjung Sauh,1.0429294494269,104.17274106649,4.35,6.23,0.1046,0.2277,III,GlobalWindAtlas-v3,10669.8,426.8,unconstrained,4.37,0.1061,1.22124,104.56103,47.5
+kek-arun-lhokseumawe,Arun Lhokseumawe,5.2199197298726,97.080259039528,3.57,6.65,0.05,0.2415,III,GlobalWindAtlas-v3,66678.0,2667.1,unconstrained,3.3,0.05,5.65657,97.00007,49.36
+kek-sanur,Sanur,-8.6942352931407,115.26295962249,3.36,7.96,0.05,0.2928,II,GlobalWindAtlas-v3,7656.5,306.3,unconstrained,5.12,0.1587,-9.14095,115.27109,49.68
+kek-kendal,Kendal,-6.9355648813555,110.24833446931,3.49,7.74,0.05,0.2822,II,GlobalWindAtlas-v3,124559.2,4982.4,unconstrained,4.6,0.1217,-6.50724,110.36671,49.39
+kek-sorong,Sorong,-1.0292733746334,131.24345068184,3.38,6.46,0.05,0.2353,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+kek-singhasari,Singhasari,-7.5151962757576,112.7434025685,3.16,5.85,0.05,0.2096,III,GlobalWindAtlas-v3,133699.6,5348.0,unconstrained,4.45,0.1114,-7.21188,113.07787,49.98
+kek-morotai,Morotai,2.3750901219475,128.41811690865,3.04,6.06,0.05,0.2218,III,GlobalWindAtlas-v3,1719.7,68.8,unconstrained,4.13,0.0889,2.70341,128.11441,49.71
+kek-gresik,Gresik,-7.0854668845705,112.60680989557,4.03,5.0,0.0821,0.1498,III,GlobalWindAtlas-v3,238448.1,9537.9,unconstrained,4.57,0.12,-6.90715,112.1917,49.92
+kek-likupang,Likupang,1.680721711081,125.15739596932,4.1,9.92,0.0868,0.3769,I,GlobalWindAtlas-v3,15570.4,622.8,unconstrained,5.79,0.2055,1.7757,125.51223,40.83
+kek-bitung,Bitung,1.4243289186209,125.10987982233,3.0,9.92,0.05,0.3769,I,GlobalWindAtlas-v3,11614.7,464.6,unconstrained,5.58,0.1909,1.5193,125.23976,17.89
+kek-palu,Palu,-0.71188721731303,119.8703393558,2.66,6.17,0.0,0.2258,III,GlobalWindAtlas-v3,15661.9,626.5,unconstrained,4.47,0.1126,-0.87526,119.90032,18.47
+kek-kura-kura,Kura Kura Bali,-8.7312613066451,115.23086607725,3.73,7.96,0.0582,0.2928,II,GlobalWindAtlas-v3,18458.9,738.4,unconstrained,5.19,0.1635,-9.17797,115.24729,49.7
+kek-galang-batang,Galang Batang,0.91112087616108,104.65970479459,4.37,6.23,0.1056,0.2277,III,GlobalWindAtlas-v3,16521.7,660.9,unconstrained,4.56,0.119,0.75609,105.08134,49.95
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,0.81659915671314,117.93022440699,3.32,5.73,0.05,0.2013,III,GlobalWindAtlas-v3,41305.2,1652.2,unconstrained,4.09,0.0865,1.19492,117.97686,42.39
+kek-nongsa,Nongsa,1.191175886339,104.09214803974,4.15,6.23,0.0908,0.2277,III,GlobalWindAtlas-v3,3011.5,120.5,unconstrained,4.22,0.0951,1.01947,104.23041,24.51
+kek-mandalika,Mandalika,-8.8963124944653,116.29090641579,4.27,8.88,0.0987,0.3352,I,GlobalWindAtlas-v3,59178.1,2367.1,unconstrained,5.69,0.1982,-9.33469,116.37379,49.59
+kek-batam-aero-technic,Batam Aero Technic,1.1393365211312,104.12432224421,4.24,6.23,0.097,0.2277,III,GlobalWindAtlas-v3,4646.4,185.9,unconstrained,4.37,0.1061,1.22598,104.56259,49.67
+kek-tanjung-kelayang,Tanjung Kelayang,-2.5711927695212,107.65499155301,4.06,6.02,0.0842,0.2206,III,GlobalWindAtlas-v3,85028.9,3401.2,unconstrained,4.64,0.1245,-2.20121,107.90956,49.92
+kek-lido,Lido,-6.7536528309529,106.81210085326,3.74,7.33,0.0594,0.2643,III,GlobalWindAtlas-v3,10426.6,417.1,unconstrained,4.51,0.1156,-7.05036,106.82231,33.01
+kek-tanjung-lesung,Tanjung Lesung,-6.4817887185833,105.65248380886,5.2,10.35,0.1643,0.3869,I,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+kek-sei-mangkei,Sei Mangkei,3.1324879221829,99.340577853012,2.65,4.73,0.0,0.1308,III,GlobalWindAtlas-v3,85.9,3.4,unconstrained,3.75,0.0596,3.40247,99.36992,30.2
+semen-gresik-tuban,Semen Gresik Tuban,-6.87,112.04,4.52,5.61,0.1163,0.1927,III,GlobalWindAtlas-v3,301529.7,12061.2,unconstrained,5.03,0.1524,-6.46668,111.8501,49.51
+indocement-citeureup,Indocement Citeureup,-6.479811,106.899118,3.16,5.64,0.05,0.1945,III,GlobalWindAtlas-v3,49083.6,1963.3,unconstrained,4.09,0.0862,-6.08482,106.75125,46.86
+semen-padang-indarung,Semen Padang Indarung,-0.947827,100.469967,1.45,9.68,0.0,0.3671,I,GlobalWindAtlas-v3,80800.5,3232.0,unconstrained,6.19,0.2262,-0.55284,100.45826,43.94
+semen-tonasa,Semen Tonasa,-4.789565,119.616409,2.93,11.99,0.0,0.4197,I,GlobalWindAtlas-v3,177096.0,7083.8,unconstrained,5.48,0.1839,-5.12794,119.81152,43.39
+sbi-narogong,SBI Narogong,-6.48,106.96,3.03,5.64,0.05,0.1945,III,GlobalWindAtlas-v3,71060.0,2842.4,unconstrained,4.09,0.0862,-6.08501,106.74546,49.91
+conch-cement-serang,Conch Cement Serang,-5.892955,106.082135,3.66,6.33,0.0528,0.2311,III,GlobalWindAtlas-v3,171.2,6.8,unconstrained,3.88,0.0706,-5.95632,106.10977,7.68
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,0.895624,124.081963,4.33,9.62,0.103,0.3647,I,GlobalWindAtlas-v3,16866.0,674.6,unconstrained,3.31,0.05,1.22394,124.01193,37.33
+semen-bosowa-maros,Semen Bosowa Maros,-4.95,119.58,2.65,11.99,0.0,0.4197,I,GlobalWindAtlas-v3,224468.1,8978.7,unconstrained,5.8,0.2063,-5.22171,119.92501,48.71
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,0.988195,117.481986,2.65,5.96,0.0,0.217,III,GlobalWindAtlas-v3,12132.8,485.3,unconstrained,4.0,0.0803,0.60815,117.49527,42.28
+semen-baturaja,Semen Baturaja,-4.116636,104.161351,2.57,5.95,0.0,0.2164,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+sbi-tuban,SBI Tuban,-6.816488,111.885383,4.54,7.08,0.118,0.2558,III,GlobalWindAtlas-v3,243626.4,9745.1,unconstrained,5.19,0.163,-6.38817,111.75387,49.79
+indocement-palimanan,Indocement Palimanan,-6.72,108.38,2.67,8.2,0.0,0.305,II,GlobalWindAtlas-v3,203418.7,8136.7,unconstrained,5.74,0.2017,-6.77503,108.65692,31.19
+cemindo-gemilang-bayah,Cemindo Gemilang Bayah,-6.954596,106.247008,4.7,8.41,0.1287,0.3157,II,GlobalWindAtlas-v3,41774.3,1671.0,unconstrained,6.81,0.2469,-7.18463,106.01536,36.16
+sbi-cilacap,SBI Cilacap,-7.687489,109.022305,4.04,8.1,0.0828,0.2999,II,GlobalWindAtlas-v3,111471.2,4458.8,unconstrained,5.57,0.1902,-7.2925,109.03158,43.93
+semen-imasco-asiatic-jember,Semen Imasco Asiatic Jember,-8.348729,113.49255,3.18,9.04,0.05,0.3416,I,GlobalWindAtlas-v3,23075.5,923.0,unconstrained,4.95,0.1467,-8.02041,113.8011,49.86
+si-gresik-rembang,SI Gresik Rembang,-6.866206,111.458833,3.92,7.08,0.0738,0.2558,III,GlobalWindAtlas-v3,222752.7,8910.1,unconstrained,5.07,0.1552,-6.8629,111.51894,6.65
+semeru-surya-semen-kutai,Semeru Surya Semen Kutai,-0.541619,117.146701,3.66,4.27,0.0529,0.0986,III,GlobalWindAtlas-v3,25300.9,1012.0,unconstrained,3.87,0.0698,-0.955,117.16837,46.03
+indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun,-3.271007,116.105835,3.08,5.61,0.05,0.1929,III,GlobalWindAtlas-v3,8334.3,333.4,unconstrained,3.64,0.0513,-3.60938,115.90178,43.92
+semen-grobogan,Semen Grobogan,-7.089975,110.622539,3.63,7.74,0.0502,0.2822,II,GlobalWindAtlas-v3,220340.3,8813.6,unconstrained,4.82,0.1371,-7.33668,110.7491,30.78
+semen-garuda-bekasi,Semen Garuda Bekasi,-6.460507,107.212892,2.23,5.64,0.0,0.1945,III,GlobalWindAtlas-v3,190612.4,7624.5,unconstrained,4.15,0.0908,-6.18219,107.56505,49.72
+sbi-andalas-lhoknga,SBI Andalas Lhoknga,5.451139,95.246351,4.26,10.81,0.0984,0.3962,I,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+semen-jawa-scg-sukabumi,Semen Jawa SCG Sukabumi,-6.976314,106.861777,3.1,8.41,0.05,0.3157,II,GlobalWindAtlas-v3,15120.1,604.8,unconstrained,5.86,0.2103,-7.17302,106.51344,44.23
+semen-bosowa-banyuwangi,Semen Bosowa Banyuwangi,-8.169003,114.391943,4.48,10.13,0.1135,0.3825,I,GlobalWindAtlas-v3,9626.2,385.0,unconstrained,5.95,0.2164,-7.78235,114.39236,42.99
+cemindo-gemilang-ciwandan,Cemindo Gemilang Ciwandan,-6.022556,105.960336,3.81,6.74,0.0651,0.2446,III,GlobalWindAtlas-v3,171.2,6.8,unconstrained,3.88,0.0706,-5.96092,106.10453,17.36
+conch-south-kalimantan,Conch South Kalimantan,-2.05,115.42,1.81,5.54,0.0,0.1881,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+cemindo-gemilang-batam,Cemindo Gemilang Batam,1.058643,104.135548,4.36,6.23,0.1049,0.2277,III,GlobalWindAtlas-v3,7141.9,285.7,unconstrained,4.34,0.1037,1.21195,104.54883,49.01
+semen-bosowa-batam,Semen Bosowa Batam,1.058782,104.136023,4.28,6.23,0.0993,0.2277,III,GlobalWindAtlas-v3,7141.9,285.7,unconstrained,4.34,0.1037,1.21209,104.54931,49.01
+semen-jakarta,Semen Jakarta,-6.037574,105.985182,3.58,6.74,0.05,0.2446,III,GlobalWindAtlas-v3,171.2,6.8,unconstrained,3.88,0.0706,-5.95927,106.10436,15.8
+semen-gresik-city,Semen Gresik City,-7.170242,112.645549,3.65,5.38,0.0517,0.1763,III,GlobalWindAtlas-v3,234134.6,9365.4,unconstrained,4.45,0.1114,-7.20861,113.08037,48.16
+solusi-bangun-cilegon,Solusi Bangun Cilegon,-6.020475,105.958559,3.92,6.74,0.0735,0.2446,III,GlobalWindAtlas-v3,171.2,6.8,unconstrained,3.88,0.0706,-5.95883,106.10276,17.36
+semen-kupang,Semen Kupang,-10.194909,123.540076,5.56,9.66,0.1889,0.3664,I,GlobalWindAtlas-v3,112993.1,4519.7,unconstrained,6.03,0.221,-9.98326,123.54622,23.54
+conch-west-kalimantan,Conch West Kalimantan,0.032069,109.23757,3.7,6.07,0.056,0.2222,III,GlobalWindAtlas-v3,119108.8,4764.4,unconstrained,4.42,0.1091,0.23538,109.00092,34.69
+krakatau-steel-cilegon,Krakatau Steel Cilegon,-6.007021,106.001766,3.65,6.74,0.0521,0.2446,III,GlobalWindAtlas-v3,171.2,6.8,unconstrained,3.88,0.0706,-5.96205,106.10431,12.39
+krakatau-posco-cilegon,Krakatau Posco Cilegon,-5.998661,105.99866,3.91,6.74,0.0727,0.2446,III,GlobalWindAtlas-v3,171.2,6.8,unconstrained,3.88,0.0706,-5.96202,106.10954,12.92
+dexin-steel-morowali,Dexin Steel Morowali,-2.829514,122.174896,2.46,4.72,0.0,0.1305,III,GlobalWindAtlas-v3,19426.1,777.0,unconstrained,3.3,0.05,-3.14289,122.49604,49.86
+gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,-6.282658,107.117683,3.15,5.64,0.05,0.1945,III,GlobalWindAtlas-v3,167410.4,6696.4,unconstrained,4.18,0.0928,-6.02101,107.36166,39.67
+master-steel-jakarta,Master Steel Jakarta,-6.18421,106.920067,3.47,5.64,0.05,0.1945,III,GlobalWindAtlas-v3,105923.9,4237.0,unconstrained,4.16,0.0913,-5.96423,107.08913,30.79
+jakarta-prima-steel-industries,Jakarta Prima Steel Industries,-6.181643,106.932331,3.42,5.64,0.05,0.1945,III,GlobalWindAtlas-v3,106780.0,4271.2,unconstrained,4.16,0.0913,-5.97,107.09306,29.49
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,-7.448,112.718,3.12,5.44,0.05,0.1811,III,GlobalWindAtlas-v3,168195.6,6727.8,unconstrained,4.59,0.1215,-7.22802,113.10254,48.96
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),-3.890235466,122.4379273,2.56,4.81,0.0,0.137,III,GlobalWindAtlas-v3,193878.6,7755.1,unconstrained,3.92,0.0738,-4.04527,122.85858,49.74
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),-5.581220134,120.0574004,5.44,9.62,0.1805,0.365,I,GlobalWindAtlas-v3,522399.5,20896.0,unconstrained,7.62,0.276,-5.71959,119.67694,44.82
+obi-island-industrial-park,Obi Island Industrial Park,-1.532699668,127.4192247,3.67,7.12,0.0537,0.2574,III,GlobalWindAtlas-v3,502676.2,20107.0,unconstrained,4.4,0.1083,-1.87107,127.12408,49.92
+indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),-4.291228621,121.5584167,2.31,6.52,0.0,0.2372,III,GlobalWindAtlas-v3,254799.7,10192.0,unconstrained,4.51,0.1155,-3.92958,121.66217,41.83
+nusantara-industri-sejati,Nusantara Industri Sejati,-3.835193078,122.4033594,2.11,5.3,0.0,0.1711,III,GlobalWindAtlas-v3,184188.1,7367.5,unconstrained,3.69,0.0548,-3.98189,122.82404,49.44
+indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),-2.831769936,122.1651827,2.29,4.72,0.0,0.1305,III,GlobalWindAtlas-v3,17878.9,715.2,unconstrained,3.29,0.05,-3.14514,122.48632,49.86
+stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),-1.935932805,121.6115391,1.96,5.38,0.0,0.1765,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),0.4890843334,128.0476444,1.51,5.47,0.0,0.1828,III,GlobalWindAtlas-v3,258.2,10.3,unconstrained,3.13,0.05,0.08404,128.23598,49.67
+buli-industrial-park,Buli Industrial Park,0.8408315536,128.2559372,1.53,5.73,0.0,0.2008,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),-3.016794486,121.8324283,1.89,4.72,0.0,0.1305,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+inalum-asahan,Inalum Asahan,2.703,99.243,1.78,5.96,0.0,0.2173,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+freeport-smelter-gresik,Freeport Smelter Gresik,-7.161,112.654,3.77,4.8,0.0613,0.1357,III,GlobalWindAtlas-v3,231150.7,9246.0,unconstrained,4.51,0.116,-7.21603,113.09716,49.27
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,0.121,117.5,3.96,4.49,0.077,0.1143,III,GlobalWindAtlas-v3,58349.4,2334.0,unconstrained,4.07,0.0848,0.00763,117.83836,39.68
+pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,-2.99,104.757,3.67,4.24,0.0536,0.097,III,GlobalWindAtlas-v3,0.0,0.0,unconstrained,,,,,
+petrokimia-gresik,Petrokimia Gresik,-7.151,112.651,3.78,4.77,0.0622,0.1341,III,GlobalWindAtlas-v3,236791.6,9471.7,unconstrained,4.51,0.116,-7.2227,113.09417,49.54

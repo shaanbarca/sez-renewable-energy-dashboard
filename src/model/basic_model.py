@@ -1354,13 +1354,13 @@ def geas_baseline_allocation(
 
     Formula (METHODOLOGY_CONSOLIDATED.md Section 5.3):
         allocatable_green_mwh = pre2030_solar_mw * 8760 * region_cf
-        geas_alloc_kek = allocatable_green_mwh * (kek_demand / region_demand)
-        green_share_geas = min(1, geas_alloc_kek / kek_demand)
+        geas_alloc_site = allocatable_green_mwh * (site_demand / region_demand)
+        green_share_geas = min(1, geas_alloc_site / site_demand)
 
     Parameters
     ----------
     kek_df:
-        DataFrame with columns: kek_id, grid_region_id, demand_mwh.
+        DataFrame with columns: site_id, grid_region_id, demand_mwh.
         Must be filtered to target_year rows only.
     ruptl_df:
         DataFrame with columns: grid_region_id, year, <capacity_col>.
@@ -1432,7 +1432,7 @@ def geas_policy_allocation(
     Parameters
     ----------
     kek_df:
-        DataFrame with columns: kek_id, grid_region_id, demand_mwh, pvout_best_50km.
+        DataFrame with columns: site_id, grid_region_id, demand_mwh, pvout_best_50km.
     ruptl_df:
         DataFrame with columns: grid_region_id, year, <capacity_col>.
     shift_fraction:
@@ -1574,7 +1574,7 @@ def resolve_demand(fct_demand: pd.DataFrame) -> pd.DataFrame:
     Otherwise demand_mwh (model-computed from area × intensity) is used.
 
     This is the single entry point for demand override in both the pipeline
-    (build_fct_kek_scorecard) and the Dash app callbacks.
+    (build_fct_site_scorecard) and the Dash app callbacks.
     """
     df = fct_demand.copy()
     if "demand_mwh_user" in df.columns:
@@ -1608,11 +1608,11 @@ def build_scorecard(
     Parameters
     ----------
     dim_kek:
-        Columns: kek_id, kek_name, province, grid_region_id, reliability_req.
+        Columns: site_id, site_name, province, grid_region_id, reliability_req.
     fct_demand:
-        Columns: kek_id, year, demand_mwh.
+        Columns: site_id, year, demand_mwh.
     fct_pvout:
-        Columns: kek_id, pvout_centroid (annual kWh/kWp/yr), pvout_best_50km (annual).
+        Columns: site_id, pvout_centroid (annual kWh/kWp/yr), pvout_best_50km (annual).
         Values must already be annual (kWh/kWp/year). Use pvout_daily_to_annual()
         when reading from GeoTIFF before passing here.
     fct_ruptl:
@@ -1635,15 +1635,17 @@ def build_scorecard(
     -------
     pd.DataFrame
         One row per KEK with all computed columns. See DATA_DICTIONARY.md
-        Section 2.8 (fct_kek_scorecard) for full column spec.
+        Section 2.8 (fct_site_scorecard) for full column spec.
     """
     demand_yr = fct_demand[fct_demand["year"] == target_year].copy()
 
     ruptl_metrics = ruptl_region_metrics(fct_ruptl)
 
     df = (
-        dim_kek.merge(demand_yr[["kek_id", "demand_mwh"]], on="kek_id", how="left")
-        .merge(fct_pvout[["kek_id", "pvout_centroid", "pvout_best_50km"]], on="kek_id", how="left")
+        dim_kek.merge(demand_yr[["site_id", "demand_mwh"]], on="site_id", how="left")
+        .merge(
+            fct_pvout[["site_id", "pvout_centroid", "pvout_best_50km"]], on="site_id", how="left"
+        )
         .merge(
             ruptl_metrics[
                 [
@@ -1675,12 +1677,12 @@ def build_scorecard(
         df["solar_attractive"] = None
 
     df_geas = geas_baseline_allocation(
-        kek_df=df[["kek_id", "grid_region_id", "demand_mwh"]].copy(),
+        kek_df=df[["site_id", "grid_region_id", "demand_mwh"]].copy(),
         ruptl_df=fct_ruptl,
         target_year=target_year,
     )
     df = df.merge(
-        df_geas[["kek_id", "geas_alloc_mwh", "green_share_geas"]], on="kek_id", how="left"
+        df_geas[["site_id", "geas_alloc_mwh", "green_share_geas"]], on="site_id", how="left"
     )
 
     if df["solar_attractive"].notna().all():

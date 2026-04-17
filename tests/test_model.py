@@ -60,8 +60,8 @@ from src.model.basic_model import (
 def sample_kek_df():
     return pd.DataFrame(
         {
-            "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
-            "kek_name": ["Kendal", "Bitung", "Sungai Liat", "Arun"],
+            "site_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
+            "site_name": ["Kendal", "Bitung", "Sungai Liat", "Arun"],
             "province": ["Central Java", "North Sulawesi", "Bangka Belitung", "Aceh"],
             "grid_region_id": ["JAVA_BALI", "SULAWESI", "SUMATERA", "SUMATERA"],
             "reliability_req": [0.4, 0.8, 0.6, 0.9],
@@ -73,7 +73,7 @@ def sample_kek_df():
 def sample_demand_df():
     return pd.DataFrame(
         {
-            "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
+            "site_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
             "year": [2030, 2030, 2030, 2030],
             "demand_mwh": [800_000, 250_000, 120_000, 600_000],
         }
@@ -85,7 +85,7 @@ def sample_pvout_df():
     # Annual values (kWh/kWp/year)
     return pd.DataFrame(
         {
-            "kek_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
+            "site_id": ["KEK_A", "KEK_B", "KEK_C", "KEK_D"],
             "pvout_centroid": [1650, 1505, 1420, 1550],
             "pvout_best_50km": [1780, 1620, 1500, 1670],
         }
@@ -1075,7 +1075,7 @@ class TestGeasBaselineAllocation:
     def test_pro_rata_within_region(self, sample_kek_df, sample_ruptl_df):
         kek_demand = pd.DataFrame(
             {
-                "kek_id": ["KEK_C", "KEK_D"],
+                "site_id": ["KEK_C", "KEK_D"],
                 "grid_region_id": ["SUMATERA", "SUMATERA"],
                 "demand_mwh": [120_000, 600_000],
             }
@@ -1083,8 +1083,8 @@ class TestGeasBaselineAllocation:
         result = geas_baseline_allocation(kek_demand, sample_ruptl_df)
 
         # KEK_D should receive 600/(120+600) = 83.3% of regional allocation
-        kek_c = result[result["kek_id"] == "KEK_C"].iloc[0]
-        kek_d = result[result["kek_id"] == "KEK_D"].iloc[0]
+        kek_c = result[result["site_id"] == "KEK_C"].iloc[0]
+        kek_d = result[result["site_id"] == "KEK_D"].iloc[0]
         ratio = kek_d["geas_alloc_mwh"] / kek_c["geas_alloc_mwh"]
         assert math.isclose(ratio, 600_000 / 120_000)
 
@@ -1092,7 +1092,7 @@ class TestGeasBaselineAllocation:
         # Tiny demand => GEAS supply >> demand => green_share = 1.0
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_X"],
+                "site_id": ["KEK_X"],
                 "grid_region_id": ["JAVA_BALI"],
                 "demand_mwh": [1.0],  # 1 MWh — trivially covered
             }
@@ -1103,7 +1103,7 @@ class TestGeasBaselineAllocation:
     def test_no_ruptl_in_region_gives_zero(self):
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_X"],
+                "site_id": ["KEK_X"],
                 "grid_region_id": ["UNKNOWN_REGION"],
                 "demand_mwh": [500_000],
             }
@@ -1122,7 +1122,7 @@ class TestGeasBaselineAllocation:
     def test_total_allocation_equals_supply(self, sample_ruptl_df):
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_C", "KEK_D"],
+                "site_id": ["KEK_C", "KEK_D"],
                 "grid_region_id": ["SUMATERA", "SUMATERA"],
                 "demand_mwh": [120_000, 600_000],
             }
@@ -1137,7 +1137,7 @@ class TestGeasBaselineAllocation:
         # Regression: demand=0 previously produced NaN via 0/0 division
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_X"],
+                "site_id": ["KEK_X"],
                 "grid_region_id": ["JAVA_BALI"],
                 "demand_mwh": [0],
             }
@@ -1157,7 +1157,7 @@ class TestGeasPolicyAllocation:
         # High-pvout KEK should get >= baseline share in policy scenario
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_C", "KEK_D"],
+                "site_id": ["KEK_C", "KEK_D"],
                 "grid_region_id": ["SUMATERA", "SUMATERA"],
                 "demand_mwh": [120_000, 600_000],
                 "pvout_best_50km": [1400, 1700],  # KEK_D has higher PVOUT
@@ -1165,10 +1165,10 @@ class TestGeasPolicyAllocation:
         )
         result = geas_policy_allocation(kek_df, sample_ruptl_df)
         baseline = geas_baseline_allocation(
-            kek_df[["kek_id", "grid_region_id", "demand_mwh"]], sample_ruptl_df
+            kek_df[["site_id", "grid_region_id", "demand_mwh"]], sample_ruptl_df
         )
-        kek_d_baseline = baseline[baseline["kek_id"] == "KEK_D"].iloc[0]["green_share_geas"]
-        kek_d_policy = result[result["kek_id"] == "KEK_D"].iloc[0]["green_share_geas_policy"]
+        kek_d_baseline = baseline[baseline["site_id"] == "KEK_D"].iloc[0]["green_share_geas"]
+        kek_d_policy = result[result["site_id"] == "KEK_D"].iloc[0]["green_share_geas_policy"]
         # With higher pvout score, KEK_D should do >= baseline
         assert kek_d_policy >= kek_d_baseline * 0.95  # allow small float tolerance
 
@@ -1176,7 +1176,7 @@ class TestGeasPolicyAllocation:
         # Policy shifts 20% of post-2030 into pre-2030 -> more total supply
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_A"],
+                "site_id": ["KEK_A"],
                 "grid_region_id": ["JAVA_BALI"],
                 "demand_mwh": [800_000],
                 "pvout_best_50km": [1780],
@@ -1184,14 +1184,14 @@ class TestGeasPolicyAllocation:
         )
         result = geas_policy_allocation(kek_df, sample_ruptl_df)
         baseline = geas_baseline_allocation(
-            kek_df[["kek_id", "grid_region_id", "demand_mwh"]], sample_ruptl_df
+            kek_df[["site_id", "grid_region_id", "demand_mwh"]], sample_ruptl_df
         )
         assert result.iloc[0]["geas_alloc_mwh_policy"] >= baseline.iloc[0]["geas_alloc_mwh"]
 
     def test_green_share_capped_at_1(self, sample_ruptl_df):
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_X"],
+                "site_id": ["KEK_X"],
                 "grid_region_id": ["JAVA_BALI"],
                 "demand_mwh": [1.0],
                 "pvout_best_50km": [1750],
@@ -1204,7 +1204,7 @@ class TestGeasPolicyAllocation:
         # Regression: demand=0 previously produced NaN via 0/0 division
         kek_df = pd.DataFrame(
             {
-                "kek_id": ["KEK_X"],
+                "site_id": ["KEK_X"],
                 "grid_region_id": ["JAVA_BALI"],
                 "demand_mwh": [0],
                 "pvout_best_50km": [1750],
@@ -1363,7 +1363,7 @@ class TestResolveDemand:
         """Build a minimal fct_demand DataFrame with optional demand_mwh_user column."""
         df = pd.DataFrame(
             {
-                "kek_id": ["a", "b", "c"],
+                "site_id": ["a", "b", "c"],
                 "demand_mwh": [1000.0, 2000.0, 3000.0],
             }
         )
@@ -1389,15 +1389,15 @@ class TestResolveDemand:
     def test_partial_override_only_replaces_non_null_rows(self):
         df = self._make_demand([pd.NA, 9999.0, pd.NA])
         result = resolve_demand(df)
-        assert result.loc[result["kek_id"] == "a", "demand_mwh"].iloc[0] == 1000.0
-        assert result.loc[result["kek_id"] == "b", "demand_mwh"].iloc[0] == 9999.0
-        assert result.loc[result["kek_id"] == "c", "demand_mwh"].iloc[0] == 3000.0
+        assert result.loc[result["site_id"] == "a", "demand_mwh"].iloc[0] == 1000.0
+        assert result.loc[result["site_id"] == "b", "demand_mwh"].iloc[0] == 9999.0
+        assert result.loc[result["site_id"] == "c", "demand_mwh"].iloc[0] == 3000.0
 
     def test_original_dataframe_not_mutated(self):
         df = self._make_demand([pd.NA, 9999.0, pd.NA])
-        original_b = df.loc[df["kek_id"] == "b", "demand_mwh"].iloc[0]
+        original_b = df.loc[df["site_id"] == "b", "demand_mwh"].iloc[0]
         resolve_demand(df)
-        assert df.loc[df["kek_id"] == "b", "demand_mwh"].iloc[0] == original_b
+        assert df.loc[df["site_id"] == "b", "demand_mwh"].iloc[0] == original_b
 
 
 # ---------------------------------------------------------------------------

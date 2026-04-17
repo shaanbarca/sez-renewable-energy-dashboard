@@ -39,7 +39,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 BUILD_DIR = REPO_ROOT / "data" / "buildability"
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
 
 # Copernicus DEM GLO-30 on AWS S3 (public, no auth)
 COP_DEM_BASE = (
@@ -385,7 +385,7 @@ NOTE: Peatland (Layer 1b) and land cover (Layer 1c/d) are now automated:
 ─────────────────────────────────────────────────────────────────────────────
 After downloading, re-run the pipeline:
 
-  uv run python run_pipeline.py fct_kek_resource
+  uv run python run_pipeline.py fct_site_resource
 
 The pipeline gracefully handles missing files — active layers are applied
 and resource_quality reflects how many of the 4 layers were applied.
@@ -410,7 +410,7 @@ def check_status() -> None:
     all_present = all(p.exists() for p in files.values())
     if all_present:
         print("\n✅ All buildability data files present. Run the pipeline:")
-        print("   uv run python run_pipeline.py fct_kek_resource")
+        print("   uv run python run_pipeline.py fct_site_resource")
     else:
         missing_count = sum(1 for p in files.values() if not p.exists())
         print(f"\n⚠️  {missing_count} file(s) missing. See instructions above.")
@@ -427,17 +427,17 @@ def main() -> None:
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
-    if not DIM_KEK_CSV.exists():
-        print(f"ERROR: {DIM_KEK_CSV} not found. Run the pipeline first:")
-        print("  uv run python run_pipeline.py dim_kek")
+    if not DIM_SITES_CSV.exists():
+        print(f"ERROR: {DIM_SITES_CSV} not found. Run the pipeline first:")
+        print("  uv run python run_pipeline.py dim_sites")
         sys.exit(1)
 
-    kek_df = pd.read_csv(DIM_KEK_CSV)[["kek_id", "latitude", "longitude"]]
-    print(f"Loaded {len(kek_df)} KEKs from {DIM_KEK_CSV.relative_to(REPO_ROOT)}")
+    sites_df = pd.read_csv(DIM_SITES_CSV)[["site_id", "latitude", "longitude"]]
+    print(f"Loaded {len(sites_df)} sites from {DIM_SITES_CSV.relative_to(REPO_ROOT)}")
 
     if not args.check_only:
-        download_cop_dem(kek_df, check_only=False)
-        download_esa_worldcover(kek_df, check_only=False)
+        download_cop_dem(sites_df, check_only=False)
+        download_esa_worldcover(sites_df, check_only=False)
         download_gfw_peatland(check_only=False)
 
     print_manual_instructions()

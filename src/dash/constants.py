@@ -265,7 +265,7 @@ TIER3_SLIDERS = {
 # ---------------------------------------------------------------------------
 
 TABLE_COLUMNS = {
-    "kek_name": "KEK Name",
+    "site_name": "Site Name",
     "province": "Province",
     "action_flag": "Action Flag",
     "lcoe_mid_usd_mwh": "LCOE ($/MWh)",

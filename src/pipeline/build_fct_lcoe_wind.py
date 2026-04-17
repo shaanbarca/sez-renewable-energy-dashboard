@@ -2,13 +2,13 @@
 build_fct_lcoe_wind — precomputed wind LCOE bands per KEK × WACC × siting scenario.
 
 Sources:
-    processed: dim_kek.csv                       kek_id list
-    processed: fct_kek_wind_resource.csv         wind_speed, cf_wind at centroid + best_50km
+    processed: dim_sites.csv                     site_id list
+    processed: fct_site_wind_resource.csv        wind_speed, cf_wind at centroid + best_50km
     processed: dim_tech_cost_wind.csv            TECH_WIND_ONSHORE capex / fixed_om / lifetime
     processed: fct_substation_proximity.csv      dist_to_nearest_substation_km
 
-Output columns (one row per kek_id × wacc_pct × scenario):
-    kek_id                      join key
+Output columns (one row per site_id × wacc_pct × scenario):
+    site_id                     join key
     wacc_pct                    WACC assumption (4–20% in 2% steps)
     scenario                    'within_boundary' or 'grid_connected_solar'
     cf_wind_used                wind capacity factor used
@@ -43,14 +43,14 @@ from src.pipeline.assumptions import WACC_VALUES
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
-WIND_RESOURCE_CSV = PROCESSED / "fct_kek_wind_resource.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
+WIND_RESOURCE_CSV = PROCESSED / "fct_site_wind_resource.csv"
 DIM_TECH_WIND_CSV = PROCESSED / "dim_tech_cost_wind.csv"
 FSP_CSV = PROCESSED / "fct_substation_proximity.csv"
 
 
 def build_fct_lcoe_wind(
-    dim_kek_csv: Path = DIM_KEK_CSV,
+    dim_sites_csv: Path = DIM_SITES_CSV,
     wind_resource_csv: Path = WIND_RESOURCE_CSV,
     dim_tech_wind_csv: Path = DIM_TECH_WIND_CSV,
     fct_substation_proximity_csv: Path = FSP_CSV,
@@ -63,10 +63,10 @@ def build_fct_lcoe_wind(
     """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
-    dim_kek = pd.read_csv(dim_kek_csv)[["kek_id"]]
+    dim_sites = pd.read_csv(dim_sites_csv)[["site_id"]]
     wind_resource = pd.read_csv(wind_resource_csv)[
         [
-            "kek_id",
+            "site_id",
             "wind_speed_centroid_ms",
             "wind_speed_best_50km_ms",
             "cf_wind_centroid",
@@ -75,7 +75,7 @@ def build_fct_lcoe_wind(
     ]
     tech = pd.read_csv(dim_tech_wind_csv).iloc[0]
     _prox_raw = pd.read_csv(fct_substation_proximity_csv)
-    _prox_cols = ["kek_id", "dist_to_nearest_substation_km"]
+    _prox_cols = ["site_id", "dist_to_nearest_substation_km"]
     if "dist_solar_to_nearest_substation_km" in _prox_raw.columns:
         _prox_cols.append("dist_solar_to_nearest_substation_km")
     proximity = _prox_raw[_prox_cols]
@@ -94,8 +94,8 @@ def build_fct_lcoe_wind(
         ("grid_connected_solar", "cf_wind_best_50km", "wind_speed_best_50km_ms"),
     ]
 
-    df = dim_kek.merge(wind_resource, on="kek_id", how="left")
-    df = df.merge(proximity, on="kek_id", how="left")
+    df = dim_sites.merge(wind_resource, on="site_id", how="left")
+    df = df.merge(proximity, on="site_id", how="left")
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
@@ -149,7 +149,7 @@ def build_fct_lcoe_wind(
 
                 records.append(
                     {
-                        "kek_id": kek_row["kek_id"],
+                        "site_id": kek_row["site_id"],
                         "wacc_pct": wacc,
                         "scenario": scenario,
                         "cf_wind_used": round(float(cf), 4) if cf is not None else np.nan,
@@ -174,8 +174,8 @@ def main() -> None:
     df = build_fct_lcoe_wind()
     df.to_csv(out, index=False)
     print(f"fct_lcoe_wind: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
-    sample = df[(df["wacc_pct"] == 10.0)].sort_values(["kek_id", "scenario"])[
-        ["kek_id", "scenario", "lcoe_usd_mwh", "cf_wind_used", "wind_speed_ms"]
+    sample = df[(df["wacc_pct"] == 10.0)].sort_values(["site_id", "scenario"])[
+        ["site_id", "scenario", "lcoe_usd_mwh", "cf_wind_used", "wind_speed_ms"]
     ]
     print("\nWind LCOE at WACC=10% by scenario (USD/MWh):")
     print(sample.to_string(index=False))

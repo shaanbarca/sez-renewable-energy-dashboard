@@ -145,7 +145,12 @@ def get_defaults():
 @router.post("/scorecard")
 def post_scorecard(req: ScorecardRequest):
     """Recompute LCOE + action flags for all 25 KEKs."""
-    from src.api.main import resource_df, ruptl_metrics_df, tables, wind_tech
+    from src.api.main import (  # noqa: PLC0415 — avoid circular import (main ← routes)
+        resource_df,
+        ruptl_metrics_df,
+        tables,
+        wind_tech,
+    )
 
     assumptions = UserAssumptions.from_dict(req.assumptions.model_dump())
     thresholds = UserThresholds.from_dict(req.thresholds.model_dump())
@@ -161,36 +166,44 @@ def post_scorecard(req: ScorecardRequest):
         assumptions=assumptions,
         thresholds=thresholds,
         ruptl_metrics_df=ruptl_metrics_df,
-        demand_df=tables["fct_kek_demand"],
+        demand_df=tables["fct_site_demand"],
         grid_df=tables["fct_grid_cost_proxy"],
         grid_cost_by_region=grid_cost_by_region,
         wind_tech=wind_tech,
     )
 
-    # Merge dim_kek columns
-    dim_kek = tables["dim_kek"]
-    merge_cols_kek = ["kek_id"]
+    # Merge dim_sites columns
+    dim_sites = tables["dim_sites"]
+    merge_cols_sites = ["site_id"]
     for col in [
-        "kek_name",
+        "site_name",
         "province",
         "latitude",
         "longitude",
         "grid_region_id",
-        "kek_type",
+        "zone_classification",
         "category",
         "area_ha",
         "developer",
         "legal_basis",
+        "site_type",
+        "sector",
+        "primary_product",
+        "capacity_annual",
+        "capacity_annual_tonnes",
+        "technology",
+        "parent_company",
+        "cluster_members",
     ]:
-        if col in dim_kek.columns and col not in scorecard_df.columns:
-            merge_cols_kek.append(col)
-    if len(merge_cols_kek) > 1:
-        scorecard_df = scorecard_df.merge(dim_kek[merge_cols_kek], on="kek_id", how="left")
+        if col in dim_sites.columns and col not in scorecard_df.columns:
+            merge_cols_sites.append(col)
+    if len(merge_cols_sites) > 1:
+        scorecard_df = scorecard_df.merge(dim_sites[merge_cols_sites], on="site_id", how="left")
 
     # Merge resource/grid columns (wind columns now come from compute_scorecard_live)
     for source_name, source_cols in [
         (
-            "fct_kek_resource",
+            "fct_site_resource",
             [
                 "buildable_area_ha",
                 "max_captive_capacity_mwp",
@@ -208,10 +221,10 @@ def post_scorecard(req: ScorecardRequest):
         ]
         if available:
             # Need a join key
-            if "kek_id" in source_df.columns:
+            if "site_id" in source_df.columns:
                 scorecard_df = scorecard_df.merge(
-                    source_df[["kek_id"] + available].drop_duplicates("kek_id"),
-                    on="kek_id",
+                    source_df[["site_id"] + available].drop_duplicates("site_id"),
+                    on="site_id",
                     how="left",
                 )
             elif "grid_region_id" in source_df.columns and "grid_region_id" in scorecard_df.columns:

@@ -1,4 +1,4 @@
-# Executive Summary — SEZ Renewable Energy Dashboard
+# Executive Summary — Indonesia Industrial Decarbonization Dashboard
 
 > **Who this is for:** Development bank analysts, energy investors, and policy advisors who want to understand what this project does and why — without needing a background in data engineering or energy economics.
 >
@@ -22,17 +22,19 @@
 
 ## The Problem This Solves
 
-Indonesia has 25 **Special Economic Zones** (called KEKs — *Kawasan Ekonomi Khusus*) spread across the archipelago. These are industrial parks and tourism zones where the government has created special rules to attract foreign investment. One of the biggest questions investors ask before committing to a KEK is: **"How much will electricity cost here, and can we get clean energy?"**
+Indonesia's industrial CO2 emissions come overwhelmingly from heavy industry: steel, cement, aluminium, fertilizer, and nickel smelting. Some of these sites sit inside Special Economic Zones (KEKs — *Kawasan Ekonomi Khusus*), but the largest emitters (Krakatau Steel in Cilegon, cement clusters across Java, Inalum in Asahan, Pupuk Kaltim in Bontang) are **standalone plants and industrial parks outside KEK boundaries**. Any serious analysis of industrial decarbonization has to cover both.
 
-Today, answering that question requires piecing together data from multiple government PDFs, energy tariff regulations, and satellite datasets — work that takes weeks and is rarely done consistently. This project automates that process and produces a single, transparent scorecard for all 25 KEKs.
+This dashboard covers **79 sites**: 25 KEKs plus 54 industrial sites (32 cement plants, 7 steel mills, 10 non-KEK nickel IIA clusters, 2 aluminium smelters, 3 fertilizer plants). For each, it answers the same question investors and policymakers ask: **"How much will electricity cost here, can we get clean energy, and how exposed is this site to the EU Carbon Border Adjustment Mechanism (CBAM)?"**
+
+Today, answering that question requires piecing together data from multiple government PDFs, energy tariff regulations, asset-level trackers (GEM, CGSP), and satellite datasets — work that takes weeks and is rarely done consistently. This project automates that process and produces a single, transparent scorecard for all 79 sites.
 
 ---
 
 ## The Core Question
 
-For each KEK, the model answers one question:
+For each site, the model answers one question:
 
-> **Is building your own solar power plant cheaper than buying electricity from PLN (the state utility) — and if not, how close is it, and what would change that?**
+> **Is building your own solar (or wind, or hybrid) power plant cheaper than buying electricity from PLN (the state utility) — and if not, how close is it, and what would change that?**
 
 This matters because industrial electricity in Indonesia costs around **$63 USD per megawatt-hour** (the official I-4 industrial tariff from the Ministry of Energy). If a company can build solar for less than that, captive solar is a no-brainer. If it's close, the right policy nudge (a better financing rate, a government energy allocation) could tip the balance.
 
@@ -92,7 +94,10 @@ Step 5 — What action does each KEK need?
 
 | Term | What it means |
 |------|---------------|
+| **Site** | A location the dashboard analyzes. Four types: **KEK** (Special Economic Zone), **KI** (industrial park / *Kawasan Industri*), **standalone** (a single large plant like Krakatau Steel), **cluster** (multiple plants sharing infrastructure, e.g. the Cilegon steel corridor). |
 | **KEK** | Special Economic Zone — an industrial or tourism park with government incentives |
+| **Sector** | Industrial sector of the site: steel, cement, aluminium, fertilizer, nickel, or mixed (KEKs with multiple tenant sectors). Drives CBAM exposure and electricity intensity assumptions. |
+| **CBAM** | EU Carbon Border Adjustment Mechanism. From 2026, EU importers pay a carbon certificate fee on embedded emissions in imported steel, cement, aluminium, and fertilizer. Free allocation phases out 2026→2034 (97.5% → 0%). Indonesian exporters pay roughly €80/tCO2 × embedded intensity. |
 | **LCOE** | Levelized Cost of Energy — the total lifetime cost of a power plant divided by total electricity produced, expressed in $/MWh. Think of it as the "break-even price" the plant needs to charge to cover all costs. |
 | **PVOUT** | How much electricity one kilowatt of solar panels produces in a year at a given location, based on satellite solar radiation data. Higher = sunnier = cheaper solar. |
 | **Capacity Factor (CF)** | The fraction of the year a solar plant operates at full output. Indonesian solar averages 15–20%. |
@@ -111,7 +116,7 @@ Step 5 — What action does each KEK need?
 The project has three layers:
 
 ### 1. Data Pipeline
-A set of Python scripts that pull from eight public data sources and produce thirteen clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 25 KEKs.
+A set of Python scripts that pull from eight public data sources and produce thirteen clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 79 sites (25 KEK + 54 industrial). Industrial site selection is itself pipeline-driven: `build_industrial_sites.py` reads GEM Global Cement Plant Tracker (32 operating Indonesian plants), GEM Global Iron & Steel Plant Tracker (7 active plants), and CGSP Nickel Tracker (10 Integrated Industrial Area parent projects, filtered to exclude KEK overlaps and aggregate capacity from nearby Processing children) and unions them with a small residual manual CSV for the sectors without a tracker step (2 aluminium + 3 fertilizer, each row provenance-enforced with `source_url`). Site-type behavior (demand method, captive power matching, CBAM detection, marker shape) is driven by a single registry (`src/model/site_types.py`, mirrored in `frontend/src/lib/siteTypes.ts`) — adding a new site type is a one-entry change, not a 10-file refactor.
 
 **Data sources used:**
 - Global Solar Atlas v2 satellite data (sun radiation per location)
@@ -124,15 +129,16 @@ A set of Python scripts that pull from eight public data sources and produce thi
 - CGSP Nickel Tracker (nickel smelter locations, process types, ownership)
 
 ### 2. Analytical Model
-A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (433 automated tests) and produces a scorecard table covering all 25 KEKs with LCOE bands, competitive gap, action flags, 2D classification (economic tier x infrastructure readiness), and green energy share estimates.
+A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (498 automated tests) and produces a scorecard table covering all 79 sites with LCOE bands, competitive gap, action flags, 2D classification (economic tier x infrastructure readiness), green energy share estimates, and CBAM cost trajectories (2026, 2030, 2034). CBAM detection is dual-mode: KEKs use a 3-signal inference (business sector + captive infrastructure + nickel process type), industrial sites use direct assignment from the `cbam_product_type` column. Result: 66 of 79 sites (12 KEK + all 54 industrial) are flagged CBAM-exposed.
 
 ### 3. Dashboard
-An interactive web dashboard (React + Vite frontend with FastAPI backend) that lets analysts adjust assumptions — financing rate, capital cost, BESS parameters — and instantly see how the rankings change. Six views:
-- **Map** — 25 KEKs with 2D classification encoding (circle fill = economic tier, stroke = infrastructure readiness, outer ring = modifier badges) on MapLibre GL with 3D terrain, buildable area overlays, substation markers
-- **Ranked table** — sortable, filterable TanStack Table with column filters, CSV export
+An interactive web dashboard (React + Vite frontend with FastAPI backend) that lets analysts adjust assumptions — financing rate, capital cost, BESS parameters — and instantly see how the rankings change. Seven views:
+- **Map** — 79 sites with 2D classification encoding (circle fill = economic tier, stroke = infrastructure readiness, outer ring = modifier badges) on MapLibre GL with 3D terrain, buildable area overlays, substation markers; filterable by site type (KEK / KI / standalone / cluster) and sector (steel / cement / aluminium / fertilizer / nickel / mixed)
+- **Ranked table** — sortable, filterable TanStack Table with column filters, sector + site-type dropdowns, CSV export
 - **Quadrant chart** — solar cost vs. grid cost scatter with action flag zones
 - **RUPTL context** — regional grid pipeline timing by technology
-- **KEK Scorecard** — 6-tab deep-dive (Overview / Solar / Grid / Economics / Industry / Action) with info badges, CBAM cost trajectory, and interactive LCOE curve chart
+- **Sector Summary** — aggregated CBAM cost trajectory by sector ($M/year in 2026/2030/2034), 2030 electricity demand by sector, action-flag distribution per sector
+- **Site Scorecard** — 6-tab deep-dive (Overview / Solar / Grid / Economics / Industry / Action) with site-type-aware identity fields (KEK: developer, legal basis; standalone: primary product, technology, parent company; cluster: member facilities), info badges, CBAM cost trajectory, and interactive LCOE curve chart
 - **Assumptions panel** — WACC, CAPEX, FOM, lifetime, BESS CAPEX, substation utilization sliders for live recomputation
 
 > **Roadmap details:** See [PLAN.md](PLAN.md) for the full delivery plan and phase status.
@@ -145,15 +151,16 @@ All thirteen output tables are produced by the pipeline. Key outputs:
 
 | What it tells you | Table | Status |
 |-------------------|-------|--------|
-| Which KEK is where, what sector, what grid region | `dim_kek` | ✅ Complete |
-| Solar radiation quality per KEK | `fct_kek_resource` | ✅ Filtered — 4-layer buildability applied (ESA WorldCover, GFW Peatlands, DEM slope/elev, Kawasan Hutan) |
-| Estimated 2030 electricity demand per KEK | `fct_kek_demand` | ⚠️ Provisional estimate |
-| Solar LCOE at 9 financing rates (4–20% WACC, 2% steps) | `fct_lcoe` | ✅ CAPEX verified (ESDM p.66). See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for full column specs. |
+| Which site is where, what sector, what grid region, what type (KEK/KI/standalone/cluster) | `dim_sites` | ✅ 79 rows — 25 KEK + 54 industrial (tracker-driven) |
+| Solar radiation quality per site | `fct_site_resource` | ✅ Filtered — 4-layer buildability applied (ESA WorldCover, GFW Peatlands, DEM slope/elev, Kawasan Hutan) |
+| Wind resource per site (speed, CF, buildability) | `fct_site_wind_resource` | ✅ Global Wind Atlas v3 + 6-layer filter |
+| Estimated 2030 electricity demand per site | `fct_site_demand` | ✅ Dual-mode — KEKs use area × intensity, industrial sites use capacity × sector intensity (steel/cement/aluminium/fertilizer/nickel) |
+| Solar LCOE at 9 financing rates (4–20% WACC, 2% steps) | `fct_lcoe` | ✅ CAPEX verified (ESDM p.66). 1,422 rows (79 × 9 × 2). |
 | Grid electricity cost per PLN region | `fct_grid_cost_proxy` | ✅ Official tariff |
 | PLN's planned solar additions 2025–2034 | `fct_ruptl_pipeline` | ✅ Manually verified |
-| Captive coal, nickel, steel, cement within 50km | `fct_captive_*` | ✅ GEM + CGSP trackers. 4 industry overlays. |
-| EU CBAM exposure: cost trajectory 2026-2034 | Scorecard fields | ✅ 12/25 KEKs exposed. 3-signal detection. |
-| Full scorecard: LCOE vs. grid cost + action flags | `fct_kek_scorecard` | ⚠️ Provisional until CAPEX verified |
+| Captive coal, nickel, steel, cement matched to each site | `fct_captive_*` | ✅ Dual-mode — KEKs use 50km proximity scan; standalone/cluster sites matched directly by site_id. Shared `src/pipeline/geo_utils.py` (haversine + proximity_match + direct_match). |
+| EU CBAM exposure: cost trajectory 2026-2034 | Scorecard fields | ✅ 66/79 sites exposed (12 KEK 3-signal + 54 industrial direct assignment). |
+| Full scorecard: LCOE vs. grid cost + action flags + 2D classification + CBAM | `fct_site_scorecard` | ✅ 79 rows. |
 
 > **Column-by-column reference:** See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for every table, every column, its source, and its status.
 
@@ -167,7 +174,9 @@ Three things to be aware of when interpreting results:
 
 2. **Construction costs are provisional.** The CAPEX and O&M figures from the ESDM Technology Catalogue still need to be manually verified against the source PDF. Once verified, all LCOE outputs will be updated and marked as confirmed.
 
-3. **Demand is estimated, not measured.** KEK electricity demand is estimated from zone area and sector type (industrial parks use more power per hectare than tourism zones). Real figures require tenant load surveys that aren't publicly available.
+3. **Demand is estimated, not measured.** For KEKs, demand is estimated from zone area and sector type (industrial parks use more power per hectare than tourism zones). For standalone and cluster industrial sites, demand is computed from annual production tonnes × sector electricity intensity (steel EAF 0.5 MWh/t, cement 0.11 MWh/t, aluminium 15 MWh/t, fertilizer 1.0 MWh/t, nickel RKEF 37.5 MWh/t). Real figures require tenant load surveys that aren't publicly available.
+
+4. **CBAM covers Scope 2 (electricity) only.** The CBAM cost trajectories reflect embedded emissions from electricity consumption. Process emissions (Scope 1 — cement calcination, aluminium electrolysis carbon anodes) require sector-specific models not yet implemented. Reported CBAM exposure is a lower bound for heavy-industry sites.
 
 > **Full limitations list:** See [METHODOLOGY_CONSOLIDATED.md — Section 11](docs/METHODOLOGY_CONSOLIDATED.md) for a complete catalogue of model limitations and planned fixes.
 
@@ -178,12 +187,13 @@ Three things to be aware of when interpreting results:
 **Primary audience:** Development bank analysts (ADB, IFC, AIIB) and energy investors doing due diligence on industrial location decisions or captive solar project financing.
 
 **How a typical analyst uses this:**
-1. Open the dashboard → see all 25 KEKs on a map colored by clean power score
-2. Set the WACC slider to their fund's hurdle rate → rankings update live
-3. Identify 3–5 candidate KEKs from the quadrant chart
-4. Toggle the "flip scenario" → see which KEKs become solar-competitive under a concessional finance rate or CAPEX reduction
-5. Export the ranked table as CSV → paste into an investment memo
-6. Drill into a KEK scorecard → full assumptions and source citations for due diligence
+1. Open the dashboard → see all 79 sites on a map colored by clean power score
+2. Filter by sector (e.g. steel) to compare all CBAM-exposed steel plants side by side
+3. Set the WACC slider to their fund's hurdle rate → rankings update live
+4. Identify 3–5 candidate sites from the quadrant chart or sector summary
+5. Toggle the "flip scenario" → see which sites become solar-competitive under a concessional finance rate or CAPEX reduction
+6. Export the ranked table as CSV → paste into an investment memo
+7. Drill into a site scorecard → full assumptions, CBAM cost trajectory, and source citations for due diligence
 
 ---
 

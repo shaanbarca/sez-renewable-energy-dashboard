@@ -9,12 +9,25 @@ wind raster, peatland) for toggling on the Plotly Mapbox map.
 from __future__ import annotations
 
 import base64
+import glob
 import io
 import json
+import math
+import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 
+import geopandas as gpd
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import rasterio
+from matplotlib.colors import Normalize
+from rasterio.enums import Resampling
+from scipy.ndimage import zoom
+from shapely.geometry import mapping, shape
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
@@ -37,7 +50,7 @@ def load_substations() -> list[dict]:
     for feat in gj.get("features", []):
         props = feat.get("properties", {})
         coords = feat.get("geometry", {}).get("coordinates", [])
-        if len(coords) >= 2:
+        if len(coords) >= 2:  # noqa: PLR2004 — valid Point geometry needs (lon, lat)
             stations.append(
                 {
                     "lon": coords[0],
@@ -56,7 +69,7 @@ def load_nickel_smelters() -> list[dict]:
 
     Returns list of {lat, lon, name, project_type, capacity_tons, cost_usd,
     shareholder, esg_ecological, esg_social, status, province,
-    is_chinese_owned, kek_id, dist_to_kek_km}.
+    is_chinese_owned, site_id, dist_to_site_km}.
     """
     path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_nickel.csv"
     if not path.exists():
@@ -64,7 +77,6 @@ def load_nickel_smelters() -> list[dict]:
         path = DATA_DIR / "captive_power" / "cgsp_nickel_tracker.csv"
         if not path.exists():
             return []
-        import pandas as pd
 
         df = pd.read_csv(path)
         df = df[df["parent_project_type"] == "Processing"]
@@ -94,8 +106,6 @@ def load_nickel_smelters() -> list[dict]:
             }
             for _, r in df.iterrows()
         ]
-
-    import pandas as pd
 
     df = pd.read_csv(path)
     results = []
@@ -128,9 +138,9 @@ def load_nickel_smelters() -> list[dict]:
                 "is_chinese_owned": bool(r.get("is_chinese_owned", False))
                 if pd.notna(r.get("is_chinese_owned"))
                 else False,
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
@@ -141,13 +151,11 @@ def load_captive_coal() -> list[dict]:
     """Load GEM captive coal plant points from processed CSV.
 
     Returns list of {lat, lon, name, capacity_mw, status, parent, province,
-    kek_id, dist_to_kek_km}.
+    site_id, dist_to_site_km}.
     """
     path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_coal.csv"
     if not path.exists():
         return []
-
-    import pandas as pd
 
     df = pd.read_csv(path)
     results = []
@@ -166,9 +174,9 @@ def load_captive_coal() -> list[dict]:
                 "status": str(r.get("status", "")) if pd.notna(r.get("status")) else "",
                 "parent": str(r.get("parent", "")) if pd.notna(r.get("parent")) else "",
                 "province": str(r.get("province", "")) if pd.notna(r.get("province")) else "",
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
@@ -180,8 +188,6 @@ def load_steel_plants() -> list[dict]:
     path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_steel.csv"
     if not path.exists():
         return []
-
-    import pandas as pd
 
     df = pd.read_csv(path)
     results = []
@@ -205,9 +211,9 @@ def load_steel_plants() -> list[dict]:
                 "is_chinese_owned": bool(r.get("is_chinese_owned", False))
                 if pd.notna(r.get("is_chinese_owned"))
                 else False,
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
@@ -219,8 +225,6 @@ def load_cement_plants() -> list[dict]:
     path = REPO_ROOT / "outputs" / "data" / "processed" / "fct_captive_cement.csv"
     if not path.exists():
         return []
-
-    import pandas as pd
 
     df = pd.read_csv(path)
     results = []
@@ -246,16 +250,16 @@ def load_cement_plants() -> list[dict]:
                 "is_chinese_owned": bool(r.get("is_chinese_owned", False))
                 if pd.notna(r.get("is_chinese_owned"))
                 else False,
-                "kek_id": str(r["kek_id"]) if pd.notna(r.get("kek_id")) else None,
-                "dist_to_kek_km": float(r["dist_to_kek_km"])
-                if pd.notna(r.get("dist_to_kek_km"))
+                "site_id": str(r["site_id"]) if pd.notna(r.get("site_id")) else None,
+                "dist_to_site_km": float(r["dist_to_site_km"])
+                if pd.notna(r.get("dist_to_site_km"))
                 else None,
             }
         )
     return results
 
 
-def load_kek_polygons() -> dict | None:
+def load_site_polygons() -> dict | None:
     """Load KEK boundary polygons as raw GeoJSON dict for Choroplethmapbox."""
     path = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
     if not path.exists():
@@ -264,17 +268,17 @@ def load_kek_polygons() -> dict | None:
         return json.load(f)
 
 
-def get_kek_polygon_by_id(kek_id: str) -> dict | None:
-    """Extract a single KEK polygon feature from the full GeoJSON by slug/kek_id.
+def get_kek_polygon_by_id(site_id: str) -> dict | None:
+    """Extract a single KEK polygon feature from the full GeoJSON by slug/site_id.
 
     Returns the GeoJSON feature dict with geometry and properties, or None.
     """
-    gj = load_kek_polygons()
+    gj = load_site_polygons()
     if not gj:
         return None
     for feat in gj.get("features", []):
         props = feat.get("properties", {})
-        if props.get("slug") == kek_id:
+        if props.get("slug") == site_id:
             return feat
     return None
 
@@ -316,8 +320,6 @@ def load_peatland() -> dict | None:
     if not path.exists():
         return None
 
-    import geopandas as gpd
-
     gdf = gpd.read_file(path)
     if gdf.empty:
         return None
@@ -341,8 +343,6 @@ def load_protected_forest() -> dict | None:
     if not path.exists():
         return None
 
-    import geopandas as gpd
-
     gdf = gpd.read_file(path)
     if gdf.empty:
         return None
@@ -364,13 +364,10 @@ def load_industrial_facilities() -> list[dict]:
             return json.load(f)
 
     # Fall back to raw shapefile processing
-    import glob
 
     shp_files = glob.glob(str(DATA_DIR / "industrial_data" / "*.shp"))
     if not shp_files:
         return []
-
-    import geopandas as gpd
 
     gdf = gpd.read_file(shp_files[0])
     facilities = []
@@ -408,7 +405,6 @@ def load_grid_lines() -> dict | None:
 
 def filter_substations_near_point(lat: float, lon: float, radius_km: float = 50.0) -> list[dict]:
     """Filter substations within radius_km of a point using haversine distance."""
-    import math
 
     stations = load_substations()
     nearby = []
@@ -430,7 +426,7 @@ def filter_substations_near_point(lat: float, lon: float, radius_km: float = 50.
 # ---------------------------------------------------------------------------
 
 
-def _raster_to_base64_png(
+def _raster_to_base64_png(  # noqa: PLR0913 — raster render needs full styling control
     data: np.ndarray,
     bounds: tuple[float, float, float, float],
     colormap: str = "YlOrRd",
@@ -449,11 +445,8 @@ def _raster_to_base64_png(
     pad_degrees: extend bounds by this many degrees on each side with
     transparent pixels. Prevents hard cutoff when the map is pitched (3D).
     """
-    import matplotlib
 
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import Normalize
 
     # Pad the raster with transparent (NaN) pixels to extend geographic bounds.
     # This prevents a hard visible edge when the map is tilted for 3D terrain.
@@ -475,7 +468,6 @@ def _raster_to_base64_png(
         new_h = max(1, int(h * factor))
         new_w = max_width
         # Simple block averaging for downsampling
-        from scipy.ndimage import zoom
 
         data = zoom(data, (new_h / h, new_w / w), order=1)
 
@@ -531,17 +523,12 @@ def load_pvout_raster() -> tuple[str, list[list[float]]] | None:
         return data["image_url"], data["coordinates"]
 
     # Fall back to raw GeoTIFF processing
-    import rasterio
-    from rasterio.enums import Resampling
 
     zip_path = DATA_DIR / "Indonesia_GISdata_LTAym_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF.zip"
     tif_name = "Indonesia_GISdata_LTAy_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF/PVOUT.tif"
 
     if not zip_path.exists():
         return None
-
-    import shutil
-    import tempfile
 
     tmpdir = tempfile.mkdtemp()
     try:
@@ -576,8 +563,6 @@ def load_wind_raster() -> tuple[str, list[list[float]]] | None:
         return data["image_url"], data["coordinates"]
 
     # Fall back to raw GeoTIFF processing
-    import rasterio
-    from rasterio.enums import Resampling
 
     tif_path = DATA_DIR / "wind" / "IDN_wind-speed_100m.tif"
     if not tif_path.exists():
@@ -632,7 +617,7 @@ def _strip_z_coords(coords: list | tuple) -> list:
     return [_strip_z_coords(c) for c in coords]
 
 
-def get_within_boundary_buildable(kek_id: str) -> dict | None:
+def get_within_boundary_buildable(site_id: str) -> dict | None:
     """Return buildable polygon fragments clipped to a KEK boundary.
 
     Loads the KEK polygon and all buildable polygons, buffers the buildable
@@ -640,9 +625,8 @@ def get_within_boundary_buildable(kek_id: str) -> dict | None:
     clips to the KEK boundary. Returns a GeoJSON FeatureCollection of the
     clipped fragments, or None if no overlap.
     """
-    from shapely.geometry import mapping, shape
 
-    kek_feat = get_kek_polygon_by_id(kek_id)
+    kek_feat = get_kek_polygon_by_id(site_id)
     if kek_feat is None:
         return None
 
@@ -718,7 +702,7 @@ def get_all_layers() -> dict:
 
     Returns dict with keys:
         substations: list of dicts
-        kek_polygons: GeoJSON dict or None
+        site_polygons: GeoJSON dict or None
         pvout: (base64_png, coordinates) or None
         wind: (base64_png, coordinates) or None
     """
@@ -732,8 +716,8 @@ def get_all_layers() -> dict:
     layers["substations"] = load_substations()
     print(f"    Substations: {len(layers['substations'])} points")
 
-    layers["kek_polygons"] = load_kek_polygons()
-    print(f"    KEK polygons: {'loaded' if layers['kek_polygons'] else 'not found'}")
+    layers["site_polygons"] = load_site_polygons()
+    print(f"    KEK polygons: {'loaded' if layers['site_polygons'] else 'not found'}")
 
     try:
         layers["pvout"] = load_pvout_raster()
@@ -833,7 +817,7 @@ def get_all_layers() -> dict:
 # Available layer options for the UI checklist
 LAYER_OPTIONS = [
     {"label": "Substations (PLN)", "value": "substations"},
-    {"label": "KEK Boundaries", "value": "kek_polygons"},
+    {"label": "KEK Boundaries", "value": "site_polygons"},
     {"label": "Solar Potential (PVOUT)", "value": "pvout"},
     {"label": "Solar Buildable Areas", "value": "buildable_polygons"},
     {"label": "Wind Buildable Areas", "value": "wind_buildable_polygons"},

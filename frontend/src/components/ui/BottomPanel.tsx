@@ -3,11 +3,13 @@ import { useCallback, useRef, useState } from 'react';
 import type { BottomTab } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import RuptlChart from '../charts/RuptlChart';
+import SectorSummaryChart from '../charts/SectorSummaryChart';
 import DataTable from '../table/DataTable';
 
 const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'table', label: 'Ranked Table' },
   { value: 'ruptl', label: 'RUPTL Context' },
+  { value: 'sector', label: 'Sector Summary' },
 ];
 
 const TABLE_HEIGHT = 288;
@@ -24,7 +26,8 @@ export default function BottomPanel() {
   const startY = useRef(0);
   const startH = useRef(0);
 
-  const defaultHeight = activeTab === 'table' ? TABLE_HEIGHT : CHART_HEIGHT;
+  const defaultHeight =
+    activeTab === 'table' ? TABLE_HEIGHT : activeTab === 'sector' ? 540 : CHART_HEIGHT;
   const panelHeight = userHeight ?? defaultHeight;
 
   const onDragStart = useCallback(
@@ -142,6 +145,9 @@ export default function BottomPanel() {
         </Tabs.Content>
         <Tabs.Content value="ruptl" className="flex-1 overflow-hidden">
           <RuptlChart />
+        </Tabs.Content>
+        <Tabs.Content value="sector" className="flex-1 overflow-hidden">
+          <SectorSummaryChart />
         </Tabs.Content>
       </Tabs.Root>
     </div>

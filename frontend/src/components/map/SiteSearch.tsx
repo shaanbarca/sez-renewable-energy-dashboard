@@ -2,19 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDashboardStore } from '../../store/dashboard';
 
 interface Props {
-  onSelect: (kekId: string, lat: number, lon: number) => void;
+  onSelect: (siteId: string, lat: number, lon: number) => void;
 }
 
-export default function KekSearch({ onSelect }: Props) {
+export default function SiteSearch({ onSelect }: Props) {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Filter KEKs by search query
+  // Filter sites by search query
   const results =
-    scorecard?.filter((row) => row.kek_name.toLowerCase().includes(query.toLowerCase())) ?? [];
+    scorecard?.filter((row) => row.site_name.toLowerCase().includes(query.toLowerCase())) ?? [];
 
   const showDropdown = open && query.length > 0 && results.length > 0;
 
@@ -30,8 +30,8 @@ export default function KekSearch({ onSelect }: Props) {
   }, []);
 
   const handleSelect = useCallback(
-    (row: { kek_id: string; kek_name: string; latitude: number; longitude: number }) => {
-      onSelect(row.kek_id, row.latitude, row.longitude);
+    (row: { site_id: string; site_name: string; latitude: number; longitude: number }) => {
+      onSelect(row.site_id, row.latitude, row.longitude);
       setQuery('');
       setOpen(false);
       inputRef.current?.blur();
@@ -40,7 +40,7 @@ export default function KekSearch({ onSelect }: Props) {
   );
 
   return (
-    <div ref={containerRef} className="absolute top-3 left-3 z-10 w-64" data-search="kek">
+    <div ref={containerRef} className="absolute top-3 left-3 z-10 w-64" data-search="site">
       {/* Search input */}
       <div
         className="flex items-center gap-2 rounded-lg px-3 py-2"
@@ -74,7 +74,7 @@ export default function KekSearch({ onSelect }: Props) {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search KEK..."
+          placeholder="Search site..."
           className="bg-transparent text-xs text-zinc-200 placeholder-zinc-500 outline-none w-full"
         />
         {query && (
@@ -106,11 +106,11 @@ export default function KekSearch({ onSelect }: Props) {
         >
           {results.map((row) => (
             <button
-              key={row.kek_id}
+              key={row.site_id}
               onClick={() => handleSelect(row)}
               className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
             >
-              <div className="font-medium">{row.kek_name}</div>
+              <div className="font-medium">{row.site_name}</div>
               <div className="text-[10px] text-zinc-500">{row.province}</div>
             </button>
           ))}

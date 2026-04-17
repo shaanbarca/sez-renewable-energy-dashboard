@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre';
-import { fetchInfrastructure, fetchKekSubstations } from '../../lib/api';
+import { fetchInfrastructure, fetchSiteSubstations } from '../../lib/api';
 import { useDashboardStore } from '../../store/dashboard';
 
 interface InfraMarker {
-  kek_id: string;
+  site_id: string;
   lat: number;
   lon: number;
   title: string;
@@ -180,7 +180,7 @@ function infraToGeojson(markers: InfraMarker[]) {
       properties: {
         title: m.title,
         category: m.category,
-        kek_id: m.kek_id,
+        site_id: m.site_id,
         infra_type: classifyInfraType(m.title, m.category),
       },
     })),
@@ -225,7 +225,7 @@ interface HoverInfo {
 }
 
 export default function InfraMarkers() {
-  const selectedKek = useDashboardStore((s) => s.selectedKek);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
   const [infraMarkers, setInfraMarkers] = useState<InfraMarker[]>([]);
   const [substationMarkers, setSubstationMarkers] = useState<SubstationMarker[]>([]);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
@@ -307,7 +307,7 @@ export default function InfraMarkers() {
   }, [mapInstance]);
 
   useEffect(() => {
-    if (!selectedKek) {
+    if (!selectedSite) {
       setInfraMarkers([]);
       setSubstationMarkers([]);
       return;
@@ -316,18 +316,18 @@ export default function InfraMarkers() {
     fetchInfrastructure()
       .then((data) => {
         const resp = data as { markers: InfraMarker[] };
-        const forKek = resp.markers.filter((m) => m.kek_id === selectedKek);
-        setInfraMarkers(forKek);
+        const forSite = resp.markers.filter((m) => m.site_id === selectedSite);
+        setInfraMarkers(forSite);
       })
       .catch((err) => console.error('Failed to fetch infrastructure:', err));
 
-    fetchKekSubstations(selectedKek)
+    fetchSiteSubstations(selectedSite)
       .then((data) => {
         const resp = data as { substations: SubstationMarker[] };
         setSubstationMarkers(resp.substations ?? []);
       })
       .catch((err) => console.error('Failed to fetch substations:', err));
-  }, [selectedKek]);
+  }, [selectedSite]);
 
   const infraGeojson = useMemo(() => {
     if (!infraMarkers.length) return null;
@@ -339,7 +339,7 @@ export default function InfraMarkers() {
     return substationsToGeojson(substationMarkers);
   }, [substationMarkers]);
 
-  if (!selectedKek) return null;
+  if (!selectedSite) return null;
 
   return (
     <>

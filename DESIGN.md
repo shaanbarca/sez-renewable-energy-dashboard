@@ -169,7 +169,7 @@ User adjusts sliders (Zustand store)
   POST /api/scorecard { assumptions, thresholds }
          │
          ▼
-  src/dash/logic.py: compute_scorecard_live()
+  src/dash/logic/scorecard.py: compute_scorecard_live()
   (LCOE, action flags, CBAM, wind, hybrid, grid costs — all recomputed)
          │
          ▼
@@ -418,7 +418,7 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 | Demand estimates | `fct_kek_demand.csv` loaded at startup | User can override via `resolve_demand()` |
 | `fct_lcoe.csv` (450 rows) | Still produced by pipeline for reproducibility/export | Default-assumption reference; dashboard computes live instead |
 | **Live (dashboard callback)** | | |
-| LCOE bands (all scenarios) | `compute_lcoe_live()` in `src/dash/logic.py` | User adjusts CAPEX, FOM, lifetime, WACC, gen-tie, lease via sliders. ~5ms for 25 KEKs × 2 scenarios |
+| LCOE bands (all scenarios) | `compute_lcoe_live()` in `src/dash/logic/lcoe.py` | User adjusts CAPEX, FOM, lifetime, WACC, gen-tie, lease via sliders. ~5ms for 25 KEKs × 2 scenarios |
 | Competitive gap | `solar_competitive_gap()` from `basic_model.py` | Recalculated when LCOE or grid benchmark changes |
 | Action flags | `action_flags()` + `invest_resilience()` from `basic_model.py` | Recalculated when LCOE or thresholds change |
 | Carbon breakeven | `carbon_breakeven_price()` from `basic_model.py` | Recalculated when LCOE or grid cost changes |
@@ -491,7 +491,7 @@ The dashboard is a Vite + React 18 + TypeScript SPA with Tailwind CSS. See [ARCH
 
 ### Backend: FastAPI
 
-`src/api/` wraps existing pipeline modules. All computation happens server-side in `src/dash/logic.py`.
+`src/api/` wraps existing pipeline modules. All computation happens server-side in the `src/dash/logic/` package (split by domain: assumptions, lcoe, cbam, grid, technology, scorecard).
 
 **Key endpoints:**
 | Endpoint | Method | Purpose |
@@ -506,7 +506,7 @@ The dashboard is a Vite + React 18 + TypeScript SPA with Tailwind CSS. See [ARCH
 
 ### Business logic extraction
 
-All computation in `src/dash/logic.py` as pure functions. `compute_scorecard_live()` takes assumptions + thresholds, returns full scorecard DataFrame. Testable with pytest, no server dependency. 402 tests cover model, pipeline, and API.
+All computation in the `src/dash/logic/` package as pure functions. `compute_scorecard_live()` (orchestrator in `logic/scorecard.py`) takes assumptions + thresholds, returns full scorecard DataFrame. Domain-split into `assumptions.py`, `lcoe.py`, `cbam.py`, `grid.py`, `technology.py`; public API re-exported via `logic/__init__.py` so external callers stay stable. Testable with pytest, no server dependency. 532 tests cover model, pipeline, API, module boundaries, and golden-master parity.
 
 ---
 
@@ -524,6 +524,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-07 | #26 | Add Interaction States subsection | Loading/empty/error/partial states were entirely unspecified |
 | 2026-04-07 | #28 | Define Scorecard tab fields | "4 tabs" had no field specification; implementer would guess |
 | 2026-04-07 | #29 | Extract callback logic to `src/dash/logic.py` | Testability: pure functions, no Dash dependency |
+| 2026-04-17 | — | Split `src/dash/logic.py` (1,437 LOC) → `src/dash/logic/` package (7 files: assumptions, lcoe, cbam, grid, technology, scorecard, __init__) | Readability + cohesion: each domain owns one module. Bit-identical outputs verified via golden-master fixture. Public API frozen via `__init__.py` re-export shim — external callers unchanged. 532 tests (up from 498): 6 new module-boundary test files + 1 parity test. |
 | 2026-04-07 | #30 | Add startup CSV validation | 8 error paths unhandled; app crashed silently on missing data |
 | 2026-04-07 | #34 | Configurable assumptions: 3-tier slider controls + live LCOE recomputation | Hardcoded assumptions limited all 4 personas; 25 KEKs makes live computation trivial (~5ms) |
 | 2026-04-08 | — | Implement interaction states: loading spinner, empty table, selected KEK highlight | Design review found all 4 interaction states unimplemented |
@@ -581,3 +582,16 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-14 | — | Layer 3 P2: `cbam_urgent` action flag + CBAM assumption sliders + table filter | Overrides `not_competitive` when CBAM-adjusted gap < 0. Certificate price (€30-150) + EUR/USD sliders. Amber CBAM-only toggle in table. |
 | 2026-04-15 | — | Layer 3 P2: CBAM 2030 cost column + 2030 crossover year marker | `cbam_cost_2030_usd_per_tonne` column (amber $/t), `ReferenceLine` at 2030 ("50% exposed") on trajectory chart. |
 | 2026-04-15 | — | Documentation overhaul: DESIGN.md updated to reflect React/Vite/TypeScript SPA, 4 energy modes, 14 map layers, 19 table columns, 14 action flags, CBAM Layer 3 | Previous spec described Dash/dcc/dmc architecture with 4 bottom tabs and 5 map layers. |
+| 2026-04-17 | — | **V4.0 Industrial Parks Expansion — 25 KEKs → 48 sites.** Added 23 Priority 1 industrial sites (7 steel, 8 cement, 1 aluminium, 1 copper smelter, 3 fertilizer, 3 non-KEK nickel). | Indonesia's industrial CO₂ comes overwhelmingly from sites outside KEK boundaries. KEK-only screening missed the biggest point-source emitters. |
+| 2026-04-17 | — | `site_type` / `sector` columns + dropdown filters added to DataTable; `zone_classification` replaces legacy `kek_type` | Discriminator drives registry-based rendering in ScoreDrawer; sector filter enables sectoral decarbonization views. |
+| 2026-04-17 | — | `SiteMarkers.tsx` (renamed from `KekMarkers.tsx`) renders site_type-specific shapes: circle (KEK), square (KI), diamond (standalone), hexagon (cluster) | Visual differentiation on the map separates KEK-mode proximity sites from direct-match industrial sites. |
+| 2026-04-17 | — | ScoreDrawer identity section: registry-driven via `SITE_TYPES[site_type].identityFields` in `frontend/src/lib/siteTypes.ts` | Adding a new site type (e.g., "mining_concession") is now a 1-entry dict change in both Python `site_types.py` and TS `siteTypes.ts` — no `if/else` blocks in the 2,200-line drawer. |
+| 2026-04-17 | — | `SectorSummaryChart.tsx` added to bottom drawer — CBAM cost trajectory + 2030 demand by sector + action-flag distribution table | Policy Maker persona needs sector-level rollups (steel, cement, aluminium, fertilizer, nickel, mixed) to see where the biggest decarbonization levers sit. |
+| 2026-04-17 | — | State slice renames: `selectedKek` → `selectedSite`, `filteredKekIds` → `filteredSiteIds` | Terminology follows the data model — store is site-agnostic across all four site_types. |
+| 2026-04-17 | — | API route renames: `/api/kek/{kek_id}/*` → `/api/site/{site_id}/*` (polygon, buildable, substations) | Clean break with no alias; frontend + backend deploy together, no public API consumers. |
+| 2026-04-17 | — | Runtime validation in `/api/scorecard`: every `identityFields` column in the registry must exist in the response payload | Fails fast if Python and TypeScript registries drift. Catches rename bugs at the API boundary instead of in the UI. |
+| 2026-04-17 | — | CBAM coverage: 12/25 KEKs → 35/48 sites (12 KEK via 3-signal + 23 industrial via direct `cbam_product_type`) | Industrial expansion's direct-mode dispatch via `SITE_TYPES[site_type].cbam_method` unlocks CBAM exposure for every standalone/cluster plant with a known product type. |
+| 2026-04-17 | — | Header title: "Indonesia KEK Power Competitiveness" → "Indonesia Industrial Decarbonization" | Scope is no longer KEK-only; the dashboard is now Indonesia's first open-source industrial decarbonization planning platform. |
+| 2026-04-17 | — | **V4.1 Tracker-driven site selection — 48 → 79 sites.** `build_industrial_sites.py` now programmatically unions GEM Global Cement Plant Tracker (32 operating), GEM Global Iron & Steel Plant Tracker (7 active), CGSP Nickel Tracker (10 Integrated Industrial Area parents, 5km KEK exclusion + 20km child aggregation), and a residual manual CSV (5 rows: 2 aluminium + 3 fertilizer, `source_url` required — loader raises if missing). | Hand-curated site lists aren't reproducible. Trackers update quarterly; pipeline-driven selection means refreshing a CSV from GEM/CGSP regenerates the universe. Residual manual CSV is the documented fallback for sectors without a tracker. |
+| 2026-04-17 | — | CBAM coverage: 35/48 → 66/79 sites (12 KEK via 3-signal + 54 industrial via direct `cbam_product_type`) | Tracker expansion brings 32 cement plants and 10 nickel IIA clusters into CBAM scope, which were previously invisible. |
+| 2026-04-17 | — | `fct_lcoe` row count: 864 → 1,422 (79 × 9 WACC × 2 scenarios). Test assertions parameterized as `len(dim_sites) * 18`, never hardcoded. | Row-count drift was the most common rename-era bug; parameterizing against `dim_sites` length fixes it permanently. |

@@ -61,16 +61,16 @@ from src.pipeline.pdf_extract_bpp import get_regional_bpp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
 
 
 def build_fct_grid_cost_proxy(
-    dim_kek_csv: Path = DIM_KEK_CSV,
+    dim_sites_csv: Path = DIM_SITES_CSV,
     idr_usd_rate: float = IDR_USD_RATE,
 ) -> pd.DataFrame:
     """Build one row per grid_region_id with national tariff values + regional BPP."""
-    dim_kek = pd.read_csv(dim_kek_csv)
-    grid_regions = dim_kek["grid_region_id"].dropna().unique()
+    dim_sites = pd.read_csv(dim_sites_csv)
+    grid_regions = dim_sites["grid_region_id"].dropna().unique()
 
     tariff_i3 = rp_kwh_to_usd_mwh(TARIFF_I3_LWBP_RP_KWH, idr_usd_rate)
     tariff_i4 = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, idr_usd_rate)

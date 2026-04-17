@@ -23,7 +23,9 @@ function GuideButton() {
 
 export default function Header() {
   const scorecard = useDashboardStore((s) => s.scorecard);
-  const kekCount = scorecard?.length ?? 0;
+  const siteCount = scorecard?.length ?? 0;
+  const kekCount = scorecard?.filter((r) => r.site_type === 'kek').length ?? 0;
+  const industrialCount = siteCount - kekCount;
   const [methodologyOpen, setMethodologyOpen] = useState(false);
 
   return (
@@ -100,8 +102,9 @@ export default function Header() {
               background: 'var(--glass)',
               borderColor: 'var(--glass-border-bright)',
             }}
+            title={`${kekCount} KEKs (Special Economic Zones) · ${industrialCount} standalone industrial plants (steel, cement, aluminium, copper, fertilizer, nickel)`}
           >
-            {kekCount} KEKs
+            {siteCount} sites · {kekCount} KEK · {industrialCount} industrial
           </span>
         </div>
       </header>

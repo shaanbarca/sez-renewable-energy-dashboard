@@ -1,18 +1,18 @@
 # Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
 # See LICENSE and NOTICE files in the project root.
 """
-build_fct_kek_resource — PVOUT at centroid and best-within-50km for each KEK.
+build_fct_site_resource — PVOUT at centroid and best-within-50km for each site.
 
 Sources:
-    processed: dim_kek.csv                                   KEK centroids (lat/lon)
+    processed: dim_sites.csv                                 site centroids (lat/lon)
     data: Indonesia_GISdata_LTAym_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF.zip
     data/buildability/: optional — Copernicus DEM, KLHK Kawasan Hutan, peatland,
                         and Peta Penutupan Lahan (30m land cover raster).
                         If absent, buildability columns are NaN (graceful degradation).
 
 Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
-    kek_id                   slug from dim_kek — join key
-    kek_name                 display name
+    site_id                  slug from dim_sites — join key
+    site_name                display name
     latitude                 centroid latitude
     longitude                centroid longitude
     pvout_daily_centroid     raw daily value from GeoTIFF (kWh/kWp/day) — for audit
@@ -55,10 +55,13 @@ import math
 import zipfile
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
 import rasterio.features
+from rasterio.enums import Resampling
+from rasterio.warp import reproject
 from rasterio.windows import from_bounds
 from shapely.geometry import shape
 from shapely.ops import unary_union
@@ -73,6 +76,7 @@ from src.pipeline.assumptions import (
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
     LAND_COVER_BUILDABLE_THRESHOLD,
+    LAND_COVER_EXCLUDE_CODES,
     apply_exclusion_mask,
     apply_min_area_filter,
     apply_road_distance_mask,
@@ -89,7 +93,7 @@ GEOTIFF_ZIP = (
 )
 PVOUT_TIF_PATH = "Indonesia_GISdata_LTAy_AvgDailyTotals_GlobalSolarAtlas-v2_GEOTIFF/PVOUT.tif"
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
 
 # Directory where buildability data files are expected to live.
 # Populated by scripts/download_buildability_data.py (see that script for instructions).
@@ -191,8 +195,6 @@ def _rasterize_shp(
         uint8 array; 1 = polygon present (excluded), 0 = clear.
         Returns zeros array if shapefile is empty or read fails.
     """
-    import geopandas as gpd
-    import rasterio.features
 
     try:
         gdf = gpd.read_file(shp_path, bbox=bbox)
@@ -310,8 +312,6 @@ def _read_raster_window_to_pvout_grid(
     Returns:
         Float32 array matching out_shape, or None if the file could not be read.
     """
-    from rasterio.enums import Resampling
-    from rasterio.warp import reproject
 
     resampling = Resampling.mode if categorical else Resampling.average
 
@@ -371,13 +371,20 @@ def _resample_landcover_binary_window(
     Returns:
         uint8 mask (1=excluded, 0=buildable), or None on failure.
     """
-    from rasterio.enums import Resampling
-    from rasterio.warp import reproject
 
     try:
         with rasterio.open(raster_path) as src:
-            # Read full source (VRT handles lazy tile loading)
-            raw = src.read(1)
+            # Read only the bbox window — the ESA VRT is 216000×432000 (≈87 GB
+            # if fully read); windowed read keeps memory to ~100 MB per site.
+            src_window = from_bounds(
+                left=bbox[0],
+                bottom=bbox[1],
+                right=bbox[2],
+                top=bbox[3],
+                transform=src.transform,
+            )
+            raw = src.read(1, window=src_window, boundless=True, fill_value=0)
+            src_win_transform = rasterio.windows.transform(src_window, src.transform)
 
             # Binary: 1.0 = buildable, 0.0 = excluded
             binary = np.ones_like(raw, dtype=np.float32)
@@ -392,7 +399,7 @@ def _resample_landcover_binary_window(
             reproject(
                 source=binary,
                 destination=fraction,
-                src_transform=src.transform,
+                src_transform=src_win_transform,
                 src_crs=src.crs,
                 dst_transform=win_transform,
                 dst_crs=pvout_crs,
@@ -442,7 +449,6 @@ def _compute_buildable_pvout(
         filter (Layer 4, 10 ha) is a no-op — every valid pixel exceeds the threshold.
         Layer 4 is retained to count buildable pixels and compute total area.
     """
-    from src.pipeline.buildability_filters import LAND_COVER_EXCLUDE_CODES
 
     available = _available_build_files(data_dir)
     if not available:
@@ -608,9 +614,9 @@ def _compute_buildable_pvout(
 # ─── Builder ──────────────────────────────────────────────────────────────────
 
 
-def build_fct_kek_resource(
+def build_fct_site_resource(
     geotiff_zip: Path = GEOTIFF_ZIP,
-    kek_csv: Path = DIM_KEK_CSV,
+    sites_csv: Path = DIM_SITES_CSV,
     buildability_dir: Path = BUILDABILITY_DIR,
 ) -> pd.DataFrame:
     """Extract PVOUT and CF at centroid and best-within-50km for all KEKs.
@@ -620,7 +626,7 @@ def build_fct_kek_resource(
     """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
-    kek_df = pd.read_csv(kek_csv)
+    sites_df = pd.read_csv(sites_csv)
     tif_bytes = (
         _load_pvout_tif_bytes()
     )  # uses module-level GEOTIFF_ZIP; geotiff_zip param reserved for override
@@ -654,7 +660,7 @@ def build_fct_kek_resource(
     records = []
     with rasterio.open(io.BytesIO(tif_bytes)) as src:
         arr = src.read(1)
-        for _, row in kek_df.iterrows():
+        for _, row in sites_df.iterrows():
             lat = float(row["latitude"])
             lon = float(row["longitude"])
 
@@ -688,7 +694,7 @@ def build_fct_kek_resource(
                     pvout_daily_to_annual(pvout_daily_c) if np.isfinite(pvout_daily_c) else np.nan
                 )
             except ValueError as e:
-                print(f"  WARNING centroid {row['kek_id']}: {e}")
+                print(f"  WARNING centroid {row['site_id']}: {e}")
                 pvout_c = np.nan
 
             try:
@@ -696,7 +702,7 @@ def build_fct_kek_resource(
                     pvout_daily_to_annual(pvout_daily_b) if np.isfinite(pvout_daily_b) else np.nan
                 )
             except ValueError as e:
-                print(f"  WARNING best_50km {row['kek_id']}: {e}")
+                print(f"  WARNING best_50km {row['site_id']}: {e}")
                 pvout_b = np.nan
 
             # Buildability filter (graceful degradation when data absent)
@@ -720,12 +726,12 @@ def build_fct_kek_resource(
                     else np.nan
                 )
             except ValueError as e:
-                print(f"  WARNING buildable {row['kek_id']}: {e}")
+                print(f"  WARNING buildable {row['site_id']}: {e}")
                 pvout_buildable = np.nan
 
             # Within-boundary: spatial intersection with KEK polygon
-            kek_id = row["kek_id"]
-            kek_polygon = kek_polygons.get(kek_id)
+            site_id = row["site_id"]
+            kek_polygon = kek_polygons.get(site_id)
             wb_area_ha = np.nan
             wb_pvout_annual = np.nan
             wb_capacity_mwp = np.nan
@@ -762,8 +768,8 @@ def build_fct_kek_resource(
 
             records.append(
                 {
-                    "kek_id": row["kek_id"],
-                    "kek_name": row["kek_name"],
+                    "site_id": row["site_id"],
+                    "site_name": row["site_name"],
                     "latitude": lat,
                     "longitude": lon,
                     "pvout_daily_centroid": round(pvout_daily_c, 4)
@@ -818,10 +824,10 @@ def build_fct_kek_resource(
 
 
 def main() -> None:
-    print(f"Loading KEK centroids from {DIM_KEK_CSV.relative_to(REPO_ROOT)}")
+    print(f"Loading site centroids from {DIM_SITES_CSV.relative_to(REPO_ROOT)}")
     print(f"Loading PVOUT raster from {GEOTIFF_ZIP.relative_to(REPO_ROOT)}")
 
-    df = build_fct_kek_resource()
+    df = build_fct_site_resource()
 
     n_miss_c = df["pvout_centroid"].isna().sum()
     n_miss_b = df["pvout_best_50km"].isna().sum()
@@ -845,12 +851,12 @@ def main() -> None:
         n_theoretical = (df["within_boundary_source"] == "theoretical").sum()
         print(f"  within-boundary source: {n_raster} raster, {n_theoretical} theoretical")
 
-    out = PROCESSED / "fct_kek_resource.csv"
+    out = PROCESSED / "fct_site_resource.csv"
     PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     print(f"\nWrote {out.relative_to(REPO_ROOT)}")
     display_cols = [
-        "kek_id",
+        "site_id",
         "pvout_centroid",
         "cf_centroid",
         "pvout_best_50km",

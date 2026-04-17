@@ -608,6 +608,39 @@ CBAM_SCOPE1_TCO2_PER_TONNE: dict[str, float] = {
     "cement": 0.52,  # Calcination (CaCO₃ → CaO + CO₂) — ~60% of total cement emissions
 }
 
+# ─── SECTOR DEMAND & RELIABILITY (Industrial Parks Expansion) ────────────────
+
+# Electricity-only consumption for RE demand sizing (MWh per tonne of product).
+# NOT the same as CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE above, which includes
+# thermal energy conversion for CBAM cost calculations. Key differences:
+#   cement:     0.11 here vs 0.9 in CBAM (CBAM includes kiln thermal → electricity equiv)
+#   fertilizer: 1.0  here vs 10.0 in CBAM (CBAM includes gas feedstock → electricity equiv)
+# Sources: IEA Cement Roadmap 2018, worldsteel 2023, IAI 2023, IFA 2022, JETP Ch.2
+SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE: dict[str, float] = {
+    "steel_eaf": 0.50,  # EAF scrap-based: 0.35-0.60 MWh/t (IRENA 2020, worldsteel 2023)
+    "steel_bfbof": 0.20,  # BF-BOF auxiliary: 0.15-0.30 MWh/t (most energy is coke)
+    "cement": 0.11,  # Grinding + kiln auxiliaries: 0.09-0.13 MWh/t (IEA Cement Roadmap)
+    "aluminium": 15.0,  # Hall-Heroult electrolysis: 13-17 MWh/t (IAI 2023)
+    "fertilizer": 1.0,  # Ammonia synthesis electricity: 0.8-1.2 MWh/t (IFA 2022)
+    "nickel_rkef": 37.5,  # RKEF electric furnace: 30-45 MWh/t (JETP Ch.2)
+    "nickel_hpal": 8.0,  # HPAL hydrometallurgical: 6-10 MWh/t (BNEF 2024)
+}
+
+# Minimum reliability requirement by sector (fraction, 0-1).
+# Higher values = more BESS storage needed for 24/7 supply.
+SECTOR_RELIABILITY_REQUIREMENT: dict[str, float] = {
+    "steel": 0.90,  # Continuous EAF/BOF operation
+    "aluminium": 0.95,  # Hall-Heroult pots cannot tolerate outages
+    "cement": 0.80,  # Kiln can tolerate short interruptions
+    "fertilizer": 0.85,  # Ammonia synthesis prefers continuous operation
+    "nickel": 0.90,  # RKEF furnace continuous operation
+    "mixed": 0.75,  # Default for mixed-use zones (same as KEK default)
+}
+
+# Distance threshold for automatic cluster detection (km).
+# Plants within this radius of each other are candidates for clustering.
+CLUSTER_PROXIMITY_THRESHOLD_KM: float = 15.0
+
 
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 

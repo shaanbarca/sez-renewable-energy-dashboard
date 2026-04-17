@@ -88,7 +88,7 @@ function CustomTooltip({
         color: 'var(--text-primary)',
       }}
     >
-      <div className="font-medium mb-1">{d.kek_name}</div>
+      <div className="font-medium mb-1">{d.site_name}</div>
       <div>
         {label} LCOE: {lcoe != null ? `$${lcoe.toFixed(1)}/MWh` : 'N/A'}
       </div>

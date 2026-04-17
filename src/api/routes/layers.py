@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
+import math
+
+import numpy as np
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
+from src.assumptions import (
+    BASE_WACC_DECIMAL,
+    TECH006_CAPEX_USD_PER_KW,
+    TECH006_FOM_USD_PER_KW_YR,
+    TECH006_LIFETIME_YR,
+)
 from src.dash.constants import RUPTL_REGION_COLORS
 from src.dash.map_layers import (
     filter_substations_near_point,
     get_kek_polygon_by_id,
     get_within_boundary_buildable,
     polygon_bbox,
+)
+from src.model.basic_model import (
+    capacity_assessment,
+    capacity_factor_from_pvout,
+    grid_connection_cost_per_kw,
+    lcoe_solar,
+    new_transmission_cost_per_kw,
+    substation_upgrade_cost_per_kw,
 )
 
 router = APIRouter()
@@ -24,7 +42,7 @@ _POINT_LAYERS = {
     "cement_plants",
 }
 _GEOJSON_LAYERS = {
-    "kek_polygons",
+    "site_polygons",
     "peatland",
     "protected_forest",
     "grid_lines",
@@ -41,15 +59,15 @@ _ALL_LAYERS = _POINT_LAYERS | _GEOJSON_LAYERS | _RASTER_LAYERS
 
 @router.get("/layers/infrastructure")
 def get_infrastructure():
-    """Return all infrastructure markers flattened with kek_id."""
-    from src.api.main import infrastructure
+    """Return all infrastructure markers flattened with site_id."""
+    from src.api.main import infrastructure  # noqa: PLC0415 — avoid circular import (main ← routes)
 
     markers = []
-    for kek_id, items in infrastructure.items():
+    for site_id, items in infrastructure.items():
         for item in items:
             markers.append(
                 {
-                    "kek_id": kek_id,
+                    "site_id": site_id,
                     "lat": item["lat"],
                     "lon": item["lon"],
                     "title": item["title"],
@@ -63,7 +81,7 @@ def get_infrastructure():
 @router.get("/layers/{layer_name}")
 def get_layer(layer_name: str):
     """Return a cached geospatial layer by name."""
-    from src.api.main import layers
+    from src.api.main import layers  # noqa: PLC0415 — avoid circular import (main ← routes)
 
     if layer_name not in _ALL_LAYERS:
         raise HTTPException(status_code=404, detail=f"Layer '{layer_name}' not found")
@@ -96,12 +114,12 @@ def get_layer(layer_name: str):
     raise HTTPException(status_code=404, detail=f"Layer '{layer_name}' not found")
 
 
-@router.get("/kek/{kek_id}/polygon")
-def get_kek_polygon(kek_id: str):
-    """Return a single KEK polygon feature with bounding box."""
-    feature = get_kek_polygon_by_id(kek_id)
+@router.get("/site/{site_id}/polygon")
+def get_site_polygon(site_id: str):
+    """Return a single site polygon feature with bounding box."""
+    feature = get_kek_polygon_by_id(site_id)
     if feature is None:
-        raise HTTPException(status_code=404, detail=f"KEK '{kek_id}' polygon not found")
+        raise HTTPException(status_code=404, detail=f"Site '{site_id}' polygon not found")
 
     min_lon, min_lat, max_lon, max_lat, center_lat, center_lon = polygon_bbox(feature)
     return {
@@ -119,49 +137,33 @@ def get_kek_polygon(kek_id: str):
     }
 
 
-@router.get("/kek/{kek_id}/buildable")
-def get_kek_buildable(kek_id: str):
-    """Return buildable polygon fragments clipped to a KEK boundary."""
-    result = get_within_boundary_buildable(kek_id)
+@router.get("/site/{site_id}/buildable")
+def get_site_buildable(site_id: str):
+    """Return buildable polygon fragments clipped to a site boundary."""
+    result = get_within_boundary_buildable(site_id)
     if result is None:
         return {"type": "FeatureCollection", "features": []}
     return result
 
 
-@router.get("/kek/{kek_id}/substations")
-def get_kek_substations(kek_id: str, radius_km: float = Query(default=50.0, ge=0)):
+@router.get("/site/{site_id}/substations")
+def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge=0)):
     """Return substations near a KEK, with nearest marked and top 3 costed."""
-    import math
-
-    import numpy as np
-    import pandas as pd
-
-    from src.api.main import resource_df, tables
-    from src.assumptions import (
-        BASE_WACC_DECIMAL,
-        TECH006_CAPEX_USD_PER_KW,
-        TECH006_FOM_USD_PER_KW_YR,
-        TECH006_LIFETIME_YR,
-    )
-    from src.model.basic_model import (
-        capacity_assessment,
-        capacity_factor_from_pvout,
-        grid_connection_cost_per_kw,
-        lcoe_solar,
-        new_transmission_cost_per_kw,
-        substation_upgrade_cost_per_kw,
+    from src.api.main import (  # noqa: PLC0415 — avoid circular import (main ← routes)
+        resource_df,
+        tables,
     )
 
-    dim_kek = tables.get("dim_kek")
-    if dim_kek is None:
-        raise HTTPException(status_code=500, detail="dim_kek not loaded")
+    dim_sites = tables.get("dim_sites")
+    if dim_sites is None:
+        raise HTTPException(status_code=500, detail="dim_sites not loaded")
 
-    kek_row = dim_kek[dim_kek["kek_id"] == kek_id]
-    if kek_row.empty:
-        raise HTTPException(status_code=404, detail=f"KEK '{kek_id}' not found")
+    site_row = dim_sites[dim_sites["site_id"] == site_id]
+    if site_row.empty:
+        raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
 
-    lat = float(kek_row.iloc[0]["latitude"])
-    lon = float(kek_row.iloc[0]["longitude"])
+    lat = float(site_row.iloc[0]["latitude"])
+    lon = float(site_row.iloc[0]["longitude"])
 
     nearby = filter_substations_near_point(lat, lon, radius_km)
 
@@ -173,7 +175,7 @@ def get_kek_substations(kek_id: str, radius_km: float = Query(default=50.0, ge=0
     # --- M15: Compute per-substation costs for top 3 ---
     # Get KEK resource data for cost computation
     res_row = (
-        resource_df[resource_df["kek_id"] == kek_id] if not resource_df.empty else pd.DataFrame()
+        resource_df[resource_df["site_id"] == site_id] if not resource_df.empty else pd.DataFrame()
     )
     solar_mwp = None
     pvout_annual = None
@@ -299,9 +301,7 @@ def get_kek_substations(kek_id: str, radius_km: float = Query(default=50.0, ge=0
 @router.get("/ruptl-metrics")
 def get_ruptl_metrics():
     """Return RUPTL pipeline data and region color mapping."""
-    import numpy as np
-
-    from src.api.main import tables
+    from src.api.main import tables  # noqa: PLC0415 — avoid circular import (main ← routes)
 
     ruptl_df = tables["fct_ruptl_pipeline"]
     records = ruptl_df.to_dict(orient="records")

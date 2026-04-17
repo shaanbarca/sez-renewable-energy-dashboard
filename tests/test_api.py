@@ -51,10 +51,10 @@ def test_scorecard_valid(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "scorecard" in data
-    assert len(data["scorecard"]) == 25
+    assert len(data["scorecard"]) >= 25  # at least 25 KEKs, plus industrial sites
     # Check required fields present
     first = data["scorecard"][0]
-    for key in ["kek_id", "action_flag", "lcoe_mid_usd_mwh"]:
+    for key in ["site_id", "action_flag", "lcoe_mid_usd_mwh"]:
         assert key in first
 
 
@@ -98,8 +98,8 @@ def test_layers_nonexistent(client):
 
 
 def test_kek_polygon_valid(client):
-    """6. GET /api/kek/{valid_id}/polygon returns feature + bbox + center."""
-    resp = client.get("/api/kek/industropolis-batang/polygon")
+    """6. GET /api/site/{valid_id}/polygon returns feature + bbox + center."""
+    resp = client.get("/api/site/industropolis-batang/polygon")
     assert resp.status_code == 200
     data = resp.json()
     assert "feature" in data
@@ -110,8 +110,8 @@ def test_kek_polygon_valid(client):
 
 
 def test_kek_polygon_invalid(client):
-    """7. GET /api/kek/invalid-id/polygon returns 404."""
-    resp = client.get("/api/kek/invalid-id-xyz/polygon")
+    """7. GET /api/site/invalid-id/polygon returns 404."""
+    resp = client.get("/api/site/invalid-id-xyz/polygon")
     assert resp.status_code == 404
 
 
@@ -136,8 +136,8 @@ def test_infrastructure(client):
 
 
 def test_kek_substations_valid(client):
-    """10. GET /api/kek/{valid_id}/substations returns substations with dist_km."""
-    resp = client.get("/api/kek/industropolis-batang/substations?radius_km=50")
+    """10. GET /api/site/{valid_id}/substations returns substations with dist_km."""
+    resp = client.get("/api/site/industropolis-batang/substations?radius_km=50")
     assert resp.status_code == 200
     data = resp.json()
     assert "substations" in data
@@ -183,7 +183,7 @@ def test_scorecard_bpp_mode(client):
     resp = client.post("/api/scorecard", json=body)
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data["scorecard"]) == 25
+    assert len(data["scorecard"]) >= 25  # at least 25 KEKs, plus industrial sites
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +193,7 @@ def test_scorecard_bpp_mode(client):
 
 def test_kek_substations_top3_have_costs(client):
     """14. Top 3 substations have cost breakdown fields."""
-    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    resp = client.get("/api/site/kek-palu/substations?radius_km=50")
     assert resp.status_code == 200
     subs = resp.json()["substations"]
     ranked = [s for s in subs if s.get("rank") is not None]
@@ -212,7 +212,7 @@ def test_kek_substations_top3_have_costs(client):
 
 def test_kek_substations_total_equals_sum(client):
     """15. total_grid_capex_per_kw = connection + upgrade + transmission for each ranked sub."""
-    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    resp = client.get("/api/site/kek-palu/substations?radius_km=50")
     subs = resp.json()["substations"]
     ranked = [s for s in subs if s.get("rank") is not None]
 
@@ -228,7 +228,7 @@ def test_kek_substations_total_equals_sum(client):
 
 def test_kek_substations_rank1_is_nearest(client):
     """16. Rank 1 substation is marked as nearest and has shortest distance."""
-    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    resp = client.get("/api/site/kek-palu/substations?radius_km=50")
     subs = resp.json()["substations"]
     ranked = [s for s in subs if s.get("rank") is not None]
     if not ranked:
@@ -245,7 +245,7 @@ def test_kek_substations_rank1_is_nearest(client):
 
 def test_kek_substations_unranked_have_nulls(client):
     """17. Substations beyond top 3 have null cost fields."""
-    resp = client.get("/api/kek/kek-palu/substations?radius_km=50")
+    resp = client.get("/api/site/kek-palu/substations?radius_km=50")
     subs = resp.json()["substations"]
     unranked = [s for s in subs if s.get("rank") is None]
 
@@ -267,7 +267,7 @@ def test_no_solar_resource_flag_for_zero_capacity(client):
     data = resp.json()
 
     # Bitung has 0 buildable area — should get no_solar_resource
-    bitung = next((r for r in data["scorecard"] if r["kek_id"] == "kek-bitung"), None)
+    bitung = next((r for r in data["scorecard"] if r["site_id"] == "kek-bitung"), None)
     assert bitung is not None, "kek-bitung not found in scorecard"
     assert bitung["action_flag"] == "no_solar_resource", (
         f"Expected no_solar_resource for Bitung, got {bitung['action_flag']}"
@@ -281,6 +281,6 @@ def test_normal_keks_not_affected_by_no_solar_flag(client):
     data = resp.json()
 
     # Palu has buildable area > 0 — should NOT get no_solar_resource
-    palu = next((r for r in data["scorecard"] if r["kek_id"] == "kek-palu"), None)
+    palu = next((r for r in data["scorecard"] if r["site_id"] == "kek-palu"), None)
     assert palu is not None, "kek-palu not found in scorecard"
     assert palu["action_flag"] != "no_solar_resource"

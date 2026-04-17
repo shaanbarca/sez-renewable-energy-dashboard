@@ -1,18 +1,18 @@
 # Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
 # See LICENSE and NOTICE files in the project root.
 """
-build_fct_kek_scorecard — dashboard-ready fact table, one row per KEK.
+build_fct_site_scorecard — dashboard-ready fact table, one row per site.
 
 Joins all upstream tables into a single flat table for the Dash app to query.
 This is the final output of the pipeline — everything else feeds into this.
 
 Sources:
-    processed: dim_kek.csv                    identity, province, grid_region_id
-    processed: fct_kek_resource.csv           PVOUT, CF
+    processed: dim_sites.csv                  identity, province, grid_region_id
+    processed: fct_site_resource.csv          PVOUT, CF
     processed: fct_lcoe.csv                   LCOE bands at WACC=10% (base case)
     processed: fct_grid_cost_proxy.csv        dashboard_rate, is_provisional
     processed: fct_ruptl_pipeline.csv         pre/post-2030 solar pipeline per region
-    processed: fct_kek_demand.csv             2030 demand estimate per KEK
+    processed: fct_site_demand.csv            2030 demand estimate per site
     processed: fct_substation_proximity.csv   substation distance + siting scenario
 
 Output columns: see DATA_DICTIONARY.md Section 2.8
@@ -49,17 +49,22 @@ from src.model.basic_model import (
     resolve_demand,
 )
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
+from src.pipeline.build_fct_site_resource import (
+    _REQUIRED_BUILD_FILES,
+    BUILDABILITY_DIR,
+    _available_build_files,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
-DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
-FKR_CSV = PROCESSED / "fct_kek_resource.csv"
+DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
+FKR_CSV = PROCESSED / "fct_site_resource.csv"
 FLCOE_CSV = PROCESSED / "fct_lcoe.csv"
 FLCOE_WIND_CSV = PROCESSED / "fct_lcoe_wind.csv"
 FGCP_CSV = PROCESSED / "fct_grid_cost_proxy.csv"
 FRUPTL_CSV = PROCESSED / "fct_ruptl_pipeline.csv"
-FCT_DEMAND_CSV = PROCESSED / "fct_kek_demand.csv"
+FCT_DEMAND_CSV = PROCESSED / "fct_site_demand.csv"
 FSUB_CSV = PROCESSED / "fct_substation_proximity.csv"
 
 
@@ -81,27 +86,27 @@ def _ruptl_region_summary(ruptl: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def build_fct_kek_scorecard(
-    dim_kek_csv: Path = DIM_KEK_CSV,
-    fct_kek_resource_csv: Path = FKR_CSV,
+def build_fct_site_scorecard(
+    dim_sites_csv: Path = DIM_SITES_CSV,
+    fct_site_resource_csv: Path = FKR_CSV,
     fct_lcoe_csv: Path = FLCOE_CSV,
     fct_lcoe_wind_csv: Path = FLCOE_WIND_CSV,
     fct_grid_cost_proxy_csv: Path = FGCP_CSV,
     fct_ruptl_pipeline_csv: Path = FRUPTL_CSV,
-    fct_kek_demand_csv: Path = FCT_DEMAND_CSV,
+    fct_site_demand_csv: Path = FCT_DEMAND_CSV,
     fct_substation_proximity_csv: Path = FSUB_CSV,
     base_wacc: float = BASE_WACC,
 ) -> pd.DataFrame:
     """Join all upstream tables into one dashboard-ready scorecard."""
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
-    dim_kek = pd.read_csv(dim_kek_csv)
-    resource = pd.read_csv(fct_kek_resource_csv)
+    dim_sites = pd.read_csv(dim_sites_csv)
+    resource = pd.read_csv(fct_site_resource_csv)
     lcoe_all = pd.read_csv(fct_lcoe_csv)
     lcoe_wind_all = pd.read_csv(fct_lcoe_wind_csv)
     grid_cost = pd.read_csv(fct_grid_cost_proxy_csv)
     ruptl = pd.read_csv(fct_ruptl_pipeline_csv)
-    fct_demand_raw = pd.read_csv(fct_kek_demand_csv)
+    fct_demand_raw = pd.read_csv(fct_site_demand_csv)
     fct_demand = resolve_demand(fct_demand_raw)
     fct_sub = pd.read_csv(fct_substation_proximity_csv)
 
@@ -121,7 +126,7 @@ def build_fct_kek_scorecard(
     # LCOE at WACC=8% (de-risked finance scenario) — same scenario, different WACC row
     lcoe_wacc8 = lcoe_all[
         (lcoe_all["wacc_pct"] == 8.0) & (lcoe_all["scenario"] == "within_boundary")
-    ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_mid_wacc8_usd_mwh"})
+    ][["site_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_mid_wacc8_usd_mwh"})
 
     # V2: Grid-connected solar LCOE at base WACC (includes connection cost to nearest substation)
     _gc_scenario = (
@@ -132,7 +137,7 @@ def build_fct_kek_scorecard(
     lcoe_gc = lcoe_all[
         (lcoe_all["wacc_pct"] == BASE_WACC) & (lcoe_all["scenario"] == _gc_scenario)
     ][
-        ["kek_id"]
+        ["site_id"]
         + [
             c
             for c in [
@@ -157,7 +162,7 @@ def build_fct_kek_scorecard(
     # Wind LCOE at base WACC, within_boundary
     lcoe_wind_wb = lcoe_wind_all[
         (lcoe_wind_all["wacc_pct"] == base_wacc) & (lcoe_wind_all["scenario"] == "within_boundary")
-    ][["kek_id", "lcoe_usd_mwh", "cf_wind_used", "wind_speed_ms"]].rename(
+    ][["site_id", "lcoe_usd_mwh", "cf_wind_used", "wind_speed_ms"]].rename(
         columns={
             "lcoe_usd_mwh": "lcoe_wind_mid_usd_mwh",
             "cf_wind_used": "cf_wind",
@@ -169,7 +174,7 @@ def build_fct_kek_scorecard(
     lcoe_wind_rc = lcoe_wind_all[
         (lcoe_wind_all["wacc_pct"] == base_wacc)
         & (lcoe_wind_all["scenario"] == "grid_connected_solar")
-    ][["kek_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_wind_allin_mid_usd_mwh"})
+    ][["site_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_wind_allin_mid_usd_mwh"})
 
     # Grid cost: one row per grid_region_id
     grid_cost = grid_cost[
@@ -194,7 +199,7 @@ def build_fct_kek_scorecard(
     # Substation proximity: distance + siting scenario + V2 grid integration per KEK
     # V3.1: also pull connectivity + capacity assessment columns
     _sub_cols = [
-        "kek_id",
+        "site_id",
         "dist_to_nearest_substation_km",
         "nearest_substation_capacity_mva",
         "siting_scenario",
@@ -214,7 +219,7 @@ def build_fct_kek_scorecard(
     sub = fct_sub[_sub_cols].copy()
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
-    # Merge buildability columns when present in fct_kek_resource
+    # Merge buildability columns when present in fct_site_resource
     _build_cols = [
         "pvout_buildable_best_50km",
         "buildable_area_ha",
@@ -224,15 +229,15 @@ def build_fct_kek_scorecard(
         "within_boundary_source",
         "within_boundary_capacity_mwp",
     ]
-    _resource_base = ["kek_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
+    _resource_base = ["site_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
     _resource_cols = _resource_base + [c for c in _build_cols if c in resource.columns]
 
     df = (
-        dim_kek.merge(resource[_resource_cols], on="kek_id", how="left")
+        dim_sites.merge(resource[_resource_cols], on="site_id", how="left")
         .merge(
             lcoe[
                 [
-                    "kek_id",
+                    "site_id",
                     "lcoe_low_usd_mwh",
                     "lcoe_mid_usd_mwh",
                     "lcoe_high_usd_mwh",
@@ -241,7 +246,7 @@ def build_fct_kek_scorecard(
                     "is_capex_provisional",
                 ]
             ],
-            on="kek_id",
+            on="site_id",
             how="left",
         )
         .merge(grid_cost, on="grid_region_id", how="left")
@@ -250,11 +255,11 @@ def build_fct_kek_scorecard(
             on="grid_region_id",
             how="left",
         )
-        .merge(lcoe_wacc8, on="kek_id", how="left")
-        .merge(lcoe_gc, on="kek_id", how="left")
-        .merge(sub, on="kek_id", how="left")
-        .merge(lcoe_wind_wb, on="kek_id", how="left")
-        .merge(lcoe_wind_rc, on="kek_id", how="left")
+        .merge(lcoe_wacc8, on="site_id", how="left")
+        .merge(lcoe_gc, on="site_id", how="left")
+        .merge(sub, on="site_id", how="left")
+        .merge(lcoe_wind_wb, on="site_id", how="left")
+        .merge(lcoe_wind_rc, on="site_id", how="left")
     )
 
     # Ensure buildability columns exist (NaN if data/buildability/ not yet populated)
@@ -266,11 +271,6 @@ def build_fct_kek_scorecard(
     # "filtered": all 4 data files applied (Kawasan Hutan + peat + land cover + DEM)
     # "partial_filter": some data files applied (e.g. DEM-only for slope/elevation)
     # "provisional": no buildability data present
-    from src.pipeline.build_fct_kek_resource import (
-        _REQUIRED_BUILD_FILES,
-        BUILDABILITY_DIR,
-        _available_build_files,
-    )
 
     _n_avail = len(_available_build_files(BUILDABILITY_DIR))
     _n_total = len(_REQUIRED_BUILD_FILES)
@@ -359,18 +359,18 @@ def build_fct_kek_scorecard(
     df["grid_upgrade_pre2030"] = df["pre2030_solar_mw"].fillna(0) > 0
 
     # GEAS allocation — compute green_share_geas per KEK from real demand
-    demand_yr = fct_demand[fct_demand["year"] == 2030][["kek_id", "demand_mwh"]].merge(
-        dim_kek[["kek_id", "grid_region_id"]], on="kek_id", how="left"
+    demand_yr = fct_demand[fct_demand["year"] == 2030][["site_id", "demand_mwh"]].merge(
+        dim_sites[["site_id", "grid_region_id"]], on="site_id", how="left"
     )
     geas_df = geas_baseline_allocation(demand_yr, ruptl)
-    # geas_df has kek_id + green_share_geas columns
-    df = df.merge(geas_df[["kek_id", "green_share_geas"]], on="kek_id", how="left")
+    # geas_df has site_id + green_share_geas columns
+    df = df.merge(geas_df[["site_id", "green_share_geas"]], on="site_id", how="left")
 
     # 2030 demand — join for persona/dashboard use (PPA sizing, green share context)
-    demand_2030 = demand_yr[["kek_id", "demand_mwh"]].rename(
+    demand_2030 = demand_yr[["site_id", "demand_mwh"]].rename(
         columns={"demand_mwh": "demand_mwh_2030"}
     )
-    df = df.merge(demand_2030, on="kek_id", how="left")
+    df = df.merge(demand_2030, on="site_id", how="left")
     df["green_share_geas"] = df["green_share_geas"].fillna(0.0)
 
     # Within-boundary coverage: what % of demand can on-site solar meet?
@@ -548,11 +548,22 @@ def build_fct_kek_scorecard(
 
     return df[
         [
-            "kek_id",
-            "kek_name",
+            "site_id",
+            "site_name",
+            "site_type",
+            "sector",
+            "primary_product",
+            "capacity_annual",
+            "capacity_annual_tonnes",
+            "technology",
+            "parent_company",
+            "developer",
+            "legal_basis",
+            "area_ha",
+            "category",
             "province",
             "grid_region_id",
-            "kek_type",
+            "zone_classification",
             "status",
             "latitude",
             "longitude",
@@ -635,17 +646,17 @@ def build_fct_kek_scorecard(
 
 def main() -> None:
     PROCESSED.mkdir(parents=True, exist_ok=True)
-    out = PROCESSED / "fct_kek_scorecard.csv"
-    df = build_fct_kek_scorecard()
+    out = PROCESSED / "fct_site_scorecard.csv"
+    df = build_fct_site_scorecard()
     df.to_csv(out, index=False)
-    print(f"fct_kek_scorecard: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
+    print(f"fct_site_scorecard: {len(df)} rows → {out.relative_to(REPO_ROOT)}")
     print("\nAction flag distribution:")
     print(df["action_flag"].value_counts().to_string())
     print("\nData completeness:")
     print(df["data_completeness"].value_counts().to_string())
     print("\nCompetitive gap (WACC=10%, base CAPEX):")
     cols = [
-        "kek_id",
+        "site_id",
         "lcoe_mid_usd_mwh",
         "lcoe_wind_mid_usd_mwh",
         "best_re_technology",

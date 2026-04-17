@@ -70,8 +70,10 @@ export interface CbamProductMetrics {
 }
 
 export interface ScorecardRow {
-  kek_id: string;
-  kek_name: string;
+  site_id: string;
+  site_name: string;
+  site_type: string;
+  sector: string;
   province: string;
   latitude: number;
   longitude: number;
@@ -92,12 +94,20 @@ export interface ScorecardRow {
   bpp_usd_mwh: number | null;
   grid_region_id: string;
 
-  // KEK info fields
-  kek_type?: string;
+  // Site info fields
+  zone_classification?: string;
   category?: string;
   area_ha?: number;
   developer?: string;
   legal_basis?: string;
+
+  // Industrial site identity fields (standalone, cluster, ki)
+  primary_product?: string;
+  capacity_annual?: string;
+  capacity_annual_tonnes?: number;
+  technology?: string;
+  parent_company?: string;
+  cluster_members?: string;
 
   // Optional fields that may be present depending on pipeline data
   pvout_centroid_kwh_kwp_yr?: number;
@@ -276,7 +286,7 @@ export interface ScorecardResponse {
 
 export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
-export type BottomTab = 'table' | 'ruptl';
+export type BottomTab = 'table' | 'ruptl' | 'sector';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 
 export interface SavedScenario {

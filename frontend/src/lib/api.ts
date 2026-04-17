@@ -36,22 +36,22 @@ export async function fetchLayer(name: string): Promise<unknown> {
   return res.json();
 }
 
-export async function fetchKekPolygon(kekId: string): Promise<unknown> {
-  const res = await fetch(`/api/kek/${encodeURIComponent(kekId)}/polygon`);
-  if (!res.ok) throw new Error(`GET /api/kek/${kekId}/polygon failed: ${res.status}`);
+export async function fetchSitePolygon(siteId: string): Promise<unknown> {
+  const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/polygon`);
+  if (!res.ok) throw new Error(`GET /api/site/${siteId}/polygon failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchKekBuildable(kekId: string): Promise<GeoJSON.FeatureCollection> {
-  const res = await fetch(`/api/kek/${encodeURIComponent(kekId)}/buildable`);
-  if (!res.ok) throw new Error(`GET /api/kek/${kekId}/buildable failed: ${res.status}`);
+export async function fetchSiteBuildable(siteId: string): Promise<GeoJSON.FeatureCollection> {
+  const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/buildable`);
+  if (!res.ok) throw new Error(`GET /api/site/${siteId}/buildable failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchKekSubstations(kekId: string, radiusKm?: number): Promise<unknown> {
+export async function fetchSiteSubstations(siteId: string, radiusKm?: number): Promise<unknown> {
   const params = radiusKm != null ? `?radius_km=${radiusKm}` : '';
-  const res = await fetch(`/api/kek/${encodeURIComponent(kekId)}/substations${params}`);
-  if (!res.ok) throw new Error(`GET /api/kek/${kekId}/substations failed: ${res.status}`);
+  const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/substations${params}`);
+  if (!res.ok) throw new Error(`GET /api/site/${siteId}/substations failed: ${res.status}`);
   return res.json();
 }
 
