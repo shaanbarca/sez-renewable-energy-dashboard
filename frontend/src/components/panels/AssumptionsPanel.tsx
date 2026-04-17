@@ -318,11 +318,11 @@ export default function AssumptionsPanel() {
                 step={5}
                 label="Build Size"
                 unit="MWp"
-                description="Target project capacity. Each KEK uses min(target, max buildable)."
+                description="Target project capacity. Each site uses min(target, max buildable)."
               />
             ) : (
               <div className="text-[10px] py-1" style={{ color: 'var(--text-muted)' }}>
-                Using max buildable capacity per KEK
+                Using max buildable capacity per site
               </div>
             )}
           </div>
@@ -364,12 +364,12 @@ export default function AssumptionsPanel() {
                   step={5}
                   label="Solar Share"
                   unit="%"
-                  description="Fixed solar/wind mix ratio. 70% = 70% solar, 30% wind. Unchecked = auto-optimize per KEK."
+                  description="Fixed solar/wind mix ratio. 70% = 70% solar, 30% wind. Unchecked = auto-optimize per site."
                   marks={{ '0': '0% (wind)', '50': '50/50', '100': '100% (solar)' }}
                 />
               ) : (
                 <div className="text-[10px] py-1" style={{ color: 'var(--text-muted)' }}>
-                  Auto-optimizing mix per KEK (lowest all-in cost)
+                  Auto-optimizing mix per site (lowest all-in cost)
                 </div>
               )}
             </div>

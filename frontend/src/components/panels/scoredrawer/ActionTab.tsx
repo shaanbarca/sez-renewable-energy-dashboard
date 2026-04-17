@@ -135,7 +135,7 @@ export function ActionTab({ row }: { row: ScorecardRow }) {
           <SectionHeader
             title="RUPTL Pipeline"
             subtitle="What grid and generation additions is PLN planning for this region?"
-            tip="RUPTL = PLN's 10-year grid expansion plan. Shows planned generation additions by technology in this KEK's grid region."
+            tip="RUPTL = PLN's 10-year grid expansion plan. Shows planned generation additions by technology in this site's grid region."
           />
           <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-value)' }}>
             {row.ruptl_region_summary}

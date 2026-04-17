@@ -28,13 +28,13 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title="Demand & Generation"
-          subtitle="How much power does this KEK need, and can RE supply it?"
+          subtitle="How much power does this site need, and can RE supply it?"
         />
         <StatRowWithTip
           label="2030 Demand Estimate"
           value={demand2030 != null ? demand2030.toFixed(1) : null}
           unit="GWh"
-          tip="Estimated from zone area x energy intensity by KEK type. Provisional — actual metered demand not available."
+          tip="KEKs/industrial parks: zone area × sector energy intensity. Standalone plants and clusters: production capacity × electricity intensity per tonne. Provisional — actual metered demand not available."
         />
         {showSolar && (
           <StatRowWithTip
@@ -57,7 +57,7 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
             label="Within-Boundary Gen"
             value={wbGen != null ? wbGen.toFixed(1) : null}
             unit="GWh/yr"
-            tip="GWh from solar built inside the KEK boundary only. Limited by KEK area and centroid PVOUT."
+            tip="GWh from solar built inside the site boundary only. Limited by site area and centroid PVOUT."
           />
         )}
       </StatCard>
@@ -389,7 +389,7 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
                       {(wbCoverage * 100).toFixed(0)}%
                     </span>
                     <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                      of demand coverable inside KEK
+                      of demand coverable inside site
                     </span>
                   </div>
                   <div

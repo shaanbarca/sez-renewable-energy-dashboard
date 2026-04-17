@@ -86,9 +86,6 @@ max-statements = 50
 "src/dash/data_loader.py" = ["PLR2004"]
 "src/pipeline/build_fct_site_resource.py" = ["PLR2004", "PLR0913"]
 "src/pipeline/build_fct_site_scorecard.py" = ["PLR2004", "PLR0913"]
-# Legacy Plotly Dash app — unused at runtime (frontend is React+Vite).
-# Keeping for reference; not maintaining lint hygiene.
-"src/dash/app.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

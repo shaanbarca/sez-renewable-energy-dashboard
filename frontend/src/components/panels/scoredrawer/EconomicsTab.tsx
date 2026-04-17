@@ -45,7 +45,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
   if (energyMode === 'wind' && row.lcoe_wind_mid_usd_mwh == null) {
     return (
       <StatCard>
-        <SectionHeader title="Wind Economics" subtitle="Not available for this KEK" />
+        <SectionHeader title="Wind Economics" subtitle="Not available for this site" />
         <div className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           Wind speed at this location ({row.wind_speed_ms?.toFixed(1) ?? '< 3'} m/s) is below the
           viable threshold. Wind LCOE cannot be computed.
@@ -90,14 +90,14 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title={`${techLabel} vs Tariff`}
-          subtitle={`Does ${techLabel.toLowerCase()} beat what KEK tenants currently pay?`}
-          tip={`Compares ${techLabel.toLowerCase()} LCOE to the PLN industrial tariff. This is what a KEK tenant actually pays today.`}
+          subtitle={`Does ${techLabel.toLowerCase()} beat what industrial users currently pay?`}
+          tip={`Compares ${techLabel.toLowerCase()} LCOE to the PLN industrial tariff. This is what an industrial user actually pays today.`}
         />
         <StatRowWithTip
           label="Tariff (I-4/TT)"
           value={row.dashboard_rate_usd_mwh?.toFixed(1)}
           unit="$/MWh"
-          tip="PLN industrial tariff rate paid by KEK tenants. Often subsidized below PLN's actual cost (BPP). This is what a tenant actually pays today."
+          tip="PLN industrial tariff rate paid by industrial users. Often subsidized below PLN's actual cost (BPP). This is what an industrial user actually pays today."
         />
         <ColoredStatRow
           label="Gap to Tariff"

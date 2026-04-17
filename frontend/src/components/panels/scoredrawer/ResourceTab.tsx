@@ -32,7 +32,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
             label="PVOUT Centroid"
             value={pvoutCentroid != null ? pvoutCentroid.toFixed(0) : null}
             unit="kWh/kWp/yr"
-            tip="Solar yield at the KEK center. Used for on-site/within-boundary solar scenarios."
+            tip="Solar yield at the site center. Used for on-site/within-boundary solar scenarios."
           />
           <StatRowWithTip
             label="PVOUT Best (50km)"
@@ -78,7 +78,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <SectionHeader
           title={energyMode === 'wind' ? 'Technology Comparison' : 'Best RE Technology'}
-          subtitle="Which renewable source is cheapest at this KEK?"
+          subtitle="Which renewable source is cheapest at this site?"
         />
         <StatRow label="Best RE" value={capitalize(row.best_re_technology)} />
         {row.best_re_lcoe_mid_usd_mwh != null && (
@@ -166,7 +166,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               label="Within-Boundary"
               value={wbLcoe.toFixed(1)}
               unit="$/MWh"
-              tip="LCOE for solar built inside the KEK boundary. No grid connection cost, but uses centroid PVOUT."
+              tip="LCOE for solar built inside the site boundary. No grid connection cost, but uses centroid PVOUT."
             />
           )}
         </StatCard>
