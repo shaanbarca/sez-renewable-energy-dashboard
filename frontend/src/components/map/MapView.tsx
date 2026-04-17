@@ -9,11 +9,10 @@ import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
-import type { HoverInfo } from './SiteMarkers';
-import SiteMarkers from './SiteMarkers';
-
 import MeasureTool from './MeasureTool';
 import RasterOverlay from './RasterOverlay';
+import type { HoverInfo } from './SiteMarkers';
+import SiteMarkers from './SiteMarkers';
 import VectorOverlay from './VectorOverlay';
 
 const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };

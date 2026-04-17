@@ -128,7 +128,9 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
 
   const geojson = useMemo(() => {
     if (!scorecard) return null;
-    const rows = filteredSiteIds ? scorecard.filter((r) => filteredSiteIds.has(r.site_id)) : scorecard;
+    const rows = filteredSiteIds
+      ? scorecard.filter((r) => filteredSiteIds.has(r.site_id))
+      : scorecard;
     return {
       type: 'FeatureCollection' as const,
       features: rows.map((row) => ({
