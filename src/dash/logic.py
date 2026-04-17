@@ -73,6 +73,7 @@ from src.model.basic_model import grid_integration_category as compute_grid_inte
 from src.model.basic_model import (
     invest_resilience as invest_resilience_fn,
 )
+from src.model.site_types import SITE_TYPES, SiteType
 from src.pipeline.assumptions import (
     TARIFF_I4_RP_KWH,
     rp_kwh_to_usd_mwh,
@@ -442,11 +443,109 @@ def compute_lcoe_wind_live(
 
 
 # ---------------------------------------------------------------------------
+# CBAM product-type detection (3-signal for KEKs, direct for standalone/cluster)
+# ---------------------------------------------------------------------------
+
+_SECTOR_CBAM_MAP: dict[str, str] = {
+    "Base Metal Industry": "nickel_rkef",
+    "Nickel Smelter Industry": "nickel_rkef",
+    "Bauxite Industry": "aluminium",
+    "Petrochemical Industry": "fertilizer",
+    "Cement Industry": "cement",
+}
+
+# Raw cbam_product_type values in dim_sites (e.g., "iron_steel") map to
+# technology-specific cost-model keys (e.g., "steel_eaf", "steel_bfbof", "nickel_rkef")
+# using the site's `technology` column for disambiguation.
+_NICKEL_TECHS = {"RKEF", "HPAL", "FERRO NICKEL", "NPI", "NICKEL PIG IRON"}
+
+
+def _normalize_cbam_type(raw: str, technology: str) -> str | None:
+    """Normalize dim_sites cbam_product_type to a cost-model key. Returns None if unknown."""
+    raw = raw.strip().lower()
+    tech = technology.strip().upper()
+    if not raw:
+        return None
+    if raw == "iron_steel":
+        if tech in _NICKEL_TECHS:
+            return "nickel_rkef"
+        if tech == "BF-BOF":
+            return "steel_bfbof"
+        return "steel_eaf"
+    # Direct keys already match the cost-model dicts (cement, aluminium, fertilizer, nickel_rkef)
+    return raw
+
+
+def _detect_cbam_types(kek: pd.Series, row: dict) -> list[str]:
+    """Return CBAM product-type keys for a site.
+
+    KEK/KI sites use 3-signal detection (nickel process + plant counts + business sectors).
+    Standalone/cluster sites use the cbam_product_type column from dim_sites directly.
+    """
+    site_type_raw = str(kek.get("site_type") or "kek").lower()
+    try:
+        site_type = SiteType(site_type_raw)
+    except ValueError:
+        site_type = SiteType.KEK
+    cbam_method = SITE_TYPES[site_type].cbam_method
+
+    if cbam_method == "direct":
+        raw_val = kek.get("cbam_product_type")
+        if raw_val is None or (isinstance(raw_val, float) and pd.isna(raw_val)):
+            return []
+        raw = str(raw_val).strip()
+        if not raw or raw.lower() == "nan":
+            return []
+        tech_val = kek.get("technology")
+        technology = (
+            ""
+            if tech_val is None or (isinstance(tech_val, float) and pd.isna(tech_val))
+            else str(tech_val)
+        )
+        types: list[str] = []
+        for part in raw.split(","):
+            normalized = _normalize_cbam_type(part, technology)
+            if normalized and normalized not in types:
+                types.append(normalized)
+        return types
+
+    # 3-signal detection for KEKs (and KI fallback): use nickel process + plant counts + sectors.
+    cbam_types: list[str] = []
+
+    # Signal 1: RKEF nickel process → nickel-specific intensity (37.5 MWh/t)
+    process = str(row.get("dominant_process_type") or "").strip()
+    if process in {"Nickel Pig Iron", "Ferro Nickel"}:
+        cbam_types.append("nickel_rkef")
+
+    # Signal 2: Steel plants from GEM tracker — use actual technology (EAF vs BF-BOF)
+    steel_count = kek.get("steel_plant_count")
+    if pd.notna(steel_count) and int(steel_count) > 0:
+        steel_tech = str(kek.get("steel_dominant_technology") or "").strip()
+        if steel_tech == "BF-BOF":
+            if "steel_bfbof" not in cbam_types:
+                cbam_types.append("steel_bfbof")
+        elif "steel_eaf" not in cbam_types:
+            cbam_types.append("steel_eaf")
+
+    cement_count = kek.get("cement_plant_count")
+    if pd.notna(cement_count) and int(cement_count) > 0 and "cement" not in cbam_types:
+        cbam_types.append("cement")
+
+    # Signal 3: KEK business sectors → CBAM categories
+    sectors_str = str(kek.get("business_sectors") or "")
+    for sector_name, cbam_type in _SECTOR_CBAM_MAP.items():
+        if sector_name in sectors_str and cbam_type not in cbam_types:
+            cbam_types.append(cbam_type)
+
+    return cbam_types
+
+
+# ---------------------------------------------------------------------------
 # Live scorecard computation (flags, gap, carbon breakeven)
 # ---------------------------------------------------------------------------
 
 
-def compute_scorecard_live(
+def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; each arg is an independent pipeline input
     resource_df: pd.DataFrame,
     assumptions: UserAssumptions,
     thresholds: UserThresholds,
@@ -1135,44 +1234,10 @@ def compute_scorecard_live(
             row["has_captive_coal"] = False
             row["perpres_112_status"] = None
 
-        # CBAM exposure: EU Carbon Border Adjustment Mechanism (2026+)
-        # Three signals: (1) nickel process types, (2) plant-level data, (3) KEK sectors
-        # Product types are now technology-specific: nickel_rkef, steel_eaf, steel_bfbof
-        cbam_types: list[str] = []
-
-        # Signal 1: RKEF nickel process → nickel-specific intensity (37.5 MWh/t)
-        process = str(row.get("dominant_process_type") or "").strip()
-        if process in {"Nickel Pig Iron", "Ferro Nickel"}:
-            cbam_types.append("nickel_rkef")
-
-        # Signal 2: Steel plants from GEM tracker — use actual technology (EAF vs BF-BOF)
-        steel_count = kek.get("steel_plant_count")
-        if pd.notna(steel_count) and int(steel_count) > 0:
-            steel_tech = str(kek.get("steel_dominant_technology") or "").strip()
-            if steel_tech == "BF-BOF":
-                if "steel_bfbof" not in cbam_types:
-                    cbam_types.append("steel_bfbof")
-            else:
-                # Default to EAF (most common in Indonesia)
-                if "steel_eaf" not in cbam_types:
-                    cbam_types.append("steel_eaf")
-
-        cement_count = kek.get("cement_plant_count")
-        if pd.notna(cement_count) and int(cement_count) > 0 and "cement" not in cbam_types:
-            cbam_types.append("cement")
-
-        # Signal 3: KEK business sectors → CBAM categories
-        _SECTOR_CBAM_MAP = {
-            "Base Metal Industry": "nickel_rkef",
-            "Nickel Smelter Industry": "nickel_rkef",
-            "Bauxite Industry": "aluminium",
-            "Petrochemical Industry": "fertilizer",
-            "Cement Industry": "cement",
-        }
-        sectors_str = str(kek.get("business_sectors") or "")
-        for sector_name, cbam_type in _SECTOR_CBAM_MAP.items():
-            if sector_name in sectors_str and cbam_type not in cbam_types:
-                cbam_types.append(cbam_type)
+        # CBAM exposure: dispatch on SiteTypeConfig.cbam_method
+        #   - "direct"   → read cbam_product_type from dim_sites (standalone/cluster/KI)
+        #   - "3_signal" → detect from nickel process + plant counts + business sectors (KEK)
+        cbam_types = _detect_cbam_types(kek, row)
 
         row["cbam_exposed"] = len(cbam_types) > 0
         row["cbam_product_type"] = ",".join(cbam_types) if cbam_types else None

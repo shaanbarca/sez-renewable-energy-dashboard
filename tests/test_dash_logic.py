@@ -11,6 +11,7 @@ import pytest
 from src.dash.logic import (
     UserAssumptions,
     UserThresholds,
+    _detect_cbam_types,
     compute_lcoe_live,
     compute_scorecard_live,
     get_default_assumptions,
@@ -733,3 +734,116 @@ class TestThresholdWiring:
             sample_grid_df,
         )
         assert len(result2) == 3
+
+
+# ---------------------------------------------------------------------------
+# CBAM dispatch: direct (standalone/cluster) vs 3-signal (KEK/KI)
+# ---------------------------------------------------------------------------
+
+
+class TestCbamDispatch:
+    def test_cbam_direct_assignment_standalone_steel_eaf(self):
+        """Standalone EAF steel plant: iron_steel + EAF technology → steel_eaf."""
+        kek = pd.Series(
+            {
+                "site_type": "standalone",
+                "cbam_product_type": "iron_steel",
+                "technology": "EAF",
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        assert types == ["steel_eaf"]
+
+    def test_cbam_direct_assignment_standalone_steel_bfbof(self):
+        """Standalone BF-BOF plant: iron_steel + BF-BOF technology → steel_bfbof."""
+        kek = pd.Series(
+            {
+                "site_type": "standalone",
+                "cbam_product_type": "iron_steel",
+                "technology": "BF-BOF",
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        assert types == ["steel_bfbof"]
+
+    def test_cbam_direct_assignment_cluster_nickel(self):
+        """Cluster RKEF nickel: iron_steel + RKEF technology → nickel_rkef."""
+        kek = pd.Series(
+            {
+                "site_type": "cluster",
+                "cbam_product_type": "iron_steel",
+                "technology": "RKEF",
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        assert types == ["nickel_rkef"]
+
+    def test_cbam_direct_passes_through_exact_keys(self):
+        """Direct keys (cement, aluminium, fertilizer) pass through unchanged."""
+        kek = pd.Series(
+            {"site_type": "standalone", "cbam_product_type": "cement", "technology": ""}
+        )
+        assert _detect_cbam_types(kek, row={}) == ["cement"]
+
+    def test_cbam_direct_empty_product_type_returns_empty(self):
+        """Standalone site with no cbam_product_type → no exposure."""
+        kek = pd.Series({"site_type": "standalone", "cbam_product_type": None, "technology": ""})
+        assert _detect_cbam_types(kek, row={}) == []
+
+    def test_cbam_3signal_kek_preserved_via_sectors(self):
+        """KEK uses 3-signal detection: business_sectors → CBAM types."""
+        kek = pd.Series(
+            {
+                "site_type": "kek",
+                "cbam_product_type": None,
+                "business_sectors": "Base Metal Industry; Other",
+                "steel_plant_count": 0,
+                "cement_plant_count": 0,
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        assert "nickel_rkef" in types
+
+    def test_cbam_3signal_kek_ignores_cbam_product_type_column(self):
+        """KEK ignores any stray cbam_product_type value; runs full 3-signal logic."""
+        kek = pd.Series(
+            {
+                "site_type": "kek",
+                "cbam_product_type": "cement",  # should be ignored for KEK
+                "business_sectors": "Nickel Smelter Industry",
+                "steel_plant_count": 0,
+                "cement_plant_count": 0,
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        # KEK ran 3-signal → nickel_rkef from sector, NOT cement from column
+        assert types == ["nickel_rkef"]
+
+    def test_cbam_3signal_kek_steel_plant_eaf(self):
+        """KEK with GEM steel plant (EAF) → steel_eaf via Signal 2."""
+        kek = pd.Series(
+            {
+                "site_type": "kek",
+                "cbam_product_type": None,
+                "business_sectors": "",
+                "steel_plant_count": 1,
+                "steel_dominant_technology": "EAF",
+                "cement_plant_count": 0,
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        assert types == ["steel_eaf"]
+
+    def test_cbam_unknown_site_type_falls_back_to_kek(self):
+        """Unknown site_type string should not crash; falls back to 3-signal (KEK)."""
+        kek = pd.Series(
+            {
+                "site_type": "unknown_future_type",
+                "business_sectors": "Cement Industry",
+                "steel_plant_count": 0,
+                "cement_plant_count": 0,
+                "cbam_product_type": None,
+            }
+        )
+        types = _detect_cbam_types(kek, row={})
+        assert types == ["cement"]
