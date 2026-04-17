@@ -72,9 +72,20 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     dim_sites = tables["dim_sites"]
     scorecard = tables["fct_site_scorecard"]
 
-    # Add reliability_req and business_sectors from dim_sites
+    # Add reliability_req, business_sectors, and site-type/CBAM discriminators from dim_sites.
+    # site_type + cbam_product_type + technology are required by _detect_cbam_types() to run
+    # direct-mode detection for standalone/cluster/KI sites. Without them, every site falls
+    # through to 3-signal KEK detection and industrial sites never show CBAM exposure.
     dim_sites_cols = ["site_id"]
-    for col in ["reliability_req", "business_sectors"]:
+    for col in [
+        "reliability_req",
+        "business_sectors",
+        "site_type",
+        "sector",
+        "cbam_product_type",
+        "technology",
+        "capacity_annual_tonnes",
+    ]:
         if col not in resource.columns and col in dim_sites.columns:
             dim_sites_cols.append(col)
     if len(dim_sites_cols) > 1:

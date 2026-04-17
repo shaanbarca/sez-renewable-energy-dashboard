@@ -373,11 +373,21 @@ def _resample_landcover_binary_window(
     """
     from rasterio.enums import Resampling
     from rasterio.warp import reproject
+    from rasterio.windows import from_bounds as _from_bounds
 
     try:
         with rasterio.open(raster_path) as src:
-            # Read full source (VRT handles lazy tile loading)
-            raw = src.read(1)
+            # Read only the bbox window — the ESA VRT is 216000×432000 (≈87 GB
+            # if fully read); windowed read keeps memory to ~100 MB per site.
+            src_window = _from_bounds(
+                left=bbox[0],
+                bottom=bbox[1],
+                right=bbox[2],
+                top=bbox[3],
+                transform=src.transform,
+            )
+            raw = src.read(1, window=src_window, boundless=True, fill_value=0)
+            src_win_transform = rasterio.windows.transform(src_window, src.transform)
 
             # Binary: 1.0 = buildable, 0.0 = excluded
             binary = np.ones_like(raw, dtype=np.float32)
@@ -392,7 +402,7 @@ def _resample_landcover_binary_window(
             reproject(
                 source=binary,
                 destination=fraction,
-                src_transform=src.transform,
+                src_transform=src_win_transform,
                 src_crs=src.crs,
                 dst_transform=win_transform,
                 dst_crs=pvout_crs,

@@ -101,6 +101,14 @@ export interface ScorecardRow {
   developer?: string;
   legal_basis?: string;
 
+  // Industrial site identity fields (standalone, cluster, ki)
+  primary_product?: string;
+  capacity_annual?: string;
+  capacity_annual_tonnes?: number;
+  technology?: string;
+  parent_company?: string;
+  cluster_members?: string;
+
   // Optional fields that may be present depending on pipeline data
   pvout_centroid_kwh_kwp_yr?: number;
   pvout_best_50km_kwh_kwp_yr?: number;
@@ -278,7 +286,7 @@ export interface ScorecardResponse {
 
 export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
-export type BottomTab = 'table' | 'ruptl';
+export type BottomTab = 'table' | 'ruptl' | 'sector';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 
 export interface SavedScenario {

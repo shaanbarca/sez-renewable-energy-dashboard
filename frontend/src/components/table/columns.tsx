@@ -11,6 +11,7 @@ import {
   INFRA_READINESS_LABELS,
 } from '../../lib/constants';
 import { capitalize, formatSnakeLabel } from '../../lib/format';
+import { SITE_TYPES, type SiteType } from '../../lib/siteTypes';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
@@ -25,6 +26,10 @@ declare module '@tanstack/react-table' {
 const COLUMN_TOOLTIPS: Record<string, string> = {
   site_name: 'Site name (KEK, industrial plant, or industrial park)',
   province: 'Indonesian province where the KEK is located',
+  site_type:
+    'Site type: KEK (Special Economic Zone), Standalone Plant (e.g. Krakatau Steel), Industrial Cluster (e.g. Gresik), or Industrial Park (KI).',
+  sector:
+    'Heavy industry sector: steel, cement, aluminium, fertilizer, nickel, or mixed (multi-sector KEKs). CBAM-exposed sectors face EU carbon border pricing from 2026.',
   zone_classification: 'Site classification: Industrial, Tourism, or Mixed',
   category: 'Development stage: Established, Proposed, or Under Construction',
   area_ha: 'Total designated KEK area in hectares',
@@ -184,6 +189,23 @@ export const columns = [
   col.accessor('province', {
     header: () => <HeaderWithTooltip label="Province" columnId="province" />,
     cell: (info) => info.getValue(),
+  }),
+  col.accessor('site_type', {
+    header: () => <HeaderWithTooltip label="Site Type" columnId="site_type" />,
+    enableColumnFilter: true,
+    cell: (info) => {
+      const t = info.getValue() as SiteType | undefined;
+      const cfg = t ? SITE_TYPES[t] : undefined;
+      return cfg ? cfg.filterLabel : (t ?? '—');
+    },
+  }),
+  col.accessor('sector', {
+    header: () => <HeaderWithTooltip label="Sector" columnId="sector" />,
+    enableColumnFilter: true,
+    cell: (info) => {
+      const v = info.getValue();
+      return v ? capitalize(v as string) : '—';
+    },
   }),
   col.accessor('zone_classification', {
     header: () => <HeaderWithTooltip label="Type" columnId="zone_classification" />,

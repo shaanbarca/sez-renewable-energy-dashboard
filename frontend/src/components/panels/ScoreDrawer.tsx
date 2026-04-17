@@ -20,6 +20,7 @@ import {
   MODIFIER_BADGE_LABELS,
 } from '../../lib/constants';
 import { capitalize, formatGridRegion, formatSnakeLabel } from '../../lib/format';
+import { SITE_TYPES, type SiteType } from '../../lib/siteTypes';
 import type { ScorecardRow, SubstationWithCosts, UserAssumptions } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import CbamTrajectoryChart from '../charts/CbamTrajectoryChart';
@@ -357,28 +358,9 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
 
   return (
     <>
+      <IdentityCard row={row} />
       <StatCard>
-        <SectionHeader title="KEK Identity" subtitle="Zone classification, size, and location" />
-        <StatRowWithTip
-          label="Type"
-          value={row.zone_classification ?? null}
-          tip="Site classification. KEKs: Industrial/Tourism/Mixed. Industrial sites: by sector."
-        />
-        <StatRowWithTip
-          label="Category"
-          value={row.category ?? null}
-          tip="Established = operating with tenants. Proposed = may lack infrastructure. Under Construction = near-term opportunity."
-        />
-        <StatRowWithTip
-          label="Area"
-          value={
-            row.area_ha != null
-              ? row.area_ha.toLocaleString(undefined, { maximumFractionDigits: 0 })
-              : null
-          }
-          unit="ha"
-          tip="Larger KEKs have more space for on-site solar. >1,000 ha is significant."
-        />
+        <SectionHeader title="Location & Grid" subtitle="Where the site sits on the PLN system" />
         <StatRow label="Province" value={row.province} />
         <StatRow label="Grid Region" value={formatGridRegion(row.grid_region_id)} />
       </StatCard>
@@ -563,14 +545,63 @@ function OverviewTab({ row }: { row: ScorecardRow }) {
         </StatCard>
       )}
 
-      {(row.developer || row.legal_basis) && (
-        <StatCard>
-          <SectionHeader title="Developer & Legal" subtitle="Zone operator and regulatory basis" />
-          <StatRow label="Developer" value={row.developer ?? null} />
-          <StatRow label="Legal Basis" value={row.legal_basis ?? null} />
-        </StatCard>
-      )}
     </>
+  );
+}
+
+/* ---------- Identity card — driven by SITE_TYPES registry ---------- */
+
+const IDENTITY_LABELS: Record<string, string> = {
+  zone_classification: 'Type',
+  category: 'Category',
+  area_ha: 'Area',
+  developer: 'Developer',
+  legal_basis: 'Legal Basis',
+  primary_product: 'Primary Product',
+  capacity_annual: 'Capacity',
+  technology: 'Technology',
+  parent_company: 'Parent Company',
+  cluster_members: 'Cluster Members',
+  sector: 'Sector',
+};
+
+function renderIdentityValue(field: string, raw: unknown): string | number | null {
+  if (raw == null || raw === '') return null;
+  if (field === 'area_ha' && typeof raw === 'number') {
+    return `${raw.toLocaleString(undefined, { maximumFractionDigits: 0 })} ha`;
+  }
+  if (field === 'primary_product' || field === 'sector') {
+    return capitalize(String(raw).replace(/_/g, ' '));
+  }
+  return String(raw);
+}
+
+function IdentityCard({ row }: { row: ScorecardRow }) {
+  const rawType = (row.site_type ?? 'kek').toLowerCase() as SiteType;
+  const config = SITE_TYPES[rawType] ?? SITE_TYPES.kek;
+  const headerTitle =
+    rawType === 'kek' ? 'KEK Identity' : `${config.filterLabel} — Identity`;
+  const subtitle =
+    rawType === 'kek'
+      ? 'Zone classification, size, and operator'
+      : 'Plant details and ownership';
+  const rows = config.identityFields
+    .map((field) => ({
+      field,
+      label: IDENTITY_LABELS[field] ?? formatSnakeLabel(field),
+      value: renderIdentityValue(field, (row as unknown as Record<string, unknown>)[field]),
+    }))
+    .filter((r) => r.value != null);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <StatCard>
+      <SectionHeader title={headerTitle} subtitle={subtitle} />
+      {rows.map((r) => (
+        <StatRow key={r.field} label={r.label} value={r.value} />
+      ))}
+    </StatCard>
   );
 }
 

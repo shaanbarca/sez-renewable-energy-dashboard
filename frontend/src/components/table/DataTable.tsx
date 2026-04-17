@@ -71,6 +71,8 @@ function exportCsv(rows: Record<string, unknown>[], headers: string[], metadata?
 const DROPDOWN_COLUMNS = new Set([
   'action_flag',
   'province',
+  'site_type',
+  'sector',
   'zone_classification',
   'category',
   'best_re_technology',

@@ -50,19 +50,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
 from src.pipeline.build_dim_kek import build_dim_kek
-
-
-def build_dim_sites():
-    """Wrapper: builds KEK dim table with renamed columns (site_id, zone_classification).
-
-    TODO(Step 10): Replace with full build_dim_sites that unions KEKs + industrial sites.
-    """
-    df = build_dim_kek()
-    return df.rename(
-        columns={"kek_id": "site_id", "kek_name": "site_name", "kek_type": "zone_classification"}
-    )
-
-
+from src.pipeline.build_dim_sites import build_dim_sites
 from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
 from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
 from src.pipeline.build_fct_captive_coal import build_captive_coal_summary
@@ -91,7 +79,8 @@ class Step:
 # ─────────────────────────────────────────────────────────────────────────────
 PIPELINE: list[Step] = [
     # Stage 1: Dimensions
-    Step("dim_sites", build_dim_sites, "dim_sites.csv"),
+    Step("dim_kek", build_dim_kek, "dim_kek.csv"),
+    Step("dim_sites", build_dim_sites, "dim_sites.csv", depends_on=["dim_kek"]),
     Step("dim_tech_cost", build_dim_tech_cost, "dim_tech_cost.csv"),
     Step("dim_tech_cost_wind", build_dim_tech_cost_wind, "dim_tech_cost_wind.csv"),
     # Stage 2: Facts

@@ -181,6 +181,14 @@ def post_scorecard(req: ScorecardRequest):
         "area_ha",
         "developer",
         "legal_basis",
+        "site_type",
+        "sector",
+        "primary_product",
+        "capacity_annual",
+        "capacity_annual_tonnes",
+        "technology",
+        "parent_company",
+        "cluster_members",
     ]:
         if col in dim_sites.columns and col not in scorecard_df.columns:
             merge_cols_sites.append(col)
