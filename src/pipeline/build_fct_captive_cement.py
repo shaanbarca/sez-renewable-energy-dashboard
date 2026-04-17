@@ -1,34 +1,28 @@
 # Copyright (c) 2024-2026 Shaan Barca. Licensed under MIT + Commons Clause.
-"""Pipeline: GEM cement plant spatial join against KEK polygons.
+"""Pipeline: GEM cement plant spatial join against site polygons.
 
 Source: Global Energy Monitor Global Cement Plant Tracker
 URL: https://globalenergymonitor.org/projects/global-cement-plant-tracker/
 
 Produces per-plant rows with site_id (null if outside all sites + 50km buffer),
-plus per-KEK aggregates for scorecard enrichment and CBAM calculations.
+plus per-site aggregates for scorecard enrichment and CBAM calculations.
+
+Uses SiteTypeConfig.captive_power_method dispatch: KEK/KI sites use haversine
+proximity matching; standalone/cluster sites use direct site_id matching
+(no-op today; activates when plant CSV gains site_id in Step 10).
 """
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
 
 import pandas as pd
 
+from src.pipeline.geo_utils import direct_match, proximity_match, sites_by_captive_method
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data" / "captive_power"
 PROCESSED_DIR = REPO_ROOT / "outputs" / "data" / "processed"
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    R = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    )
-    return R * 2 * math.asin(math.sqrt(a))
 
 
 def build_fct_captive_cement(
@@ -36,7 +30,7 @@ def build_fct_captive_cement(
     sites_path: Path | str = PROCESSED_DIR / "dim_sites.csv",
     buffer_km: float = 50.0,
 ) -> pd.DataFrame:
-    """Spatial-join GEM cement plants against KEK centroids within buffer_km."""
+    """Spatial-join GEM cement plants against site centroids within buffer_km."""
     cement_path = Path(cement_path)
     if not cement_path.exists():
         print(f"  Cement data not found at {cement_path}")
@@ -44,52 +38,45 @@ def build_fct_captive_cement(
 
     df = pd.read_csv(cement_path)
     df = df[df["latitude"].notna() & df["longitude"].notna()].copy()
+    df["is_chinese_owned"] = df["parent_company"].astype(str).str.lower().str.contains("china")
 
     sites_path = Path(sites_path)
     if not sites_path.exists():
         print(f"  dim_sites not found at {sites_path}")
         return pd.DataFrame()
 
-    keks = pd.read_csv(sites_path)
-    kek_points = [
-        {"site_id": r["site_id"], "lat": r["latitude"], "lon": r["longitude"]}
-        for _, r in keks.iterrows()
-        if pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))
-    ]
+    sites = pd.read_csv(sites_path)
 
-    rows = []
-    for _, s in df.iterrows():
-        best_kek = None
-        best_dist = float("inf")
-        for kek in kek_points:
-            d = _haversine_km(s["latitude"], s["longitude"], kek["lat"], kek["lon"])
-            if d < best_dist:
-                best_dist = d
-                best_kek = kek["site_id"]
+    prox_sites = sites_by_captive_method(sites, "proximity")
+    direct_sites = sites_by_captive_method(sites, "direct")
 
-        is_chinese = "china" in str(s.get("parent_company", "")).lower()
+    prox = proximity_match(prox_sites, df, buffer_km=buffer_km)
+    direct = direct_match(direct_sites, df)
+    if not direct.empty:
+        direct["dist_km"] = 0.0
+        prox = prox[~prox["plant_name"].isin(direct["plant_name"])]
 
-        rows.append(
-            {
-                "plant_name": s.get("plant_name", ""),
-                "latitude": s["latitude"],
-                "longitude": s["longitude"],
-                "capacity_mtpa": s.get("capacity_mtpa"),
-                "plant_type": s.get("plant_type", ""),
-                "status": s.get("status", ""),
-                "province": s.get("province", ""),
-                "parent_company": s.get("parent_company", ""),
-                "is_chinese_owned": is_chinese,
-                "site_id": best_kek if best_dist <= buffer_km else None,
-                "dist_to_site_km": round(best_dist, 1) if best_dist <= buffer_km else None,
-            }
-        )
+    matched = pd.concat([prox, direct], ignore_index=True)
 
-    return pd.DataFrame(rows)
+    return pd.DataFrame(
+        {
+            "plant_name": matched.get("plant_name", ""),
+            "latitude": matched["latitude"],
+            "longitude": matched["longitude"],
+            "capacity_mtpa": matched.get("capacity_mtpa"),
+            "plant_type": matched.get("plant_type", ""),
+            "status": matched.get("status", ""),
+            "province": matched.get("province", ""),
+            "parent_company": matched.get("parent_company", ""),
+            "is_chinese_owned": matched["is_chinese_owned"],
+            "site_id": matched["site_id"],
+            "dist_to_site_km": matched["dist_km"],
+        }
+    )
 
 
 def build_captive_cement_summary(plant_df: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Aggregate cement plants per KEK for scorecard enrichment."""
+    """Aggregate cement plants per site for scorecard enrichment."""
     if plant_df is None:
         plant_df = build_fct_captive_cement()
     if plant_df.empty:
@@ -123,5 +110,5 @@ if __name__ == "__main__":
 
         summary = build_captive_cement_summary(df)
         if not summary.empty:
-            print(f"\nPer-KEK summary ({len(summary)} KEKs):")
+            print(f"\nPer-site summary ({len(summary)} sites):")
             print(summary.to_string(index=False))

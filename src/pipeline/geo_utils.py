@@ -15,8 +15,11 @@ that previously duplicated this logic:
 from __future__ import annotations
 
 import math
+from typing import Literal
 
 import pandas as pd
+
+from src.model.site_types import SITE_TYPES
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -113,10 +116,36 @@ def direct_match(
 
     For standalone sites that ARE the plant, no proximity search needed.
     Returns plants_df rows where the plant's ID column matches a site's ID column.
+
+    Returns empty DataFrame if either input is empty OR plants_df lacks plant_id_col
+    (silent no-op for captive builders whose plant CSVs don't yet carry site_id).
     """
     if sites_df.empty or plants_df.empty:
+        return pd.DataFrame(columns=plants_df.columns)
+
+    if plant_id_col not in plants_df.columns:
         return pd.DataFrame(columns=plants_df.columns)
 
     valid_ids = set(sites_df[site_id_col].dropna())
     matched = plants_df[plants_df[plant_id_col].isin(valid_ids)].copy()
     return matched
+
+
+def sites_by_captive_method(
+    sites_df: pd.DataFrame,
+    method: Literal["proximity", "direct"],
+    site_type_col: str = "site_type",
+) -> pd.DataFrame:
+    """Return the subset of sites whose SiteTypeConfig.captive_power_method == method.
+
+    If sites_df lacks a `site_type` column (e.g. legacy dim_kek), all sites are
+    treated as proximity-type for back-compat.
+    """
+    matching_types = {
+        st.value for st, cfg in SITE_TYPES.items() if cfg.captive_power_method == method
+    }
+
+    if site_type_col not in sites_df.columns:
+        return sites_df if method == "proximity" else sites_df.iloc[0:0]
+
+    return sites_df[sites_df[site_type_col].isin(matching_types)]
