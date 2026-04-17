@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-04-17 (Industrial Parks Expansion docs pass complete).
+Last updated: 2026-04-17 (`logic.py` → `logic/` package split complete; docs refreshed).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
@@ -177,6 +177,7 @@ H1 Wind CF pipeline, H2 BPP data sourcing, H3 Land cover buildability, H4 Infras
 | ✅ | Steel site automation via GEM tracker | 2026-04-17 | `build_industrial_sites.py:_build_steel_rows()` now reads the 7 active Indonesian steel plants straight from `data/captive_power/gem_steel_plants.csv`. Removed 7 hand-curated rows from `priority1_sites.csv`. Automated filter: `status == "Active"`. Provenance (`source_name`/`source_url`/`retrieved_date`) stamped per row. |
 | ✅ | Nickel IIA cluster automation via CGSP | 2026-04-17 | `build_industrial_sites.py:_build_nickel_rows()` unions CGSP Nickel Tracker: `parent_project_type == "Integrated Industrial Area"` → 11 park rows, minus 5km KEK-overlap exclusion (Palu SEZ) → 10 cluster rows. Each cluster aggregates capacity from `Processing` children within 20km (IMIP=5.4M t/yr, etc.). IKIP/SEI yield no capacity because their nearest Processing row is >20km; cluster retained with NaN capacity (documented gap). Removed 3 hand-curated nickel rows. |
 | ✅ | Residual CSV provenance enforcement | 2026-04-17 | `priority1_sites.csv` reduced to 5 residual rows (2 aluminium + 3 fertilizer, the sectors without a tracker step). All rows carry `source_name`/`source_url`/`retrieved_date`. Loader raises on any row missing `source_url`. Total pipeline: 79 sites (25 KEK + 44 standalone + 10 cluster). |
+| ✅ | `src/dash/logic.py` → `logic/` package split | 2026-04-17 | Refactor-only (no behavior change). 1,437 LOC monolith split into 7 domain modules: `assumptions.py`, `lcoe.py`, `cbam.py`, `grid.py`, `technology.py`, `scorecard.py`, `__init__.py` (re-export shim). Public API frozen so external callers (`src/api/routes/scorecard.py`, `tests/test_dash_logic.py`) stay unchanged. Verified via bit-identical golden-master pickle (`tests/test_scorecard_golden.py`). Added 30 module-boundary tests across 5 new test files + 1 parity test → 532 total (up from 498). |
 
 ---
 

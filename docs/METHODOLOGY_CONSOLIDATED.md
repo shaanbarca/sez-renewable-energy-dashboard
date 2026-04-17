@@ -599,7 +599,7 @@ When hydro proximity data ships, adding hydro requires:
 
 Hydro's firm nighttime output directly offsets BESS further. No refactoring needed.
 
-**Implementation:** `src/model/basic_model.py` (`RESource`, `hybrid_bess_hours()`, `hybrid_lcoe_optimized()`), `src/dash/logic.py` (hybrid block in `compute_scorecard_live()`).
+**Implementation:** `src/model/basic_model.py` (`RESource`, `hybrid_bess_hours()`, `hybrid_lcoe_optimized()`), `src/dash/logic/technology.py` (`compute_hybrid_metrics()`; called per-row from `logic/scorecard.py::compute_scorecard_live()`).
 
 ---
 
@@ -865,7 +865,7 @@ Where:
 
 **Capacity factor is explicit here** (unlike solar where CF is embedded in PVOUT). The formula multiplies capacity x CF x 8760 directly, so generation reflects actual expected output from wind intermittency, not nameplate capacity.
 
-**Implementation:** Live-computed in `logic.py` (not precomputed in CSV). Uses `max_wind_capacity_mwp` and `cf_wind_buildable_best` from `fct_kek_wind_resource`, merged into `resource_df` at API startup.
+**Implementation:** Live-computed in `logic/scorecard.py` (not precomputed in CSV). Uses `max_wind_capacity_mwp` and `cf_wind_buildable_best` from `fct_kek_wind_resource`, merged into `resource_df` at API startup.
 
 ### 9.7 Wind carbon breakeven
 
@@ -873,7 +873,7 @@ Uses the same technology-agnostic `carbon_breakeven_price()` function as solar (
 
 $$P_{\text{carbon,wind}} = \begin{cases} 0 & \text{if } LCOE_{\text{wind}} \leq C_{\text{grid}} \\ \frac{LCOE_{\text{wind}} - C_{\text{grid}}}{EF_{\text{grid}}} & \text{otherwise} \end{cases} \quad [\text{USD/tCO}_2]$$
 
-**Implementation:** Live-computed in `logic.py` using `lcoe_wind_mid_usd_mwh` and `grid_cost_usd_mwh`. Output field: `wind_carbon_breakeven_usd_tco2`.
+**Implementation:** Live-computed in `logic/scorecard.py` using `lcoe_wind_mid_usd_mwh` and `grid_cost_usd_mwh`. Output field: `wind_carbon_breakeven_usd_tco2`.
 
 ### 9.8 Firm wind coverage (intermittency model)
 
@@ -960,7 +960,7 @@ The `not_competitive` label only captures tariff economics. For manufacturing KE
 
 **Current results (WACC=10%):** 4 KEKs fire: Kendal (13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). Carbon breakeven: \$10-17/tCO2.
 
-**Implementation note:** `invest_resilience()` is a separate function in `basic_model.py`, not part of the `action_flags()` return dict. The scorecard builder (`build_fct_kek_scorecard.py`) and dashboard logic (`logic.py`) compute it separately and merge it into the flag priority chain.
+**Implementation note:** `invest_resilience()` is a separate function in `basic_model.py`, not part of the `action_flags()` return dict. The scorecard builder (`build_fct_kek_scorecard.py`) and dashboard logic (`logic/scorecard.py`) compute it separately and merge it into the flag priority chain.
 
 ---
 
@@ -1151,7 +1151,7 @@ Maps registered KEK industry classifications to CBAM product types:
 - `cbam_exposed` (bool): `True` if any signal matched
 - `cbam_product_type` (str/null): comma-separated list of matched product types (e.g., `"nickel_rkef,cement"`)
 
-**Implementation:** Inline in `logic.py:_build_scorecard_rows()`, within the per-KEK loop.
+**Implementation:** `logic/cbam.py::_detect_cbam_types()`, called per-row from `logic/scorecard.py::compute_scorecard_live()`.
 
 ### 14.2 Product-specific parameters
 
@@ -1257,7 +1257,7 @@ The `cbam_per_product` field (dict, keyed by product type) stores per-product me
 
 For backward compatibility, flat `cbam_*` fields at the KEK level use the **primary product** (first matched, typically the highest electricity intensity). The per-product dict enables the ScoreDrawer CBAM trajectory chart to show independent cost curves for each product at a multi-product KEK.
 
-**Implementation:** `logic.py:_build_scorecard_rows()`. The `CbamTrajectoryChart` component (`frontend/src/components/charts/CbamTrajectoryChart.tsx`) renders per-product trajectories.
+**Implementation:** `logic/cbam.py::compute_cbam_trajectory()`, called from `logic/scorecard.py::compute_scorecard_live()`. The `CbamTrajectoryChart` component (`frontend/src/components/charts/CbamTrajectoryChart.tsx`) renders per-product trajectories.
 
 ---
 
@@ -1323,7 +1323,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 | Finding | Status | Detail |
 |---|---|---|
-| `action_flags()` returns 6 keys, not 10 | By design | `invest_resilience` is computed by a separate `invest_resilience()` function. `not_competitive` is derived in the scorecard builder as the fallback when no other flag fires. `cbam_urgent` is computed in `logic.py` from CBAM-adjusted gap. All are merged in `logic.py` before the API serves them. Total: 10 flags in solar-mode `ActionFlag` enum (14 across all energy modes). |
+| `action_flags()` returns 6 keys, not 10 | By design | `invest_resilience` is computed by a separate `invest_resilience()` function. `not_competitive` is derived in the scorecard builder as the fallback when no other flag fires. `cbam_urgent` is computed in `logic/scorecard.py` from CBAM-adjusted gap. All are merged in `logic/scorecard.py` before the API serves them. Total: 10 flags in solar-mode `ActionFlag` enum (14 across all energy modes). |
 | Docs referenced `SOLAR_TO_SUBSTATION_LOW_THRESHOLD_KM = 10.0` | Resolved | V3.1 tightened to `SOLAR_TO_SUBSTATION_THRESHOLD_KM = 5.0` in `assumptions.py:216`. This document uses the current 5km value. |
 | Old docs used `invest_grid` (umbrella) | Resolved | V3 splits into `invest_transmission` + `invest_substation`. Code matches. |
 | Old docs used `firming_needed` | Resolved | Renamed to `invest_battery` in V3. Code matches. |
@@ -1345,7 +1345,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | LCOE pipeline | `src/pipeline/build_fct_lcoe.py` |
 | Buildability filters | `src/pipeline/buildability_filters.py` |
 | Scorecard builder | `src/pipeline/build_fct_kek_scorecard.py` |
-| Dashboard logic | `src/dash/logic.py` |
+| Dashboard logic | `src/dash/logic/` (package: assumptions, lcoe, cbam, grid, technology, scorecard) |
 | API routes | `src/api/routes/scorecard.py` |
 | Captive coal pipeline | `src/pipeline/build_fct_captive_coal.py` |
 | Captive nickel pipeline | `src/pipeline/build_fct_captive_nickel.py` |
@@ -1362,7 +1362,7 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 | Solar buildable raster | `src/pipeline/build_buildable_raster.py` |
 | Solar buildable polygons | `src/pipeline/build_buildable_polygons.py` |
 | CBAM trajectory chart | `frontend/src/components/charts/CbamTrajectoryChart.tsx` |
-| CBAM logic (flag + costs) | `src/dash/logic.py` (CBAM section) |
+| CBAM logic (flag + costs) | `src/dash/logic/cbam.py` |
 | Walkthrough guide | `frontend/src/components/ui/WalkthroughModal.tsx` |
 | Action flag legend | `frontend/src/components/ui/ActionFlagLegend.tsx` |
 | Tests | `tests/test_model.py`, `tests/test_pipeline.py`, `tests/test_action_flag_enum.py` |

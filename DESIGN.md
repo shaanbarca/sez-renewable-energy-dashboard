@@ -169,7 +169,7 @@ User adjusts sliders (Zustand store)
   POST /api/scorecard { assumptions, thresholds }
          │
          ▼
-  src/dash/logic.py: compute_scorecard_live()
+  src/dash/logic/scorecard.py: compute_scorecard_live()
   (LCOE, action flags, CBAM, wind, hybrid, grid costs — all recomputed)
          │
          ▼
@@ -418,7 +418,7 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 | Demand estimates | `fct_kek_demand.csv` loaded at startup | User can override via `resolve_demand()` |
 | `fct_lcoe.csv` (450 rows) | Still produced by pipeline for reproducibility/export | Default-assumption reference; dashboard computes live instead |
 | **Live (dashboard callback)** | | |
-| LCOE bands (all scenarios) | `compute_lcoe_live()` in `src/dash/logic.py` | User adjusts CAPEX, FOM, lifetime, WACC, gen-tie, lease via sliders. ~5ms for 25 KEKs × 2 scenarios |
+| LCOE bands (all scenarios) | `compute_lcoe_live()` in `src/dash/logic/lcoe.py` | User adjusts CAPEX, FOM, lifetime, WACC, gen-tie, lease via sliders. ~5ms for 25 KEKs × 2 scenarios |
 | Competitive gap | `solar_competitive_gap()` from `basic_model.py` | Recalculated when LCOE or grid benchmark changes |
 | Action flags | `action_flags()` + `invest_resilience()` from `basic_model.py` | Recalculated when LCOE or thresholds change |
 | Carbon breakeven | `carbon_breakeven_price()` from `basic_model.py` | Recalculated when LCOE or grid cost changes |
@@ -491,7 +491,7 @@ The dashboard is a Vite + React 18 + TypeScript SPA with Tailwind CSS. See [ARCH
 
 ### Backend: FastAPI
 
-`src/api/` wraps existing pipeline modules. All computation happens server-side in `src/dash/logic.py`.
+`src/api/` wraps existing pipeline modules. All computation happens server-side in the `src/dash/logic/` package (split by domain: assumptions, lcoe, cbam, grid, technology, scorecard).
 
 **Key endpoints:**
 | Endpoint | Method | Purpose |
@@ -506,7 +506,7 @@ The dashboard is a Vite + React 18 + TypeScript SPA with Tailwind CSS. See [ARCH
 
 ### Business logic extraction
 
-All computation in `src/dash/logic.py` as pure functions. `compute_scorecard_live()` takes assumptions + thresholds, returns full scorecard DataFrame. Testable with pytest, no server dependency. 402 tests cover model, pipeline, and API.
+All computation in the `src/dash/logic/` package as pure functions. `compute_scorecard_live()` (orchestrator in `logic/scorecard.py`) takes assumptions + thresholds, returns full scorecard DataFrame. Domain-split into `assumptions.py`, `lcoe.py`, `cbam.py`, `grid.py`, `technology.py`; public API re-exported via `logic/__init__.py` so external callers stay stable. Testable with pytest, no server dependency. 532 tests cover model, pipeline, API, module boundaries, and golden-master parity.
 
 ---
 
@@ -524,6 +524,7 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-07 | #26 | Add Interaction States subsection | Loading/empty/error/partial states were entirely unspecified |
 | 2026-04-07 | #28 | Define Scorecard tab fields | "4 tabs" had no field specification; implementer would guess |
 | 2026-04-07 | #29 | Extract callback logic to `src/dash/logic.py` | Testability: pure functions, no Dash dependency |
+| 2026-04-17 | — | Split `src/dash/logic.py` (1,437 LOC) → `src/dash/logic/` package (7 files: assumptions, lcoe, cbam, grid, technology, scorecard, __init__) | Readability + cohesion: each domain owns one module. Bit-identical outputs verified via golden-master fixture. Public API frozen via `__init__.py` re-export shim — external callers unchanged. 532 tests (up from 498): 6 new module-boundary test files + 1 parity test. |
 | 2026-04-07 | #30 | Add startup CSV validation | 8 error paths unhandled; app crashed silently on missing data |
 | 2026-04-07 | #34 | Configurable assumptions: 3-tier slider controls + live LCOE recomputation | Hardcoded assumptions limited all 4 personas; 25 KEKs makes live computation trivial (~5ms) |
 | 2026-04-08 | — | Implement interaction states: loading spinner, empty table, selected KEK highlight | Design review found all 4 interaction states unimplemented |

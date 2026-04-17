@@ -128,7 +128,7 @@ flowchart TD
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |
 | Data | pandas | 2.x | All tabular transforms |
 | PDF extraction | pdfplumber | — | RUPTL + ESDM Tech Catalogue tables |
-| Testing | pytest | — | 498 tests, all pure-function |
+| Testing | pytest | — | 532 tests, all pure-function |
 | Linting | ruff | — | Format + lint (configured in pyproject.toml) |
 
 ---
@@ -260,6 +260,16 @@ src/
     pdf_extract_ruptl.py
     pdf_extract_esdm_tech.py
     TEMPLATE.py                 ← canonical template for new pipeline steps
+  dash/
+    logic/                      — Dashboard live-computation package (refactored 2026-04-17 from single logic.py)
+      __init__.py               ← public API re-exports (external imports stay stable)
+      assumptions.py            ← UserAssumptions / UserThresholds dataclasses + defaults
+      lcoe.py                   ← compute_lcoe_live + compute_lcoe_wind_live
+      cbam.py                   ← _detect_cbam_types (3-signal vs direct dispatch) + compute_cbam_trajectory
+      grid.py                   ← compute_grid_integration (category + infra cost rollup)
+      technology.py             ← compute_bess_metrics + compute_firm_coverage + compute_hybrid_metrics
+      scorecard.py              ← compute_scorecard_live orchestrator
+    data_loader.py, map_layers.py
   assumptions.py                — All model constants with source citations
 
 data/
@@ -277,8 +287,14 @@ tests/
   test_geo_utils.py             — haversine + proximity/direct match functions
   test_demand_intensity.py      — sector-intensity formula for standalone/cluster
   test_captive_dual_mode.py     — proximity vs direct-assignment behavior
+  test_logic_imports.py         — dash/logic/__init__.py re-export shim guard
+  test_logic_lcoe.py            — module-boundary tests for logic/lcoe.py
+  test_logic_cbam.py            — module-boundary tests for logic/cbam.py (3-signal + direct dispatch)
+  test_logic_grid.py            — module-boundary tests for logic/grid.py
+  test_logic_technology.py      — module-boundary tests for logic/technology.py (BESS/firm/hybrid)
+  test_scorecard_golden.py      — bit-identical parity against pickle fixture (pre-refactor snapshot)
 
-498 tests total (all pure-function).
+532 tests total (all pure-function).
 
 frontend/src/
   lib/

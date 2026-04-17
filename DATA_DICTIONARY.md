@@ -331,7 +331,7 @@ Dimension tables describe *what a site is* or *what a technology costs*. They ar
 | `technology` | str | null (KEK) / CSV `technology` | e.g., `BF-BOF`, `EAF`, `Integrated`, `RKEF`, `HPAL` |
 | `parent_company` | str | `developer` (KEK) / CSV `parent_company` | Owner entity |
 | `cluster_members` | str | null (KEK) / CSV `cluster_members` | For `site_type="cluster"`: semicolon-separated list of member facilities |
-| `cbam_product_type` | str | null (KEK; inferred at scorecard time via 3-signal) / CSV direct | Direct assignment for industrial sites; feeds `_detect_cbam_types()` dispatch in `src/dash/logic.py` |
+| `cbam_product_type` | str | null (KEK; inferred at scorecard time via 3-signal) / CSV direct | Direct assignment for industrial sites; feeds `_detect_cbam_types()` dispatch in `src/dash/logic/cbam.py` |
 | `zone_classification` | str | `JenisKEK` from polygons (KEK only) / null | KEK-only: Industri / Pariwisata / Jasa lainnya (renamed from legacy `kek_type`, per eng review R5) |
 | `category` | str | `category.name` from distribution points (KEK only) / null | KEK category |
 | `status` | str | `status.name` from distribution points (KEK only) / null | Operational status |
@@ -759,7 +759,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `max_solar_generation_gwh` | float | `max_captive_capacity_mwp × pvout_best_50km / 1000` — maximum annual solar generation if all buildable capacity were built at best-resource sites within 50km. |
 | `solar_supply_coverage_pct` | float | `max_solar_generation_gwh / demand_2030_gwh` — fraction of site demand coverable by buildable solar. >= 1.0 means solar can fully supply the site. |
 
-**Wind columns (from `fct_site_wind_resource`, merged at API startup + live-computed in `logic.py`):**
+**Wind columns (from `fct_site_wind_resource`, merged at API startup + live-computed in `logic/scorecard.py`):**
 
 | Column | Type | Source | Formula / Notes |
 |--------|------|--------|-----------------|
@@ -780,7 +780,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `wind_firming_gap_pct` | float | Live | Fraction requiring firming (15-35%, CF-dependent). |
 | `wind_firming_hours` | float | Live | BESS bridge hours for wind intermittency (2-4h). |
 
-**Hybrid RE columns** (live-computed in `logic.py` via `hybrid_lcoe_optimized()`; see §6A):
+**Hybrid RE columns** (live-computed in `logic/technology.py::compute_hybrid_metrics()` via `hybrid_lcoe_optimized()`; see §6A):
 
 | Column | Type | Source | Formula / Notes |
 |--------|------|--------|-----------------|
@@ -828,7 +828,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `cement_plants` | str/null | GEM Cement | Semicolon-separated plant names. |
 | `cement_has_chinese_ownership` | bool/null | GEM Cement | True if any matched cement facility has Chinese ownership. |
 
-**CBAM exposure columns** (live-computed in `logic.py`; see METHODOLOGY_CONSOLIDATED.md):
+**CBAM exposure columns** (live-computed in `logic/cbam.py`; see METHODOLOGY_CONSOLIDATED.md):
 
 | Column | Type | Source | Formula / Notes |
 |--------|------|--------|-----------------|
@@ -846,7 +846,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `cbam_savings_per_mwh` | float/null | Derived | CBAM savings converted to $/MWh of electricity: `savings_per_tonne / electricity_intensity_mwh_per_tonne`. Bridges CBAM product-level savings to electricity-cost comparisons. Used for CBAM-adjusted gap calculation. |
 | `cbam_adjusted_gap_pct` | float/null | Derived | Competitive gap with CBAM savings factored in: `(lcoe_mid_usd_mwh - dashboard_rate_usd_mwh - cbam_savings_per_mwh) / dashboard_rate_usd_mwh x 100`. More negative = solar + CBAM avoidance strongly beats grid. Null for non-CBAM-exposed sites. |
 
-**2D classification columns** (live-computed in `logic.py`; V3.7):
+**2D classification columns** (live-computed in `logic/scorecard.py`; V3.7):
 
 | Column | Type | Source | Formula / Notes |
 |--------|------|--------|-----------------|
@@ -957,7 +957,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 **Wind buildability pipeline:** `buildable_wind_web.tif` is produced by `build_wind_buildable_raster.py` using 5 exclusion layers (kawasan hutan, peatland, land cover, slope/elevation, wind speed minimum). See METHODOLOGY_CONSOLIDATED.md §4.1.
 
-**Live-computed wind columns** (in `logic.py`, not stored in CSV):
+**Live-computed wind columns** (in `logic/scorecard.py`, not stored in CSV):
 
 | Column | Type | Description |
 |--------|------|-------------|
