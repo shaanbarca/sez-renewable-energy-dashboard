@@ -10,6 +10,12 @@ RUN npm run build
 FROM python:3.13-slim
 WORKDIR /app
 
+# System libs required by pyexpat (XML parsing) and GDAL/GEOS/PROJ runtime
+# deps pulled in by geopandas/shapely/rasterio wheels.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
