@@ -3,12 +3,14 @@
 """
 build_dim_sites — unified master dimension table for all site types.
 
-Unions the existing 25 KEKs from dim_kek.csv with ~23 Priority 1 industrial
-sites from data/industrial_sites/priority1_sites.csv.
+Unions the existing 25 KEKs from dim_kek.csv with the industrial-sites frame
+produced by ``build_industrial_sites`` (tracker-driven cement + residual manual
+rows for steel/aluminium/fertilizer/nickel).
 
 For KEKs: reads existing dim_kek.csv, maps columns to unified schema.
-For industrial sites: reads priority1_sites.csv, auto-assigns grid_region_id
-from nearest substation's regpln field.
+For industrial sites: reads ``industrial_sites_generated.csv`` (from the
+``build_industrial_sites`` step), auto-assigns grid_region_id from nearest
+substation's regpln field.
 
 Output columns:
     site_id, site_name, site_type, sector, primary_product, province,
@@ -34,7 +36,7 @@ PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 DATA_DIR = REPO_ROOT / "data"
 
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
-PRIORITY1_CSV = DATA_DIR / "industrial_sites" / "priority1_sites.csv"
+INDUSTRIAL_SITES_CSV = PROCESSED / "industrial_sites_generated.csv"
 SUBSTATIONS_GEOJSON = DATA_DIR / "substation.geojson"
 
 # Maps PLN region codes from substation.geojson regpln to our grid_region_id
@@ -72,7 +74,7 @@ def _load_substation_points(geojson_path: Path) -> list[dict]:
         props = feat.get("properties", {})
         geom = feat.get("geometry", {})
         coords = geom.get("coordinates", [])
-        if len(coords) >= 2 and props.get("regpln"):
+        if len(coords) >= 2 and props.get("regpln"):  # noqa: PLR2004  # [lon, lat] pair
             points.append(
                 {
                     "lon": coords[0],
@@ -123,7 +125,7 @@ def _prepare_kek_rows(dim_kek: pd.DataFrame) -> pd.DataFrame:
 
 def build_dim_sites(
     dim_kek_csv: Path = DIM_KEK_CSV,
-    priority1_csv: Path = PRIORITY1_CSV,
+    industrial_sites_csv: Path = INDUSTRIAL_SITES_CSV,
     substations_geojson: Path = SUBSTATIONS_GEOJSON,
 ) -> pd.DataFrame:
     """Build unified dimension table with all site types.
@@ -132,8 +134,8 @@ def build_dim_sites(
     ----------
     dim_kek_csv
         Existing processed dim_kek.csv (25 KEKs).
-    priority1_csv
-        New industrial sites CSV.
+    industrial_sites_csv
+        Generated industrial sites CSV (output of ``build_industrial_sites``).
     substations_geojson
         PLN substation GeoJSON for grid region auto-assignment.
     """
@@ -149,8 +151,8 @@ def build_dim_sites(
         frames.append(kek_rows)
 
     # ─── Industrial site rows ─────────────────────────────────────────────────
-    if priority1_csv.exists():
-        industrial = pd.read_csv(priority1_csv)
+    if industrial_sites_csv.exists():
+        industrial = pd.read_csv(industrial_sites_csv)
 
         # Set defaults for columns from the KEK schema
         industrial["zone_classification"] = None

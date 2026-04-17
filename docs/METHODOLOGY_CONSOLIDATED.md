@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
-**Version:** 3.6 (Consolidated, April 2026)
-**Status:** Implemented in code. 13 pipeline steps, 25 KEKs, 402 tests passing. CBAM Layer 3 complete, hybrid optimization, panel degradation modeled.
+**Version:** 3.7 (Consolidated, April 2026)
+**Status:** Implemented in code. 79 sites (25 KEKs + 54 industrial: 32 cement + 17 steel + 3 fertilizer + 2 aluminium), 498 tests passing. CBAM Layer 3 complete, hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers.
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -82,9 +82,29 @@ This document is the single authoritative methodology reference for the Indonesi
 
 ## 1. Core Question and Scope
 
-**Question:** For each of Indonesia's 25 Special Economic Zones (KEK), where do good solar sites, grid infrastructure, and industrial demand overlap, and what grid investment is needed to connect them?
+**Question:** For each Indonesian industrial site (25 KEKs + 54 priority industrial plants/clusters), where do good solar sites, grid infrastructure, and industrial demand overlap, and what grid investment is needed to connect them?
 
-**Unit of analysis:** KEK zone (25 zones). Results are at zone level, not tenant or project level.
+**Unit of analysis:** Industrial site (79 sites). Site types: `kek` (25), `standalone` (44 individual heavy-industry plants), `cluster` (10 multi-plant industrial areas, mostly nickel IIAs). Results are at site level, not tenant or project level.
+
+### 1.1 Site selection methodology
+
+Site inclusion is **pipeline-driven and reproducible** from public trackers, not hand-curated. The master dimension table `dim_sites.csv` unions three streams inside `src/pipeline/build_industrial_sites.py`:
+
+| Sector | Source | Filter rule | Count |
+|---|---|---|---|
+| KEKs | OSS/KEK portal scrape (`notebooks/kek_scraper.ipynb`) | all operating KEKs | 25 |
+| Cement | GEM Global Cement Plant Tracker | `country_name == "Indonesia"` AND `status == "operating"` | 32 |
+| Steel | GEM Global Iron and Steel Plant Tracker | `country_name == "Indonesia"` AND `status == "Active"` | 7 |
+| Nickel | CGSP Nickel Tracker | `parent_project_type == "Integrated Industrial Area"` AND haversine ≥ 5 km from any KEK centroid; capacity aggregated from Processing children within 20 km | 10 |
+| Aluminium | Residual manual (`data/industrial_sites/priority1_sites.csv`) | provenance-enforced (`source_url` required) | 2 |
+| Fertilizer | Residual manual (`data/industrial_sites/priority1_sites.csv`) | provenance-enforced (`source_url` required) | 3 |
+
+**Reproducibility enforcement:** `_load_residual_manual_rows()` in `build_industrial_sites.py` raises at pipeline-build time if any row is missing `source_url`. Residual CSV rows must populate `source_name`, `source_url`, `retrieved_date` so every analytical fact is verifiable against a stable URL.
+
+**Known data gaps:**
+- Palu SEZ (Kawasan Ekonomi Khusus Palu) is both a KEK and a CGSP IIA — the 5 km haversine filter excludes it from the CGSP cluster stream to prevent double-counting.
+- Two nickel IIA clusters (IKIP, Stardust Estate Investment) have `capacity_annual_tonnes = NaN` because their nearest CGSP Processing children lie 37 km and 21 km away — outside the 20 km aggregation window. Documented as TODO M27 (widen radius, fix upstream geocodes, or add a manual override map).
+- Aluminium and fertilizer have no free global tracker, so those 5 rows remain in the residual CSV pending an integration path (TODOs M25/M26).
 
 **Technology scope:** Utility-scale ground-mounted solar PV (ESDM TECH006) and onshore wind (TECH_WIND_ONSHORE). The model computes LCOE for both and selects the cheaper option as `best_re_technology`.
 
@@ -435,7 +455,7 @@ LCOE_with_battery = LCOE_solar + bess_storage_adder
 
 Default: 10% (ADB, 2020, SE Asia renewable energy benchmark; IRENA, 2023). Dashboard slider: 4-20% in 1% steps.
 
-**Precomputed snap range:** `fct_lcoe` stores LCOE at 9 WACC values: [4, 6, 8, 10, 12, 14, 16, 18, 20]%. This produces 450 rows (25 KEKs x 9 WACCs x 2 scenarios).
+**Precomputed snap range:** `fct_lcoe` stores LCOE at 9 WACC values: [4, 6, 8, 10, 12, 14, 16, 18, 20]%. This produces 1,422 rows (79 sites x 9 WACCs x 2 scenarios).
 
 | Range | Represents |
 |-------|-----------|

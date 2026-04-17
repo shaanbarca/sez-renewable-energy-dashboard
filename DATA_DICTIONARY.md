@@ -8,7 +8,7 @@ Contract for the data pipeline. Three parts:
 
 **Status legend:** ✅ available | ⚠️ partial/needs cleaning | ❌ missing | 🔒 manual (human required)
 
-**Scope:** 48 sites total — 25 KEKs (Special Economic Zones) + 23 Priority 1 industrial sites (steel, cement, aluminium, fertilizer, non-KEK nickel). The unified dimension table is `dim_sites` keyed on `site_id`; `site_type` discriminates KEK vs KI vs standalone vs cluster behavior across the pipeline.
+**Scope:** 79 sites total — 25 KEKs (Special Economic Zones) + 54 industrial sites (32 cement, 17 steel, 2 aluminium, 3 fertilizer, 10 nickel IIA clusters). Industrial site selection is pipeline-driven and reproducible from public trackers (GEM Cement, GEM Iron & Steel, CGSP Nickel) with residual manual entries (2 aluminium + 3 fertilizer) provenance-enforced via required `source_url`. The unified dimension table is `dim_sites` keyed on `site_id`; `site_type` discriminates KEK vs KI vs standalone vs cluster behavior across the pipeline.
 
 ---
 
@@ -52,20 +52,20 @@ All processed output tables. Click a table name to jump to its full column spec.
 
 | Table | Type | Rows | What it contains | Built from | Used for | Status |
 |-------|------|------|------------------|------------|----------|--------|
-| [dim_sites](#21-outputsdataprocesseddim_sitescsv) | dim | 48 | Master site list (25 KEK + 23 industrial): name, site_type, sector, province, grid region, lat/lon, area, reliability req, product/capacity/technology/parent for industrial sites | `kek_info_and_markers.csv` · `kek_distribution_points.csv` · `kek_polygons.geojson` · `kek_grid_region_mapping.csv` · `data/industrial_sites/priority1_sites.csv` | The master reference for every site. Every fact table joins to this on `site_id`. Drives map layer + site-type dispatch throughout pipeline. | ✅ |
+| [dim_sites](#21-outputsdataprocesseddim_sitescsv) | dim | 79 | Master site list (25 KEK + 44 standalone + 10 cluster): name, site_type, sector, province, grid region, lat/lon, area, reliability req, product/capacity/technology/parent. Industrial rows built pipeline-first from GEM Cement + GEM Steel + CGSP Nickel IIA trackers; residual CSV holds 5 manual rows (aluminium + fertilizer) with required provenance columns. | `kek_info_and_markers.csv` · `kek_distribution_points.csv` · `kek_polygons.geojson` · `kek_grid_region_mapping.csv` · `data/captive_power/gem_cement_plants.csv` · `data/captive_power/gem_steel_plants.csv` · `data/nickel/cgsp_nickel_projects.csv` · `data/industrial_sites/priority1_sites.csv` | The master reference for every site. Every fact table joins to this on `site_id`. Drives map layer + site-type dispatch throughout pipeline. | ✅ |
 | [dim_tech_cost](#22-outputsdataprocesseddim_tech_costcsv) | dim | 1 | TECH006 solar PV CAPEX / FOM / lifetime, unit-converted for LCOE formula | `dim_tech_variant.csv` · `fct_tech_parameter.csv` | Holds the cost assumptions (CAPEX, fixed O&M, asset lifetime) that are plugged into the LCOE formula. Changing these numbers here flows through to all LCOE rows automatically. | ✅ Verified from ESDM Tech Catalogue 2023 p.66 |
-| [fct_site_resource](#31-outputsdataprocessedfct_site_resourcecsv) | fact | 48 | PVOUT at centroid + best-within-50km; capacity factors; buildability columns (NaN until `data/buildability/` populated) | `dim_sites` · Global Solar Atlas GeoTIFF · optional: `data/buildability/` | Answers "how much sun does each site get?" — and (when data available) "how much of that land is actually buildable?". | ⚠️ `pvout_buildable_best_50km` NaN until data/buildability/ populated (run `scripts/download_buildability_data.py`) |
-| [fct_site_demand](#32-outputsdataprocessedfct_site_demandcsv) | fact | 48 | Estimated 2030 electricity demand per site — dual-mode: area × intensity (KEK/KI) OR capacity_tpa × sector_intensity (standalone/cluster) | `dim_sites` · `src/pipeline/demand_intensity.py` · `src/assumptions.py` | Answers "how much electricity will this site need by 2030?" — used for GEAS share, BESS sizing, infrastructure needs. Dual-mode dispatches via `SITE_TYPES[site_type].demand_method`. | ⚠️ Provisional — area-proxy for KEKs; production-based for industrial sites |
+| [fct_site_resource](#31-outputsdataprocessedfct_site_resourcecsv) | fact | 79 | PVOUT at centroid + best-within-50km; capacity factors; buildability columns (NaN until `data/buildability/` populated) | `dim_sites` · Global Solar Atlas GeoTIFF · optional: `data/buildability/` | Answers "how much sun does each site get?" — and (when data available) "how much of that land is actually buildable?". | ⚠️ `pvout_buildable_best_50km` NaN until data/buildability/ populated (run `scripts/download_buildability_data.py`) |
+| [fct_site_demand](#32-outputsdataprocessedfct_site_demandcsv) | fact | 79 | Estimated 2030 electricity demand per site — dual-mode: area × intensity (KEK/KI) OR capacity_tpa × sector_intensity (standalone/cluster) | `dim_sites` · `src/pipeline/demand_intensity.py` · `src/assumptions.py` | Answers "how much electricity will this site need by 2030?" — used for GEAS share, BESS sizing, infrastructure needs. Dual-mode dispatches via `SITE_TYPES[site_type].demand_method`. | ⚠️ Provisional — area-proxy for KEKs; production-based for industrial sites |
 | [fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv) | fact | 7 | I-4/TT and I-3/TM industrial tariffs per PLN grid system (USD/MWh) | `dim_sites` (grid_region_id list) · Permen ESDM 7/2024 (hardcoded tariffs) | The benchmark each site's solar LCOE is compared against. If solar LCOE < grid tariff, captive solar is already cost-competitive without any policy support. | ✅ Official — Permen ESDM 7/2024 |
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this site's region?" — used to compute the GEAS green energy share each site can claim, and to flag sites where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
-| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 48 | Nearest PLN substation per site — site-to-substation + solar-to-substation distances, grid connectivity, capacity assessment | `dim_sites` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_site_resource` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
-| [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 864 | Precomputed LCOE bands — 48 sites × 9 WACC values (4–20% in 2% steps) × 2 siting scenarios (within_boundary/grid_connected_solar) | `dim_sites` · `fct_site_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison. `within_boundary` is base-case; `grid_connected_solar` adds connection cost (solar→substation). Row count is `len(dim_sites) × 9 × 2` — never hardcoded. | ✅ |
-| [fct_site_scorecard](#36-outputsdataprocessedfct_site_scorecardcsv) | fact | 48 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power + CBAM exposure + site_type/sector | `dim_sites` · `fct_lcoe` (WACC=10%) · `fct_site_resource` · `fct_site_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_{coal,nickel,steel,cement}_summary` | The single table the dashboard reads. For each site: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? What CBAM exposure? | ⚠️ Provisional until CAPEX verified |
+| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 79 | Nearest PLN substation per site — site-to-substation + solar-to-substation distances, grid connectivity, capacity assessment | `dim_sites` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_site_resource` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
+| [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 1,422 | Precomputed LCOE bands — 79 sites × 9 WACC values (4–20% in 2% steps) × 2 siting scenarios (within_boundary/grid_connected_solar) | `dim_sites` · `fct_site_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison. `within_boundary` is base-case; `grid_connected_solar` adds connection cost (solar→substation). Row count is `len(dim_sites) × 9 × 2` — never hardcoded. | ✅ |
+| [fct_site_scorecard](#36-outputsdataprocessedfct_site_scorecardcsv) | fact | 79 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power + CBAM exposure + site_type/sector | `dim_sites` · `fct_lcoe` (WACC=10%) · `fct_site_resource` · `fct_site_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_{coal,nickel,steel,cement}_summary` | The single table the dashboard reads. For each site: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? What CBAM exposure? | ⚠️ Provisional until CAPEX verified |
 | [fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv) | fact | variable | Per-site captive coal plant aggregation — dual-mode: 50km proximity (KEK/KI) OR direct site_id match (standalone/cluster) | `dim_sites` · GEM Global Coal Plant Tracker (KAPSARC mirror) | Identifies sites with existing captive coal subject to Perpres 112/2022 phase-out. Feeds `has_captive_coal` and `perpres_112_status` on scorecard. | ✅ |
 | [fct_captive_nickel_summary](#38-outputsdataprocessedfct_captive_nickel_summarycsv) | fact | variable | Per-site nickel smelter aggregation — dual-mode | `dim_sites` · CGSP Nickel Tracker | Identifies sites near nickel processing with high baseload demand. Process type informs BESS sizing requirements. | ✅ |
 | [fct_captive_steel_summary](#39-outputsdataprocessedfct_captive_steel_summarycsv) | fact | variable | Per-site steel plant aggregation — dual-mode | `dim_sites` · GEM Steel Tracker | CBAM-exposed steel plants. EAF/BF-BOF technology, Chinese ownership. Feeds Industry tab + sector summary. | ✅ |
 | [fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv) | fact | variable | Per-site cement plant aggregation — dual-mode | `dim_sites` · GEM Cement Tracker | CBAM-exposed cement plants. High process emissions (0.52 tCO₂/t calcination). Feeds Industry tab + sector summary. | ✅ |
-| [fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv) | fact | 48 | Wind speed, capacity factor, and buildability per site (centroid + best 50km + buildable-area metrics) | `dim_sites` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_site_resource`. Answers "how much wind does each site get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
+| [fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv) | fact | 79 | Wind speed, capacity factor, and buildability per site (centroid + best 50km + buildable-area metrics) | `dim_sites` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_site_resource`. Answers "how much wind does each site get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
 
 ---
 
@@ -253,23 +253,25 @@ I-4/TT is used as the primary dashboard comparator (`dashboard_rate_usd_mwh`).
 
 ## 1.10 `data/industrial_sites/priority1_sites.csv`
 
-**Source:** Manually curated master list of 23 Priority 1 industrial sites
+**Source:** **Residual manual rows only** — sectors for which no free global tracker exists yet
 **Format:** CSV, one row per site
-**Rows:** 23
+**Rows:** 5 (2 aluminium + 3 fertilizer)
 
-Sectors: steel (7 from GEM Steel Tracker + manual enrichment), cement (top by capacity from GEM Cement Tracker), aluminium (Inalum Asahan, Freeport Gresik), fertilizer (Pupuk Kaltim, Pusri Palembang, Petrokimia Gresik), non-KEK nickel (Weda Bay, Obi Island, Konawe).
+**Reproducibility rule:** Site selection for sectors with available trackers (cement, steel, nickel IIA) is derived programmatically inside `src/pipeline/build_industrial_sites.py` — those rows are NOT in this CSV. This file is the fallback for sectors without a tracker step (currently aluminium and fertilizer). Open tracker integration items: TODOs M25 (aluminium GEM GAST) and M26 (fertilizer).
+
+**Provenance enforcement:** `_load_residual_manual_rows()` raises at pipeline-build time if any row is missing `source_url`. `source_name`, `source_url`, and `retrieved_date` are required columns — not just recommended.
 
 | Column | Type | Status | Notes |
 |--------|------|--------|-------|
-| `site_id` | str | ✅ | Slug, unique across KEK + industrial (e.g., `krakatau_steel_cilegon`) |
+| `site_id` | str | ✅ | Slug, unique across KEK + industrial (e.g., `inalum-asahan`) |
 | `site_name` | str | ✅ | Display name |
 | `site_type` | str | ✅ | One of `ki`, `standalone`, `cluster` (KEK sites have `site_type="kek"` and live in the scraper output, not this file) |
 | `sector` | str | ✅ | One of `steel`, `cement`, `aluminium`, `fertilizer`, `nickel`, `mixed` |
-| `primary_product` | str | ✅ | e.g., `crude_steel`, `clinker`, `ammonia`, `primary_aluminium` |
-| `technology` | str | ⚠️ | e.g., `BF-BOF`, `EAF`, `Integrated`, `RKEF`, `HPAL`; some manual entries may be null |
-| `capacity_annual` | str | ✅ | Display-friendly string (e.g., `"4,000,000 TPA"`, `"15.0 MTPA"`) |
+| `primary_product` | str | ✅ | e.g., `primary_aluminium`, `urea`, `copper_cathode` |
+| `technology` | str | ⚠️ | e.g., `Hall-Heroult`, `Ammonia Synthesis`, `Flash Smelting`; some manual entries may be null |
+| `capacity_annual` | str | ✅ | Display-friendly string (e.g., `"2,400,000 TPA"`) |
 | `capacity_annual_tonnes` | float | ✅ | Numeric extraction from capacity_annual; feeds `demand_intensity.py` for sector-intensity demand |
-| `parent_company` | str | ⚠️ | Owner entity; some joint ventures encoded as "CoA | CoB" |
+| `parent_company` | str | ⚠️ | Owner entity; joint ventures encoded as "CoA / CoB" |
 | `cluster_members` | str | ⚠️ | For `site_type="cluster"`: semicolon-separated list of member facilities |
 | `latitude` | float | ✅ | WGS84 centroid (clusters = largest member by capacity, per eng review R3) |
 | `longitude` | float | ✅ | WGS84 centroid |
@@ -277,6 +279,9 @@ Sectors: steel (7 from GEM Steel Tracker + manual enrichment), cement (top by ca
 | `grid_region_id` | str | ⚠️ | PLN grid system; auto-assigned from nearest substation `regpln` if unset |
 | `reliability_req` | float | ✅ | Sector-based default (steel=0.90, aluminium=0.95, cement=0.85, nickel=0.85, fertilizer=0.90) via `SITE_TYPES[...].default_reliability` |
 | `cbam_product_type` | str | ✅ | Direct CBAM product assignment — bypasses 3-signal detection for `site_type in {"standalone","cluster","ki"}` |
+| `source_name` | str | ✅ 🔒 | Human-readable source, e.g., "PT Inalum company profile" |
+| `source_url` | str | ✅ 🔒 | Stable URL where the row's facts can be verified. **Loader raises if missing.** |
+| `retrieved_date` | str | ✅ 🔒 | ISO date the URL was last confirmed (e.g., `2026-04-17`) |
 
 ---
 
@@ -288,18 +293,24 @@ Dimension tables describe *what a site is* or *what a technology costs*. They ar
 
 ## 2.1 `outputs/data/processed/dim_sites.csv`
 
-**What it is:** Master site list — unified dimension covering KEKs (25) + Priority 1 industrial sites (23). Identity, location, grid assignment, site-type discriminator, sector, industrial identity fields.
-**Builder:** `src/pipeline/build_dim_sites.py`
-**Lineage:** `kek_info_and_markers.csv` + `kek_distribution_points.csv` + `kek_polygons.geojson` + `kek_grid_region_mapping.csv` + `data/industrial_sites/priority1_sites.csv` + `data/substation.geojson` (for auto grid_region_id)
-**Rows:** 48 ✅
+**What it is:** Master site list — unified dimension covering KEKs (25) + 54 industrial sites (32 cement, 17 steel, 2 aluminium, 3 fertilizer, 10 nickel IIA clusters). Identity, location, grid assignment, site-type discriminator, sector, industrial identity fields.
+**Builder:** `src/pipeline/build_dim_sites.py` (KEK half) + `src/pipeline/build_industrial_sites.py` (industrial half, union of tracker filters + residual CSV)
+**Lineage:** `kek_info_and_markers.csv` + `kek_distribution_points.csv` + `kek_polygons.geojson` + `kek_grid_region_mapping.csv` + `data/captive_power/gem_cement_plants.csv` + `data/captive_power/gem_steel_plants.csv` + `data/nickel/cgsp_nickel_projects.csv` + `data/industrial_sites/priority1_sites.csv` (residual manual rows) + `data/substation.geojson` (for auto grid_region_id)
+**Rows:** 79 ✅
 
 **Build logic:**
 1. Build KEK half: join markers + distribution points on `xid`; join polygons on `slug` (largest `Luas_ha`); extract province from `address`; set `site_type="kek"`
-2. Read `priority1_sites.csv` for 23 industrial rows
+2. Build industrial half via `build_industrial_sites.py` — three tracker-driven streams plus one residual manual stream:
+   - `_build_cement_rows()` — GEM Global Cement Plant Tracker, `country_name == "Indonesia"` AND `status == "operating"` → 32 standalone rows
+   - `_build_steel_rows()` — GEM Global Iron and Steel Plant Tracker, `country_name == "Indonesia"` AND `status == "Active"` → 7 standalone rows
+   - `_build_nickel_rows()` — CGSP Nickel Tracker, `parent_project_type == "Integrated Industrial Area"` AND haversine ≥ 5 km from any KEK centroid (excludes Palu SEZ to prevent double-count); capacity aggregated from CGSP Processing children within 20 km → 10 cluster rows
+   - `_load_residual_manual_rows()` — reads remaining rows from `priority1_sites.csv` (aluminium + fertilizer). Raises at build time if any row is missing `source_url`. → 5 standalone rows
 3. Auto-assign `grid_region_id` for industrial sites without manual mapping: nearest substation's `regpln`
 4. For `site_type="cluster"`: centroid = coordinates of largest member by capacity (not geographic mean — see eng review R3)
 5. Parse `capacity_annual` string → `capacity_annual_tonnes` float
 6. Union into unified `dim_sites.csv`; enforce unique `site_id`
+
+**Known gap:** Two nickel IIA clusters (IKIP, Stardust Estate Investment) carry `capacity_annual_tonnes = NaN` — their nearest CGSP Processing children (37 km, 21 km) fall outside the 20 km aggregation window. Tracked as TODO M27.
 
 | Column | Type | Source | Notes |
 |--------|------|--------|-------|
@@ -369,7 +380,7 @@ Fact tables describe *what a site has* — resource quality, demand, cost, score
 **What it is:** Solar resource quality per site — PVOUT at centroid and best-within-50km, capacity factors.
 **Builder:** `src/pipeline/build_fct_site_resource.py`
 **Lineage:** `dim_sites.csv` (centroid coords) + Global Solar Atlas GeoTIFF (PVOUT raster)
-**Rows:** 48 ✅
+**Rows:** 79 ✅
 
 **Build logic:**
 1. For each site centroid, sample the PVOUT GeoTIFF pixel
@@ -418,7 +429,7 @@ falls back to `pvout_best_50km`. Run `scripts/download_buildability_data.py` to 
 
 **Builder:** `src/pipeline/build_fct_site_demand.py`
 **Lineage:** `dim_sites.csv` (area_ha, zone_classification, site_type, sector, capacity_annual_tonnes) + `src/assumptions.py` (area intensity constants) + `src/pipeline/demand_intensity.py` (sector intensity constants)
-**Rows:** 48 ✅ (25 KEK area-based + 4 KI area-based + 19 standalone/cluster sector-intensity)
+**Rows:** 79 ✅ (25 KEK area-based + 44 standalone sector-intensity + 10 cluster sector-intensity)
 
 **Build logic (area-based, KEK + KI):**
 ```
@@ -537,7 +548,7 @@ Sector intensity constants (from `src/pipeline/demand_intensity.py`, calibrated 
 **What it is:** Nearest operational PLN substation per site — distance, connection details, siting scenario, V2 three-point proximity analysis (grid integration category), and V3.1 geometric grid connectivity check + substation capacity utilization assessment.
 **Builder:** `src/pipeline/build_fct_substation_proximity.py` (uses shared `geo_utils.haversine_km`)
 **Lineage:** `dim_sites.csv` + `data/substation.geojson` + `data/pln_grid_lines.geojson` + `outputs/data/raw/kek_polygons.geojson` + `fct_site_resource.csv` (best solar site lat/lon)
-**Rows:** 48 ✅
+**Rows:** 79 ✅
 
 **Build logic:**
 1. Filter substations to `statopr == "Operasi"` (operational only); extract `regpln` (PLN region)
@@ -597,7 +608,7 @@ Sector intensity constants (from `src/pipeline/demand_intensity.py`, calibrated 
 **What it is:** Precomputed LCOE bands per site at 9 WACC values (4–20% in 2% steps) and 2 siting scenarios (within_boundary / grid_connected_solar). V2: replaces remote_captive with grid-connected solar; uses solar-to-substation distance; removes transmission lease adder. V3.1: adds inter-substation transmission cost when `inter_substation_connected == False`.
 **Builder:** `src/pipeline/build_fct_lcoe.py`
 **Lineage:** `dim_sites.csv` + `fct_site_resource.csv` (PVOUT) + `dim_tech_cost.csv` (CAPEX, FOM, lifetime) + `fct_substation_proximity.csv` (solar-to-substation distance, inter-substation connectivity)
-**Rows:** 864 (48 sites × 9 WACC values × 2 scenarios) ✅ — general form: `len(dim_sites) × 9 × 2`
+**Rows:** 1,422 (79 sites × 9 WACC values × 2 scenarios) ✅ — general form: `len(dim_sites) × 9 × 2`
 
 **Siting scenarios:**
 - `within_boundary` — plant on-site; uses `pvout_centroid`; `connection_cost_per_kw = 0`. For non-KEK sites with no polygon, "within_boundary" means at the site centroid.
@@ -637,7 +648,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 **What it is:** Dashboard-ready summary. One row per site — joins all upstream tables, computes action flags, GEAS green share, competitive gap, CBAM exposure, and 2D classification tiers.
 **Builder:** `src/pipeline/build_fct_site_scorecard.py`
 **Lineage:** `dim_sites.csv` + `fct_lcoe.csv` (wacc=10% rows) + `fct_site_resource.csv` + `fct_site_demand.csv` + `fct_grid_cost_proxy.csv` + `fct_ruptl_pipeline.csv` + all four captive summaries + `fct_site_wind_resource.csv`
-**Rows:** 48 ✅ (25 KEK + 23 Priority 1 industrial)
+**Rows:** 79 ✅ (25 KEK + 44 standalone + 10 cluster)
 
 **Build logic:**
 1. Filter `fct_lcoe` to `wacc_pct = 10.0` AND `scenario = "within_boundary"` — base case LCOE (on-site solar, no gen-tie)
@@ -645,7 +656,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 3. Compute `ruptl_region_metrics()` → `post2030_share`, `grid_upgrade_pre2030`
 4. Compute `geas_baseline_allocation()` → `green_share_geas`
 5. Compute action flags per site from `action_flags()`
-6. CBAM exposure detection dispatched via `SITE_TYPES[site_type].cbam_method`: `3_signal` (KEK) vs `direct` (standalone/cluster/KI). 35/48 sites exposed (12 KEK + 23 industrial).
+6. CBAM exposure detection dispatched via `SITE_TYPES[site_type].cbam_method`: `3_signal` (KEK) vs `direct` (standalone/cluster/KI). 66/79 sites exposed (12 KEK + 54 industrial).
 
 **Identity columns** (passed through from dim_sites):
 
@@ -714,7 +725,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `transmission_cost_per_kw` | float | V3.1: New inter-substation line cost per kW (0 if connected). |
 | `substation_upgrade_cost_per_kw` | float | V3.2: Additional $/kW when substation capacity insufficient. `deficit_fraction × $80/kW` where `deficit = (solar_mwp − available) / solar_mwp` and `available = rated_mva × (1 − utilization_pct)`. 0 if capacity sufficient or unknown. |
 | `grid_investment_needed_usd` | float | Total grid infrastructure cost: `(connection_cost_per_kw + transmission_cost_per_kw + substation_upgrade_cost_per_kw) × max_captive_capacity_mwp × 1000`. Screening estimate for DFI investment sizing. NaN if capacity is 0 or no infrastructure cost. |
-| `project_viable` | bool | `max_captive_capacity_mwp ≥ PROJECT_VIABLE_MIN_MWP (20 MWp)`. True = minimum viable IPP project size met. All 48 sites = True at current 1km buildability resolution. DFI threshold is stricter (≥ 33 MWp / ≥ 50 ha). |
+| `project_viable` | bool | `max_captive_capacity_mwp ≥ PROJECT_VIABLE_MIN_MWP (20 MWp)`. True = minimum viable IPP project size met. All 79 sites = True at current 1km buildability resolution. DFI threshold is stricter (≥ 33 MWp / ≥ 50 ha). |
 | `clean_power_advantage` | float | `−solar_competitive_gap_pct` — higher = more competitive |
 | `green_share_geas` | float | Pro-rata share of 2030 demand covered by pre-2030 RUPTL solar. Formula: `min(1, (pre2030_mw × 8760 × 0.20 × site_demand_share) / site_demand_mwh)`. See `geas_baseline_allocation()`. |
 | `pre2030_solar_mw` | float | `sum(plts_new_mw_re_base where year ≤ 2030)` for this site's region |
@@ -821,7 +832,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 | Column | Type | Source | Formula / Notes |
 |--------|------|--------|-----------------|
-| `cbam_exposed` | bool | Derived | True if site has CBAM-covered products. Detection method dispatched via `SITE_TYPES[site_type].cbam_method`: **3_signal** (KEK) — (1) nickel process types (RKEF/FeNi), (2) plant-level counts (steel/cement), (3) KEK business sectors; **direct** (standalone/cluster/KI) — uses `cbam_product_type` from `dim_sites.csv`. **35/48 sites exposed** (12 KEK via 3-signal + 23 industrial via direct). |
+| `cbam_exposed` | bool | Derived | True if site has CBAM-covered products. Detection method dispatched via `SITE_TYPES[site_type].cbam_method`: **3_signal** (KEK) — (1) nickel process types (RKEF/FeNi), (2) plant-level counts (steel/cement), (3) KEK business sectors; **direct** (standalone/cluster/KI) — uses `cbam_product_type` from `dim_sites.csv`. **66/79 sites exposed** (12 KEK via 3-signal + 54 industrial via direct: 32 cement + 17 iron_steel + 3 fertilizer + 2 aluminium). |
 | `cbam_product_type` | str/null | Derived | Primary CBAM product category. Product types: `nickel_rkef` (37.5 MWh/t), `steel_eaf` (0.45 MWh/t), `steel_bfbof` (0.25 MWh/t), `cement` (0.11 MWh/t), `aluminium` (15.0 MWh/t), `fertilizer` (1.0 MWh/t). Standalone/cluster/KI sites set this column directly in `dim_sites.csv`; KEKs infer via 3-signal detection. |
 | `cbam_emission_intensity_current` | float/null | Derived | Current grid-based emission intensity for this product (tCO2/t product). |
 | `cbam_emission_intensity_solar` | float/null | Derived | Emission intensity if powered by solar (tCO2/t product). Near-zero for electricity-only emissions. |
@@ -919,7 +930,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 ### 3.11 `outputs/data/processed/fct_site_wind_resource.csv`
 
-**Rows:** 48 (one per site — 25 KEK + 23 Priority 1 industrial)
+**Rows:** 79 (one per site — 25 KEK + 44 standalone + 10 cluster)
 **Built from:** `dim_sites` centroids × Global Wind Atlas v3 GeoTIFF × `buildable_wind_web.tif`
 **Pipeline:** `build_fct_site_wind_resource.py`
 

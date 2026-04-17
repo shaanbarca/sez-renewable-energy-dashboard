@@ -16,10 +16,11 @@ DAG (dependencies enforced by topological sort at runtime):
     data/                         ← manual lookups + ESDM catalogue
 
     Stage 1 — Dimensions (no processed deps)
-    ├── dim_sites         raw: kek_info_and_markers + kek_distribution_points
-    │                     raw: kek_polygons.geojson (zone_classification, area_ha)
-    │                     data: kek_grid_region_mapping.csv
-    └── dim_tech_cost     data: dim_tech_variant + fct_tech_parameter (TECH006)
+    ├── dim_kek                      raw: kek_info_and_markers + kek_polygons.geojson
+    ├── industrial_sites_generated   data: GEM cement tracker + priority1_sites.csv (residual manual)
+    ├── dim_sites                    processed: dim_kek + industrial_sites_generated
+    │                                data: substation.geojson (grid region auto-assign)
+    └── dim_tech_cost                data: dim_tech_variant + fct_tech_parameter (TECH006)
 
     Stage 2 — Facts (read from processed/dim_*)
     ├── fct_site_resource    processed: dim_sites + data: GlobalSolarAtlas GeoTIFF
@@ -64,6 +65,7 @@ from src.pipeline.build_fct_site_resource import build_fct_site_resource
 from src.pipeline.build_fct_site_scorecard import build_fct_site_scorecard
 from src.pipeline.build_fct_site_wind_resource import build_fct_site_wind_resource
 from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+from src.pipeline.build_industrial_sites import build_industrial_sites
 
 
 @dataclass
@@ -80,7 +82,17 @@ class Step:
 PIPELINE: list[Step] = [
     # Stage 1: Dimensions
     Step("dim_kek", build_dim_kek, "dim_kek.csv"),
-    Step("dim_sites", build_dim_sites, "dim_sites.csv", depends_on=["dim_kek"]),
+    Step(
+        "industrial_sites_generated",
+        build_industrial_sites,
+        "industrial_sites_generated.csv",
+    ),
+    Step(
+        "dim_sites",
+        build_dim_sites,
+        "dim_sites.csv",
+        depends_on=["dim_kek", "industrial_sites_generated"],
+    ),
     Step("dim_tech_cost", build_dim_tech_cost, "dim_tech_cost.csv"),
     Step("dim_tech_cost_wind", build_dim_tech_cost_wind, "dim_tech_cost_wind.csv"),
     # Stage 2: Facts

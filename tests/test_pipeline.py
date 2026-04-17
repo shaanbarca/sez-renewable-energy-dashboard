@@ -298,7 +298,7 @@ class TestDimTechCostWind:
 
 class TestDimSites:
     def test_row_count(self):
-        """Should produce 48 sites (25 KEKs + 23 industrial from priority1_sites.csv)."""
+        """Should produce 79 sites (25 KEKs + 44 standalone + 10 cluster)."""
         from src.pipeline.build_dim_sites import build_dim_sites
 
         df = build_dim_sites()
@@ -422,11 +422,11 @@ class TestFctLcoe:
         assert set(df["wacc_pct"].unique()) == {4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0}
 
     def test_row_count(self):
-        """25 KEKs × 9 WACC values × 2 scenarios = 450 rows."""
+        """N sites × 9 WACC values × 2 scenarios (within_boundary, grid_connected_solar)."""
         from src.pipeline.build_fct_lcoe import build_fct_lcoe
 
         df = build_fct_lcoe()
-        # 48 sites x 9 WACC x 2 scenarios = 864 (parameterized, not hardcoded)
+        # 79 sites x 9 WACC x 2 scenarios = 1,422 (parameterized, not hardcoded)
         n_sites = df["site_id"].nunique()
         assert len(df) == n_sites * 9 * 2
 

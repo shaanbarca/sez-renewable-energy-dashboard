@@ -7,7 +7,7 @@ Covers:
   - No duplicate site_ids
   - Grid region auto-assignment for new sites
   - Schema has all required columns
-  - Total row count = 25 KEKs + 23 industrial
+  - Total row count = 25 KEKs + 44 standalone + 10 clusters = 79
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ def dim_sites() -> pd.DataFrame:
 
 class TestDimSitesBasic:
     def test_total_row_count(self, dim_sites: pd.DataFrame):
-        """25 KEKs + 23 industrial sites = 48 total."""
-        assert len(dim_sites) == 48
+        """25 KEKs + 44 standalone + 10 cluster = 79 total."""
+        assert len(dim_sites) == 79
 
     def test_no_duplicate_site_ids(self, dim_sites: pd.DataFrame):
         assert dim_sites["site_id"].is_unique
@@ -40,7 +40,8 @@ class TestDimSitesBasic:
     def test_site_type_counts(self, dim_sites: pd.DataFrame):
         counts = dim_sites["site_type"].value_counts().to_dict()
         assert counts["kek"] == 25
-        assert counts["standalone"] == 23
+        assert counts["standalone"] == 44
+        assert counts["cluster"] == 10
 
 
 class TestKekPreservation:
@@ -63,7 +64,7 @@ class TestKekPreservation:
 
 class TestIndustrialSites:
     def test_industrial_sectors(self, dim_sites: pd.DataFrame):
-        ind = dim_sites[dim_sites["site_type"] == "standalone"]
+        ind = dim_sites[dim_sites["site_type"].isin(["standalone", "cluster"])]
         sectors = set(ind["sector"].unique())
         assert "steel" in sectors
         assert "cement" in sectors
@@ -72,11 +73,11 @@ class TestIndustrialSites:
         assert "nickel" in sectors
 
     def test_industrial_grid_region_assigned(self, dim_sites: pd.DataFrame):
-        ind = dim_sites[dim_sites["site_type"] == "standalone"]
+        ind = dim_sites[dim_sites["site_type"].isin(["standalone", "cluster"])]
         assert ind["grid_region_id"].notna().all(), "All industrial sites need grid_region_id"
 
     def test_industrial_grid_regions_valid(self, dim_sites: pd.DataFrame):
-        ind = dim_sites[dim_sites["site_type"] == "standalone"]
+        ind = dim_sites[dim_sites["site_type"].isin(["standalone", "cluster"])]
         valid_regions = {
             "JAVA_BALI",
             "SUMATERA",
@@ -90,12 +91,20 @@ class TestIndustrialSites:
         assert actual.issubset(valid_regions), f"Unknown regions: {actual - valid_regions}"
 
     def test_industrial_capacity_populated(self, dim_sites: pd.DataFrame):
-        ind = dim_sites[dim_sites["site_type"] == "standalone"]
-        assert ind["capacity_annual_tonnes"].notna().all()
-        assert (ind["capacity_annual_tonnes"] > 0).all()
+        # Standalone industrial sites must have positive capacity.
+        # Nickel clusters (tracker-driven IIA) may have NaN if no Processing children
+        # fell within the child-aggregation radius — known gap documented in
+        # build_industrial_sites.py. Clusters with capacity must still be positive.
+        standalone = dim_sites[dim_sites["site_type"] == "standalone"]
+        assert standalone["capacity_annual_tonnes"].notna().all()
+        assert (standalone["capacity_annual_tonnes"] > 0).all()
+
+        clusters = dim_sites[dim_sites["site_type"] == "cluster"]
+        with_capacity = clusters[clusters["capacity_annual_tonnes"].notna()]
+        assert (with_capacity["capacity_annual_tonnes"] > 0).all()
 
     def test_industrial_cbam_product_type(self, dim_sites: pd.DataFrame):
-        ind = dim_sites[dim_sites["site_type"] == "standalone"]
+        ind = dim_sites[dim_sites["site_type"].isin(["standalone", "cluster"])]
         # All industrial sites should have direct cbam_product_type
         assert ind["cbam_product_type"].notna().all()
 

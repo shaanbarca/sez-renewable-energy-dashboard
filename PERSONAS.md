@@ -2,7 +2,7 @@
 
 Five primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
 
-*Updated for V4.0 Industrial Parks Expansion (2026-04-17) — scope expanded from 25 KEKs to 48 sites (25 KEK + 23 Priority 1 industrial sites: steel, cement, aluminium, fertilizer, non-KEK nickel). New `site_type` discriminator (kek/ki/standalone/cluster) with SiteTypeConfig registry drives demand method (area-based vs sector-intensity), captive-power matching (proximity vs direct), and CBAM detection (3-signal vs direct). CBAM exposure now covers 35/48 sites (12 KEK via 3-signal + 23 industrial via direct assignment). Sector-level aggregation chart added.*
+*Updated for V4.1 Tracker-Driven Site Selection (2026-04-17) — scope expanded from 25 KEKs to 79 sites (25 KEK + 54 industrial: 32 cement + 7 steel + 10 nickel IIA clusters + 2 aluminium + 3 fertilizer). Industrial site selection is pipeline-driven via `build_industrial_sites.py`, which unions GEM Global Cement Plant Tracker (operating), GEM Global Iron & Steel Plant Tracker (active), CGSP Nickel Tracker (Integrated Industrial Area parents, with 5km KEK exclusion + 20km child aggregation for capacity), plus a residual manual CSV (5 rows, source_url required) for sectors without a tracker. New `site_type` discriminator (kek/ki/standalone/cluster) with SiteTypeConfig registry drives demand method (area-based vs sector-intensity), captive-power matching (proximity vs direct), and CBAM detection (3-signal vs direct). CBAM exposure now covers 66/79 sites (12 KEK via 3-signal + 54 industrial via direct assignment). Sector-level aggregation chart added.*
 
 *Prior: Methodology V3.6 — grid-connected solar model, 14 action flags across 4 energy modes (Solar/Wind/Hybrid/Overall), BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context (coal/nickel/steel/cement), hybrid solar+wind optimization, panel degradation (0.5%/yr). See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference. See [Layer 3 Spec](docs/layer3_green_industrial_products_spec.md) for CBAM feature design.*
 
@@ -16,21 +16,21 @@ Indonesia is pursuing the most aggressive nickel downstreaming strategy on earth
 
 The transition question isn't *should Indonesia decarbonize its industrial zones?* — it's *can Indonesia industrialize and decarbonize simultaneously without sacrificing cost or reliability?*
 
-This dashboard answers that question, site by site, across **48 sites**: 25 KEKs (Special Economic Zones) plus 23 Priority 1 industrial sites that sit outside KEK boundaries but drive the bulk of Indonesia's industrial CO₂ — Krakatau Steel, Inalum, Pupuk Kaltim, the major cement plants, non-KEK nickel clusters (Weda Bay, Obi, Konawe). It is the first tool that maps the intersection of:
+This dashboard answers that question, site by site, across **79 sites**: 25 KEKs (Special Economic Zones) plus 54 industrial sites that sit outside KEK boundaries but drive the bulk of Indonesia's industrial CO₂ — Krakatau Steel, Inalum, Pupuk Kaltim, the 32 operating Java/Sumatra cement plants from the GEM tracker, and 10 non-KEK nickel IIA clusters (Weda Bay, Obi, Konawe and others, filtered from the CGSP tracker). It is the first tool that maps the intersection of:
 
 - **Solar economics** — LCOE at adjustable financing rates (Global Solar Atlas, ESDM cost catalogue)
 - **Grid infrastructure** — substation proximity, capacity, connectivity, upgrade costs (PLN SIMOL, PLN grid lines)
 - **Captive power exposure** — coal plants, nickel smelters, steel mills, and cement plants within 50km (KEK/KI proximity mode) or direct-matched at standalone/cluster sites, subject to Perpres 112/2022 phase-out (GEM GCPT, CGSP Nickel Tracker, GEM Steel/Cement Trackers)
-- **EU CBAM exposure** — 35/48 sites with CBAM-liable products (nickel RKEF, steel EAF, steel BF-BOF, cement, aluminium, fertilizer); dual-mode detection — KEK sites via 3-signal, standalone/cluster via direct product assignment; emission intensity, cost trajectory 2026-2034, RE savings quantified
+- **EU CBAM exposure** — 66/79 sites with CBAM-liable products (nickel RKEF, steel EAF, steel BF-BOF, cement, aluminium, fertilizer); dual-mode detection — KEK sites via 3-signal, standalone/cluster via direct product assignment; emission intensity, cost trajectory 2026-2034, RE savings quantified
 - **Industrial demand** — per-site 2030 electricity demand: area × intensity for KEK/KI, capacity (TPA) × sector electricity intensity for standalone/cluster plants
 - **Policy pipeline** — RUPTL planned additions by region and year, GEAS solar allocations
 - **Regional grid cost** — BPP (PLN's actual cost of supply) and I-4 industrial tariff by grid region
 
 No single dataset tells this story. IRENA publishes country-level LCOE ranges. Global Solar Atlas shows radiation but not economics or grid context. RUPTL is a raw PDF. The GEM coal tracker maps plants but not their solar replacement potential. The value is the *cross* — six datasets joined at site level with adjustable assumptions, producing 14 action flags (across 4 energy modes: Solar, Wind, Hybrid, Overall) that are not labels but specific policy recommendations.
 
-Extending from 25 KEKs to 48 sites brings the country's biggest point-source emitters into scope. Most of Indonesia's industrial CO₂ comes from facilities that happen not to sit inside a KEK boundary — Krakatau Steel's BF-BOF plant in Cilegon, Inalum's aluminium smelter in North Sumatra, the Java cement belt, Pupuk Kaltim's ammonia complex. Before the expansion, these were invisible to the screening tool. Now they sit in the same ranked table as the KEKs, with the same LCOE/grid/CBAM columns.
+Extending from 25 KEKs to 79 sites brings the country's biggest point-source emitters into scope. Most of Indonesia's industrial CO₂ comes from facilities that happen not to sit inside a KEK boundary — Krakatau Steel's BF-BOF plant in Cilegon, Inalum's aluminium smelter in North Sumatra, the Java cement belt, Pupuk Kaltim's ammonia complex. Before the expansion, these were invisible to the screening tool. Now they sit in the same ranked table as the KEKs, with the same LCOE/grid/CBAM columns. Industrial site selection is itself pipeline-driven (`build_industrial_sites.py`): GEM Global Cement Plant Tracker (32 operating plants), GEM Global Iron & Steel Plant Tracker (7 active plants), CGSP Nickel Tracker filtered to Integrated Industrial Area parents with 5km KEK exclusion + 20km child aggregation (10 clusters), plus a small residual manual CSV for sectors without a tracker (2 aluminium + 3 fertilizer, provenance-enforced).
 
-At the current default assumptions, a meaningful slice of the 48 sites flip to solar-competitive under concessional finance (8% WACC). Others are within 20% of grid parity. The remaining gaps are specific and nameable: a substation upgrade here, a transmission line there, a RUPTL acceleration somewhere else. Each action flag tells you exactly what needs to happen.
+At the current default assumptions, a meaningful slice of the 79 sites flip to solar-competitive under concessional finance (8% WACC). Others are within 20% of grid parity. The remaining gaps are specific and nameable: a substation upgrade here, a transmission line there, a RUPTL acceleration somewhere else. Each action flag tells you exactly what needs to happen.
 
 ---
 
@@ -48,15 +48,15 @@ At the current default assumptions, a meaningful slice of the 48 sites flip to s
 
 ## Readiness Summary
 
-*Last assessed: 2026-04-17 (V4.0: industrial parks expansion — 48 sites, sector-intensity demand, dual-mode captive/CBAM via SiteTypeConfig registry, SectorSummaryChart). Re-assess after each major pipeline change.*
+*Last assessed: 2026-04-17 (V4.1: tracker-driven site selection — 79 sites via `build_industrial_sites.py` unioning GEM Cement/Steel + CGSP Nickel IIA + residual manual CSV; sector-intensity demand; dual-mode captive/CBAM via SiteTypeConfig registry; SectorSummaryChart). Re-assess after each major pipeline change.*
 
 | Persona | Score | Status | Top blocking gap |
 |---------|-------|--------|-----------------|
 | Energy Economist | **87%** | Full WACC spectrum (4-20%), carbon breakeven, BPP sourced, V3.3 physically grounded BESS costs (bridge-hours + RTE), firm solar coverage; V4.0 sector-intensity demand replaces area-proxy for standalone/cluster plants | Grid emission factor is 2019 vintage; CAPEX from ESDM catalogue (not market data) |
-| DFI Infrastructure Investor | **87%** | V3.1 grid connectivity + capacity + transmission cost; V3.2 `grid_investment_needed_usd`; V3.3 honest storage economics; V3.4 panel degradation; V4.0 48-site screening universe spans the actual decarbonization opportunity, not just KEKs | BPP is FY2020 vintage (Gap priority 4) |
-| Policy Maker *(primary)* | **87%** | 14 action flags across 4 energy modes; V3.3 firm solar coverage; V4.0 sector-level aggregation (SectorSummaryChart) + 48 sites with site_type + sector columns; industrial CO₂ now modelable site-by-site | `reliability_req` still type-based proxy for KEK/KI; sector-based default for standalone/cluster |
-| IPP / Solar Developer | **85%** | Buildability + resource screening solid; V3.3 bridge-hours BESS + RTE; V4.0 pipeline now includes standalone industrial plants with real per-plant demand (TPA × intensity), which makes offtake sizing concrete | Power factor not in capacity assessment (~10-15% overstatement, rarely changes traffic light) |
-| Industrial Investor / KEK Tenant | **85%** | I-4 tariff + BPP (FY2020); V3.1 grid infra; CBAM Layer 3 now 35/48 sites exposed; steel/cement plant proximity (direct + 50km); hybrid optimization; V4.0 side-by-side comparison now possible between a KEK and a nearby standalone plant | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
+| DFI Infrastructure Investor | **87%** | V3.1 grid connectivity + capacity + transmission cost; V3.2 `grid_investment_needed_usd`; V3.3 honest storage economics; V3.4 panel degradation; V4.1 79-site screening universe spans the actual decarbonization opportunity, not just KEKs | BPP is FY2020 vintage (Gap priority 4) |
+| Policy Maker *(primary)* | **87%** | 14 action flags across 4 energy modes; V3.3 firm solar coverage; V4.1 sector-level aggregation (SectorSummaryChart) + 79 sites with site_type + sector columns; industrial CO₂ now modelable site-by-site | `reliability_req` still type-based proxy for KEK/KI; sector-based default for standalone/cluster |
+| IPP / Solar Developer | **85%** | Buildability + resource screening solid; V3.3 bridge-hours BESS + RTE; V4.1 pipeline now includes standalone industrial plants with real per-plant demand (TPA × intensity), which makes offtake sizing concrete | Power factor not in capacity assessment (~10-15% overstatement, rarely changes traffic light) |
+| Industrial Investor / KEK Tenant | **85%** | I-4 tariff + BPP (FY2020); V3.1 grid infra; CBAM Layer 3 now 66/79 sites exposed; steel/cement plant proximity (direct + 50km); hybrid optimization; V4.1 side-by-side comparison now possible between a KEK and a nearby standalone plant | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
 
 ---
 
@@ -79,8 +79,8 @@ Ranked by impact across personas × implementation effort. See each persona's `#
 | ✅ DONE | **`dist_solar_to_nearest_substation_km`** — distance from best buildable solar site to nearest PLN substation. | P2, P4 | Done (V2) |
 | ✅ DONE | **Transmission lease fee in all-in LCOE** — deprecated in V2 (transmission is PLN's system cost, reflected in BPP). | — | Done / deprecated |
 | ✅ DONE | **`project_viable` boolean** — in `fct_kek_scorecard`; V2 splits threshold. | P2, P4 | Done |
-| ✅ DONE | **WACC expansion 4–20%** — `WACC_VALUES` now `[4, 6, 8, 10, 12, 14, 16, 18, 20]`; 864 rows in `fct_lcoe` (48 sites × 9 WACC × 2 scenarios) | P1 | Done |
-| ✅ DONE | **Industrial parks expansion** — 23 Priority 1 sites (steel, cement, aluminium, fertilizer, non-KEK nickel) added alongside 25 KEKs. Sector-intensity demand method replaces area-proxy for standalone/cluster sites. CBAM exposure now 35/48 sites (12 KEK via 3-signal + 23 industrial via direct). Dual-mode captive matching (proximity vs direct). `SiteTypeConfig` registry makes adding new types a 1-file change. | P1, P2, P3, P4, P5 | Done (V4.0) |
+| ✅ DONE | **WACC expansion 4–20%** — `WACC_VALUES` now `[4, 6, 8, 10, 12, 14, 16, 18, 20]`; 1,422 rows in `fct_lcoe` (79 sites × 9 WACC × 2 scenarios) | P1 | Done |
+| ✅ DONE | **Industrial parks expansion** — 54 industrial sites (32 cement, 7 steel, 10 nickel IIA, 2 aluminium, 3 fertilizer) added alongside 25 KEKs, 79 total. Site selection itself is pipeline-driven: GEM/CGSP trackers inside `build_industrial_sites.py`, with a small residual manual CSV (5 rows) for sectors without a tracker. Sector-intensity demand method replaces area-proxy for standalone/cluster sites. CBAM exposure now 66/79 sites (12 KEK via 3-signal + 54 industrial via direct). Dual-mode captive matching (proximity vs direct). `SiteTypeConfig` registry makes adding new types a 1-file change. | P1, P2, P3, P4, P5 | Done (V4.1) |
 
 ---
 
