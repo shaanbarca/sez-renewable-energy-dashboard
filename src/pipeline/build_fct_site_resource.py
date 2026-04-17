@@ -55,10 +55,13 @@ import math
 import zipfile
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
 import rasterio.features
+from rasterio.enums import Resampling
+from rasterio.warp import reproject
 from rasterio.windows import from_bounds
 from shapely.geometry import shape
 from shapely.ops import unary_union
@@ -73,6 +76,7 @@ from src.pipeline.assumptions import (
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
     LAND_COVER_BUILDABLE_THRESHOLD,
+    LAND_COVER_EXCLUDE_CODES,
     apply_exclusion_mask,
     apply_min_area_filter,
     apply_road_distance_mask,
@@ -191,8 +195,6 @@ def _rasterize_shp(
         uint8 array; 1 = polygon present (excluded), 0 = clear.
         Returns zeros array if shapefile is empty or read fails.
     """
-    import geopandas as gpd
-    import rasterio.features
 
     try:
         gdf = gpd.read_file(shp_path, bbox=bbox)
@@ -310,8 +312,6 @@ def _read_raster_window_to_pvout_grid(
     Returns:
         Float32 array matching out_shape, or None if the file could not be read.
     """
-    from rasterio.enums import Resampling
-    from rasterio.warp import reproject
 
     resampling = Resampling.mode if categorical else Resampling.average
 
@@ -371,15 +371,12 @@ def _resample_landcover_binary_window(
     Returns:
         uint8 mask (1=excluded, 0=buildable), or None on failure.
     """
-    from rasterio.enums import Resampling
-    from rasterio.warp import reproject
-    from rasterio.windows import from_bounds as _from_bounds
 
     try:
         with rasterio.open(raster_path) as src:
             # Read only the bbox window — the ESA VRT is 216000×432000 (≈87 GB
             # if fully read); windowed read keeps memory to ~100 MB per site.
-            src_window = _from_bounds(
+            src_window = from_bounds(
                 left=bbox[0],
                 bottom=bbox[1],
                 right=bbox[2],
@@ -452,7 +449,6 @@ def _compute_buildable_pvout(
         filter (Layer 4, 10 ha) is a no-op — every valid pixel exceeds the threshold.
         Layer 4 is retained to count buildable pixels and compute total area.
     """
-    from src.pipeline.buildability_filters import LAND_COVER_EXCLUDE_CODES
 
     available = _available_build_files(data_dir)
     if not available:

@@ -8,6 +8,7 @@ columns, and prepares DataFrames for live computation via logic.py.
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pandas as pd
@@ -236,8 +237,6 @@ def load_kek_infrastructure() -> dict[str, list[dict]]:
     Returns dict mapping site_id (slug) to list of infrastructure markers,
     each with keys: title, category, lat, lon.
     """
-    import ast
-
     path = (
         Path(__file__).resolve().parents[2]
         / "outputs"

@@ -49,6 +49,11 @@ from src.model.basic_model import (
     resolve_demand,
 )
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
+from src.pipeline.build_fct_site_resource import (
+    _REQUIRED_BUILD_FILES,
+    BUILDABILITY_DIR,
+    _available_build_files,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -266,11 +271,6 @@ def build_fct_site_scorecard(
     # "filtered": all 4 data files applied (Kawasan Hutan + peat + land cover + DEM)
     # "partial_filter": some data files applied (e.g. DEM-only for slope/elevation)
     # "provisional": no buildability data present
-    from src.pipeline.build_fct_site_resource import (
-        _REQUIRED_BUILD_FILES,
-        BUILDABILITY_DIR,
-        _available_build_files,
-    )
 
     _n_avail = len(_available_build_files(BUILDABILITY_DIR))
     _n_total = len(_REQUIRED_BUILD_FILES)

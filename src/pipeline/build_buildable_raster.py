@@ -22,11 +22,14 @@ Usage:
 from __future__ import annotations
 
 import io
+import math
 import zipfile
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import rasterio
+import rasterio.features
 from rasterio.enums import Resampling
 from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.warp import reproject
@@ -70,13 +73,10 @@ def _rasterize_shp_full(
     transform: rasterio.transform.Affine,
 ) -> np.ndarray:
     """Rasterize a shapefile to match the PVOUT grid. Returns binary mask (1=excluded)."""
-    import geopandas as gpd
-    import rasterio.features
-
     print(f"    Rasterizing {shp_path.name}...")
     gdf = gpd.read_file(shp_path)
 
-    if gdf.crs is not None and gdf.crs.to_epsg() != 4326:
+    if gdf.crs is not None and gdf.crs.to_epsg() != 4326:  # noqa: PLR2004 — EPSG 4326 = WGS84
         gdf = gdf.to_crs(epsg=4326)
 
     valid_geoms = [geom for geom in gdf.geometry if geom is not None and geom.is_valid]
@@ -239,8 +239,6 @@ def build_buildable_raster():
         dem_arr = _resample_raster_to_grid(dem_path, (h, w), transform, categorical=False)
         if dem_arr is not None:
             # Compute pixel size in metres for slope calculation
-            import math
-
             mid_lat = (
                 profile["transform"].f + profile["transform"].f + h * profile["transform"].e
             ) / 2

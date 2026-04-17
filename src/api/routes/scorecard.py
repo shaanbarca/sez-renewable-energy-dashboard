@@ -145,7 +145,12 @@ def get_defaults():
 @router.post("/scorecard")
 def post_scorecard(req: ScorecardRequest):
     """Recompute LCOE + action flags for all 25 KEKs."""
-    from src.api.main import resource_df, ruptl_metrics_df, tables, wind_tech
+    from src.api.main import (  # noqa: PLC0415 — avoid circular import (main ← routes)
+        resource_df,
+        ruptl_metrics_df,
+        tables,
+        wind_tech,
+    )
 
     assumptions = UserAssumptions.from_dict(req.assumptions.model_dump())
     thresholds = UserThresholds.from_dict(req.thresholds.model_dump())

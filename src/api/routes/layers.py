@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
+import math
+
+import numpy as np
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
+from src.assumptions import (
+    BASE_WACC_DECIMAL,
+    TECH006_CAPEX_USD_PER_KW,
+    TECH006_FOM_USD_PER_KW_YR,
+    TECH006_LIFETIME_YR,
+)
 from src.dash.constants import RUPTL_REGION_COLORS
 from src.dash.map_layers import (
     filter_substations_near_point,
     get_kek_polygon_by_id,
     get_within_boundary_buildable,
     polygon_bbox,
+)
+from src.model.basic_model import (
+    capacity_assessment,
+    capacity_factor_from_pvout,
+    grid_connection_cost_per_kw,
+    lcoe_solar,
+    new_transmission_cost_per_kw,
+    substation_upgrade_cost_per_kw,
 )
 
 router = APIRouter()
@@ -42,7 +60,7 @@ _ALL_LAYERS = _POINT_LAYERS | _GEOJSON_LAYERS | _RASTER_LAYERS
 @router.get("/layers/infrastructure")
 def get_infrastructure():
     """Return all infrastructure markers flattened with site_id."""
-    from src.api.main import infrastructure
+    from src.api.main import infrastructure  # noqa: PLC0415 — avoid circular import (main ← routes)
 
     markers = []
     for site_id, items in infrastructure.items():
@@ -63,7 +81,7 @@ def get_infrastructure():
 @router.get("/layers/{layer_name}")
 def get_layer(layer_name: str):
     """Return a cached geospatial layer by name."""
-    from src.api.main import layers
+    from src.api.main import layers  # noqa: PLC0415 — avoid circular import (main ← routes)
 
     if layer_name not in _ALL_LAYERS:
         raise HTTPException(status_code=404, detail=f"Layer '{layer_name}' not found")
@@ -131,25 +149,9 @@ def get_site_buildable(site_id: str):
 @router.get("/site/{site_id}/substations")
 def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge=0)):
     """Return substations near a KEK, with nearest marked and top 3 costed."""
-    import math
-
-    import numpy as np
-    import pandas as pd
-
-    from src.api.main import resource_df, tables
-    from src.assumptions import (
-        BASE_WACC_DECIMAL,
-        TECH006_CAPEX_USD_PER_KW,
-        TECH006_FOM_USD_PER_KW_YR,
-        TECH006_LIFETIME_YR,
-    )
-    from src.model.basic_model import (
-        capacity_assessment,
-        capacity_factor_from_pvout,
-        grid_connection_cost_per_kw,
-        lcoe_solar,
-        new_transmission_cost_per_kw,
-        substation_upgrade_cost_per_kw,
+    from src.api.main import (  # noqa: PLC0415 — avoid circular import (main ← routes)
+        resource_df,
+        tables,
     )
 
     dim_sites = tables.get("dim_sites")
@@ -299,9 +301,7 @@ def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge
 @router.get("/ruptl-metrics")
 def get_ruptl_metrics():
     """Return RUPTL pipeline data and region color mapping."""
-    import numpy as np
-
-    from src.api.main import tables
+    from src.api.main import tables  # noqa: PLC0415 — avoid circular import (main ← routes)
 
     ruptl_df = tables["fct_ruptl_pipeline"]
     records = ruptl_df.to_dict(orient="records")
