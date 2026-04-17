@@ -1,6 +1,6 @@
 [project]
 name = "sez-renewable-energy-dashboard"
-version = "1.0.0"
+version = "1.1.0"
 description = "SEZ Renewable Energy Dashboard — clean energy competitiveness model for Indonesia's Special Economic Zones"
 readme = "README.md"
 requires-python = ">=3.13"
