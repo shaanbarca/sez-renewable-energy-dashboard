@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Sector pictogram map markers.** Every site marker now shows a white SVG pictogram inside the coloured econ-tier disc — steel anvil, cement kiln, ammonia flask, petrochem column, nickel factory, aluminium ingots, fertilizer sack, KEK/mixed skyline. Single path source in `frontend/src/lib/sectorIcons.ts` shared by map (SDF layer via MapLibre `icon-color` tinting) and `ActionFlagLegend.tsx` (new "Icon = Sector" section) so they can't drift. CBAM amber ring sized just outside the marker disc.
+- **Action-flag hover tooltips.** Every action flag in the ScoreDrawer Action tab now carries a hover tooltip explaining what it means and what moves a site off that flag.
 - **Ammonia + petrochemical scaffolding (no rows yet).** `Sector` enum extended with `ammonia` and `petrochemical`; demand intensities and reliability defaults wired into `src/pipeline/demand_intensity.py` and `src/model/site_types.py`. CBAM cost model calibrated for ammonia using Indonesia-specific Scope 1 = **2.3 tCO₂/t** (ICGD gas-SMR — higher than the legacy aggregated "fertilizer" 1.2 tCO₂/t); ammonia is CBAM-exposed via CN 2814. Petrochemical is intentionally **NOT** in EU CBAM Annex I.
 - Frontend rollup colors: `SectorSummaryChart.tsx` reserves teal (#26A69A) for ammonia and purple (#7E57C2) for petrochemical.
 - TODOS M28 (ammonia) and M29 (petrochemical) opened to drive completeness via top-down universe discovery (state-holdings + industry-association + government-filing + trade-stat intersection) instead of ad-hoc hand-picked rows.
