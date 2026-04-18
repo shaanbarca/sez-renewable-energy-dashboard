@@ -35,22 +35,41 @@ reproducibility rule at the loader boundary, not in code review.
 | Steel | GEM Global Iron and Steel Plant Tracker (automated via `_build_steel_rows`, `status == "Active"`) | 7 |
 | Nickel | CGSP Nickel Tracker IIA filter + KEK exclusion + 20km child aggregation (automated via `_build_nickel_rows`) | 10 |
 | Aluminium | Residual manual (this CSV) | 2 |
-| Fertilizer | Residual manual (this CSV) | 3 |
+| Fertilizer | Residual manual (this CSV); universe verified via `fertilizer_universe_v1.csv` (M26 closed 2026-04-18) | 5 |
 | Ammonia | Pending — see TODOS M28 (top-down universe discovery) | 0 |
 | Petrochemical | Pending — see TODOS M29 (top-down universe discovery) | 0 |
-| **Total industrial sites** |  | **54** |
+| **Total industrial sites** |  | **56** |
 
 Combined with 25 KEKs via `build_dim_sites`, the unified dim table has
-**79 sites** (25 kek + 44 standalone + 10 cluster).
+**81 sites** (25 kek + 46 standalone + 10 cluster).
+
+### Fertilizer universe (M26 closed)
+
+All 5 operating Pupuk Indonesia Group subsidiaries are now in-scope:
+
+| Site | Province | Product |
+|------|----------|---------|
+| Pupuk Kaltim Bontang | East Kalimantan | Urea + ammonia |
+| Pusri Palembang | South Sumatra | Urea + ammonia |
+| Petrokimia Gresik | East Java | Urea + NPK + phosphate |
+| Pupuk Kujang Cikampek | West Java | Urea + ammonia |
+| Pupuk Iskandar Muda Lhokseumawe | Aceh | Urea + ammonia |
+
+Candidates evaluated but not added (see `fertilizer_universe_v1.csv` for the
+full 4-source discovery record): **Pupuk Fakfak (West Papua)** is
+under-construction (target 2028) and stays out until it comes online; **PT
+Multi Nitrotama Kimia (Cikampek)** produces ammonium nitrate only, which sits
+outside CBAM Annex I so it adds electricity demand signal but zero CBAM value.
 
 > Why no hand-picked ammonia or petrochemical rows? Picking sites from news
-> coverage doesn't guarantee completeness — Pupuk Kaltim Bontang is Indonesia's
-> largest ammonia producer (~3.4 Mt/yr) but is easy to miss without a
-> systematic source. The plan in TODOS M28/M29 is to derive the universe from
-> the intersection of (a) state holding company subsidiaries (Pupuk Indonesia,
-> Pertamina), (b) industry association rosters (APPI, INAPLAS), (c) government
-> filings (MEMR gas allocation letters, BKPM KBLI 20114/20231), and (d) BPS
-> Direktori Industri + UN Comtrade producer lists.
+> coverage doesn't guarantee completeness — the fertilizer expansion (M26)
+> itself caught 2 missing Pupuk subsidiaries that had been skipped in the
+> original hand-curation. The plan in TODOS M28/M29 is to derive the
+> ammonia/petrochemical universe from the intersection of (a) state holding
+> company subsidiaries (Pupuk Indonesia, Pertamina), (b) industry association
+> rosters (APPI, INAPLAS), (c) government filings (MEMR gas allocation
+> letters, BKPM KBLI 20114/20231), and (d) BPS Direktori Industri + UN
+> Comtrade producer lists — the same 4-source gate that validated fertilizer.
 
 ## Adding a new tracker
 
@@ -63,5 +82,6 @@ helper. See:
 - `_build_nickel_rows()` — country + IIA filter + spatial KEK exclusion +
   proximity-based capacity aggregation from child Processing rows
 
-Open tracker integration items: see `TODOS.md` rows M25 (aluminium GAST) and
-M26 (fertilizer).
+Open tracker integration items: see `TODOS.md` row M25 (aluminium GAST).
+M26 (fertilizer) was closed 2026-04-18 by running the 4-source
+universe-discovery gate and adding the 2 missing Pupuk subsidiaries.

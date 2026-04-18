@@ -25,10 +25,10 @@ Built for development bank analysts, energy investors, and policy advisors.
 - BESS storage sizing with bridge-hour model (round-trip efficiency, overnight gap)
 - 5-layer geospatial buildability filter (forest, peatland, slope, land cover, road proximity)
 - Grid integration assessment (3-point proximity: solar site, substation, KEK)
-- EU CBAM exposure detection across 66/79 sites (nickel smelters, steel mills, cement plants, aluminium, fertilizer) with 2026–2034 cost trajectory; ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (TODOS M28); petrochemical intentionally excluded per EU Annex I
+- EU CBAM exposure detection across 68/81 sites (nickel smelters, steel mills, cement plants, aluminium, fertilizer) with 2026–2034 cost trajectory. Scope 2 savings multiplied by `CBAM_RE_ADDRESSABLE_FRACTION` per sector (cement 0.12, fertilizer/ammonia 0.10, steel_bfbof 0.80, else 1.0) so RE cost relief reflects only the electric share of thermal-inclusive intensity values. Ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (TODOS M28); petrochemical intentionally excluded per EU Annex I
 
 **Dashboard**
-- Interactive map with 79 site markers (25 KEKs + 54 industrial sites across 5 sectors), color-coded by action flag
+- Interactive map with 81 site markers (25 KEKs + 56 industrial sites across 5 sectors), color-coded by action flag
 - Solar PVOUT and wind speed raster overlays with buildable area polygons
 - Adjustable assumptions panel (WACC, CAPEX, lifetime, grid benchmark, BESS sizing)
 - Sortable/filterable scorecard table with CSV export
