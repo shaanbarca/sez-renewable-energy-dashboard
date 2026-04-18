@@ -286,7 +286,7 @@ export interface ScorecardResponse {
 
 export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
-export type BottomTab = 'table' | 'ruptl' | 'sector';
+export type BottomTab = 'table' | 'ruptl' | 'sector' | 'compare';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 
 export interface SavedScenario {

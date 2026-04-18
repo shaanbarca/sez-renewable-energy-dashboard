@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { fetchDefaults, fetchScorecard } from '../lib/api';
+import { computeFlipDiff, type FlipDiffRow, type FlipSummary } from '../lib/flipDiff';
+import { applyFlipPreset, type FlipPreset } from '../lib/flipPresets';
 import type {
   BenchmarkMode,
   BottomTab,
@@ -39,6 +41,13 @@ interface DashboardStore {
   flyToTarget: { lat: number; lon: number; zoom?: number } | null;
   filteredSiteIds: Set<string> | null;
 
+  // Compare scenarios (A/B flip) — the Scenario Compare tab being active IS compare mode
+  flipAssumptions: UserAssumptions | null;
+  flipPreset: FlipPreset | 'custom' | null;
+  flipScorecard: ScorecardRow[] | null;
+  flipLoading: boolean;
+  flipStale: boolean;
+
   // Cached layer data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   layers: Record<string, any>;
@@ -68,6 +77,13 @@ interface DashboardStore {
   flyTo: (lat: number, lon: number, zoom?: number) => void;
   clearFlyTo: () => void;
   setFilteredSiteIds: (ids: Set<string> | null) => void;
+
+  // Compare scenarios actions
+  setFlipAssumptions: (a: Partial<UserAssumptions>) => void;
+  applyFlipPreset: (p: FlipPreset) => void;
+  computeFlip: () => Promise<void>;
+  clearFlip: () => void;
+  flipDiff: () => { rows: FlipDiffRow[]; summary: FlipSummary } | null;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -106,6 +122,13 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   flyToTarget: null,
   filteredSiteIds: null,
 
+  // Compare scenarios
+  flipAssumptions: null,
+  flipPreset: null,
+  flipScorecard: null,
+  flipLoading: false,
+  flipStale: false,
+
   // Cached layer data
   layers: {},
 
@@ -113,11 +136,14 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   setAssumptions: (a) =>
     set((state) => ({
       assumptions: state.assumptions ? { ...state.assumptions, ...a } : null,
+      // Baseline assumptions changed — flip scorecard now stale until recomputed
+      flipStale: state.flipScorecard != null ? true : state.flipStale,
     })),
 
   setThresholds: (t) =>
     set((state) => ({
       thresholds: state.thresholds ? { ...state.thresholds, ...t } : null,
+      flipStale: state.flipScorecard != null ? true : state.flipStale,
     })),
 
   selectSite: (id) =>
@@ -222,6 +248,57 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   flyTo: (lat, lon, zoom) => set({ flyToTarget: { lat, lon, zoom } }),
   clearFlyTo: () => set({ flyToTarget: null }),
   setFilteredSiteIds: (ids) => set({ filteredSiteIds: ids }),
+
+  setFlipAssumptions: (a) =>
+    set((state) => ({
+      flipAssumptions: state.flipAssumptions
+        ? { ...state.flipAssumptions, ...a }
+        : state.assumptions
+          ? { ...state.assumptions, ...a }
+          : null,
+      flipPreset: 'custom',
+      flipStale: state.flipScorecard != null ? true : state.flipStale,
+    })),
+
+  applyFlipPreset: (p) =>
+    set((state) => {
+      const baseline = state.assumptions;
+      if (!baseline) return {};
+      const overrides = applyFlipPreset(baseline, p);
+      return {
+        flipAssumptions: { ...baseline, ...overrides },
+        flipPreset: p,
+        flipStale: state.flipScorecard != null,
+      };
+    }),
+
+  computeFlip: async () => {
+    const { flipAssumptions, thresholds, benchmarkMode } = get();
+    if (!flipAssumptions || !thresholds) return;
+    set({ flipLoading: true });
+    try {
+      const data = await fetchScorecard(flipAssumptions, thresholds, benchmarkMode);
+      set({ flipScorecard: data.scorecard, flipLoading: false, flipStale: false });
+    } catch (err) {
+      console.error('Failed to compute flip scorecard:', err);
+      set({ flipLoading: false });
+    }
+  },
+
+  clearFlip: () =>
+    set({
+      flipAssumptions: null,
+      flipPreset: null,
+      flipScorecard: null,
+      flipLoading: false,
+      flipStale: false,
+    }),
+
+  flipDiff: () => {
+    const { scorecard, flipScorecard } = get();
+    if (!scorecard || !flipScorecard) return null;
+    return computeFlipDiff(scorecard, flipScorecard);
+  },
 
   saveScenario: (name) => {
     const { assumptions, thresholds, benchmarkMode, savedScenarios } = get();

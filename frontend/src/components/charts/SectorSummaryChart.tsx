@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ACTION_FLAG_HIERARCHY_BY_MODE } from '../../lib/actionFlags';
@@ -150,6 +150,58 @@ type SectorRollup = {
   actionFlagCounts: Record<string, number>;
 };
 
+function csvCell(val: unknown): string {
+  if (val == null) return '';
+  const s = String(val);
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportSectorSummaryCsv(
+  rollups: SectorRollup[],
+  energyMode: string,
+  benchmarkMode: string,
+) {
+  const headers = [
+    'sector',
+    'sites',
+    'cbam_exposed_sites',
+    'total_demand_2030_gwh',
+    'total_capacity_tpa',
+    'cbam_cost_2026_musd_yr',
+    'cbam_cost_2030_musd_yr',
+    'cbam_cost_2034_musd_yr',
+    ...ACTION_FLAG_COLUMNS.map((f) => `action_${f}`),
+  ];
+  const lines = rollups.map((r) =>
+    [
+      csvCell(r.label),
+      csvCell(r.count),
+      csvCell(r.cbamExposedCount),
+      csvCell(r.totalDemandGwh.toFixed(2)),
+      csvCell(r.totalCapacityTpa.toFixed(0)),
+      csvCell(r.cbamCost2026MUsd.toFixed(2)),
+      csvCell(r.cbamCost2030MUsd.toFixed(2)),
+      csvCell(r.cbamCost2034MUsd.toFixed(2)),
+      ...ACTION_FLAG_COLUMNS.map((f) => csvCell(r.actionFlagCounts[f] ?? 0)),
+    ].join(','),
+  );
+  const meta = [
+    '',
+    '--- Export Metadata ---',
+    `Energy Mode,${energyMode}`,
+    `Benchmark Mode,${benchmarkMode}`,
+    `Export Date,${new Date().toISOString().slice(0, 10)}`,
+  ];
+  const csv = [headers.join(','), ...lines, ...meta].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sector_summary.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function rollup(rows: ScorecardRow[]): SectorRollup[] {
   const map = new Map<Sector, SectorRollup>();
   for (const s of SECTOR_ORDER) {
@@ -256,11 +308,18 @@ function DemandTooltip({
 
 export default function SectorSummaryChart() {
   const scorecard = useDashboardStore((s) => s.scorecard);
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
 
   const data = useMemo(() => {
     if (!scorecard?.length) return [];
     return rollup(scorecard);
   }, [scorecard]);
+
+  const handleExport = useCallback(() => {
+    if (!data.length) return;
+    exportSectorSummaryCsv(data, energyMode, benchmarkMode);
+  }, [data, energyMode, benchmarkMode]);
 
   if (!data.length) {
     return (
@@ -283,6 +342,20 @@ export default function SectorSummaryChart() {
 
   return (
     <div className="h-full w-full overflow-y-auto px-4 py-3 flex flex-col gap-4">
+      <div className="shrink-0 flex items-center justify-between">
+        <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Rollup across {data.reduce((acc, d) => acc + d.count, 0)} sites in {data.length} sectors.
+        </div>
+        <button
+          type="button"
+          onClick={handleExport}
+          className="px-3 py-1 text-xs rounded cursor-pointer transition-colors"
+          style={{ color: 'var(--text-muted)', border: '1px solid var(--input-border)' }}
+        >
+          Export CSV
+        </button>
+      </div>
+
       {/* CBAM cost trajectory by sector */}
       {hasCbam && (
         <div className="shrink-0">
