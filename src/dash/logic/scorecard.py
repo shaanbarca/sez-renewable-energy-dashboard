@@ -3,40 +3,33 @@
 """Scorecard orchestrator — live per-site computation for the dashboard.
 
 `compute_scorecard_live` is the single entry point called on every assumption-
-slider change. It walks each site and assembles the row by delegating domain
-work to sibling modules:
+slider change. For each site it:
 
-- `lcoe` — solar + wind LCOE at user WACC / CAPEX
-- `grid` — capacity + category + infra cost + connectivity pass-throughs
-- `technology` — BESS sizing, firm coverage, hybrid solar+wind optimization
-- `cbam` — product-type detection + 2026/2030/2034 cost trajectory
-- `assumptions` — UserAssumptions / UserThresholds dataclasses
+  1. Builds a read-only `SiteContext` (rates, LCOE, grid integration bundle,
+     generation totals). See `src.dash.logic.site_context`.
+  2. Runs the `STAGES` pipeline of enrichers. Each enricher is a pure
+     `(ctx, row) -> dict` that merges new fields into the row.
 
-All formulas live in `src/model/basic_model.py`. This module only orchestrates.
+All math lives in `src.model.basic_model` and sibling domain modules
+(`lcoe`, `grid`, `technology`, `cbam`). This module is pure orchestration —
+no formulas, only wiring.
+
+Adding a new column or domain: write one enricher, append it to `STAGES`.
+Do not grow the per-row loop.
 """
 
 from __future__ import annotations
 
+from typing import Any, Callable
+
 import numpy as np
 import pandas as pd
 
-from src.assumptions import (
-    CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
-)
-from src.dash.logic.assumptions import (
-    UserAssumptions,
-    UserThresholds,
-)
-from src.dash.logic.cbam import (
-    _detect_cbam_types,
-    compute_cbam_trajectory,
-)
-from src.dash.logic.grid import compute_grid_integration
-from src.dash.logic.lcoe import (
-    _round,
-    compute_lcoe_live,
-    compute_lcoe_wind_live,
-)
+from src.assumptions import CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE
+from src.dash.logic.assumptions import UserAssumptions, UserThresholds
+from src.dash.logic.cbam import _detect_cbam_types, compute_cbam_trajectory
+from src.dash.logic.lcoe import _round, compute_lcoe_live, compute_lcoe_wind_live
+from src.dash.logic.site_context import SiteContext, build_site_context
 from src.dash.logic.technology import (
     compute_bess_metrics,
     compute_firm_coverage,
@@ -49,19 +42,500 @@ from src.model.basic_model import (
     bess_storage_adder,
     carbon_breakeven_price,
     economic_tier,
-    is_solar_attractive,
     solar_competitive_gap,
 )
-from src.model.basic_model import (
-    invest_resilience as invest_resilience_fn,
-)
-from src.pipeline.assumptions import (
-    TARIFF_I4_RP_KWH,
-    rp_kwh_to_usd_mwh,
-)
+from src.model.basic_model import invest_resilience as invest_resilience_fn
+from src.pipeline.assumptions import TARIFF_I4_RP_KWH, rp_kwh_to_usd_mwh
+
+Enricher = Callable[[SiteContext, dict[str, Any]], dict[str, Any]]
+
 
 # ---------------------------------------------------------------------------
-# Live scorecard computation (flags, gap, carbon breakeven)
+# Enrichers — each takes (ctx, row_so_far) and returns dict to merge.
+# ---------------------------------------------------------------------------
+
+
+def enrich_lcoe_and_gaps(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Primary LCOE (mid/low/high), competitive gaps, secondary within-boundary LCOE."""
+    out: dict[str, Any] = {
+        "lcoe_mid_usd_mwh": _round(ctx.lcoe_mid),
+        "solar_competitive_gap_pct": _round(ctx.gap_pct),
+        "gap_vs_tariff_pct": _round(ctx.gap_vs_tariff_pct),
+        "gap_vs_bpp_pct": _round(ctx.gap_vs_bpp_pct),
+        "solar_attractive": ctx.attractive,
+    }
+
+    # low/high: prefer grid-connected, fall back to within-boundary
+    if ctx.gc_row is not None:
+        out["lcoe_low_usd_mwh"] = _round(ctx.gc_row["lcoe_low_usd_mwh"])
+        out["lcoe_high_usd_mwh"] = _round(ctx.gc_row["lcoe_high_usd_mwh"])
+    elif ctx.wb_row is not None:
+        out["lcoe_low_usd_mwh"] = _round(ctx.wb_row["lcoe_low_usd_mwh"])
+        out["lcoe_high_usd_mwh"] = _round(ctx.wb_row["lcoe_high_usd_mwh"])
+    else:
+        out["lcoe_low_usd_mwh"] = np.nan
+        out["lcoe_high_usd_mwh"] = np.nan
+
+    # Secondary within-boundary LCOE (captive solar, no connection cost)
+    if ctx.wb_row is not None:
+        out["lcoe_within_boundary_usd_mwh"] = _round(ctx.wb_row["lcoe_mid_usd_mwh"])
+        out["lcoe_within_boundary_low_usd_mwh"] = _round(ctx.wb_row["lcoe_low_usd_mwh"])
+        out["lcoe_within_boundary_high_usd_mwh"] = _round(ctx.wb_row["lcoe_high_usd_mwh"])
+    else:
+        out["lcoe_within_boundary_usd_mwh"] = np.nan
+        out["lcoe_within_boundary_low_usd_mwh"] = np.nan
+        out["lcoe_within_boundary_high_usd_mwh"] = np.nan
+
+    return out
+
+
+def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Grid integration fields (category, infra cost, connectivity, capacity)."""
+    return dict(ctx.grid_out)
+
+
+def enrich_action_flags(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Individual flag booleans + resilience + priority-winner `action_flag`."""
+    gi_cat = ctx.grid_out["grid_integration_category"]
+    flags = action_flags(
+        solar_attractive=ctx.attractive,
+        grid_upgrade_pre2030=ctx.grid_upgrade_pre2030,
+        reliability_req=ctx.reliability_req,
+        green_share_geas=ctx.green_share,
+        post2030_share=ctx.post2030_share,
+        grid_integration_cat=gi_cat,
+    )
+    t = ctx.thresholds
+    flags["plan_late"] = ctx.post2030_share >= t.plan_late_threshold
+    flags["invest_transmission"] = ctx.attractive and gi_cat == "invest_transmission"
+    flags["invest_substation"] = ctx.attractive and gi_cat == "invest_substation"
+    flags["solar_now"] = (
+        ctx.attractive
+        and not flags["grid_first"]
+        and not flags["invest_transmission"]
+        and not flags["invest_substation"]
+        and ctx.green_share >= t.geas_threshold
+    )
+    flags["invest_battery"] = ctx.attractive and ctx.reliability_req >= t.reliability_threshold
+    resilience = invest_resilience_fn(
+        solar_competitive_gap_pct=ctx.gap_pct if pd.notna(ctx.gap_pct) else 0.0,
+        reliability_req=ctx.reliability_req,
+        gap_threshold_pct=t.resilience_gap_pct,
+        reliability_threshold=t.reliability_threshold,
+    )
+
+    # Priority winner: first True in rank order, or NO_SOLAR_RESOURCE / NOT_COMPETITIVE
+    if ctx.max_mwp <= 0:
+        action_flag: ActionFlag = ActionFlag.NO_SOLAR_RESOURCE
+    else:
+        action_flag = ActionFlag.NOT_COMPETITIVE
+        for flag_name in [
+            ActionFlag.SOLAR_NOW,
+            ActionFlag.INVEST_TRANSMISSION,
+            ActionFlag.INVEST_SUBSTATION,
+            ActionFlag.GRID_FIRST,
+            ActionFlag.INVEST_BATTERY,
+            ActionFlag.INVEST_RESILIENCE,
+            ActionFlag.PLAN_LATE,
+        ]:
+            flag_val = (
+                resilience
+                if flag_name == ActionFlag.INVEST_RESILIENCE
+                else flags.get(flag_name, False)
+            )
+            if flag_val is True:
+                action_flag = flag_name
+                break
+
+    return {
+        "action_flag": action_flag,
+        "solar_now": flags["solar_now"],
+        "invest_transmission": flags["invest_transmission"],
+        "invest_substation": flags["invest_substation"],
+        "invest_battery": flags["invest_battery"],
+        "grid_first": flags["grid_first"],
+        "plan_late": flags["plan_late"],
+        "invest_resilience": resilience,
+    }
+
+
+def enrich_carbon_and_viability(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Carbon breakeven + project_viable + raw assumption echoes used by the UI."""
+    carbon_be = (
+        carbon_breakeven_price(ctx.lcoe_mid, ctx.grid_cost, ctx.emission_factor)
+        if pd.notna(ctx.lcoe_mid) and ctx.emission_factor > 0
+        else None
+    )
+    return {
+        "carbon_breakeven_usd_tco2": carbon_be,
+        "project_viable": ctx.max_mwp >= ctx.thresholds.min_viable_mwp,
+        "grid_cost_usd_mwh": ctx.grid_cost,
+        "wacc_pct": ctx.assumptions.wacc_pct,
+        "capex_usd_per_kw": ctx.assumptions.capex_usd_per_kw,
+        "land_cost_usd_per_kw": ctx.assumptions.land_cost_usd_per_kw,
+    }
+
+
+def enrich_bess(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """BESS sizing, $/MWh adder, LCOE-with-battery, competitiveness flag."""
+    m = compute_bess_metrics(
+        lcoe_mid=ctx.lcoe_mid,
+        primary_cf=ctx.primary_cf,
+        reliability_req=ctx.reliability_req,
+        dominant_process=str(ctx.kek.get("dominant_process_type", "")),
+        assumptions=ctx.assumptions,
+        thresholds=ctx.thresholds,
+        grid_cost=ctx.grid_cost,
+    )
+    return {
+        "bess_sizing_hours": m["bess_sizing_hours"],
+        "battery_adder_usd_mwh": m["battery_adder_usd_mwh"],
+        "lcoe_with_battery_usd_mwh": m["lcoe_with_battery_usd_mwh"],
+        "bess_competitive": m["bess_competitive"],
+    }
+
+
+def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Demand, solar generation, supply coverage, within-boundary generation."""
+    kek = ctx.kek
+    out: dict[str, Any] = {}
+
+    out["demand_2030_gwh"] = round(ctx.demand_mwh / 1000, 1) if ctx.demand_mwh > 0 else None
+    out["green_share_geas"] = round(ctx.green_share, 4)
+
+    if ctx.solar_data_valid:
+        out["max_solar_generation_gwh"] = _round(ctx.solar_gen_mwh / 1000)
+        out["solar_supply_coverage_pct"] = (
+            round(ctx.solar_gen_mwh / ctx.demand_mwh, 3) if ctx.demand_mwh > 0 else None
+        )
+    else:
+        out["max_solar_generation_gwh"] = None
+        out["solar_supply_coverage_pct"] = None
+
+    # Within-boundary generation: use pvout_within_boundary if present, else pvout_centroid
+    wb_cap = kek.get("within_boundary_capacity_mwp")
+    pvout_wb = kek.get("pvout_within_boundary")
+    pvout_cent = kek.get("pvout_centroid")
+    pvout_for_wb = pvout_wb if pd.notna(pvout_wb) else pvout_cent
+    if pd.notna(wb_cap) and pd.notna(pvout_for_wb):
+        wb_gen_mwh = float(wb_cap) * float(pvout_for_wb)
+        out["within_boundary_generation_gwh"] = _round(wb_gen_mwh / 1000)
+        out["within_boundary_coverage_pct"] = (
+            round(wb_gen_mwh / ctx.demand_mwh, 3) if ctx.demand_mwh > 0 else None
+        )
+    else:
+        out["within_boundary_generation_gwh"] = None
+        out["within_boundary_coverage_pct"] = None
+
+    return out
+
+
+def enrich_wind(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Wind LCOE, CF, speed, buildability, supply coverage, carbon breakeven, BPP gap."""
+    out: dict[str, Any] = {}
+    w = ctx.wind_row
+    if w is not None:
+        out["lcoe_wind_mid_usd_mwh"] = w["lcoe_wind_mid_usd_mwh"]
+        out["cf_wind"] = w["cf_wind"]
+        out["wind_speed_ms"] = w["wind_speed_ms"]
+    else:
+        out["lcoe_wind_mid_usd_mwh"] = np.nan
+        out["cf_wind"] = 0.0
+        out["wind_speed_ms"] = 0.0
+
+    wind_lcoe_val = out["lcoe_wind_mid_usd_mwh"]
+    out["wind_competitive_gap_pct"] = (
+        _round(solar_competitive_gap(wind_lcoe_val, ctx.bpp_rate))
+        if pd.notna(wind_lcoe_val) and pd.notna(ctx.bpp_rate) and ctx.bpp_rate > 0
+        else np.nan
+    )
+
+    wind_gen_gwh = ctx.wind_gen_mwh / 1000
+    demand_gwh = ctx.demand_mwh / 1000 if ctx.demand_mwh > 0 else 0.0
+
+    out["max_wind_capacity_mwp"] = _round(ctx.wind_cap, 1)
+    out["wind_buildable_area_ha"] = (
+        _round(float(ctx.kek.get("wind_buildable_area_ha", 0)))
+        if pd.notna(ctx.kek.get("wind_buildable_area_ha"))
+        else 0.0
+    )
+    out["wind_buildability_constraint"] = (
+        str(ctx.kek.get("wind_buildability_constraint", "unknown"))
+        if pd.notna(ctx.kek.get("wind_buildability_constraint"))
+        else "unknown"
+    )
+    out["max_wind_generation_gwh"] = _round(wind_gen_gwh, 1)
+    out["wind_supply_coverage_pct"] = (
+        round(wind_gen_gwh / demand_gwh, 3) if demand_gwh > 0 and wind_gen_gwh > 0 else None
+    )
+    out["wind_carbon_breakeven_usd_tco2"] = (
+        carbon_breakeven_price(wind_lcoe_val, ctx.grid_cost, ctx.emission_factor)
+        if pd.notna(wind_lcoe_val) and ctx.emission_factor > 0
+        else None
+    )
+    return out
+
+
+def enrich_firm_coverage(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Temporal-aware solar + wind coverage metrics (firm / gap / firming hours)."""
+    return compute_firm_coverage(
+        solar_gen_mwh=ctx.solar_gen_mwh,
+        wind_gen_mwh=ctx.wind_gen_mwh,
+        demand_mwh=ctx.demand_mwh,
+        wind_cf_best=ctx.wind_cf_best,
+    )
+
+
+def enrich_hybrid(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
+    """Hybrid solar+wind optimisation (LCOE, BESS reduction, coverage, carbon breakeven).
+
+    Requires: enrich_wind (reads `lcoe_wind_mid_usd_mwh` from row).
+    """
+    return compute_hybrid_metrics(
+        solar_lcoe=ctx.lcoe_mid,
+        wind_lcoe=row.get("lcoe_wind_mid_usd_mwh"),
+        solar_gen_mwh=ctx.solar_gen_mwh,
+        wind_gen_mwh=ctx.wind_gen_mwh,
+        primary_cf=ctx.primary_cf,
+        wind_cf_best=ctx.wind_cf_best,
+        solar_capacity_mwp=ctx.max_mwp,
+        wind_capacity_mwp=ctx.wind_cap,
+        demand_mwh=ctx.demand_mwh,
+        assumptions=ctx.assumptions,
+        grid_cost=ctx.grid_cost,
+        emission_factor=ctx.emission_factor,
+    )
+
+
+def _opt_int(kek: pd.Series, key: str) -> int | None:
+    v = kek.get(key)
+    return int(v) if pd.notna(v) else None
+
+
+def _opt_float(kek: pd.Series, key: str) -> float | None:
+    v = kek.get(key)
+    return float(v) if pd.notna(v) else None
+
+
+def _opt_str(kek: pd.Series, key: str) -> str | None:
+    v = kek.get(key)
+    return str(v) if pd.notna(v) else None
+
+
+def _bool_or_false(kek: pd.Series, key: str) -> bool:
+    v = kek.get(key)
+    return bool(v) if pd.notna(v) else False
+
+
+def enrich_captive_context(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """Captive power context: coal, nickel, steel, cement + Perpres 112 status."""
+    k = ctx.kek
+    out: dict[str, Any] = {
+        "captive_coal_count": _opt_int(k, "captive_coal_count"),
+        "captive_coal_mw": _opt_int(k, "captive_coal_mw"),
+        "captive_coal_plants": _opt_str(k, "captive_coal_plants"),
+        "nickel_smelter_count": _opt_int(k, "nickel_smelter_count"),
+        "nickel_projects": _opt_str(k, "nickel_projects"),
+        "dominant_process_type": _opt_str(k, "dominant_process_type"),
+        "has_chinese_ownership": _bool_or_false(k, "has_chinese_ownership"),
+        "steel_plant_count": _opt_int(k, "steel_plant_count"),
+        "steel_capacity_tpa": _opt_float(k, "steel_capacity_tpa"),
+        "steel_plants": _opt_str(k, "steel_plants"),
+        "steel_has_chinese_ownership": _bool_or_false(k, "steel_has_chinese_ownership"),
+        "cement_plant_count": _opt_int(k, "cement_plant_count"),
+        "cement_capacity_mtpa": _opt_float(k, "cement_capacity_mtpa"),
+        "cement_plants": _opt_str(k, "cement_plants"),
+        "cement_has_chinese_ownership": _bool_or_false(k, "cement_has_chinese_ownership"),
+    }
+    coal_count = out["captive_coal_count"] or 0
+    if coal_count > 0:
+        out["has_captive_coal"] = True
+        out["perpres_112_status"] = "Subject to 2050 phase-out"
+    else:
+        out["has_captive_coal"] = False
+        out["perpres_112_status"] = None
+    return out
+
+
+def enrich_cbam(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
+    """CBAM detection, trajectory, adjusted gap, urgent flag, and action-flag override.
+
+    Requires: enrich_grid_passthroughs (`grid_emission_factor_t_co2_mwh`),
+    enrich_action_flags (`action_flag`) — both read from row.
+    """
+    cbam_types = _detect_cbam_types(ctx.kek, row)
+    out = dict(
+        compute_cbam_trajectory(
+            cbam_types,
+            grid_ef_t_co2_mwh=row.get("grid_emission_factor_t_co2_mwh"),
+            cbam_price_eur=ctx.assumptions.cbam_certificate_price_eur,
+            eur_usd_rate=ctx.assumptions.cbam_eur_usd_rate,
+        )
+    )
+
+    if out.get("cbam_exposed") and pd.notna(ctx.lcoe_mid) and ctx.grid_cost > 0:
+        primary_type = cbam_types[0] if cbam_types else None
+        elec_intensity = (
+            CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE.get(primary_type, 0) if primary_type else 0
+        )
+        if elec_intensity > 0:
+            savings_per_tonne = out.get("cbam_savings_2030_usd_per_tonne") or 0
+            cbam_savings_mwh = savings_per_tonne / elec_intensity
+            out["cbam_savings_per_mwh"] = round(cbam_savings_mwh, 1)
+            adjusted_lcoe = ctx.lcoe_mid - cbam_savings_mwh
+            out["cbam_adjusted_gap_pct"] = round(
+                ((adjusted_lcoe - ctx.grid_cost) / ctx.grid_cost) * 100, 1
+            )
+        else:
+            out["cbam_savings_per_mwh"] = None
+            out["cbam_adjusted_gap_pct"] = None
+    else:
+        out["cbam_savings_per_mwh"] = None
+        out["cbam_adjusted_gap_pct"] = None
+
+    adj_gap = out.get("cbam_adjusted_gap_pct")
+    out["cbam_urgent"] = bool(out.get("cbam_exposed") and adj_gap is not None and adj_gap < 0)
+
+    # Override action flag: CBAM flips the economics even when RE alone doesn't beat grid
+    current_flag = row.get("action_flag")
+    if out["cbam_urgent"] and current_flag in (
+        ActionFlag.NOT_COMPETITIVE,
+        ActionFlag.INVEST_RESILIENCE,
+    ):
+        out["action_flag"] = ActionFlag.CBAM_URGENT
+
+    return out
+
+
+def enrich_cross_domain(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
+    """Cross-domain derivations: best RE tech, 2D tier, badges, wind all-in, coal replacement.
+
+    Requires: enrich_lcoe_and_gaps, enrich_wind, enrich_hybrid, enrich_bess,
+    enrich_action_flags, enrich_firm_coverage, enrich_cbam — reads many fields
+    from row (lcoe_*_usd_mwh, hybrid_allin_usd_mwh, bess_*_allin_usd_mwh,
+    action_flag, firm_solar_coverage_pct, cbam_urgent, plan_late, etc.).
+    """
+    out: dict[str, Any] = {}
+
+    # Best RE technology by bare LCOE (solar/wind/hybrid)
+    candidates: dict[str, float] = {}
+    if pd.notna(row.get("lcoe_mid_usd_mwh")):
+        candidates["solar"] = float(row["lcoe_mid_usd_mwh"])
+    if pd.notna(row.get("lcoe_wind_mid_usd_mwh")):
+        candidates["wind"] = float(row["lcoe_wind_mid_usd_mwh"])
+    h = row.get("hybrid_allin_usd_mwh")
+    if h is not None and pd.notna(h):
+        candidates["hybrid"] = float(h)
+
+    if candidates:
+        best_tech = min(candidates, key=candidates.get)
+        out["best_re_technology"] = best_tech
+        out["best_re_lcoe_mid_usd_mwh"] = candidates[best_tech]
+    else:
+        out["best_re_technology"] = "solar"
+        out["best_re_lcoe_mid_usd_mwh"] = np.nan
+
+    # 2D classification inputs
+    solar_lcoe = float(ctx.lcoe_mid) if pd.notna(ctx.lcoe_mid) else None
+    wind_lcoe = (
+        float(row["lcoe_wind_mid_usd_mwh"]) if pd.notna(row.get("lcoe_wind_mid_usd_mwh")) else None
+    )
+    hybrid_lcoe = (
+        float(row["hybrid_lcoe_usd_mwh"])
+        if row.get("hybrid_lcoe_usd_mwh") is not None and pd.notna(row.get("hybrid_lcoe_usd_mwh"))
+        else None
+    )
+    lcoe_candidates = [v for v in [solar_lcoe, wind_lcoe, hybrid_lcoe] if v is not None]
+    best_lcoe_re = min(lcoe_candidates) if lcoe_candidates else None
+
+    solar_allin = (
+        float(row["lcoe_with_battery_usd_mwh"])
+        if pd.notna(row.get("lcoe_with_battery_usd_mwh"))
+        else None
+    )
+    hybrid_allin = (
+        float(row["hybrid_allin_usd_mwh"])
+        if row.get("hybrid_allin_usd_mwh") is not None and pd.notna(row.get("hybrid_allin_usd_mwh"))
+        else None
+    )
+
+    # Wind all-in = wind LCOE + BESS sized to firming hours
+    wind_allin: float | None = None
+    wind_firming_h = row.get("wind_firming_hours")
+    if wind_lcoe is not None and ctx.wind_cf_best > 0 and wind_firming_h and wind_firming_h > 0:
+        w_bess_adder = bess_storage_adder(
+            ctx.assumptions.bess_capex_usd_per_kwh,
+            solar_cf=ctx.wind_cf_best,
+            wacc=ctx.assumptions.wacc_decimal,
+            sizing_hours=float(wind_firming_h),
+        )
+        wind_allin = round(wind_lcoe + w_bess_adder, 2)
+    out["lcoe_wind_allin_mid_usd_mwh"] = wind_allin
+
+    allin_candidates = [v for v in [solar_allin, wind_allin, hybrid_allin] if v is not None]
+    best_allin = min(allin_candidates) if allin_candidates else None
+
+    has_resource = ctx.max_mwp > 0 or ctx.wind_cap > 0
+    econ_tier = economic_tier(
+        lcoe_re=best_lcoe_re,
+        allin_24_7=best_allin,
+        grid_cost=ctx.grid_cost,
+        has_resource=has_resource,
+        near_parity_threshold_pct=ctx.thresholds.resilience_gap_pct,
+    )
+    out["economic_tier"] = econ_tier
+    out["infrastructure_readiness"] = ctx.grid_out["grid_integration_category"]
+
+    # Modifier badges (overlay signals that cross-cut the 2D grid)
+    badges: list[str] = []
+    if row.get("plan_late"):
+        badges.append("plan_late")
+    if row.get("cbam_urgent"):
+        badges.append("cbam_urgent")
+    if (
+        econ_tier in (EconomicTier.PARTIAL_RE, EconomicTier.NEAR_PARITY)
+        and ctx.reliability_req >= ctx.thresholds.reliability_threshold
+    ):
+        badges.append("storage_info")
+    out["modifier_badges"] = badges
+
+    # Solar replacement potential for captive coal (assumes 40% coal CF)
+    coal_mw = row.get("captive_coal_mw")
+    solar_gen = row.get("max_solar_generation_gwh")
+    if coal_mw and coal_mw > 0 and solar_gen and solar_gen > 0:
+        coal_gen_gwh = coal_mw * 8.76 * 0.40
+        out["captive_coal_generation_gwh"] = round(coal_gen_gwh, 1)
+        out["solar_replacement_pct"] = round(solar_gen / coal_gen_gwh * 100, 0)
+    else:
+        out["captive_coal_generation_gwh"] = None
+        out["solar_replacement_pct"] = None
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Pipeline — STAGES run in order. Each reads ctx + row-so-far, returns dict to
+# merge into row. New columns = new enricher + append here.
+# ---------------------------------------------------------------------------
+
+STAGES: list[Enricher] = [
+    enrich_lcoe_and_gaps,
+    enrich_grid_passthroughs,
+    enrich_action_flags,
+    enrich_carbon_and_viability,
+    enrich_bess,
+    enrich_generation,
+    enrich_wind,
+    enrich_firm_coverage,
+    enrich_hybrid,
+    enrich_captive_context,
+    enrich_cbam,
+    enrich_cross_domain,
+]
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator — thin loop, no domain math.
 # ---------------------------------------------------------------------------
 
 
@@ -77,31 +551,28 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
 ) -> pd.DataFrame:
     """Full live scorecard: LCOE + competitive gap + action flags + carbon breakeven.
 
-    This is the main entry point called by the dashboard callback whenever any
-    assumption slider changes. Returns one row per KEK.
+    Main entry point called by the dashboard on every assumption-slider change.
+    Returns one row per site.
 
     Parameters
     ----------
     resource_df:
         fct_site_resource with PVOUT columns + dist_to_nearest_substation_km.
-    assumptions:
-        User-adjustable model assumptions.
-    thresholds:
-        User-adjustable flag thresholds.
+    assumptions, thresholds:
+        User-adjustable model assumptions and flag thresholds.
     ruptl_metrics_df:
-        Pre-aggregated RUPTL metrics per grid_region_id (from ruptl_region_metrics()).
-        Columns: grid_region_id, post2030_share, grid_upgrade_pre2030.
+        Pre-aggregated RUPTL metrics per grid_region_id.
     demand_df:
         fct_site_demand filtered to target year. Columns: site_id, demand_mwh.
     grid_df:
-        fct_grid_cost_proxy. Columns: grid_region_id, grid_emission_factor_t_co2_mwh.
+        fct_grid_cost_proxy. Columns: grid_region_id, bpp_usd_mwh, grid_emission_factor_t_co2_mwh.
+    grid_cost_by_region:
+        Optional BPP override (BPP benchmark mode). If None, uses PLN I-4/TT tariff.
     wind_tech:
-        Wind technology cost parameters: capex_usd_per_kw, fom_usd_per_kw_yr,
-        lifetime_yr. If None, uses defaults ($1,650/kW, $40/kW-yr, 27yr).
+        Wind tech cost parameters (capex, FOM, lifetime). If None, uses defaults.
     """
+    # Shared setup (computed once, indexed for fast per-row lookup)
     lcoe_df = compute_lcoe_live(resource_df, assumptions)
-
-    # Wind LCOE (shares WACC with solar, uses wind-specific tech costs)
     wind_defaults = wind_tech or {
         "capex_usd_per_kw": 1650.0,
         "fom_usd_per_kw_yr": 40.0,
@@ -115,635 +586,36 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
         wind_lifetime=wind_defaults["lifetime_yr"],
     )
     wind_by_site = wind_lcoe_df.set_index("site_id")
-
-    # Extract within_boundary rows for primary comparison
     wb = lcoe_df[lcoe_df["scenario"] == "within_boundary"].set_index("site_id")
     gc = lcoe_df[lcoe_df["scenario"] == "grid_connected_solar"].set_index("site_id")
 
     default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
 
-    # Index demand by site_id for fast lookup
     demand_by_site: dict[str, float] = {}
     if demand_df is not None and not demand_df.empty:
         for _, d_row in demand_df.iterrows():
             demand_by_site[d_row["site_id"]] = float(d_row["demand_mwh"])
 
-    rows = []
+    # Per-row pipeline
+    rows: list[dict[str, Any]] = []
     for _, kek in resource_df.iterrows():
         site_id = kek["site_id"]
-        grid_region_id = kek.get("grid_region_id")
-
-        # Per-region grid cost (BPP mode) or uniform tariff
-        if grid_cost_by_region and grid_region_id and grid_region_id in grid_cost_by_region:
-            grid_cost = grid_cost_by_region[grid_region_id]
-        else:
-            grid_cost = default_grid_cost
-
-        # Primary LCOE: prefer grid-connected (includes connection + upgrade costs)
-        # Fall back to within-boundary if gc unavailable
-        if site_id in gc.index:
-            lcoe_mid = gc.loc[site_id, "lcoe_mid_usd_mwh"]
-            primary_cf = float(gc.loc[site_id, "cf"]) if pd.notna(gc.loc[site_id, "cf"]) else 0.0
-        else:
-            lcoe_mid = wb.loc[site_id, "lcoe_mid_usd_mwh"] if site_id in wb.index else np.nan
-            primary_cf = (
-                float(wb.loc[site_id, "cf"])
-                if site_id in wb.index and pd.notna(wb.loc[site_id, "cf"])
-                else 0.0
-            )
-
-        # Competitive gap (benchmark-dependent — uses grid_cost which may be BPP or tariff)
-        if pd.notna(lcoe_mid) and grid_cost > 0:
-            gap_pct = solar_competitive_gap(lcoe_mid, grid_cost)
-            attractive = is_solar_attractive(
-                lcoe_mid,
-                grid_cost,
-                pvout_best_50km=kek.get("pvout_best_50km"),
-                pvout_threshold=thresholds.pvout_threshold,
-            )
-        else:
-            gap_pct = np.nan
-            attractive = False
-
-        # Always compute both tariff and BPP gaps (independent of benchmark mode)
-        tariff_rate = default_grid_cost  # PLN I-4/TT industrial tariff
-        gap_vs_tariff_pct = (
-            solar_competitive_gap(lcoe_mid, tariff_rate)
-            if pd.notna(lcoe_mid) and tariff_rate > 0
-            else np.nan
-        )
-
-        bpp_rate = np.nan
-        if grid_df is not None and grid_region_id:
-            bpp_rows = grid_df[grid_df["grid_region_id"] == grid_region_id]
-            if len(bpp_rows):
-                bpp_val = bpp_rows.iloc[0].get("bpp_usd_mwh")
-                if pd.notna(bpp_val):
-                    bpp_rate = float(bpp_val)
-        gap_vs_bpp_pct = (
-            solar_competitive_gap(lcoe_mid, bpp_rate)
-            if pd.notna(lcoe_mid) and pd.notna(bpp_rate) and bpp_rate > 0
-            else np.nan
-        )
-
-        # RUPTL metrics
-        ruptl_row = (
-            ruptl_metrics_df[ruptl_metrics_df["grid_region_id"] == grid_region_id]
-            if grid_region_id and ruptl_metrics_df is not None
-            else pd.DataFrame()
-        )
-        grid_upgrade_pre2030 = (
-            bool(ruptl_row.iloc[0]["grid_upgrade_pre2030"]) if len(ruptl_row) else False
-        )
-        post2030_share = float(ruptl_row.iloc[0]["post2030_share"]) if len(ruptl_row) else 1.0
-
-        # GEAS
-        green_share = kek.get("green_share_geas", 0.0)
-        if pd.isna(green_share):
-            green_share = 0.0
-
-        reliability_req = kek.get("reliability_req", 0.6)
-        if pd.isna(reliability_req):
-            reliability_req = 0.6
-
-        # Grid integration: capacity + category + infra cost (extracted to grid.py)
-        grid_out = compute_grid_integration(
+        ctx = build_site_context(
             kek=kek,
-            gc_row=gc.loc[site_id] if site_id in gc.index else None,
-            assumptions=assumptions,
-        )
-        gi_cat = grid_out["grid_integration_category"]
-        flags = action_flags(
-            solar_attractive=attractive,
-            grid_upgrade_pre2030=grid_upgrade_pre2030,
-            reliability_req=reliability_req,
-            green_share_geas=green_share,
-            post2030_share=post2030_share,
-            grid_integration_cat=gi_cat,
-        )
-
-        # Override thresholds: use user values instead of hardcoded defaults
-        flags["plan_late"] = post2030_share >= thresholds.plan_late_threshold
-        flags["invest_transmission"] = attractive and gi_cat == "invest_transmission"
-        flags["invest_substation"] = attractive and gi_cat == "invest_substation"
-        flags["solar_now"] = (
-            attractive
-            and not flags["grid_first"]
-            and not flags["invest_transmission"]
-            and not flags["invest_substation"]
-            and green_share >= thresholds.geas_threshold
-        )
-        flags["invest_battery"] = attractive and reliability_req >= thresholds.reliability_threshold
-        resilience = invest_resilience_fn(
-            solar_competitive_gap_pct=gap_pct if pd.notna(gap_pct) else 0.0,
-            reliability_req=reliability_req,
-            gap_threshold_pct=thresholds.resilience_gap_pct,
-            reliability_threshold=thresholds.reliability_threshold,
-        )
-
-        # Carbon breakeven
-        emission_factor = 0.0
-        if grid_df is not None and grid_region_id:
-            ef_row = grid_df[grid_df["grid_region_id"] == grid_region_id]
-            if len(ef_row):
-                ef_val = ef_row.iloc[0].get("grid_emission_factor_t_co2_mwh", 0.0)
-                emission_factor = float(ef_val) if pd.notna(ef_val) else 0.0
-
-        carbon_be = (
-            carbon_breakeven_price(lcoe_mid, grid_cost, emission_factor)
-            if pd.notna(lcoe_mid) and emission_factor > 0
-            else None
-        )
-
-        # Project viable with user threshold
-        max_mwp = kek.get("max_captive_capacity_mwp", 0.0)
-        if pd.isna(max_mwp):
-            max_mwp = 0.0
-        project_viable = max_mwp >= thresholds.min_viable_mwp
-
-        # Derive action_flag: first True flag wins (priority order)
-        # No buildable land → no solar resource, skip all solar-dependent flags
-        if max_mwp <= 0:
-            action_flag = ActionFlag.NO_SOLAR_RESOURCE
-        else:
-            action_flag = ActionFlag.NOT_COMPETITIVE
-            for flag_name in [
-                ActionFlag.SOLAR_NOW,
-                ActionFlag.INVEST_TRANSMISSION,
-                ActionFlag.INVEST_SUBSTATION,
-                ActionFlag.GRID_FIRST,
-                ActionFlag.INVEST_BATTERY,
-                ActionFlag.INVEST_RESILIENCE,
-                ActionFlag.PLAN_LATE,
-            ]:
-                flag_val = (
-                    resilience
-                    if flag_name == ActionFlag.INVEST_RESILIENCE
-                    else flags.get(flag_name, False)
-                )
-                if flag_val is True:
-                    action_flag = flag_name
-                    break
-
-        # BESS sizing + storage adder + LCOE-with-BESS (extracted to technology.py)
-        _bess = compute_bess_metrics(
-            lcoe_mid=lcoe_mid,
-            primary_cf=primary_cf,
-            reliability_req=float(reliability_req),
-            dominant_process=str(kek.get("dominant_process_type", "")),
             assumptions=assumptions,
             thresholds=thresholds,
-            grid_cost=grid_cost,
+            gc_row=gc.loc[site_id] if site_id in gc.index else None,
+            wb_row=wb.loc[site_id] if site_id in wb.index else None,
+            wind_row=wind_by_site.loc[site_id] if site_id in wind_by_site.index else None,
+            default_grid_cost=default_grid_cost,
+            grid_cost_by_region=grid_cost_by_region,
+            grid_df=grid_df,
+            ruptl_metrics_df=ruptl_metrics_df,
+            demand_by_site=demand_by_site,
         )
-        bess_sizing = _bess["bess_sizing_hours"]
-        _bess_adder = _bess["battery_adder_usd_mwh"]
-        _lcoe_with_bess = _bess["lcoe_with_battery_usd_mwh"]
-        _bess_competitive = _bess["bess_competitive"]
-
-        row = {
-            "site_id": site_id,
-            "action_flag": action_flag,
-            "lcoe_mid_usd_mwh": _round(lcoe_mid),
-            "lcoe_low_usd_mwh": _round(gc.loc[site_id, "lcoe_low_usd_mwh"])
-            if site_id in gc.index
-            else (_round(wb.loc[site_id, "lcoe_low_usd_mwh"]) if site_id in wb.index else np.nan),
-            "lcoe_high_usd_mwh": _round(gc.loc[site_id, "lcoe_high_usd_mwh"])
-            if site_id in gc.index
-            else (_round(wb.loc[site_id, "lcoe_high_usd_mwh"]) if site_id in wb.index else np.nan),
-            "solar_competitive_gap_pct": _round(gap_pct),
-            "gap_vs_tariff_pct": _round(gap_vs_tariff_pct),
-            "gap_vs_bpp_pct": _round(gap_vs_bpp_pct),
-            "solar_attractive": attractive,
-            "solar_now": flags["solar_now"],
-            "invest_transmission": flags["invest_transmission"],
-            "invest_substation": flags["invest_substation"],
-            "invest_battery": flags["invest_battery"],
-            "grid_first": flags["grid_first"],
-            "battery_adder_usd_mwh": _bess_adder,
-            "lcoe_with_battery_usd_mwh": _lcoe_with_bess,
-            "bess_competitive": _bess_competitive,
-            "bess_sizing_hours": bess_sizing,
-            "land_cost_usd_per_kw": assumptions.land_cost_usd_per_kw,
-            "demand_2030_gwh": round(demand_by_site[site_id] / 1000, 1)
-            if site_id in demand_by_site
-            else None,
-            "max_solar_generation_gwh": _round(
-                float(kek.get("max_captive_capacity_mwp", 0))
-                * float(kek.get("pvout_best_50km", 0))
-                / 1000
-            )
-            if pd.notna(kek.get("max_captive_capacity_mwp"))
-            and pd.notna(kek.get("pvout_best_50km"))
-            else None,
-            "solar_supply_coverage_pct": round(
-                (
-                    float(kek.get("max_captive_capacity_mwp", 0))
-                    * float(kek.get("pvout_best_50km", 0))
-                )
-                / demand_by_site[site_id],
-                3,
-            )
-            if site_id in demand_by_site
-            and demand_by_site[site_id] > 0
-            and pd.notna(kek.get("max_captive_capacity_mwp"))
-            and pd.notna(kek.get("pvout_best_50km"))
-            else None,
-            "within_boundary_generation_gwh": _round(
-                float(kek.get("within_boundary_capacity_mwp", 0))
-                * float(
-                    kek.get("pvout_within_boundary")
-                    if pd.notna(kek.get("pvout_within_boundary"))
-                    else kek.get("pvout_centroid", 0)
-                )
-                / 1000
-            )
-            if pd.notna(kek.get("within_boundary_capacity_mwp"))
-            and (pd.notna(kek.get("pvout_within_boundary")) or pd.notna(kek.get("pvout_centroid")))
-            else None,
-            "within_boundary_coverage_pct": round(
-                (
-                    float(kek.get("within_boundary_capacity_mwp", 0))
-                    * float(
-                        kek.get("pvout_within_boundary")
-                        if pd.notna(kek.get("pvout_within_boundary"))
-                        else kek.get("pvout_centroid", 0)
-                    )
-                )
-                / demand_by_site[site_id],
-                3,
-            )
-            if site_id in demand_by_site
-            and demand_by_site[site_id] > 0
-            and pd.notna(kek.get("within_boundary_capacity_mwp"))
-            and (pd.notna(kek.get("pvout_within_boundary")) or pd.notna(kek.get("pvout_centroid")))
-            else None,
-            "green_share_geas": round(float(green_share), 4) if pd.notna(green_share) else None,
-            "plan_late": flags["plan_late"],
-            "invest_resilience": resilience,
-            "carbon_breakeven_usd_tco2": carbon_be,
-            "project_viable": project_viable,
-            "grid_cost_usd_mwh": grid_cost,
-            "wacc_pct": assumptions.wacc_pct,
-            "capex_usd_per_kw": assumptions.capex_usd_per_kw,
-        }
-
-        # Wind LCOE (live-computed, responds to WACC slider)
-        if site_id in wind_by_site.index:
-            w = wind_by_site.loc[site_id]
-            row["lcoe_wind_mid_usd_mwh"] = w["lcoe_wind_mid_usd_mwh"]
-            row["cf_wind"] = w["cf_wind"]
-            row["wind_speed_ms"] = w["wind_speed_ms"]
-        else:
-            row["lcoe_wind_mid_usd_mwh"] = np.nan
-            row["cf_wind"] = 0.0
-            row["wind_speed_ms"] = 0.0
-
-        # Best RE technology: compare solar (with BESS), wind, and hybrid all-in
-        wind_lcoe_val = row.get("lcoe_wind_mid_usd_mwh")
-        solar_lcoe_val = row.get("lcoe_mid_usd_mwh")
-        hybrid_allin_val = row.get("hybrid_allin_usd_mwh")
-
-        candidates: dict[str, float] = {}
-        if pd.notna(solar_lcoe_val):
-            candidates["solar"] = float(solar_lcoe_val)
-        if pd.notna(wind_lcoe_val):
-            candidates["wind"] = float(wind_lcoe_val)
-        if hybrid_allin_val is not None and pd.notna(hybrid_allin_val):
-            candidates["hybrid"] = float(hybrid_allin_val)
-
-        if candidates:
-            best_tech = min(candidates, key=candidates.get)
-            row["best_re_technology"] = best_tech
-            row["best_re_lcoe_mid_usd_mwh"] = candidates[best_tech]
-        else:
-            row["best_re_technology"] = "solar"
-            row["best_re_lcoe_mid_usd_mwh"] = np.nan
-
-        # Wind competitive gap vs BPP
-        if pd.notna(wind_lcoe_val) and pd.notna(bpp_rate) and bpp_rate > 0:
-            row["wind_competitive_gap_pct"] = _round(solar_competitive_gap(wind_lcoe_val, bpp_rate))
-        else:
-            row["wind_competitive_gap_pct"] = np.nan
-
-        # Wind buildability + supply coverage (from pipeline data)
-        wind_cap = (
-            float(kek.get("max_wind_capacity_mwp", 0))
-            if pd.notna(kek.get("max_wind_capacity_mwp"))
-            else 0.0
-        )
-        wind_cf_best = (
-            float(kek.get("cf_wind_buildable_best", 0))
-            if pd.notna(kek.get("cf_wind_buildable_best"))
-            else row.get("cf_wind", 0.0)
-        )
-        wind_gen_gwh = (
-            wind_cap * wind_cf_best * 8760 / 1000 if wind_cap > 0 and wind_cf_best > 0 else 0.0
-        )
-        _demand_mwh = demand_by_site.get(site_id, 0.0)
-        demand_gwh = _demand_mwh / 1000 if _demand_mwh > 0 else 0.0
-
-        row["max_wind_capacity_mwp"] = _round(wind_cap, 1)
-        row["wind_buildable_area_ha"] = (
-            _round(float(kek.get("wind_buildable_area_ha", 0)))
-            if pd.notna(kek.get("wind_buildable_area_ha"))
-            else 0.0
-        )
-        row["wind_buildability_constraint"] = (
-            str(kek.get("wind_buildability_constraint", "unknown"))
-            if pd.notna(kek.get("wind_buildability_constraint"))
-            else "unknown"
-        )
-        row["max_wind_generation_gwh"] = _round(wind_gen_gwh, 1)
-        row["wind_supply_coverage_pct"] = (
-            round(wind_gen_gwh / demand_gwh, 3) if demand_gwh > 0 and wind_gen_gwh > 0 else None
-        )
-
-        # Wind carbon breakeven (same formula as solar, different LCOE input)
-        row["wind_carbon_breakeven_usd_tco2"] = (
-            carbon_breakeven_price(wind_lcoe_val, grid_cost, emission_factor)
-            if pd.notna(wind_lcoe_val) and emission_factor > 0
-            else None
-        )
-
-        # V3.3: Firm solar + wind temporal metrics (extracted to technology.py)
-        solar_gen_mwh = (
-            (float(kek.get("max_captive_capacity_mwp", 0)) * float(kek.get("pvout_best_50km", 0)))
-            if pd.notna(kek.get("max_captive_capacity_mwp"))
-            and pd.notna(kek.get("pvout_best_50km"))
-            else 0.0
-        )
-        demand_mwh_val = demand_by_site.get(site_id, 0.0)
-        wind_gen_mwh = wind_gen_gwh * 1000
-        row.update(
-            compute_firm_coverage(
-                solar_gen_mwh=solar_gen_mwh,
-                wind_gen_mwh=wind_gen_mwh,
-                demand_mwh=demand_mwh_val,
-                wind_cf_best=wind_cf_best,
-            )
-        )
-
-        # Hybrid solar+wind (extracted to technology.py)
-        solar_cap_mwp_val = (
-            float(kek.get("max_captive_capacity_mwp", 0))
-            if pd.notna(kek.get("max_captive_capacity_mwp"))
-            else 0.0
-        )
-        row.update(
-            compute_hybrid_metrics(
-                solar_lcoe=lcoe_mid,
-                wind_lcoe=wind_lcoe_val,
-                solar_gen_mwh=solar_gen_mwh,
-                wind_gen_mwh=wind_gen_mwh,
-                primary_cf=primary_cf,
-                wind_cf_best=wind_cf_best,
-                solar_capacity_mwp=solar_cap_mwp_val,
-                wind_capacity_mwp=wind_cap,
-                demand_mwh=demand_mwh_val,
-                assumptions=assumptions,
-                grid_cost=grid_cost,
-                emission_factor=emission_factor,
-            )
-        )
-
-        # Within-boundary LCOE (secondary, for reference — captive solar, no connection costs)
-        if site_id in wb.index:
-            row["lcoe_within_boundary_usd_mwh"] = _round(wb.loc[site_id, "lcoe_mid_usd_mwh"])
-            row["lcoe_within_boundary_low_usd_mwh"] = _round(wb.loc[site_id, "lcoe_low_usd_mwh"])
-            row["lcoe_within_boundary_high_usd_mwh"] = _round(wb.loc[site_id, "lcoe_high_usd_mwh"])
-        else:
-            row["lcoe_within_boundary_usd_mwh"] = np.nan
-            row["lcoe_within_boundary_low_usd_mwh"] = np.nan
-            row["lcoe_within_boundary_high_usd_mwh"] = np.nan
-
-        # Grid integration + capacity + infra cost + connectivity pass-throughs
-        # (all fields pre-computed by compute_grid_integration above).
-        row.update(grid_out)
-
-        # H9: Captive power context (pass-through from resource_df summaries)
-        row["captive_coal_count"] = (
-            int(kek.get("captive_coal_count", 0))
-            if pd.notna(kek.get("captive_coal_count"))
-            else None
-        )
-        row["captive_coal_mw"] = (
-            int(kek.get("captive_coal_mw", 0)) if pd.notna(kek.get("captive_coal_mw")) else None
-        )
-        row["captive_coal_plants"] = (
-            str(kek.get("captive_coal_plants", ""))
-            if pd.notna(kek.get("captive_coal_plants"))
-            else None
-        )
-        row["nickel_smelter_count"] = (
-            int(kek.get("nickel_smelter_count", 0))
-            if pd.notna(kek.get("nickel_smelter_count"))
-            else None
-        )
-        row["nickel_projects"] = (
-            str(kek.get("nickel_projects", "")) if pd.notna(kek.get("nickel_projects")) else None
-        )
-        row["dominant_process_type"] = (
-            str(kek.get("dominant_process_type", ""))
-            if pd.notna(kek.get("dominant_process_type"))
-            else None
-        )
-        row["has_chinese_ownership"] = (
-            bool(kek.get("has_chinese_ownership"))
-            if pd.notna(kek.get("has_chinese_ownership"))
-            else False
-        )
-
-        # Steel plant context (GEM Iron and Steel Plant Tracker)
-        row["steel_plant_count"] = (
-            int(kek.get("steel_plant_count", 0)) if pd.notna(kek.get("steel_plant_count")) else None
-        )
-        row["steel_capacity_tpa"] = (
-            float(kek.get("steel_capacity_tpa", 0))
-            if pd.notna(kek.get("steel_capacity_tpa"))
-            else None
-        )
-        row["steel_plants"] = (
-            str(kek.get("steel_plants", "")) if pd.notna(kek.get("steel_plants")) else None
-        )
-        row["steel_has_chinese_ownership"] = (
-            bool(kek.get("steel_has_chinese_ownership"))
-            if pd.notna(kek.get("steel_has_chinese_ownership"))
-            else False
-        )
-
-        # Cement plant context (GEM Global Cement Plant Tracker)
-        row["cement_plant_count"] = (
-            int(kek.get("cement_plant_count", 0))
-            if pd.notna(kek.get("cement_plant_count"))
-            else None
-        )
-        row["cement_capacity_mtpa"] = (
-            float(kek.get("cement_capacity_mtpa", 0))
-            if pd.notna(kek.get("cement_capacity_mtpa"))
-            else None
-        )
-        row["cement_plants"] = (
-            str(kek.get("cement_plants", "")) if pd.notna(kek.get("cement_plants")) else None
-        )
-        row["cement_has_chinese_ownership"] = (
-            bool(kek.get("cement_has_chinese_ownership"))
-            if pd.notna(kek.get("cement_has_chinese_ownership"))
-            else False
-        )
-
-        # H8: Perpres 112/2022 compliance status
-        coal_count = row.get("captive_coal_count")
-        if coal_count and coal_count > 0:
-            row["has_captive_coal"] = True
-            row["perpres_112_status"] = "Subject to 2050 phase-out"
-        else:
-            row["has_captive_coal"] = False
-            row["perpres_112_status"] = None
-
-        # CBAM exposure: dispatch on SiteTypeConfig.cbam_method
-        #   - "direct"   → read cbam_product_type from dim_sites (standalone/cluster/KI)
-        #   - "3_signal" → detect from nickel process + plant counts + business sectors (KEK)
-        cbam_types = _detect_cbam_types(kek, row)
-        row.update(
-            compute_cbam_trajectory(
-                cbam_types,
-                grid_ef_t_co2_mwh=row.get("grid_emission_factor_t_co2_mwh"),
-                cbam_price_eur=assumptions.cbam_certificate_price_eur,
-                eur_usd_rate=assumptions.cbam_eur_usd_rate,
-            )
-        )
-
-        # CBAM-adjusted competitive gap: subtract avoided CBAM cost per MWh from effective LCOE
-        if row.get("cbam_exposed") and pd.notna(lcoe_mid) and grid_cost > 0:
-            primary_type = cbam_types[0] if cbam_types else None
-            elec_intensity = (
-                CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE.get(primary_type, 0) if primary_type else 0
-            )
-            if elec_intensity > 0:
-                savings_per_tonne = row.get("cbam_savings_2030_usd_per_tonne") or 0
-                cbam_savings_mwh = savings_per_tonne / elec_intensity
-                row["cbam_savings_per_mwh"] = round(cbam_savings_mwh, 1)
-                adjusted_lcoe = lcoe_mid - cbam_savings_mwh
-                row["cbam_adjusted_gap_pct"] = round(
-                    ((adjusted_lcoe - grid_cost) / grid_cost) * 100, 1
-                )
-            else:
-                row["cbam_savings_per_mwh"] = None
-                row["cbam_adjusted_gap_pct"] = None
-        else:
-            row["cbam_savings_per_mwh"] = None
-            row["cbam_adjusted_gap_pct"] = None
-
-        # CBAM urgent: CBAM-adjusted gap is negative (RE + avoided CBAM beats grid)
-        # even though standard gap may be positive (RE alone doesn't beat grid)
-        adj_gap = row.get("cbam_adjusted_gap_pct")
-        row["cbam_urgent"] = bool(row.get("cbam_exposed") and adj_gap is not None and adj_gap < 0)
-
-        # Override action flag: if CBAM makes RE win and current flag is not_competitive,
-        # upgrade to cbam_urgent (solar alone doesn't beat grid, but CBAM flips it)
-        if row["cbam_urgent"] and row["action_flag"] in (
-            ActionFlag.NOT_COMPETITIVE,
-            ActionFlag.INVEST_RESILIENCE,
-        ):
-            row["action_flag"] = ActionFlag.CBAM_URGENT
-
-        # ── 2D Economic Tier × Infrastructure Readiness ──────────────────────
-        # Resolve best bare LCOE and best all-in (with storage) across technologies.
-        _solar_lcoe_val = float(lcoe_mid) if pd.notna(lcoe_mid) else None
-        _wind_lcoe_val = (
-            float(row["lcoe_wind_mid_usd_mwh"])
-            if pd.notna(row.get("lcoe_wind_mid_usd_mwh"))
-            else None
-        )
-        _hybrid_lcoe_val = (
-            float(row["hybrid_lcoe_usd_mwh"])
-            if row.get("hybrid_lcoe_usd_mwh") is not None
-            and pd.notna(row.get("hybrid_lcoe_usd_mwh"))
-            else None
-        )
-
-        _lcoe_candidates = [
-            v for v in [_solar_lcoe_val, _wind_lcoe_val, _hybrid_lcoe_val] if v is not None
-        ]
-        _best_lcoe_re = min(_lcoe_candidates) if _lcoe_candidates else None
-
-        # All-in with storage for 24/7 coverage
-        _solar_allin = float(_lcoe_with_bess) if pd.notna(_lcoe_with_bess) else None
-        _hybrid_allin = (
-            float(row["hybrid_allin_usd_mwh"])
-            if row.get("hybrid_allin_usd_mwh") is not None
-            and pd.notna(row.get("hybrid_allin_usd_mwh"))
-            else None
-        )
-        # Wind all-in: wind LCOE + BESS for firming hours
-        _wind_allin = None
-        _wind_firming_h = row.get("wind_firming_hours")
-        if (
-            _wind_lcoe_val is not None
-            and wind_cf_best > 0
-            and _wind_firming_h
-            and _wind_firming_h > 0
-        ):
-            _w_bess_adder = bess_storage_adder(
-                assumptions.bess_capex_usd_per_kwh,
-                solar_cf=wind_cf_best,
-                wacc=assumptions.wacc_decimal,
-                sizing_hours=float(_wind_firming_h),
-            )
-            _wind_allin = round(_wind_lcoe_val + _w_bess_adder, 2)
-
-        _allin_candidates = [v for v in [_solar_allin, _wind_allin, _hybrid_allin] if v is not None]
-        _best_allin = min(_allin_candidates) if _allin_candidates else None
-        row["lcoe_wind_allin_mid_usd_mwh"] = _wind_allin
-
-        _has_re_resource = max_mwp > 0 or wind_cap > 0
-
-        _econ_tier = economic_tier(
-            lcoe_re=_best_lcoe_re,
-            allin_24_7=_best_allin,
-            grid_cost=grid_cost,
-            has_resource=_has_re_resource,
-            near_parity_threshold_pct=thresholds.resilience_gap_pct,
-        )
-
-        row["economic_tier"] = _econ_tier
-        row["infrastructure_readiness"] = gi_cat
-
-        # Modifier badges
-        _badges: list[str] = []
-        if flags["plan_late"]:
-            _badges.append("plan_late")
-        if row.get("cbam_urgent"):
-            _badges.append("cbam_urgent")
-        if _econ_tier in (EconomicTier.PARTIAL_RE, EconomicTier.NEAR_PARITY):
-            if reliability_req >= thresholds.reliability_threshold:
-                _badges.append("storage_info")
-        row["modifier_badges"] = _badges
-
-        # Solar replacement potential: what % of captive coal generation can solar replace?
-        # Assumes 40% capacity factor for coal (Indonesian captive coal typical)
-        coal_mw = row.get("captive_coal_mw")
-        solar_gen = row.get("max_solar_generation_gwh")
-        if coal_mw and coal_mw > 0 and solar_gen and solar_gen > 0:
-            coal_gen_gwh = coal_mw * 8.76 * 0.40  # MW → GWh/yr at 40% CF
-            row["captive_coal_generation_gwh"] = round(coal_gen_gwh, 1)
-            row["solar_replacement_pct"] = round(solar_gen / coal_gen_gwh * 100, 0)
-        else:
-            row["captive_coal_generation_gwh"] = None
-            row["solar_replacement_pct"] = None
-
+        row: dict[str, Any] = {"site_id": site_id}
+        for stage in STAGES:
+            row.update(stage(ctx, row))
         rows.append(row)
 
     return pd.DataFrame(rows)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _round_add(base: float, adder: float, decimals: int = 2) -> float:
-    """Add two values and round, returning NaN if base is NaN."""
-    if pd.isna(base):
-        return np.nan
-    return round(float(base) + float(adder), decimals)
