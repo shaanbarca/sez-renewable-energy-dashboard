@@ -1,7 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { getEconomicTierDescription, getEconomicTierLabel } from '../../lib/actionFlags';
 import { ECONOMIC_TIER_COLORS, ECONOMIC_TIER_HIERARCHY } from '../../lib/constants';
+import { SECTOR_ICON_PATHS, SECTOR_SHAPE_LABELS } from '../../lib/sectorIcons';
+import type { Sector } from '../../lib/siteTypes';
 import { useDashboardStore } from '../../store/dashboard';
+
+// Renders the same pictogram silhouette MapLibre rasterizes for the marker —
+// path data is the single source of truth in `sectorIcons.ts` so the on-map
+// icon and the legend swatch can never drift apart.
+function SectorShape({ sector, color = '#d0d0d0' }: { sector: Sector; color?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" className="shrink-0">
+      <path d={SECTOR_ICON_PATHS[sector]} fill={color} />
+    </svg>
+  );
+}
+
+const SECTOR_LEGEND_ORDER: Sector[] = [
+  'mixed',
+  'cement',
+  'steel',
+  'aluminium',
+  'nickel',
+  'fertilizer',
+  'ammonia',
+  'petrochemical',
+];
+
+const SECTOR_LEGEND_LABELS: Record<Sector, string> = {
+  mixed: 'KEK / Mixed',
+  cement: 'Cement',
+  steel: 'Steel',
+  aluminium: 'Aluminium',
+  nickel: 'Nickel',
+  fertilizer: 'Fertilizer',
+  ammonia: 'Ammonia',
+  petrochemical: 'Petrochemical',
+};
 
 const INFRA_RING_KEY = [
   { label: 'Grid Ready', color: '#ffffff', description: 'Within boundary or nearby substation' },
@@ -172,6 +207,30 @@ export default function ActionFlagLegend() {
                   EU Carbon Border Adjustment Mechanism applies to exports from this KEK
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Sector shape section */}
+          <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <p
+              className="text-[10px] uppercase tracking-wider mb-2 font-medium"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Icon = Sector
+            </p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {SECTOR_LEGEND_ORDER.map((sector) => (
+                <div key={sector} className="flex items-center gap-1.5">
+                  <SectorShape sector={sector} />
+                  <span
+                    className="text-[11px] truncate"
+                    style={{ color: 'var(--text-value)' }}
+                    title={`${SECTOR_LEGEND_LABELS[sector]} — drawn as ${SECTOR_SHAPE_LABELS[sector]}`}
+                  >
+                    {SECTOR_LEGEND_LABELS[sector]}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

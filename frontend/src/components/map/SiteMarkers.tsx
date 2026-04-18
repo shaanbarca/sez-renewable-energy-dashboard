@@ -7,6 +7,8 @@ import {
   getEffectiveInfraReadiness,
 } from '../../lib/actionFlags';
 import { ECONOMIC_TIER_COLORS, INFRA_READINESS_LABELS } from '../../lib/constants';
+import { registerSectorIcons } from '../../lib/sectorIcons';
+import type { Sector } from '../../lib/siteTypes';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
@@ -39,6 +41,21 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
   const prevFlagsRef = useRef<Record<string, string>>({});
   const animIdRef = useRef<number>(0);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Register sector pictogram SDF icons with the map. They render as the white
+  // silhouette inside the coloured marker disc. Safe to call repeatedly —
+  // `registerSectorIcons` skips any image that already exists.
+  useEffect(() => {
+    if (!mapInstance) return;
+    const map = mapInstance.getMap();
+    const install = () => registerSectorIcons(map);
+    if (map.isStyleLoaded()) install();
+    else map.once('load', install);
+    map.on('styledata', install);
+    return () => {
+      map.off('styledata', install);
+    };
+  }, [mapInstance]);
 
   // Pulse animation — runs on first load (all markers) and on flag changes (affected markers only)
   useEffect(() => {
@@ -146,6 +163,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
           economic_tier: getEffectiveEconomicTier(row, energyMode),
           province: row.province,
           site_type: row.site_type ?? '',
+          sector: (row.sector as Sector) ?? 'mixed',
           category: row.category ?? '',
           area_ha: row.area_ha ?? null,
           grid_integration_category: row.grid_integration_category ?? '',
@@ -178,6 +196,63 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
     return entries;
   }, []);
 
+  // Zoom-responsive circle radius for the coloured marker background.
+  // Sized so the white pictogram inside is legible at every zoom — including
+  // continental zoom-out, not just close-up.
+  const circleRadius = useMemo(
+    () =>
+      [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        4,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 9, 7],
+        7,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 12, 9.5],
+        9,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 15, 12],
+      ] as unknown as number,
+    [selectedSite],
+  );
+
+  // CBAM = circular amber ring sized just outside the marker bg. Now that the
+  // marker base is itself a circle, a circular ring is the right shape (no
+  // mismatch between ring and silhouette).
+  const cbamRingRadius = useMemo(
+    () =>
+      [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        4,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 12, 10],
+        7,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 15, 12.5],
+        9,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 18, 15],
+      ] as unknown as number,
+    [selectedSite],
+  );
+
+  // White pictogram inside the circle. SDF is 64px, so icon-size 0.22 ≈ 14px.
+  // Scaled to fill ~75% of the circle diameter at every zoom so the icon
+  // is visible at continental zoom too — not just close-up.
+  const pictogramSize = useMemo(
+    () =>
+      [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        4,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 0.26, 0.2],
+        7,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 0.34, 0.26],
+        9,
+        ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 0.42, 0.32],
+      ] as unknown as number,
+    [selectedSite],
+  );
+
   if (!geojson) return null;
 
   return (
@@ -194,28 +269,65 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
             'circle-opacity': 0,
           }}
         />
-        <Layer
-          id="kek-circles"
-          type="circle"
-          paint={{
-            'circle-radius': ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 8, 6],
-            'circle-color': colorMatch as unknown as string,
-            'circle-stroke-color': infraStrokeMatch as unknown as string,
-            'circle-stroke-width': ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 3, 1.5],
-            'circle-opacity': 0.9,
-          }}
-        />
-        {/* CBAM exposure ring — amber outline on CBAM-exposed KEKs */}
+        {/* CBAM exposure — circular amber ring sitting just outside the marker
+            background. The bg is itself a circle now, so a circular ring is
+            the right shape (no silhouette mismatch). */}
         <Layer
           id="kek-cbam-ring"
           type="circle"
           filter={['==', ['get', 'cbam_exposed'], true]}
           paint={{
-            'circle-radius': ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 11, 9],
-            'circle-color': 'transparent',
+            'circle-radius': cbamRingRadius,
+            'circle-color': 'rgba(0,0,0,0)',
             'circle-stroke-color': '#FF6F00',
-            'circle-stroke-width': 1.5,
-            'circle-opacity': 0.8,
+            'circle-stroke-width': [
+              'case',
+              ['==', ['get', 'site_id'], selectedSite ?? ''],
+              2.5,
+              1.5,
+            ],
+            'circle-stroke-opacity': [
+              'case',
+              ['==', ['get', 'site_id'], selectedSite ?? ''],
+              0.95,
+              0.7,
+            ],
+          }}
+        />
+        {/* Marker background — coloured disc encoding economic tier (fill) and
+            infrastructure readiness (stroke). Same visual vocabulary as the
+            captive-power overlay icons (red/grey badges). */}
+        <Layer
+          id="kek-circles"
+          type="circle"
+          paint={{
+            'circle-radius': circleRadius,
+            'circle-color': colorMatch as unknown as string,
+            'circle-stroke-color': infraStrokeMatch as unknown as string,
+            'circle-stroke-width': [
+              'case',
+              ['==', ['get', 'site_id'], selectedSite ?? ''],
+              2.5,
+              1.5,
+            ],
+            'circle-opacity': 0.95,
+          }}
+        />
+        {/* White sector pictogram on top of the disc. Always visible — the
+            user wants the icon legible at continental zoom too, not just up
+            close. Disc is sized to keep the pictogram readable at every zoom. */}
+        <Layer
+          id="kek-pictogram"
+          type="symbol"
+          layout={{
+            'icon-image': ['concat', 'sector-icon-', ['get', 'sector']] as unknown as string,
+            'icon-size': pictogramSize,
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'icon-anchor': 'center',
+          }}
+          paint={{
+            'icon-color': '#ffffff',
           }}
         />
       </Source>
