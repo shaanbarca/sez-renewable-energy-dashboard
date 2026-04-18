@@ -12,7 +12,7 @@ const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'sector', label: 'Sector Summary' },
 ];
 
-const TABLE_HEIGHT = 288;
+const TABLE_HEIGHT = 448;
 const CHART_HEIGHT = 420;
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 700;
@@ -20,7 +20,8 @@ const MAX_HEIGHT = 700;
 export default function BottomPanel() {
   const activeTab = useDashboardStore((s) => s.activeTab);
   const setActiveTab = useDashboardStore((s) => s.setActiveTab);
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useDashboardStore((s) => s.bottomPanelCollapsed);
+  const setCollapsed = useDashboardStore((s) => s.setBottomPanelCollapsed);
   const [userHeight, setUserHeight] = useState<number | null>(null);
   const dragging = useRef(false);
   const startY = useRef(0);
@@ -85,6 +86,21 @@ export default function BottomPanel() {
               onPointerDown={onDragStart}
               onPointerMove={onDragMove}
               onPointerUp={onDragEnd}
+              title="Drag to resize panel"
+            />
+          )}
+          {/* Visible drag-grip pill — signals resizable */}
+          {!collapsed && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+              style={{
+                top: 4,
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                background: 'var(--accent-border)',
+                opacity: 0.7,
+              }}
             />
           )}
           {/* Collapse toggle — always centered */}

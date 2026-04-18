@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ACTION_FLAG_HIERARCHY_BY_MODE } from '../../lib/actionFlags';
 import {
@@ -47,6 +48,94 @@ const SECTOR_COLORS: Record<Sector, string> = {
   nickel: '#FF7043',
   mixed: '#78909C',
 };
+
+function HeaderTip({
+  label,
+  desc,
+  color,
+  align = 'left',
+}: {
+  label: string;
+  desc: string;
+  color?: string;
+  align?: 'left' | 'right';
+}) {
+  const badgeRef = useRef<HTMLSpanElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; bottom?: number; top?: number } | null>(null);
+  const TIP_W = 256;
+  const TIP_MAX_H = 220;
+  const PAD = 6;
+
+  const onEnter = () => {
+    if (!badgeRef.current) return;
+    const r = badgeRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = r.left;
+    if (left + TIP_W + PAD > vw) left = vw - TIP_W - PAD;
+    if (left < PAD) left = PAD;
+    // Prefer above: anchor bottom to badge top (popup hugs the badge regardless of height)
+    if (r.top > TIP_MAX_H + PAD) {
+      setPos({ left, bottom: vh - r.top + PAD });
+    } else {
+      setPos({ left, top: r.bottom + PAD });
+    }
+  };
+  const onLeave = () => setPos(null);
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'}`}
+      style={color ? { color } : undefined}
+    >
+      <span>{label}</span>
+      <span
+        ref={badgeRef}
+        className="relative inline-flex"
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+      >
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="none"
+          className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-help flex-shrink-0 align-middle"
+        >
+          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+          <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="600">
+            ?
+          </text>
+        </svg>
+      </span>
+      {pos &&
+        createPortal(
+          <div
+            className="fixed text-left text-[10px] leading-relaxed text-zinc-300 font-normal
+                       rounded-md shadow-lg pointer-events-none px-2.5 py-2"
+            style={{
+              left: pos.left,
+              top: pos.top,
+              bottom: pos.bottom,
+              width: TIP_W,
+              maxHeight: TIP_MAX_H,
+              overflowY: 'auto',
+              zIndex: 9999,
+              background: 'var(--glass-heavy)',
+              backdropFilter: 'var(--blur-heavy)',
+              WebkitBackdropFilter: 'var(--blur-heavy)',
+              border: '1px solid var(--glass-border-bright)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div className="font-medium text-zinc-100 mb-0.5 text-left">{label}</div>
+            {desc}
+          </div>,
+          document.body,
+        )}
+    </span>
+  );
+}
 
 type SectorRollup = {
   sector: Sector;
@@ -284,29 +373,31 @@ export default function SectorSummaryChart() {
           <table className="text-[11px] w-full border-collapse">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
-                <th
-                  className="text-left py-1 pr-3 font-medium cursor-help"
-                  title="Sector — industrial sector rollup (CBAM-exposed sectors plus mixed KEKs)."
-                >
-                  Sector
+                <th className="text-left py-1 pr-3 font-medium">
+                  <HeaderTip
+                    label="Sector"
+                    desc="Industrial sector rollup (CBAM-exposed sectors plus mixed-use KEKs). Sectors with zero sites are hidden."
+                    align="left"
+                  />
                 </th>
-                <th
-                  className="text-right py-1 pr-3 font-medium cursor-help"
-                  title="Sites — total number of sites (KEKs + industrial facilities) in this sector."
-                >
-                  Sites
+                <th className="text-right py-1 pr-3 font-medium">
+                  <HeaderTip
+                    label="Sites"
+                    desc="Total number of sites in this sector — KEKs (Special Economic Zones) plus standalone plants and clusters."
+                    align="right"
+                  />
                 </th>
                 {ACTION_FLAG_COLUMNS.map((f) => {
                   const label = ACTION_FLAG_LABELS[f] ?? f;
-                  const desc = ACTION_FLAG_DESCRIPTIONS[f];
+                  const desc = ACTION_FLAG_DESCRIPTIONS[f] ?? '';
                   return (
-                    <th
-                      key={f}
-                      className="text-right py-1 pr-3 font-medium whitespace-nowrap cursor-help"
-                      style={{ color: ACTION_FLAG_COLORS[f] }}
-                      title={desc ? `${label} — ${desc}` : label}
-                    >
-                      {label}
+                    <th key={f} className="text-right py-1 pr-3 font-medium whitespace-nowrap">
+                      <HeaderTip
+                        label={label}
+                        desc={desc}
+                        color={ACTION_FLAG_COLORS[f]}
+                        align="right"
+                      />
                     </th>
                   );
                 })}
