@@ -1121,7 +1121,7 @@ Rationale: The 2h/4h defaults were identified as the tool's biggest physics vuln
 
 **Feature spec:** [docs/layer3_green_industrial_products_spec.md](../docs/layer3_green_industrial_products_spec.md) — describes the product design rationale, persona impact, and calculation logic for this feature layer.
 
-The EU Carbon Border Adjustment Mechanism (CBAM, Regulation 2023/956) imposes a carbon cost on imports of carbon-intensive goods into the EU. For Indonesian KEKs producing CBAM-covered products (iron/steel, aluminium, cement, fertilizer), switching to solar reduces Scope 2 emissions and avoids future CBAM charges. This section documents how the dashboard detects CBAM exposure, computes emission intensities, and projects cost trajectories.
+The EU Carbon Border Adjustment Mechanism (CBAM, Regulation 2023/956) imposes a carbon cost on imports of carbon-intensive goods into the EU. For Indonesian sites producing CBAM-covered products (iron/steel, aluminium, cement, fertilizer, ammonia), switching the site's electricity supply from coal grid to solar cuts its **Scope 2** emissions and reduces — but does not eliminate — future CBAM charges. The remaining **Scope 1** emissions are from the chemistry itself (calcination, feedstock reforming, metallurgical coke) and are not addressable by renewable electricity. §14.2 makes this distinction concrete; §14.3 shows why the split produces very different CBAM relief across sectors. This section documents how the dashboard detects CBAM exposure, computes emission intensities, and projects cost trajectories across the 68 CBAM-exposed sites of the 81 total.
 
 **V3.6 additions:** `cbam_urgent` action flag (§10.1), user-adjustable CBAM certificate price (€30-150) and EUR/USD rate (1.00-1.30) via Tier 2 sliders, 2030 crossover year marker on trajectory chart.
 
@@ -1153,46 +1153,101 @@ Maps registered KEK industry classifications to CBAM product types:
 
 **Implementation:** `logic/cbam.py::_detect_cbam_types()`, called per-row from `logic/scorecard.py::compute_scorecard_live()`.
 
-### 14.2 Product-specific parameters
+### 14.2 Two kinds of emissions: Energy vs Process
 
-Each CBAM product type has two physical parameters: electricity intensity (MWh consumed per tonne of product) and Scope 1 process emissions (tCO2 per tonne, from chemical reactions, not from electricity).
+Every CBAM-covered product has **two emission sources**, and solar only addresses one of them. This is the single most important distinction in the CBAM model.
 
-| Product Type | Electricity Intensity (MWh/t) | Scope 1 (tCO2/t) | Source | Notes |
+**Energy emissions (Scope 2):** CO₂ from generating the electricity the site consumes. A nickel RKEF smelter pulls power from the grid; that grid burns coal. Switch the site to solar and these emissions go to zero. Renewable energy directly replaces the emission source.
+
+**Process emissions (Scope 1):** CO₂ released by the chemical reaction itself, regardless of what energy source you use. The raw material transforms and releases CO₂ as a byproduct of the chemistry, not the combustion. Examples:
+- **Cement:** limestone calcination, CaCO₃ → CaO + CO₂. Happens in the kiln at any temperature from any heat source.
+- **Ammonia:** steam methane reforming, CH₄ + 2H₂O → CO₂ + 4H₂. The carbon in the natural gas feedstock has to come out somewhere.
+- **Nickel RKEF:** metallurgical coke is a chemical reductant that strips oxygen from nickel ore — not a fuel.
+- **Steel BF-BOF:** coking coal reduces iron oxide; same story.
+
+Solar cannot touch Scope 1. It only zeros out Scope 2.
+
+**The practical consequence: CBAM cuts differently by sector.** The same €/t ETS certificate turns into very different $/t cost relief depending on how much of a sector's emission intensity is electricity-driven vs chemistry-driven:
+
+| Sector | Scope 1 (tCO₂/t) | Scope 2 at Indonesia grid (tCO₂/t) | What solar cuts |
+|---|---|---|---|
+| Nickel RKEF | 3.0 | ~24 (37.5 × 0.63) | ~89% of CBAM bill |
+| Aluminium | 1.5 | ~12 (15.0 × 0.8) | ~89% of CBAM bill |
+| Steel EAF | 0.3 | ~0.36 (0.45 × 0.8) | ~55% of CBAM bill |
+| Steel BF-BOF | 1.8 | ~0.20 (0.25 × 0.8) | ~10% of CBAM bill |
+| Cement | 0.52 | ~0.72 (0.9 × 0.8) | ~58% nominally — but see §14.3 M30 wrinkle |
+| Ammonia | 2.3 | ~8.0 (10.0 × 0.8) | ~78% nominally — but see §14.3 M30 wrinkle |
+| Fertilizer (legacy) | 1.2 | ~8.0 (10.0 × 0.8) | same M30 wrinkle as ammonia |
+
+The first four rows are clean: the electricity numbers are genuinely electricity. The last three are not — the Scope 2 figures roll in kiln heat and SMR feedstock gas as "electricity equivalents," which solar can't actually displace. §14.3 explains the fix.
+
+**Product-specific parameters (Scope 1 + electricity intensity per tonne of product):**
+
+| Product Type | Electricity Intensity (MWh/t) | Scope 1 (tCO₂/t) | Source | Notes |
 |---|---|---|---|---|
-| `nickel_rkef` | 37.5 | 3.0 | JETP Captive Power Study Ch.2 | RKEF/NPI: 30-45 MWh/t, midpoint |
-| `steel_eaf` | 0.45 | 0.3 | worldsteel Association | EAF scrap-based: 0.4-0.5 MWh/t |
-| `steel_bfbof` | 0.25 | 1.8 | worldsteel Association | BF-BOF: most energy from coke, low electricity |
-| `aluminium` | 15.0 | 1.5 | IEA | Primary smelting: 13-17 MWh/t |
-| `fertilizer` | 10.0 | 1.2 | IEA | Ammonia/urea aggregated: 8-12 MWh/t |
-| `ammonia` | 10.0 | 2.3 | ICGD Indonesia (gas-SMR route) | Indonesia-specific Scope 1: gas-SMR ammonia is higher than the 1.2 tCO2/t aggregated "fertilizer" row. Merchant NH3 sold standalone (not urea). |
-| `cement` | 0.9 | 0.52 | IEA | Low electricity, high process emissions (calcination) |
+| `nickel_rkef` | 37.5 | 3.0 | JETP Captive Power Study Ch.2 | RKEF/NPI: 30-45 MWh/t, midpoint. Electric arc furnace — essentially all electric. |
+| `steel_eaf` | 0.45 | 0.3 | worldsteel Association | EAF scrap-based: 0.4-0.5 MWh/t. Electricity-driven by definition. |
+| `steel_bfbof` | 0.25 | 1.8 | worldsteel Association | BF-BOF: most energy from coke, low electricity. Coke is Scope 1 (reductant). |
+| `aluminium` | 15.0 | 1.5 | IEA | Primary Hall-Héroult electrolysis: 13-17 MWh/t. Scope 1 = anode consumption. |
+| `fertilizer` | 10.0 | 1.2 | IEA (legacy aggregated) | Ammonia+urea rolled together. Thermal-inclusive MWh/t (see §14.3). |
+| `ammonia` | 10.0 | 2.3 | ICGD Indonesia (gas-SMR route) | Indonesia-specific Scope 1 from SMR feedstock gas, higher than legacy "fertilizer." Thermal-inclusive MWh/t (see §14.3). |
+| `cement` | 0.9 | 0.52 | IEA | Thermal-inclusive MWh/t — includes kiln heat (see §14.3). True electric-only ≈ 0.11 MWh/t. Scope 1 = calcination. |
 
-**Constants:** `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` and `CBAM_SCOPE1_TCO2_PER_TONNE` in `src/assumptions.py`.
-
-**Key distinction:** Scope 1 emissions are process-inherent (e.g., calcination in cement, carbon reduction in RKEF) and cannot be eliminated by switching to solar. Only Scope 2 (electricity-related) emissions are affected by the grid-to-solar transition.
+**Constants:** `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE`, `CBAM_SCOPE1_TCO2_PER_TONNE`, and `CBAM_RE_ADDRESSABLE_FRACTION` (§14.3) in `src/assumptions.py`.
 
 ### 14.3 Emission intensity calculation
 
-For each KEK x product type combination, two emission intensities are computed:
+For each site × product type combination, two emission intensities and one addressable-savings figure are computed. The three variables that matter:
 
-**Current (grid-powered):**
-$$EI_{\text{current}} = \text{Scope 1} + (\text{electricity\_intensity} \times EF_{\text{grid}}) \quad [\text{tCO}_2/\text{t product}]$$
+$$\text{scope2} = \text{electricity\_intensity} \times EF_{\text{grid}}$$
+$$EI_{\text{current}} = \text{Scope 1} + \text{scope2}$$
+$$EI_{\text{solar}} = \text{Scope 1}$$
+$$\text{scope2\_addressable} = \text{scope2} \times \text{RE\_addressable\_fraction}$$
 
-Where `EF_grid` is the KEK's regional grid emission factor (KESDM 2019 OM, same as Section 9.2). Fallback: 0.8 tCO2/MWh (Indonesia average) if grid EF is unavailable.
+Where `EF_grid` is the site's regional grid emission factor (KESDM 2019 OM, same as §9.2; fallback 0.8 tCO₂/MWh).
 
-**Solar-powered:**
-$$EI_{\text{solar}} = \text{Scope 1} + 0 \quad [\text{tCO}_2/\text{t product}]$$
+**CBAM liability and solar savings per tonne of product (§14.4 applies the price × phase-out):**
 
-Solar has zero Scope 2 emissions. Only the irreducible Scope 1 process emissions remain.
+$$C_{\text{CBAM}}(Y) = EI_{\text{current}} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y))$$
+$$S_{\text{CBAM}}(Y) = \text{scope2\_addressable} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y))$$
 
-**Example (nickel RKEF at Morowali, SULAWESI grid EF = 0.63):**
-- Current: 3.0 + (37.5 x 0.63) = 3.0 + 23.6 = **26.6 tCO2/t**
-- Solar: 3.0 + 0 = **3.0 tCO2/t**
-- Reduction: 23.6 tCO2/t (Scope 2 eliminated)
+Note that the cost uses **full** scope2 (the EU bills the whole electricity Scope 2 at the border regardless of what the local solar build can address), but the savings use the **addressable** fraction (solar can only cut what solar can actually displace). This asymmetry is the whole point of the M30 correction below.
 
-**Simplification:** This assumes 100% electricity substitution to solar. Partial substitution would reduce Scope 2 proportionally. The model does not currently compute partial substitution scenarios.
+**Worked examples at CBAM 2034 full exposure (€80/tCO₂ × 1.10 FX = $88/tCO₂):**
 
-**RE-addressable fraction bound (M30, shipped 2026-04-18):** For cement (0.9 MWh/t) and ammonia/fertilizer (10 MWh/t), `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` is **thermal-inclusive** — it converts kiln gas and SMR feedstock gas into electricity equivalents (see comment at `src/assumptions.py`). Naively computing $EI_{\text{current}} - EI_{\text{solar}}$ and treating the full difference as "avoided by solar" would implicitly assume full thermal electrification + renewable electricity supply — a larger claim than "switch the site to solar." True electricity-only intensities are ~0.11 MWh/t for cement and ~1.0 MWh/t for fertilizer (see `SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE` in `src/assumptions.py`). **Fix applied:** `CBAM_RE_ADDRESSABLE_FRACTION` dict in `src/assumptions.py` — cement 0.12, fertilizer 0.10, ammonia 0.10, steel_bfbof 0.80, `nickel_rkef` / `steel_eaf` / `aluminium` 1.0. `src/dash/logic/cbam.py::compute_cbam_trajectory` multiplies Scope 2 savings by the sector's fraction before rate × FX conversion; Scope 1 cost is unchanged. Effect (locked by `tests/test_logic_cbam.py`): cement 2034 savings 63.36 USD/t → 7.60 USD/t (~88% drop); ammonia savings ≈ 70 USD/t; `nickel_rkef` savings unchanged at ≈ 2640 USD/t. Total CBAM cost (Scope 1 + Scope 2) is unaffected. Full derivation in [docs/cbam_sector_data_collection_plan.md](cbam_sector_data_collection_plan.md) §4.1.
+*Nickel RKEF at Morowali (SULAWESI grid EF = 0.63, RE-addressable = 1.0):*
+- scope2 = 37.5 × 0.63 = 23.6 tCO₂/t
+- EI_current = 3.0 + 23.6 = **26.6 tCO₂/t** → cost = 26.6 × $88 = **$2,341/t**
+- scope2_addressable = 23.6 × 1.0 = 23.6 → savings = 23.6 × $88 = **$2,077/t** (~89% of cost)
+
+*Cement at a Java site (Java-Bali grid EF ≈ 0.8, RE-addressable = 0.12):*
+- scope2 = 0.9 × 0.8 = 0.72 tCO₂/t
+- EI_current = 0.52 + 0.72 = **1.24 tCO₂/t** → cost = 1.24 × $88 = **$109/t**
+- scope2_addressable = 0.72 × 0.12 = 0.086 → savings = 0.086 × $88 = **$7.6/t** (~7% of cost)
+
+Solar cuts ~89% of the CBAM bill for nickel RKEF but only ~7% for cement. Same tool, very different leverage. That asymmetry is exactly what the Scope 1 / Scope 2 / RE-addressable split is designed to reveal.
+
+**Why the RE-addressable fraction exists (M30, shipped 2026-04-18):**
+
+For cement (0.9 MWh/t) and ammonia/fertilizer (10 MWh/t), `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` is **thermal-inclusive** — the source figures convert kiln gas and SMR feedstock gas into electricity equivalents. Naively treating the full $EI_{\text{current}} - EI_{\text{solar}}$ as "avoided by solar" would quietly assume full thermal electrification **plus** 100% renewable supply — a much larger claim than "switch the site to solar." True electricity-only intensities are ~0.11 MWh/t for cement and ~1.0 MWh/t for fertilizer/ammonia (see `SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE` in `src/assumptions.py`).
+
+**The fix:** `CBAM_RE_ADDRESSABLE_FRACTION` dict in `src/assumptions.py` scales scope2 savings down to the electric share:
+
+| Product Type | RE-Addressable Fraction | Reasoning |
+|---|---|---|
+| `nickel_rkef` | 1.0 | Essentially electric arc furnace — the 37.5 MWh/t is real electricity |
+| `steel_eaf` | 1.0 | Electricity-driven by definition |
+| `aluminium` | 1.0 | Hall-Héroult electrolysis is all electric |
+| `steel_bfbof` | 0.80 | Most energy is coke (Scope 1); ~0.20/0.25 ≈ 80% of the small Scope 2 is genuinely electric |
+| `cement` | 0.12 | ~0.11/0.9 — kiln thermal dominates the thermal-inclusive MWh/t |
+| `ammonia` | 0.10 | SMR gas is Scope 1 feedstock, not electricity |
+| `fertilizer` | 0.10 | Same SMR dynamic as ammonia |
+
+`src/dash/logic/cbam.py::compute_cbam_trajectory` multiplies Scope 2 savings by this fraction before rate × FX conversion; Scope 1 cost is unchanged. Effect (locked by `tests/test_logic_cbam.py`): cement 2034 savings 63.36 USD/t → 7.60 USD/t (~88% drop), ammonia savings ≈ 70 USD/t, nickel_rkef savings unchanged at ≈ $2,077/t. **Total CBAM cost (Scope 1 + full Scope 2) is unaffected** — only the claimed savings from switching to solar.
+
+Full derivation in [docs/cbam_sector_data_collection_plan.md](cbam_sector_data_collection_plan.md) §4.1.
+
+**Simplification:** The model assumes 100% electricity substitution to solar on the RE-addressable fraction. Partial substitution would scale savings proportionally. Hybrid heat strategies (electric kilns, green hydrogen SMR, green ammonia) that would raise the RE-addressable fraction over time are out of scope — the RE-addressable dict captures today's technology, not a 2040 decarbonized heat stack.
 
 ### 14.4 CBAM cost trajectory
 
@@ -1215,14 +1270,15 @@ $$P_{\text{CBAM}} = \text{EU ETS price} \times \text{EUR/USD rate} = \text{€}8
 | 2033 | 14.0% | 86.0% |
 | 2034 | 0.0% | 100.0% |
 
-**Cost per tonne of product at year Y:**
+**Cost per tonne of product at year Y** (EU bills the full scope2 at the border):
 $$C_{\text{CBAM}}(Y) = EI_{\text{current}} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
 
-**Savings per tonne from switching to solar at year Y:**
-$$S_{\text{CBAM}}(Y) = (EI_{\text{current}} - EI_{\text{solar}}) \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
+**Savings per tonne from switching to solar at year Y** (solar only cuts the RE-addressable fraction of scope2 — see §14.3):
+$$S_{\text{CBAM}}(Y) = \text{scope2\_addressable} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
 
-Since $EI_{\text{current}} - EI_{\text{solar}}$ equals the Scope 2 component:
-$$S_{\text{CBAM}}(Y) = (\text{electricity\_intensity} \times EF_{\text{grid}}) \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y))$$
+$$\text{where } \text{scope2\_addressable} = \text{electricity\_intensity} \times EF_{\text{grid}} \times \text{RE\_addressable\_fraction}$$
+
+For sectors where the intensity table is pure electricity (nickel_rkef, steel_eaf, aluminium), RE_addressable_fraction = 1.0 and savings equal the full Scope 2 × price. For thermal-inclusive sectors (cement, ammonia, fertilizer, steel_bfbof), RE_addressable_fraction < 1.0 and savings are correspondingly smaller — because solar doesn't electrify a cement kiln.
 
 **Output fields:** `cbam_cost_2026/2030/2034_usd_per_tonne`, `cbam_savings_2026/2030/2034_usd_per_tonne`. Three snapshot years capture the trajectory shape: 2026 (minimal), 2030 (mid-transition), 2034 (full exposure).
 
