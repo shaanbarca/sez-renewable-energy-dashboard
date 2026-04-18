@@ -1,6 +1,6 @@
 # Personas — Indonesia Industrial Decarbonization Dashboard
 
-Five primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
+Six primary user personas. Each section covers: who they are, what unique insight they get from this dashboard, their step-by-step journey, what they export, and how they'd cite the tool.
 
 *Updated for M26 + M30 (2026-04-18) — scope expanded from 25 KEKs to 81 sites (25 KEK + 56 industrial: 32 cement + 7 steel + 10 nickel IIA clusters + 2 aluminium + 5 fertilizer). Industrial site selection is pipeline-driven via `build_industrial_sites.py`, which unions GEM Global Cement Plant Tracker (operating), GEM Global Iron & Steel Plant Tracker (active), CGSP Nickel Tracker (Integrated Industrial Area parents, with 5km KEK exclusion + 20km child aggregation for capacity), plus a residual manual CSV (7 rows, source_url required) for sectors without a tracker. Fertilizer universe closed via 4-source discovery gate (`data/industrial_sites/fertilizer_universe_v1.csv`): all 5 operating Pupuk Indonesia subsidiaries now in-scope. New `site_type` discriminator (kek/ki/standalone/cluster) with SiteTypeConfig registry drives demand method (area-based vs sector-intensity), captive-power matching (proximity vs direct), and CBAM detection (3-signal vs direct). CBAM exposure now covers 68/81 sites (12 KEK via 3-signal + 56 industrial via direct: 32 cement + 17 iron_steel + 5 fertilizer + 2 aluminium). **M30 (2026-04-18): CBAM Scope 2 RE savings now bounded by `CBAM_RE_ADDRESSABLE_FRACTION` per sector (cement 0.12, fertilizer/ammonia 0.10, steel_bfbof 0.80, else 1.0) to reflect the electric share of thermal-inclusive intensity values — Scope 1 cost unchanged. Cement RE savings at 2034 drop from ~63 USD/t to ~7.6 USD/t as a result.** Ammonia and petrochemical scaffolding (enums, demand intensity, Indonesia-specific ammonia Scope 1 = 2.3 tCO₂/t from ICGD gas-SMR, frontend rollup colors) is wired in pending top-down universe discovery — see TODOS M28/M29.*
 
@@ -43,6 +43,7 @@ At the current default assumptions, a meaningful slice of the 81 sites flip to s
 - [Persona 3: Policy Maker](#persona-3-policy-maker) — BKPM/KESDM official or energy think-tank adviser *(primary persona)*
 - [Persona 4: IPP / Solar Developer](#persona-4-ipp--solar-developer) — solar IPP (ACEN, Vena Energy) selling to PLN via PPA
 - [Persona 5: Industrial Investor / KEK Tenant](#persona-5-industrial-investor--kek-tenant) — factory or smelter operator choosing which KEK to locate in
+- [Persona 6: Green Industry Roadmap Planner](#persona-6-green-industry-roadmap-planner) — BKPM/KESDM/Bappenas advisor, sustainability consultancy, or research institution building sector decarbonization roadmaps *(primary beneficiary of the V4.1 expansion)*
 
 ---
 
@@ -57,6 +58,7 @@ At the current default assumptions, a meaningful slice of the 81 sites flip to s
 | Policy Maker *(primary)* | **87%** | 14 action flags across 4 energy modes; V3.3 firm solar coverage; V4.1 sector-level aggregation (SectorSummaryChart) + 81 sites with site_type + sector columns; industrial CO₂ now modelable site-by-site for steel/cement/aluminium/fertilizer/nickel; ammonia + petrochemical scaffolding wired pending M28/M29 | `reliability_req` still type-based proxy for KEK/KI; sector-based default for standalone/cluster |
 | IPP / Solar Developer | **85%** | Buildability + resource screening solid; V3.3 bridge-hours BESS + RTE; V4.1 pipeline now includes standalone industrial plants with real per-plant demand (TPA × intensity), which makes offtake sizing concrete | Power factor not in capacity assessment (~10-15% overstatement, rarely changes traffic light); ammonia/petrochem merchant offtake pending M28/M29 |
 | Industrial Investor / KEK Tenant | **85%** | I-4 tariff + BPP (FY2020); V3.1 grid infra; CBAM Layer 3 now 68/81 sites exposed; ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (M28); steel/cement plant proximity (direct + 50km); hybrid optimization; V4.1 side-by-side comparison now possible between a KEK and a nearby standalone plant | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
+| Green Industry Roadmap Planner | **87%** | 81-site screening universe covering the actual decarbonization problem (25 KEK + 32 cement + 7 steel + 10 nickel IIA + 2 aluminium + 5 fertilizer); Sector Summary chart + sector dropdown in ranked table; Scenario Compare bottom tab + per-site Flip tab; CBAM trajectory honest post-M30 (RE-addressable fraction bounds Scope 2 savings); pipeline-driven site selection (GEM/CGSP trackers) makes outputs reproducibly citable; Zenodo DOI | `pathway_flag` synthesis column not yet built; sectoral summary PDF export not yet built; ammonia/petrochem rows pending M28/M29 |
 
 ---
 
@@ -471,3 +473,87 @@ Comparison matrix CSV for site selection team. Screenshots of grid integration m
 | No logistics or transport cost data | Electricity is one input; transport, labor, and raw material access also matter for site selection. Dashboard covers electricity only. | Out of scope — fundamental limitation. |
 | EU CBAM tariff exposure by KEK | Manufacturers in iron/steel, aluminium, fertilizer, and cement face EU carbon border tariffs rising from ~$2/tCO₂ (2026) to ~$88/tCO₂ (2034) as free allocation phases out. Site selection must factor CBAM cost trajectory and RE availability. | ✅ Built (2026-04-14) — 3-signal detection (nickel process, plant counts, business sectors). 12 KEKs exposed. `cbam_cost_2030_usd_per_tonne` + `cbam_savings` quantify RE switching value. ScoreDrawer Industry tab shows full trajectory. |
 | Steel/cement plant proximity | Industrial investors choosing manufacturing KEKs need to know existing heavy industry (supply chain, clustering effects, infrastructure sharing). | ✅ Built (2026-04-14) — GEM Steel (7 plants, 2 KEKs matched) and Cement (32 plants, 5 KEKs matched) Trackers. Map overlays + ScoreDrawer Industry tab + table Industry badge column. |
+
+---
+
+## Persona 6: Green Industry Roadmap Planner
+
+**Role:** Senior policy analyst or advisory partner at a government planning unit (BKPM, KESDM, Bappenas), sustainability consultancy (e.g., McKinsey Sustainability, BCG, Systemiq), or research institution (IESR, CPI, IEEFA) building sector-by-sector decarbonization strategies for Indonesian heavy industry.
+**Context:** Building a sector-by-sector decarbonization roadmap. Needs to quantify the problem (total emissions, CBAM exposure, stranded asset risk), identify the pathway (which sites transition first, what infrastructure unlocks it), and size the investment (total capex by sector, concessional vs commercial split). Works in institutional documents — roadmap reports, sectoral PDFs, client-facing decks — that are shared externally and cited. *(Primary beneficiary of the V4.1 expansion from 25 KEKs to 81 sites.)*
+**Primary question:** *For each CBAM-exposed sector, which sites should transition first, what does the transition cost, what infrastructure unlocks it, and where do the biggest risks concentrate?*
+
+### What only this dashboard shows them
+
+The only open-source tool combining sector-level industrial emissions with site-level renewable energy economics, grid infrastructure gaps, EU CBAM exposure, and captive-power regulatory risk across Indonesia's 81 major industrial sites (25 KEK + 32 cement + 7 steel + 10 nickel IIA clusters + 2 aluminium + 5 fertilizer). Existing tools each cover one dimension — GEM for coal/cement/steel assets, CGSP for nickel, IRENA for LCOE, RUPTL for grid, ESDM for tariffs. This dashboard is the *cross*, at site level, aggregated up to sector. A roadmap planner can answer "what is the cement sector's total CBAM exposure, which specific plants drive it, what share of that exposure is actually addressable by switching to solar (§14.3 RE-addressable fractions), what investment would displace their captive coal, and how do the pathway flags distribute" in a single session rather than weeks of cross-referencing standalone datasets.
+
+Site-level rigor is what makes the outputs institutionally adoptable. When a BKPM official or World Bank advisor sends a roadmap chapter to their client, the underlying numbers need to be reproducible: every LCOE line traceable to Global Solar Atlas + ESDM Technology Catalogue 2023, every CBAM figure to EU Regulation 2023/956 with explicit Scope 1 / Scope 2 / RE-addressable split, every captive coal match to GEM Global Coal Plant Tracker with explicit 50km proximity (KEK/KI) or direct-match (standalone/cluster) logic. Industrial site selection is itself pipeline-driven — cement/steel/nickel rows are generated inside `src/pipeline/build_industrial_sites.py` from GEM/CGSP trackers with explicit filter rules, not hand-curated CSVs. The dashboard is both the analysis engine and its own citation.
+
+### Readiness — 87%
+
+**What works:**
+- ✅ **81-site screening universe covering the actual decarbonization problem.** Cement (32), steel (7), aluminium (2), fertilizer (5 — full Pupuk Indonesia operating fleet after M26 4-source universe-discovery gate), nickel IIA clusters (10) sit alongside the 25 KEKs in one ranked table with identical columns (LCOE, CBAM cost, grid integration, action flags). Selection is pipeline-driven; numbers are reproducible from the tracker sources.
+- ✅ **Sector Summary chart** (`frontend/src/components/charts/SectorSummaryChart.tsx`) in the bottom panel — sector-aggregated CBAM cost at 2030/2034 + total 2030 electricity demand + action-flag distribution. Collapses "which sector has the biggest CBAM problem" into one view.
+- ✅ **Sector and site-type dropdown filters in the ranked table** — filter to `cement` and see all 32 operating plants with individual LCOE, CBAM exposure, and action flags. Same for steel, aluminium, fertilizer, nickel.
+- ✅ **Scenario Compare bottom tab + per-site Flip tab in ScoreDrawer.** Set a policy scenario (e.g., WACC 8% concessional, elevated CBAM price, accelerated RUPTL), hit Compute, and see exactly which sites flip tier between baseline and scenario. Green halos on the map flag improvements, red halos flag regressions. Per-site Flip tab shows tier transition + delta LCOE + gap-to-grid delta + CBAM-urgency before/after with NEW / CLEARED chips. For a roadmap document, this operationalizes "what does this policy actually unlock at site level" in a way a static PDF cannot.
+- ✅ **CBAM cost trajectory chart** (`CbamTrajectoryChart.tsx`) per site, mathematically honest post-M30 (shipped 2026-04-18): Scope 1 (irreducible process emissions from calcination, SMR feedstock gas, metallurgical coke) stays in the cost line; Scope 2 savings are bounded by the sector's RE-addressable fraction (cement 0.12, fertilizer/ammonia 0.10, steel BF-BOF 0.80, else 1.0). Critical for sector roadmaps because it prevents the ~88% cement overstatement the naive "switch to solar, zero Scope 2" calculation produced before the fix.
+- ✅ **68/81 CBAM-exposed sites with dual-mode detection.** KEKs use 3-signal inference (nickel process + plant counts + business sectors); standalone/cluster sites read `cbam_product_type` directly from `dim_sites`. Sector attribution is explicit, not inferred.
+- ✅ **Grid infrastructure gap sized per site** — `invest_transmission` / `invest_substation` action flags, `grid_investment_needed_usd`, transmission cost model. A roadmap can sum grid investment by sector, region, or CBAM urgency.
+- ✅ **Captive power exposure per site** — GEM coal + CGSP nickel + GEM steel + GEM cement, proximity-matched for KEK/KI (50 km) or direct-matched for standalone/cluster. The "what coal needs to come off" question is answerable at site level.
+- ✅ **CSV export with full methodology metadata header** — assumptions, thresholds, energy mode, benchmark mode, export date. Drops straight into a roadmap appendix.
+- ✅ **Zenodo DOI (`10.5281/zenodo.19570542`) for citation.** Every roadmap referencing this dashboard gets a reproducible versioned reference.
+
+**What's missing:**
+- ⚠️ **No `pathway_flag` synthesis column yet.** The original expansion spec (`docs/industrial_parks_expansion_spec.md` §3) proposed `pathway_flag ∈ {ready_now, requires_grid_upgrade, requires_policy_change, requires_structural_change}` collapsing LCOE + grid + CBAM into a single decarbonization-readiness classification. The underlying signals are all present (14 action flags + CBAM urgency + grid category + economic tier); the single synthesis column is not. Planners currently join those columns themselves in Excel.
+- ⚠️ **Sectoral summary PDF export not built.** CSV export works; per-sector PDF formats "sized for roadmap documents" (spec §4: one page per sector with total emissions, CBAM exposure, transition capex, priority site list, pathway flag distribution) are deferred.
+- ⚠️ **Flip scenario export is site-level only.** No sector-level rollup rows in the flip diff CSV (e.g. "across 32 cement sites, concessional finance flips N to competitive, reduces average LCOE by X%"). Aggregation useful for executive summaries is computable from the data but not pre-rolled.
+- ⚠️ **Ammonia and petrochemical sites not yet in scope.** Scaffolding (SiteType enum, demand intensity, CBAM constants incl. Indonesia-specific NH3 Scope 1 = 2.3 tCO₂/t from ICGD gas-SMR, frontend rollup colors) is wired pending a top-down universe-discovery pass — TODOS M28 (ammonia) and M29 (petrochemical). A full Pupuk ammonia roadmap chapter cannot be written until M28 lands merchant-NH3 rows distinct from the urea-aggregated legacy "fertilizer" set.
+- ⚠️ **No sector-level capex rollup view in the UI.** Per-site `grid_investment_needed_usd` is present; there is no "total steel-sector grid investment" aggregate card.
+
+### Key data needs
+
+- `site_type`, `sector`, `primary_product`, `capacity_annual_tonnes` — sector aggregation keys
+- `cbam_cost_{2026,2030,2034}_usd_per_tonne`, `cbam_savings_{2026,2030,2034}_usd_per_tonne`, `cbam_exposed`, `cbam_product_type` — total and per-site CBAM bill and addressable share
+- `cbam_per_product` dict + `CBAM_RE_ADDRESSABLE_FRACTION` (M30) — honest electric-share split per sector
+- `economic_tier`, `infrastructure_readiness`, all 14 action flags — readiness synthesis building blocks
+- `grid_investment_needed_usd`, `transmission_cost_usd_per_kw`, `substation_upgrade_cost_usd_per_kw` — infrastructure sizing
+- `captive_coal_mw_at_site`, nickel/steel/cement captive matches, `coal_plants_within_50km` — stranded-asset / Perpres 112 exposure
+- Sector-level rollups: total demand MWh, total emissions, total CBAM exposure, total transition capex, coal MW to displace
+
+### User journey
+
+1. **Land on the Sector Summary chart** (bottom panel) — one view of Indonesia's heavy industry by sector, with CBAM cost at 2030/2034, 2030 electricity demand, and action-flag distribution. First question answered: which sector has the biggest CBAM exposure and the most sites concentrated in regressive action flags?
+2. **Drill into a sector** — switch the ranked table's sector dropdown to `cement` (or `steel`, `nickel`, `aluminium`, `fertilizer`). All plants in that sector appear with individual LCOE, CBAM cost, captive power context, and action flags.
+3. **Sort by CBAM exposure** — identify the top sites driving the sector's bill. For cement this is now mathematically honest post-M30: the ~88% savings overstatement is gone, so priority ordering reflects what solar can actually deliver (~$7.6/t at 2034 full exposure, not ~$63/t).
+4. **Open a top-site ScoreDrawer** — Resource, Grid, Economics, Demand, Action, CBAM, Flip tabs. Review LCOE bands at 8% (concessional) vs 14% (commercial), full CBAM trajectory, captive coal within 50 km, and specific grid upgrade cost.
+5. **Run a policy scenario** — open Scenario Compare bottom tab, set WACC to 8% and CBAM price to €120/tCO₂, hit Compute. Map halos light up green for sites moving from `not_competitive` or `near_parity` into `partial_re` or `full_re`; red halos mark any regressions.
+6. **Export flip diff CSV** — one row per site with tier_baseline, tier_flip, direction, delta LCOE, gap-to-grid delta, CBAM-urgency before/after. Drops straight into a "what this policy lever unlocks" roadmap table.
+7. **Identify grid bottlenecks** — sort ranked table by `grid_investment_needed_usd` within sector. Cross-check `plan_late` flag — sites where RUPTL capacity arrives after 2030 are the ones that need policy advocacy on top of capital.
+8. **Check captive exposure** — ScoreDrawer captive coal overlay. Sites with Perpres 112/2022 phase-out pressure *plus* solar-ready economics are the highest-priority "transition now" candidates.
+9. **Export ranked CSV** — full sector table with metadata header (assumptions, thresholds, energy mode, benchmark, export date). Drop into Excel, drop into the roadmap PDF appendix.
+10. **Cite in the roadmap document** — Zenodo DOI + GitHub release tag + specific `METHODOLOGY_CONSOLIDATED.md` section references (§14 for CBAM, §7 for grid integration, §6A for hybrid solar+wind, §8 for GEAS allocation).
+
+### What they export
+
+- **Ranked CSV per sector** — sector filter + full metadata header (assumptions, thresholds, energy mode, benchmark mode, export date)
+- **Flip diff CSV** from Scenario Compare — site × baseline tier × flip tier × delta LCOE × CBAM-urgency change
+- **Sector Summary chart screenshot** for client / stakeholder presentations
+- **ScoreDrawer CBAM trajectory screenshots** for per-site evidence in roadmap chapters
+- *Deferred:* one-page per-sector PDF export (spec §4)
+- *Deferred:* sector-level rollup rows in flip diff CSV for executive summaries
+
+### What they'd cite
+
+> "Source: Indonesia Industrial Decarbonization Dashboard v4.1 (Zenodo DOI: 10.5281/zenodo.19570542). Sector analysis covers N sites across cement, steel, aluminium, fertilizer, and nickel — pipeline-selected from GEM Global Cement Plant Tracker (operating), GEM Global Iron and Steel Plant Tracker (active), and CGSP Nickel Tracker (Integrated Industrial Area parents) per `build_industrial_sites.py`. CBAM exposure calculated per EU Regulation 2023/956 phase-out schedule, with Scope 2 RE savings bounded by the sector's electric-share RE-addressable fraction (METHODOLOGY_CONSOLIDATED.md §14.3). Renewable LCOE uses ESDM Technology Catalogue 2023 with WACC adjustable 4–20%. Grid infrastructure gap methodology per METHODOLOGY_CONSOLIDATED.md §7."
+
+### Data gaps
+
+| Gap | Impact on this persona | Status |
+|-----|----------------------|--------|
+| `pathway_flag` synthesis column | Spec §3 proposed a single column {ready_now, requires_grid_upgrade, requires_policy_change, requires_structural_change} derived from LCOE + grid + CBAM signals. Roadmap planners currently join action_flag + cbam_urgent + grid_category + economic_tier themselves. | Deferred — logic specified but not implemented. All underlying signals are present. |
+| Sectoral summary PDF export | Spec §4 proposed "one page per sector" PDF sized for roadmap report integration (total emissions, CBAM exposure, transition capex, priority site list, pathway-flag distribution). Currently CSV only. | Deferred — feature-ticket sized; template design not started. |
+| Flip diff sector-level rollups | Flip diff CSV is site-level. Executive summaries need "across 32 cement sites, concessional finance flips N to competitive, cuts average LCOE by X%" rollup rows. | Deferred — computable from existing data; not pre-aggregated in the export. |
+| Ammonia + petrochemical rows not yet ingested | A full Pupuk ammonia roadmap chapter requires merchant-NH3 rows separate from the urea-aggregated legacy "fertilizer" set. Petrochemical will remain CBAM-exempt (EU Annex I) but is in-scope for captive coal displacement. | ⚠️ Scaffolding present (SiteType enum, demand intensity, CBAM cost model with Indonesia-specific Scope 1 = 2.3 tCO₂/t, frontend colors). Rows pending — see TODOS M28 (ammonia) and M29 (petrochemical). |
+| Sector-level capex rollup view in UI | No single card summing `grid_investment_needed_usd` or transition capex by sector. | Deferred — per-site data present; aggregation view not built. |
+| `renewable_transition_capex_usd` | Per-site total transition capex (solar MWp × CAPEX + grid upgrade + BESS) not rolled into one column; components are available. | Deferred — derivable from existing columns. |
+| `timeline_conflict_flag` | A flag marking sites where Perpres 112/2022 coal phase-out deadlines arrive before RUPTL grid capacity — signals stranded-asset risk. | Deferred — requires combining `plan_late` with coal phase-out schedule. |
+| BPP and grid emission factor vintage | BPP from Kepmen ESDM 169/2021 (FY2020). Grid emission factors from KESDM 2019. Affects CBAM Scope 2 calc and competitive gap. | ⚠️ Shared gap across Personas 1-3. See Gap Priority §4-5. |
