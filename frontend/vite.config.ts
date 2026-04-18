@@ -19,5 +19,15 @@ export default defineConfig(({ mode }) => {
         '/api': 'http://localhost:8000',
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            maplibre: ['maplibre-gl', 'react-map-gl'],
+            charts: ['recharts'],
+          },
+        },
+      },
+    },
   };
 });

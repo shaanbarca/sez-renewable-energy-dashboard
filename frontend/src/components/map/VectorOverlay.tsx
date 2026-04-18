@@ -220,11 +220,9 @@ export default function VectorOverlay() {
       }
     };
     const onMove = (e: maplibregl.MapLayerMouseEvent) => {
-      if (gridHover) {
-        setGridHover((prev) =>
-          prev ? { ...prev, longitude: e.lngLat.lng, latitude: e.lngLat.lat } : null,
-        );
-      }
+      setGridHover((prev) =>
+        prev ? { ...prev, longitude: e.lngLat.lng, latitude: e.lngLat.lat } : null,
+      );
     };
     const onLeave = () => {
       map.getCanvas().style.cursor = '';
@@ -238,7 +236,7 @@ export default function VectorOverlay() {
       map.off('mousemove', 'overlay-grid-lines-line', onMove);
       map.off('mouseleave', 'overlay-grid-lines-line', onLeave);
     };
-  }, [mapRef, gridHover]);
+  }, [mapRef]);
 
   // Buildable polygon click + hover cursor
   useEffect(() => {
