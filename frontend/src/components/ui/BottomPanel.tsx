@@ -14,7 +14,7 @@ const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'compare', label: 'Scenario Compare' },
 ];
 
-const TABLE_HEIGHT = 448;
+const TABLE_HEIGHT = 580;
 const CHART_HEIGHT = 420;
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 700;
@@ -80,7 +80,7 @@ export default function BottomPanel() {
       >
         {/* Resize handle + toggle */}
         <div
-          className="w-full shrink-0 select-none relative"
+          className="w-full shrink-0 select-none relative group"
           style={{
             background: 'var(--accent-soft)',
             borderTop: '2px solid var(--accent-border)',
@@ -97,19 +97,32 @@ export default function BottomPanel() {
               title="Drag to resize panel"
             />
           )}
-          {/* Visible drag-grip pill — signals resizable */}
+          {/* Visible drag-grip pill — widens + brightens on hover */}
           {!collapsed && (
             <div
-              className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+              className="absolute left-1/2 -translate-x-1/2 pointer-events-none rounded-full w-9 group-hover:w-14 opacity-70 group-hover:opacity-100 transition-all duration-150"
               style={{
                 top: 4,
-                width: 36,
                 height: 4,
-                borderRadius: 2,
                 background: 'var(--accent-border)',
-                opacity: 0.7,
               }}
             />
+          )}
+          {/* Hover hint — "↕ Drag to resize" appears next to the pill */}
+          {!collapsed && (
+            <span
+              className="absolute pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap"
+              style={{
+                top: 1,
+                left: 'calc(50% + 44px)',
+                fontSize: 10,
+                lineHeight: '10px',
+                color: 'var(--accent)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              ↕ Drag to resize
+            </span>
           )}
           {/* Collapse toggle — always centered */}
           <div className="flex items-center justify-center h-8">
