@@ -247,7 +247,7 @@
 <a class="reference external" href="https://fastapi.tiangolo.com"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&amp;logoColor=white" /></a>
 <a class="reference external" href="https://maplibre.org"><img alt="MapLibre GL" src="https://img.shields.io/badge/MapLibre_GL-4-396CB2?logo=maplibre&amp;logoColor=white" /></a>
 <a class="reference internal" href="#LICENSE"><span class="xref myst"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT_+_Commons_Clause-yellow" /></span></a>
-<a class="reference internal" href="#tests/"><span class="xref myst"><img alt="Tests: 421" src="https://img.shields.io/badge/Tests-421_passing-brightgreen" /></span></a>
+<a class="reference internal" href="#tests/"><span class="xref myst"><img alt="Tests: 541" src="https://img.shields.io/badge/Tests-541_passing-brightgreen" /></span></a>
 <a class="reference external" href="https://doi.org/10.5281/zenodo.19570542"><img alt="DOI" src="https://zenodo.org/badge/1210467818.svg" /></a></p>
 <p>An analytical model and interactive dashboard assessing renewable energy competitiveness across Indonesia’s 25 Special Economic Zones (KEKs). Computes solar and wind LCOE, grid integration costs, BESS storage requirements, CBAM exposure, and action flags under user-adjustable assumptions.</p>
 <p>Built for development bank analysts, energy investors, and policy advisors.</p>
@@ -353,7 +353,7 @@ npm<span class="w"> </span>run<span class="w"> </span>dev
   <span class="n">src</span><span class="o">/</span><span class="n">components</span><span class="o">/</span>    <span class="n">Map</span><span class="p">,</span> <span class="n">panels</span><span class="p">,</span> <span class="n">charts</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">UI</span> <span class="n">components</span>
   <span class="n">src</span><span class="o">/</span><span class="n">store</span><span class="o">/</span>         <span class="n">Zustand</span> <span class="n">state</span> <span class="n">management</span>
   <span class="n">src</span><span class="o">/</span><span class="n">lib</span><span class="o">/</span>           <span class="n">API</span> <span class="n">client</span><span class="p">,</span> <span class="n">types</span><span class="p">,</span> <span class="n">formatting</span> <span class="n">utilities</span>
-<span class="n">tests</span><span class="o">/</span>               <span class="mi">421</span> <span class="n">tests</span> <span class="n">across</span> <span class="n">model</span><span class="p">,</span> <span class="n">pipeline</span><span class="p">,</span> <span class="ow">and</span> <span class="n">API</span>
+<span class="n">tests</span><span class="o">/</span>               <span class="mi">541</span> <span class="n">tests</span> <span class="n">across</span> <span class="n">model</span><span class="p">,</span> <span class="n">pipeline</span><span class="p">,</span> <span class="ow">and</span> <span class="n">API</span>
 <span class="n">notebooks</span><span class="o">/</span>           <span class="n">Jupyter</span> <span class="n">notebooks</span> <span class="k">for</span> <span class="n">exploration</span> <span class="ow">and</span> <span class="n">data</span> <span class="n">pipeline</span>
 <span class="n">docs</span><span class="o">/</span>                <span class="n">Methodology</span><span class="p">,</span> <span class="n">design</span> <span class="n">specs</span><span class="p">,</span> <span class="n">reference</span> <span class="n">documents</span>
 <span class="n">data</span><span class="o">/</span>                <span class="n">Input</span> <span class="n">data</span> <span class="p">(</span><span class="n">GeoTIFFs</span><span class="p">,</span> <span class="n">GeoJSON</span><span class="p">,</span> <span class="n">shapefiles</span><span class="p">)</span>
@@ -395,7 +395,7 @@ npm<span class="w"> </span>run<span class="w"> </span>dev
 </section>
 <section id="testing">
 <h2>Testing<a class="headerlink" href="#testing" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w">            </span><span class="c1"># 421 tests</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w">            </span><span class="c1"># 541 tests</span>
 uv<span class="w"> </span>run<span class="w"> </span>ruff<span class="w"> </span>check<span class="w"> </span>src/<span class="w"> </span>tests/<span class="w">   </span><span class="c1"># Python lint</span>
 <span class="nb">cd</span><span class="w"> </span>frontend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>lint<span class="w">     </span><span class="c1"># TypeScript lint (Biome)</span>
 <span class="nb">cd</span><span class="w"> </span>frontend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npx<span class="w"> </span>tsc<span class="w"> </span>--noEmit<span class="w"> </span><span class="c1"># Type check</span>
