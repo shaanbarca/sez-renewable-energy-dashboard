@@ -66,9 +66,9 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
   const tip = COLUMN_TOOLTIPS[columnId];
-  if (!tip) return <span>{label}</span>;
+  if (!tip) return <span data-tour={`column-${columnId}`}>{label}</span>;
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1" data-tour={`column-${columnId}`}>
       <span>{label}</span>
       <span className="relative group/tip">
         <svg
