@@ -8,9 +8,15 @@ All notable changes to this project will be documented in this file.
 - **Ammonia + petrochemical scaffolding (no rows yet).** `Sector` enum extended with `ammonia` and `petrochemical`; demand intensities and reliability defaults wired into `src/pipeline/demand_intensity.py` and `src/model/site_types.py`. CBAM cost model calibrated for ammonia using Indonesia-specific Scope 1 = **2.3 tCO₂/t** (ICGD gas-SMR — higher than the legacy aggregated "fertilizer" 1.2 tCO₂/t); ammonia is CBAM-exposed via CN 2814. Petrochemical is intentionally **NOT** in EU CBAM Annex I.
 - Frontend rollup colors: `SectorSummaryChart.tsx` reserves teal (#26A69A) for ammonia and purple (#7E57C2) for petrochemical.
 - TODOS M28 (ammonia) and M29 (petrochemical) opened to drive completeness via top-down universe discovery (state-holdings + industry-association + government-filing + trade-stat intersection) instead of ad-hoc hand-picked rows.
+- **Fertilizer universe closure (M26 complete, 2026-04-18).** 4-source universe-discovery gate executed → `data/industrial_sites/fertilizer_universe_v1.csv` (7 candidates: all 5 operating Pupuk Indonesia subsidiaries + Fakfak under-construction + Multi Nitrotama Kimia flagged ammonium-nitrate out of CBAM scope). Added the 2 previously-missing Pupuk sites — **Pupuk Kujang (Cikampek, West Java, 1.14 Mt/yr urea)** and **Pupuk Iskandar Muda (Lhokseumawe, Aceh, 1.14 Mt/yr urea)** — to `priority1_sites.csv` with source URLs. Provenance per row enforced by loader.
+- **CBAM `CBAM_RE_ADDRESSABLE_FRACTION` fix (M30 complete, 2026-04-18).** New dict in `src/assumptions.py` (cement 0.12, fertilizer 0.10, ammonia 0.10, steel_bfbof 0.80, everything else 1.0). Wired into `src/dash/logic/cbam.py::compute_cbam_trajectory`: Scope 2 RE savings now multiplied by the sector's electric share of thermal-inclusive intensity values. Scope 1 path untouched. 4 new tests in `tests/test_logic_cbam.py` lock behaviour. Golden-master fixture regenerated.
 
 ### Changed
-- No site count change yet. Scope remains **79 sites** until the universe-discovery pass for ammonia and petrochemical lands.
+- Site count **79 → 81** (25 KEK + 46 standalone + 10 cluster). Fertilizer rows 3 → 5 — the full Pupuk Indonesia Group operating fleet now covered.
+- `fct_lcoe` rows **1,422 → 1,458** (81 × 9 WACC × 2 scenarios).
+- CBAM exposed sites **66/79 → 68/81** (12 KEK 3-signal + 56 industrial direct: 32 cement + 17 iron_steel + 5 fertilizer + 2 aluminium).
+- Cement/fertilizer/ammonia CBAM savings drop sharply (cement 2034 savings 63 USD/t → 7.6 USD/t) because Scope 2 savings are now bound to the electric share of thermal-inclusive intensity values. CBAM cost itself is unchanged.
+- Test count **537 → 541** (4 new CBAM fraction tests).
 
 ## [1.1.0] - 2026-04-17
 

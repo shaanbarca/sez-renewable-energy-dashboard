@@ -98,9 +98,11 @@ Future green/blue hydrogen projects (Gresik ACWA pilot, PIM Mitsui blue ammonia)
 
 ## 3. Data Collection Plan
 
-### Phase 0 (NEW — gate for Phase 1): Universe discovery via 4-source intersection
+### Phase 0 (NEW — gate for Phase 1): Universe discovery via 4-source intersection ✅ COMPLETE 2026-04-18
 
 **Purpose:** eliminate the Bontang-type miss. No geocoding, no pipeline runs, until the universe-discovery gate produces a validated site list.
+
+**Status:** closed. 4-source gate run → `data/industrial_sites/fertilizer_universe_v1.csv` produced (7 candidates: 5 operating Pupuk subsidiaries confirmed, Pupuk Fakfak deferred as under-construction, Multi Nitrotama Kimia flagged as ammonium-nitrate-only / outside CBAM Annex I). Gate caught the 2 previously-missing Pupuk sites (Kujang + PIM Lhokseumawe). See `data/industrial_sites/README.md` §Fertilizer universe (M26 closed).
 
 Run this check across four independent sources. A site appears in the final list only if it shows up in ≥2 of the 4 sources (or is confirmed by a Pupuk Indonesia / ESDM official source directly).
 
@@ -117,7 +119,9 @@ Run this check across four independent sources. A site appears in the final list
 
 **Effort:** 0.5-1 day. This is the step that prevents the next Bontang.
 
-### Phase 1: Fertilizer site geocoding + pipeline integration (1-2 days)
+### Phase 1: Fertilizer site geocoding + pipeline integration (1-2 days) ✅ COMPLETE 2026-04-18
+
+**Status:** closed. The 2 missing Pupuk subsidiaries (Pupuk Kujang Cikampek, West Java, 1.14 Mt/yr urea; Pupuk Iskandar Muda Lhokseumawe, Aceh, 1.14 Mt/yr urea) were added to `data/industrial_sites/priority1_sites.csv` with source URLs. `dim_sites` regenerated → 81 sites total (was 79). All downstream `fct_*` tables rebuilt (`fct_lcoe` 1,422 → 1,458 rows; CBAM-exposed 66/79 → 68/81). CBAM savings use the new RE-addressable fraction bound from §4.1 (shipped same day, M30).
 
 For each confirmed site from Phase 0:
 
@@ -178,7 +182,9 @@ After Phase 1 completes, verify:
 
 ## 4. Methodology Notes
 
-### 4.1 The `re_addressable_fraction` fix — precise framing
+### 4.1 The `re_addressable_fraction` fix — precise framing ✅ SHIPPED 2026-04-18 (M30)
+
+**Status:** closed. `CBAM_RE_ADDRESSABLE_FRACTION` dict lives in `src/assumptions.py` (cement 0.12, fertilizer 0.10, ammonia 0.10, steel_bfbof 0.80, everything else 1.0). Wired into `src/dash/logic/cbam.py::compute_cbam_trajectory` exactly as the proposed code change below. Scope 1 path untouched. 4 new tests in `tests/test_logic_cbam.py` lock the bounding behaviour. Golden-master fixture regenerated. Observable impact on dashboard: cement 2034 Scope 2 RE savings 63.36 USD/t → 7.60 USD/t; fertilizer ~90% drop; nickel/steel EAF/aluminium unchanged. See `CHANGELOG.md` → Unreleased → M30 entry and `docs/METHODOLOGY_CONSOLIDATED.md` §14.3.
 
 **This is the single most important methodological addition in this plan. It applies to fertilizer AND the 32 cement sites already in the pipeline.**
 
@@ -215,7 +221,7 @@ So when the code computes `scope2 = elec_intensity × grid_ef`, it treats the ki
 | Cement | 0.9 | 0.11 | **~0.12** |
 | Fertilizer / Ammonia | 10.0 | 1.0 | **~0.10** |
 
-**Proposed code change (for future implementation, not part of this data collection phase):**
+**Code change (shipped 2026-04-18, M30):**
 
 ```python
 # src/dash/logic/cbam.py — proposed adjustment
@@ -229,7 +235,7 @@ metrics["savings_{year}"] = scope2_re_addressable * rate     # CHANGED: was scop
 Effect on dashboard numbers:
 - **Nickel/steel EAF/aluminium:** no change (re_fraction ≈ 1.0)
 - **Cement:** 32 sites' RE savings drop by ~88%
-- **Fertilizer/ammonia:** 3 residual sites + 5 new sites' RE savings drop by ~90%
+- **Fertilizer/ammonia:** all 5 operating Pupuk sites' RE savings drop by ~90%
 
 Scope 1 separation already protects us from the most egregious overclaim. `re_addressable_fraction` adds a second bound inside Scope 2 to prevent implicit "we electrified the kiln and built enough solar for it" assumptions.
 

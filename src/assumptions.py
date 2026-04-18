@@ -616,6 +616,25 @@ CBAM_SCOPE1_TCO2_PER_TONNE: dict[str, float] = {
     "cement": 0.52,  # Calcination (CaCO₃ → CaO + CO₂) — ~60% of total cement emissions
 }
 
+# Fraction of CBAM Scope 2 savings that is actually RE-addressable.
+# CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE is thermal-inclusive for cement / fertilizer /
+# ammonia — most of that energy is coke, kiln fuel, or SMR gas feedstock that switching
+# the grid to renewables does NOT displace. Multiply Scope 2 savings by this fraction so
+# CBAM cost relief reflects only the genuinely-electric share.
+# Derivation: SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE / CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
+# clamped to [0, 1].
+# See docs/cbam_sector_data_collection_plan.md §4.1 and
+# docs/METHODOLOGY_CONSOLIDATED.md §14.3 for full methodology note.
+CBAM_RE_ADDRESSABLE_FRACTION: dict[str, float] = {
+    "nickel_rkef": 1.0,  # RKEF = electric arc furnace; ~all intensity is electricity
+    "steel_eaf": 1.0,  # EAF is electricity-driven by definition
+    "steel_bfbof": 0.80,  # 0.20 / 0.25 — some aux electricity but most energy is coke (Scope 1)
+    "aluminium": 1.0,  # Hall-Heroult electrolysis = electricity
+    "fertilizer": 0.10,  # 1.0 / 10.0 — CBAM intensity is thermal-inclusive (gas feedstock)
+    "ammonia": 0.10,  # Same as fertilizer — SMR gas is Scope 1 feedstock, not RE-addressable
+    "cement": 0.12,  # 0.11 / 0.9 — kiln thermal dominates; only grinding + aux are electric
+}
+
 # ─── SECTOR DEMAND & RELIABILITY (Industrial Parks Expansion) ────────────────
 
 # Electricity-only consumption for RE demand sizing (MWh per tonne of product).

@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
 **Version:** 3.7 (Consolidated, April 2026)
-**Status:** Implemented in code. 79 sites (25 KEKs + 54 industrial: 32 cement + 17 steel + 3 fertilizer + 2 aluminium + 10 nickel IIA), 537 tests passing. CBAM Layer 3 complete (66/79 sites exposed), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
+**Status:** Implemented in code. 81 sites (25 KEKs + 56 industrial: 32 cement + 17 steel + 5 fertilizer + 2 aluminium + 10 nickel IIA), 541 tests passing. CBAM Layer 3 complete (68/81 sites exposed; Scope 2 RE savings bounded by `CBAM_RE_ADDRESSABLE_FRACTION` per sector to reflect the electric share of thermal-inclusive intensity values — see §4.1), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -82,9 +82,9 @@ This document is the single authoritative methodology reference for the Indonesi
 
 ## 1. Core Question and Scope
 
-**Question:** For each Indonesian industrial site (25 KEKs + 54 priority industrial plants/clusters), where do good solar sites, grid infrastructure, and industrial demand overlap, and what grid investment is needed to connect them?
+**Question:** For each Indonesian industrial site (25 KEKs + 56 priority industrial plants/clusters), where do good solar sites, grid infrastructure, and industrial demand overlap, and what grid investment is needed to connect them?
 
-**Unit of analysis:** Industrial site (79 sites). Site types: `kek` (25), `standalone` (44 individual heavy-industry plants), `cluster` (10 multi-plant industrial areas, mostly nickel IIAs). Results are at site level, not tenant or project level.
+**Unit of analysis:** Industrial site (81 sites). Site types: `kek` (25), `standalone` (46 individual heavy-industry plants), `cluster` (10 multi-plant industrial areas, mostly nickel IIAs). Results are at site level, not tenant or project level.
 
 ### 1.1 Site selection methodology
 
@@ -455,7 +455,7 @@ LCOE_with_battery = LCOE_solar + bess_storage_adder
 
 Default: 10% (ADB, 2020, SE Asia renewable energy benchmark; IRENA, 2023). Dashboard slider: 4-20% in 1% steps.
 
-**Precomputed snap range:** `fct_lcoe` stores LCOE at 9 WACC values: [4, 6, 8, 10, 12, 14, 16, 18, 20]%. This produces 1,422 rows (79 sites x 9 WACCs x 2 scenarios).
+**Precomputed snap range:** `fct_lcoe` stores LCOE at 9 WACC values: [4, 6, 8, 10, 12, 14, 16, 18, 20]%. This produces 1,458 rows (81 sites x 9 WACCs x 2 scenarios).
 
 | Range | Represents |
 |-------|-----------|
@@ -1192,7 +1192,7 @@ Solar has zero Scope 2 emissions. Only the irreducible Scope 1 process emissions
 
 **Simplification:** This assumes 100% electricity substitution to solar. Partial substitution would reduce Scope 2 proportionally. The model does not currently compute partial substitution scenarios.
 
-**Known methodology gap (deferred — see [docs/cbam_sector_data_collection_plan.md](cbam_sector_data_collection_plan.md) §4.1):** For cement (0.9 MWh/t) and ammonia/fertilizer (10 MWh/t), `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` is **thermal-inclusive** — it converts kiln gas and SMR feedstock gas into electricity equivalents (see comment at `src/assumptions.py:622-625`). Computing $EI_{\text{current}} - EI_{\text{solar}}$ and treating the difference as "avoided by solar" therefore implicitly assumes full thermal electrification + renewable electricity supply — a larger claim than "switch the site to solar." True electricity-only intensities are ~0.11 MWh/t for cement and ~1.0 MWh/t for fertilizer (see `SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE` in `src/assumptions.py`). Planned fix: multiply Scope 2 savings by a per-sector `re_addressable_fraction` (cement ~0.12, fertilizer/ammonia ~0.10, nickel/steel-EAF/aluminium ~1.0). Effect: cement RE savings at the 32 existing cement sites drop ~88% (e.g. 2030 savings ~$32/t → ~$4/t under default assumptions). Scope 1 separation already present is unaffected. CBAM outputs are not yet externally circulated, so the fix ships alongside fertilizer site additions in one coherent change.
+**RE-addressable fraction bound (M30, shipped 2026-04-18):** For cement (0.9 MWh/t) and ammonia/fertilizer (10 MWh/t), `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` is **thermal-inclusive** — it converts kiln gas and SMR feedstock gas into electricity equivalents (see comment at `src/assumptions.py`). Naively computing $EI_{\text{current}} - EI_{\text{solar}}$ and treating the full difference as "avoided by solar" would implicitly assume full thermal electrification + renewable electricity supply — a larger claim than "switch the site to solar." True electricity-only intensities are ~0.11 MWh/t for cement and ~1.0 MWh/t for fertilizer (see `SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE` in `src/assumptions.py`). **Fix applied:** `CBAM_RE_ADDRESSABLE_FRACTION` dict in `src/assumptions.py` — cement 0.12, fertilizer 0.10, ammonia 0.10, steel_bfbof 0.80, `nickel_rkef` / `steel_eaf` / `aluminium` 1.0. `src/dash/logic/cbam.py::compute_cbam_trajectory` multiplies Scope 2 savings by the sector's fraction before rate × FX conversion; Scope 1 cost is unchanged. Effect (locked by `tests/test_logic_cbam.py`): cement 2034 savings 63.36 USD/t → 7.60 USD/t (~88% drop); ammonia savings ≈ 70 USD/t; `nickel_rkef` savings unchanged at ≈ 2640 USD/t. Total CBAM cost (Scope 1 + Scope 2) is unaffected. Full derivation in [docs/cbam_sector_data_collection_plan.md](cbam_sector_data_collection_plan.md) §4.1.
 
 ### 14.4 CBAM cost trajectory
 
