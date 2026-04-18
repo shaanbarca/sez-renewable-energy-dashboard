@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![MapLibre GL](https://img.shields.io/badge/MapLibre_GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT_+_Commons_Clause-yellow)](LICENSE)
-[![Tests: 421](https://img.shields.io/badge/Tests-421_passing-brightgreen)](tests/)
+[![Tests: 541](https://img.shields.io/badge/Tests-541_passing-brightgreen)](tests/)
 [![DOI](https://zenodo.org/badge/1210467818.svg)](https://doi.org/10.5281/zenodo.19570542)
 
 An analytical model and interactive dashboard assessing renewable energy competitiveness across Indonesia's 25 Special Economic Zones (KEKs). Computes solar and wind LCOE, grid integration costs, BESS storage requirements, CBAM exposure, and action flags under user-adjustable assumptions.
@@ -91,7 +91,7 @@ frontend/
   src/components/    Map, panels, charts, table, UI components
   src/store/         Zustand state management
   src/lib/           API client, types, formatting utilities
-tests/               421 tests across model, pipeline, and API
+tests/               541 tests across model, pipeline, and API
 notebooks/           Jupyter notebooks for exploration and data pipeline
 docs/                Methodology, design specs, reference documents
 data/                Input data (GeoTIFFs, GeoJSON, shapefiles)
@@ -112,7 +112,7 @@ outputs/             Pipeline output CSVs
 ## Testing
 
 ```bash
-uv run pytest tests/            # 421 tests
+uv run pytest tests/            # 541 tests
 uv run ruff check src/ tests/   # Python lint
 cd frontend && npm run lint     # TypeScript lint (Biome)
 cd frontend && npx tsc --noEmit # Type check
