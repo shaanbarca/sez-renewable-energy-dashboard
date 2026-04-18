@@ -7,6 +7,7 @@ import {
   getEffectiveInfraReadiness,
 } from '../../lib/actionFlags';
 import { ECONOMIC_TIER_COLORS, INFRA_READINESS_LABELS } from '../../lib/constants';
+import { type FlipDirection, computeFlipDiff } from '../../lib/flipDiff';
 import { registerSectorIcons } from '../../lib/sectorIcons';
 import type { Sector } from '../../lib/siteTypes';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
@@ -41,6 +42,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
   const prevFlagsRef = useRef<Record<string, string>>({});
   const animIdRef = useRef<number>(0);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flipPulseAnimIdRef = useRef<number>(0);
 
   // Register sector pictogram SDF icons with the map. They render as the white
   // silhouette inside the coloured marker disc. Safe to call repeatedly —
@@ -142,6 +144,63 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
 
   const energyMode = useDashboardStore((s) => s.energyMode);
   const filteredSiteIds = useDashboardStore((s) => s.filteredSiteIds);
+  const activeTab = useDashboardStore((s) => s.activeTab);
+  const flipScorecard = useDashboardStore((s) => s.flipScorecard);
+
+  // Continuous pulse for flipped sites — only runs when Compare tab is active
+  // and a flip has been computed. Radius expands 14 → 26 over ~2s while
+  // opacity fades 0.6 → 0, creating a ripple effect like an active-location
+  // indicator on Google Maps.
+  useEffect(() => {
+    if (!mapInstance) return;
+    const map = mapInstance.getMap();
+    const active = activeTab === 'compare' && flipScorecard != null;
+    if (!active) {
+      // Ensure layer is invisible when compare is off
+      if (map.getLayer('kek-flip-pulse')) {
+        map.setPaintProperty('kek-flip-pulse', 'circle-opacity', 0);
+        map.setPaintProperty('kek-flip-pulse', 'circle-stroke-opacity', 0);
+      }
+      return;
+    }
+
+    const baseRadius = 14;
+    const maxExpand = 12;
+    const cycleMs = 2000;
+    const start = performance.now();
+
+    const animate = (now: number) => {
+      const t = ((now - start) % cycleMs) / cycleMs;
+      const radius = baseRadius + maxExpand * t;
+      const fillOpacity = 0.25 * (1 - t);
+      const strokeOpacity = 0.85 * (1 - t);
+      if (map.getLayer('kek-flip-pulse')) {
+        map.setPaintProperty('kek-flip-pulse', 'circle-radius', radius);
+        map.setPaintProperty('kek-flip-pulse', 'circle-opacity', fillOpacity);
+        map.setPaintProperty('kek-flip-pulse', 'circle-stroke-opacity', strokeOpacity);
+      }
+      flipPulseAnimIdRef.current = requestAnimationFrame(animate);
+    };
+    flipPulseAnimIdRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(flipPulseAnimIdRef.current);
+      if (map.getLayer('kek-flip-pulse')) {
+        map.setPaintProperty('kek-flip-pulse', 'circle-opacity', 0);
+        map.setPaintProperty('kek-flip-pulse', 'circle-stroke-opacity', 0);
+      }
+    };
+  }, [mapInstance, activeTab, flipScorecard]);
+
+  // Map site_id → flip direction (only populated when Scenario Compare tab is
+  // active and a flip has been computed). Drives the green/red glow ring.
+  const flipDirections = useMemo(() => {
+    if (activeTab !== 'compare' || !scorecard || !flipScorecard) return null;
+    const map = new Map<string, FlipDirection>();
+    const { rows } = computeFlipDiff(scorecard, flipScorecard);
+    for (const r of rows) map.set(r.site_id, r.flip_direction);
+    return map;
+  }, [activeTab, scorecard, flipScorecard]);
 
   const geojson = useMemo(() => {
     if (!scorecard) return null;
@@ -169,10 +228,11 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
           grid_integration_category: row.grid_integration_category ?? '',
           infrastructure_readiness: getEffectiveInfraReadiness(row),
           cbam_exposed: row.cbam_exposed ?? false,
+          flip_direction: flipDirections?.get(row.site_id) ?? 'none',
         },
       })),
     };
-  }, [scorecard, energyMode, filteredSiteIds]);
+  }, [scorecard, energyMode, filteredSiteIds, flipDirections]);
 
   // Build the match expression for circle-color from economic tier
   const colorMatch = useMemo(() => {
@@ -267,6 +327,91 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
             'circle-color': colorMatch as unknown as string,
             'circle-stroke-width': 0,
             'circle-opacity': 0,
+          }}
+        />
+        {/* Flip ring — thin outer halo around sites whose tier changed under
+            the flip scenario. Green = improved, red = worsened. Sized just
+            outside the CBAM amber ring so the direction reads at a glance.
+            Only visible when Scenario Compare tab is active AND a flip has
+            been computed. */}
+        <Layer
+          id="kek-flip-glow"
+          type="circle"
+          filter={[
+            'match',
+            ['get', 'flip_direction'],
+            ['improved', 'worsened'],
+            true,
+            false,
+          ]}
+          paint={{
+            'circle-radius': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              4,
+              ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 14, 12],
+              7,
+              ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 17, 14.5],
+              9,
+              ['case', ['==', ['get', 'site_id'], selectedSite ?? ''], 20, 17],
+            ] as unknown as number,
+            'circle-color': 'rgba(0,0,0,0)',
+            'circle-stroke-width': [
+              'case',
+              ['==', ['get', 'site_id'], selectedSite ?? ''],
+              3,
+              2.25,
+            ],
+            'circle-stroke-color': [
+              'match',
+              ['get', 'flip_direction'],
+              'improved',
+              '#4CAF50',
+              'worsened',
+              '#F44336',
+              'rgba(0,0,0,0)',
+            ] as unknown as string,
+            'circle-stroke-opacity': 0.95,
+          }}
+        />
+        {/* Flip pulse — expanding-and-fading halo that loops continuously.
+            The eye-catcher. Radius + opacity are driven by the requestAnimationFrame
+            loop below. Same green/red match as the static ring. */}
+        <Layer
+          id="kek-flip-pulse"
+          type="circle"
+          filter={[
+            'match',
+            ['get', 'flip_direction'],
+            ['improved', 'worsened'],
+            true,
+            false,
+          ]}
+          paint={{
+            'circle-radius': 14,
+            'circle-color': [
+              'match',
+              ['get', 'flip_direction'],
+              'improved',
+              '#4CAF50',
+              'worsened',
+              '#F44336',
+              'rgba(0,0,0,0)',
+            ] as unknown as string,
+            'circle-opacity': 0,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': [
+              'match',
+              ['get', 'flip_direction'],
+              'improved',
+              '#4CAF50',
+              'worsened',
+              '#F44336',
+              'rgba(0,0,0,0)',
+            ] as unknown as string,
+            'circle-stroke-opacity': 0,
+            'circle-blur': 0.4,
           }}
         />
         {/* CBAM exposure — circular amber ring sitting just outside the marker
