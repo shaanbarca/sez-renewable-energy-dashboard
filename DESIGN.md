@@ -506,7 +506,7 @@ The dashboard is a Vite + React 18 + TypeScript SPA with Tailwind CSS. See [ARCH
 
 ### Business logic extraction
 
-All computation in the `src/dash/logic/` package as pure functions. `compute_scorecard_live()` (orchestrator in `logic/scorecard.py`) takes assumptions + thresholds, returns full scorecard DataFrame. Domain-split into `assumptions.py`, `lcoe.py`, `cbam.py`, `grid.py`, `technology.py`; public API re-exported via `logic/__init__.py` so external callers stay stable. Testable with pytest, no server dependency. 537 tests cover model, pipeline, API, module boundaries, and golden-master parity.
+All computation in the `src/dash/logic/` package as pure functions. `compute_scorecard_live()` (orchestrator in `logic/scorecard.py`) takes assumptions + thresholds, returns full scorecard DataFrame. Domain-split into `assumptions.py`, `lcoe.py`, `cbam.py`, `grid.py`, `technology.py`; public API re-exported via `logic/__init__.py` so external callers stay stable. Testable with pytest, no server dependency. 541 tests cover model, pipeline, API, module boundaries, and golden-master parity.
 
 ---
 

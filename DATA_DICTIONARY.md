@@ -8,7 +8,7 @@ Contract for the data pipeline. Three parts:
 
 **Status legend:** ✅ available | ⚠️ partial/needs cleaning | ❌ missing | 🔒 manual (human required)
 
-**Scope:** 81 sites total — 25 KEKs (Special Economic Zones) + 56 industrial sites (32 cement, 17 steel, 2 aluminium, 5 fertilizer, 10 nickel IIA clusters). Industrial site selection is pipeline-driven and reproducible from public trackers (GEM Cement, GEM Iron & Steel, CGSP Nickel) with residual manual entries (2 aluminium + 5 fertilizer = 7 rows) provenance-enforced via required `source_url`. Fertilizer set covers all 5 operating Pupuk Indonesia subsidiaries after a 4-source universe-discovery pass captured in `data/industrial_sites/fertilizer_universe_v1.csv`. Ammonia + petrochemical sector scaffolding is in place (enum, intensity, CBAM constants) pending top-down universe discovery (TODOS M28/M29). The unified dimension table is `dim_sites` keyed on `site_id`; `site_type` discriminates KEK vs KI vs standalone vs cluster behavior across the pipeline.
+**Scope:** 81 sites total — 25 KEKs (Special Economic Zones) + 56 industrial sites (32 cement, 7 steel, 2 aluminium, 5 fertilizer, 10 nickel IIA clusters). Industrial site selection is pipeline-driven and reproducible from public trackers (GEM Cement, GEM Iron & Steel, CGSP Nickel) with residual manual entries (2 aluminium + 5 fertilizer = 7 rows) provenance-enforced via required `source_url`. Fertilizer set covers all 5 operating Pupuk Indonesia subsidiaries after a 4-source universe-discovery pass captured in `data/industrial_sites/fertilizer_universe_v1.csv`. Ammonia + petrochemical sector scaffolding is in place (enum, intensity, CBAM constants) pending top-down universe discovery (TODOS M28/M29). The unified dimension table is `dim_sites` keyed on `site_id`; `site_type` discriminates KEK vs KI vs standalone vs cluster behavior across the pipeline.
 
 ---
 
@@ -293,7 +293,7 @@ Dimension tables describe *what a site is* or *what a technology costs*. They ar
 
 ## 2.1 `outputs/data/processed/dim_sites.csv`
 
-**What it is:** Master site list — unified dimension covering KEKs (25) + 56 industrial sites (32 cement, 17 steel, 2 aluminium, 5 fertilizer, 10 nickel IIA clusters). Identity, location, grid assignment, site-type discriminator, sector, industrial identity fields.
+**What it is:** Master site list — unified dimension covering KEKs (25) + 56 industrial sites (32 cement, 7 steel, 2 aluminium, 5 fertilizer, 10 nickel IIA clusters). Identity, location, grid assignment, site-type discriminator, sector, industrial identity fields.
 **Builder:** `src/pipeline/build_dim_sites.py` (KEK half) + `src/pipeline/build_industrial_sites.py` (industrial half, union of tracker filters + residual CSV)
 **Lineage:** `kek_info_and_markers.csv` + `kek_distribution_points.csv` + `kek_polygons.geojson` + `kek_grid_region_mapping.csv` + `data/captive_power/gem_cement_plants.csv` + `data/captive_power/gem_steel_plants.csv` + `data/nickel/cgsp_nickel_projects.csv` + `data/industrial_sites/priority1_sites.csv` (residual manual rows) + `data/substation.geojson` (for auto grid_region_id)
 **Rows:** 81 ✅
