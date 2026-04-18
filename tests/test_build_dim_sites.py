@@ -7,7 +7,7 @@ Covers:
   - No duplicate site_ids
   - Grid region auto-assignment for new sites
   - Schema has all required columns
-  - Total row count = 25 KEKs + 44 standalone + 10 clusters = 79
+  - Total row count = 25 KEKs + 46 standalone + 10 clusters = 81
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ def dim_sites() -> pd.DataFrame:
 
 class TestDimSitesBasic:
     def test_total_row_count(self, dim_sites: pd.DataFrame):
-        """25 KEKs + 44 standalone + 10 cluster = 79 total."""
-        assert len(dim_sites) == 79
+        """25 KEKs + 46 standalone + 10 cluster = 81 total."""
+        assert len(dim_sites) == 81
 
     def test_no_duplicate_site_ids(self, dim_sites: pd.DataFrame):
         assert dim_sites["site_id"].is_unique
@@ -40,7 +40,7 @@ class TestDimSitesBasic:
     def test_site_type_counts(self, dim_sites: pd.DataFrame):
         counts = dim_sites["site_type"].value_counts().to_dict()
         assert counts["kek"] == 25
-        assert counts["standalone"] == 44
+        assert counts["standalone"] == 46
         assert counts["cluster"] == 10
 
 
@@ -105,7 +105,6 @@ class TestIndustrialSites:
 
     def test_industrial_cbam_product_type(self, dim_sites: pd.DataFrame):
         ind = dim_sites[dim_sites["site_type"].isin(["standalone", "cluster"])]
-        # All industrial sites should have direct cbam_product_type
         assert ind["cbam_product_type"].notna().all()
 
     def test_kek_cbam_product_type_null(self, dim_sites: pd.DataFrame):

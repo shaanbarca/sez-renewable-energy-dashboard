@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useDashboardStore } from '../../store/dashboard';
 
 // ---------------------------------------------------------------------------
@@ -41,9 +41,9 @@ const PERSONAS = [
   {
     id: 'industrial',
     title: 'Industrial Investor',
-    subtitle: 'KEK tenant or smelter operator',
+    subtitle: 'KEK tenant, smelter operator, or industrial site planner',
     description:
-      'Compare KEKs by electricity cost risk, grid reliability, CBAM export exposure, and captive coal phase-out pressure.',
+      'Compare sites by electricity cost risk, grid reliability, CBAM export exposure, and captive coal phase-out pressure.',
     icon: '🏭',
   },
 ] as const;
@@ -69,27 +69,27 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'Energy Mode',
     description:
-      'Use the Solar / Wind / Hybrid / Overall toggle in the header. The dashboard recomputes LCOE, action flags, and competitiveness metrics for each technology. Start with "Overall" to see which RE technology wins at each KEK.',
+      'Use the Solar / Wind / Hybrid / Overall toggle in the header. The dashboard recomputes LCOE, action flags, and competitiveness metrics for each technology. Start with "Overall" to see which RE technology wins at each site.',
     target: 'header',
     action: (s) => s.setEnergyMode('overall'),
   },
   {
     title: 'Switch WACC to 8%',
     description:
-      'Lower WACC to 8% (concessional DFI financing). Watch which KEKs flip from red to green. This is the case for concessional finance instruments — quantified, site by site.',
+      'Lower WACC to 8% (concessional DFI financing). Watch which sites flip from red to green. This is the case for concessional finance instruments — quantified, site by site.',
     target: 'assumptions',
   },
   {
-    title: 'Ranked Table',
+    title: 'Ranked Table — LCOE Gap',
     description:
-      'Sort by LCOE Gap (ascending) to find KEKs closest to grid parity. Click a KEK and check Carbon Breakeven in the Economics tab — the carbon price ($/tCO2) needed to close the gap. Low values = easy carbon finance candidates.',
-    target: 'bottom-panel',
+      'This column shows each site\u2019s LCOE gap to the grid benchmark. Sort ascending to surface the sites closest to parity. Click a site and check Carbon Breakeven in the Economics tab \u2014 the carbon price ($/tCO2) needed to close the gap. Low values = easy carbon finance candidates.',
+    target: 'column:solar_competitive_gap_pct',
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'KEK Scorecard — Economics',
+    title: 'Site Scorecard — Economics',
     description:
-      'Click any KEK to open its scorecard. The Economics tab shows LCOE across WACC bands, BESS storage cost (14h bridge-hours for 24/7 loads), and firm solar coverage — the split between daytime-direct supply and storage-dependent nighttime demand.',
+      'Click any site to open its scorecard. The Economics tab shows LCOE across WACC bands, BESS storage cost (14h bridge-hours for 24/7 loads), and firm solar coverage — the split between daytime-direct supply and storage-dependent nighttime demand.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -99,7 +99,7 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'CBAM Carbon Arbitrage',
     description:
-      'Check the Industry tab for CBAM-exposed KEKs. The CBAM trajectory chart shows EU border tax costs from 2026-2034 as free allocation phases out. Where CBAM savings exceed the RE premium, the "CBAM Urgent" flag fires — carbon arbitrage at the trade border.',
+      'Check the Industry tab for CBAM-exposed sites. The CBAM trajectory chart shows EU border tax costs from 2026-2034 as free allocation phases out. Where CBAM savings exceed the RE premium, the "CBAM Urgent" flag fires — carbon arbitrage at the trade border.',
     target: 'drawer',
   },
   {
@@ -112,7 +112,7 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: "You're Ready!",
     description:
-      'Explore freely. Toggle energy modes, adjust assumptions, switch map layers, and drill into any KEK. Re-launch this guide from the "Guide" button anytime.',
+      'Explore freely. Toggle energy modes, adjust assumptions, switch map layers, and drill into any site. Re-launch this guide from the "Guide" button anytime.',
     target: 'header',
   },
 ];
@@ -121,14 +121,14 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'Grid Integration Map',
     description:
-      'The map color-codes KEKs by grid integration category. Your opportunity set: "invest transmission" and "invest substation" sites where solar resource and demand exist, but specific grid infrastructure is the bottleneck.',
+      'The map color-codes sites by grid integration category. Your opportunity set: "invest transmission" and "invest substation" sites where solar resource and demand exist, but specific grid infrastructure is the bottleneck.',
     target: 'map',
   },
   {
     title: 'Filter Investment Targets',
     description:
-      'Open the table. Filter Grid Integration to "Invest Transmission" or "Invest Substation". These are KEKs where targeted DFI capital unlocks solar. Check the Grid Invest ($M) column for order-of-magnitude costs.',
-    target: 'bottom-panel',
+      'Open the table. Filter Grid Integration to "Invest Transmission" or "Invest Substation". These are sites where targeted DFI capital unlocks solar. The highlighted Grid Invest ($M) column shows order-of-magnitude costs.',
+    target: 'column:grid_investment_needed_usd',
     action: (s) => s.setActiveTab('table'),
   },
   {
@@ -140,13 +140,13 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'BPP Economics',
     description:
-      'Check the LCOE Gap column. Where solar is cheaper than PLN cost of supply (BPP), grid investment enables solar that reduces PLN operating costs. A self-supporting investment case.',
-    target: 'bottom-panel',
+      'This column shows LCOE Gap. Where solar is cheaper than PLN cost of supply (BPP), grid investment enables solar that reduces PLN operating costs. A self-supporting investment case.',
+    target: 'column:solar_competitive_gap_pct',
   },
   {
-    title: 'KEK Grid Tab',
+    title: 'Site Grid Tab',
     description:
-      'Click a top KEK to open its scorecard. The Grid tab shows substation distance, capacity assessment (green/yellow/red traffic light), connectivity status, and transmission cost breakdown.',
+      'Click a top site to open its scorecard. The Grid tab shows substation distance, capacity assessment (green/yellow/red traffic light), connectivity status, and transmission cost breakdown.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -162,7 +162,7 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'Energy Mode — Hybrid',
     description:
-      'Switch to "Hybrid" mode in the header. Wind nighttime generation can reduce BESS sizing, lowering the all-in cost. Check whether hybrid RE changes the investment case at your target KEKs.',
+      'Switch to "Hybrid" mode in the header. Wind nighttime generation can reduce BESS sizing, lowering the all-in cost. Check whether hybrid RE changes the investment case at your target sites.',
     target: 'header',
     action: (s) => s.setEnergyMode('hybrid'),
   },
@@ -178,47 +178,47 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: 'Grid Integration Map',
     description:
-      'The map shows grid integration categories. "Grid ready" KEKs can procure solar now. "Invest transmission" / "invest substation" KEKs need specific infrastructure. "Grid first" needs major expansion. This is the policy triage.',
+      'The map shows grid integration categories. "Grid ready" sites can procure solar now. "Invest transmission" / "invest substation" sites need specific infrastructure. "Grid first" needs major expansion. This is the policy triage.',
     target: 'map',
   },
   {
     title: 'Captive Power Exposure',
     description:
-      'Check the Industry column in the table. KEKs near coal plants and nickel smelters face Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar.',
-    target: 'bottom-panel',
+      'The Industry column tags sites near coal plants and nickel smelters — those face Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar.',
+    target: 'column:industry',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'RUPTL Pipeline',
     description:
-      'Switch to the RUPTL tab. Which grid regions have RE pipeline additions by 2030, and which are flat? Cross-reference with "plan late" KEKs — grid improvement planned but arriving after 2030.',
+      'Switch to the RUPTL tab. Which grid regions have RE pipeline additions by 2030, and which are flat? Cross-reference with "plan late" sites — grid improvement planned but arriving after 2030.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('ruptl'),
   },
   {
     title: 'BPP vs Solar Economics',
     description:
-      'Back to the table. Sort by LCOE Gap — where solar undercuts PLN cost of supply (BPP), the economic case for enabling procurement is self-evident. Negative gap = PLN saves money.',
-    target: 'bottom-panel',
+      'This LCOE Gap column shows the gap between solar and PLN cost of supply (BPP). Where solar undercuts BPP (negative gap), the economic case for enabling procurement is self-evident — PLN saves money.',
+    target: 'column:solar_competitive_gap_pct',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'Concessional Finance Case',
     description:
-      'Set WACC to 8% in the Assumptions panel. Count how many KEKs flip to "solar now". This quantifies the impact of concessional finance instruments — the core DFI policy argument.',
+      'Set WACC to 8% in the Assumptions panel. Count how many sites flip to "solar now". This quantifies the impact of concessional finance instruments — the core DFI policy argument.',
     target: 'assumptions',
   },
   {
     title: 'Energy Mode — Overall',
     description:
-      'Switch to "Overall" mode. The dashboard selects the cheapest RE technology per KEK (solar, wind, or hybrid). Some eastern KEKs may favor wind. Best RE Technology shows the winner.',
+      'Switch to "Overall" mode. The dashboard selects the cheapest RE technology per site (solar, wind, or hybrid). Some eastern sites may favor wind. Best RE Technology shows the winner.',
     target: 'header',
     action: (s) => s.setEnergyMode('overall'),
   },
   {
-    title: 'KEK Industry & Action Tabs',
+    title: 'Site Industry & Action Tabs',
     description:
-      'Click a KEK. The Industry tab shows captive coal/nickel/steel/cement context, CBAM exposure, and RUPTL pipeline status. The Action tab shows the specific policy recommendation — 14 flags across 4 energy modes, each naming an intervention.',
+      'Click a site. The Industry tab shows captive coal/nickel/steel/cement context, CBAM exposure, and RUPTL pipeline status. The Action tab shows the specific policy recommendation — flags across 4 energy modes, each naming an intervention.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -228,8 +228,8 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: 'CBAM Trade Pressure',
     description:
-      'Filter the table to CBAM-exposed KEKs. 12 of 25 KEKs export products subject to EU carbon border tax (nickel, steel, cement, aluminium). The "CBAM Urgent" flag fires where border tax savings alone justify RE. CBAM creates an international financial stick alongside Perpres 112 domestic regulation.',
-    target: 'bottom-panel',
+      '68 of 81 sites export products subject to the EU Carbon Border Adjustment Mechanism (cement, iron/steel, fertilizer, aluminium). This column shows the 2030 cost per tonne. The "CBAM Urgent" flag fires where border tax savings alone justify RE — an international financial stick alongside Perpres 112 domestic regulation.',
+    target: 'column:cbam_2030',
     action: (s) => s.setActiveTab('table'),
   },
   {
@@ -248,7 +248,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: "You're Ready!",
     description:
-      'Explore freely. Toggle energy modes, adjust assumptions, and drill into any KEK. Re-launch this guide from "Guide" anytime.',
+      'Explore freely. Toggle energy modes, adjust assumptions, and drill into any site. Re-launch this guide from "Guide" anytime.',
     target: 'header',
   },
 ];
@@ -264,26 +264,26 @@ const IPP_STEPS: TourStep[] = [
   {
     title: 'BPP Economics',
     description:
-      'Check the LCOE Gap column. Where solar undercuts PLN cost of supply (BPP), the procurement pitch writes itself: "procure solar here and your generation cost drops." Negative gap = PLN saves money.',
-    target: 'bottom-panel',
+      'This LCOE Gap column shows where solar undercuts PLN cost of supply (BPP). Where the gap is negative, the procurement pitch writes itself: "procure solar here and your generation cost drops." PLN saves money.',
+    target: 'column:solar_competitive_gap_pct',
   },
   {
     title: 'Grid Readiness',
     description:
-      'Check Grid Integration: "grid ready" = substation accessible with capacity. Review the capacity assessment traffic light (green/yellow/red) — can the local grid absorb your project output?',
-    target: 'bottom-panel',
+      'Grid Integration tags each site: "grid ready" = substation accessible with capacity. Review the capacity assessment traffic light (green/yellow/red) — can the local grid absorb your project output?',
+    target: 'column:grid_integration_category',
   },
   {
     title: 'Wind & Hybrid',
     description:
-      'Switch to "Wind" or "Hybrid" mode in the header. Some eastern KEKs have strong wind resource. The Best RE column shows which technology wins. Hybrid mode optimizes solar+wind mix to minimize all-in cost.',
+      'Switch to "Wind" or "Hybrid" mode in the header. Some eastern sites have strong wind resource. The Best RE column shows which technology wins. Hybrid mode optimizes solar+wind mix to minimize all-in cost.',
     target: 'header',
     action: (s) => s.setEnergyMode('overall'),
   },
   {
-    title: 'KEK Deep Dive',
+    title: 'Site Deep Dive',
     description:
-      'Click your top KEK. Resource tab: PVOUT and buildable area. Grid tab: substation distance, capacity, connectivity. Economics tab: LCOE bands with BESS storage (14h bridge-hours). Action tab: recommended next step.',
+      'Click your top site. Resource tab: PVOUT and buildable area. Grid tab: substation distance, capacity, connectivity. Economics tab: LCOE bands with BESS storage (14h bridge-hours). Action tab: recommended next step.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -299,7 +299,7 @@ const IPP_STEPS: TourStep[] = [
   {
     title: "You're Ready!",
     description:
-      'Export your top KEKs as CSV for your BD pipeline tracker or PLN engagement deck. Re-launch this guide from "Guide" in the header anytime.',
+      'Export your top sites as CSV for your BD pipeline tracker or PLN engagement deck. Re-launch this guide from "Guide" in the header anytime.',
     target: 'header',
   },
 ];
@@ -308,33 +308,33 @@ const INDUSTRIAL_STEPS: TourStep[] = [
   {
     title: 'Understanding the Baseline',
     description:
-      'All KEKs pay the same PLN I-4 industrial tariff today ($63/MWh). The differentiation is risk and trajectory: which KEKs face future tariff hikes, grid reliability issues, or lack of green energy?',
+      'All 81 sites pay the same PLN I-4 industrial tariff today ($63/MWh). The differentiation is risk and trajectory: which sites face future tariff hikes, grid reliability issues, or lack of green energy?',
     target: 'map',
   },
   {
     title: 'Subsidy Exposure',
     description:
-      'Open the table. Check the BPP column — PLN cost of supply by region. Papua: $133/MWh, but tariff is $63/MWh. That $70 gap is a subsidy that is a future tariff hike waiting to happen. High BPP = high risk.',
-    target: 'bottom-panel',
+      'This Grid Rate column shows PLN cost of supply (BPP) by region. Papua sits at $133/MWh while tariff is only $63/MWh — that $70 gap is a subsidy that is a future tariff hike waiting to happen. High BPP = high risk.',
+    target: 'column:dashboard_rate_usd_mwh',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'Grid Reliability Proxies',
     description:
-      'Check Grid Integration and Capacity columns. KEKs near large substations with green capacity assessments offer better reliability. Continuous-process industries (smelters, data centers) cannot tolerate outages.',
-    target: 'bottom-panel',
+      'The Grid Integration column tags each site by infrastructure readiness. Sites near large substations with green capacity assessments offer better reliability. Continuous-process industries (smelters, data centers) cannot tolerate outages.',
+    target: 'column:grid_integration_category',
   },
   {
     title: 'Captive Coal Exposure',
     description:
-      'Check the Industry column. Coal plants and nickel smelters within 50km face Perpres 112/2022 phase-out by 2050. RKEF smelters and other 24/7 loads need 14h of BESS bridge-hours storage. This is regulatory and cost risk for co-located industry.',
-    target: 'bottom-panel',
+      'The Industry column tags coal plants and nickel smelters within 50km — those face Perpres 112/2022 phase-out by 2050. RKEF smelters and other 24/7 loads need 14h of BESS bridge-hours storage. Regulatory and cost risk for co-located industry.',
+    target: 'column:industry',
   },
   {
     title: 'Green Energy Trajectory',
     description:
-      'Where solar could lower the regional BPP, your electricity cost is safer long-term. Check the LCOE Gap — KEKs where RE undercuts BPP will see improving grid economics. RE Coverage shows buildable RE potential.',
-    target: 'bottom-panel',
+      'This LCOE Gap column ranks sites by RE economics. Where RE undercuts BPP (negative gap), grid economics improve over time and your electricity cost is safer long-term. Cross-reference with RE Coverage for buildable potential.',
+    target: 'column:solar_competitive_gap_pct',
   },
   {
     title: 'RUPTL Pipeline Risk',
@@ -346,14 +346,14 @@ const INDUSTRIAL_STEPS: TourStep[] = [
   {
     title: 'CBAM Exposure',
     description:
-      'Filter the table to CBAM-exposed KEKs (amber toggle). 12 of 25 KEKs face EU Carbon Border Adjustment Mechanism costs on exports. The CBAM 2030 column shows the carbon border tax per tonne. KEKs flagged "CBAM Urgent" can justify RE switching on trade economics alone.',
-    target: 'bottom-panel',
+      '68 of 81 sites face EU Carbon Border Adjustment Mechanism costs on exports (cement, iron/steel, fertilizer, aluminium). This CBAM 2030 column shows the carbon border tax per tonne. Sites flagged "CBAM Urgent" can justify RE switching on trade economics alone.',
+    target: 'column:cbam_2030',
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'KEK Comparison',
+    title: 'Site Comparison',
     description:
-      'Click a KEK to review its full scorecard. Overview tab: key metrics. Industry tab: captive power, CBAM trajectory chart (2026-2034), per-product cost breakdown. Grid tab: infrastructure quality. Compare 3-4 candidate KEKs.',
+      'Click a site to review its full scorecard. Overview tab: key metrics. Industry tab: captive power, CBAM trajectory chart (2026-2034), per-product cost breakdown. Grid tab: infrastructure quality. Compare 3-4 candidate sites.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -363,7 +363,7 @@ const INDUSTRIAL_STEPS: TourStep[] = [
   {
     title: "You're Ready!",
     description:
-      'Export the comparison matrix CSV — KEKs ranked by risk factors (BPP gap, grid quality, green share, captive exposure) for your site selection team. Re-launch from "Guide" anytime.',
+      'Export the comparison matrix CSV — sites ranked by risk factors (BPP gap, grid quality, green share, captive exposure) for your site selection team. Re-launch from "Guide" anytime.',
     target: 'header',
   },
 ];
@@ -380,6 +380,19 @@ const STEPS_BY_PERSONA: Record<string, TourStep[]> = {
 // Spotlight position hook
 // ---------------------------------------------------------------------------
 
+// Compute the union rect for a column: TH cell horizontal extent,
+// extended vertically to the table bottom (so the full column lights up).
+function computeColumnRect(columnId: string): DOMRect | null {
+  const anchor = document.querySelector(`[data-tour="column-${columnId}"]`);
+  const th = anchor?.closest('th');
+  const table = th?.closest('table');
+  if (!th || !table) return null;
+  const thRect = th.getBoundingClientRect();
+  const tableRect = table.getBoundingClientRect();
+  const bottom = Math.max(thRect.bottom, tableRect.bottom);
+  return new DOMRect(thRect.left, thRect.top, thRect.width, bottom - thRect.top);
+}
+
 function useSpotlightRect(target: string | null) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const rafRef = useRef(0);
@@ -390,11 +403,11 @@ function useSpotlightRect(target: string | null) {
       return;
     }
     const update = () => {
-      const el = document.querySelector(`[data-tour="${target}"]`);
-      if (el) {
-        setRect(el.getBoundingClientRect());
+      if (target.startsWith('column:')) {
+        setRect(computeColumnRect(target.slice('column:'.length)));
       } else {
-        setRect(null);
+        const el = document.querySelector(`[data-tour="${target}"]`);
+        setRect(el ? el.getBoundingClientRect() : null);
       }
       rafRef.current = requestAnimationFrame(update);
     };
@@ -475,11 +488,21 @@ function StepOverlay() {
   const steps = useMemo(() => (persona ? (STEPS_BY_PERSONA[persona] ?? []) : []), [persona]);
   const currentStep = steps[step];
 
-  // Run step action when step changes
+  // Run step action when step changes. Before running the persona's custom
+  // action, auto-expand the bottom panel if this step targets it — otherwise
+  // we'd spotlight a 34px collapsed bar with no content behind it. Column
+  // targets also force the table tab, since columns only render there.
   useEffect(() => {
-    if (!currentStep?.action) return;
+    if (!currentStep) return;
     const state = useDashboardStore.getState();
-    currentStep.action(state);
+    const target = currentStep.target;
+    if (target === 'bottom-panel' || target.startsWith('column:')) {
+      if (state.bottomPanelCollapsed) state.setBottomPanelCollapsed(false);
+      if (target.startsWith('column:') && state.activeTab !== 'table') {
+        state.setActiveTab('table');
+      }
+    }
+    currentStep.action?.(state);
   }, [currentStep]);
 
   const isLastStep = step >= steps.length - 1;
@@ -504,6 +527,19 @@ function StepOverlay() {
     return () => window.removeEventListener('keydown', handler);
   }, [dismiss, handleNext, prev, step]);
 
+  // Measured tooltip size — starts as an estimate, updated after first paint.
+  // We re-measure on every step + spotlight change so position stays correct
+  // even when description length varies wildly between steps.
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [tooltipSize, setTooltipSize] = useState<{ w: number; h: number }>({ w: 340, h: 320 });
+  useLayoutEffect(() => {
+    if (!tooltipRef.current) return;
+    const r = tooltipRef.current.getBoundingClientRect();
+    if (Math.abs(r.width - tooltipSize.w) > 1 || Math.abs(r.height - tooltipSize.h) > 1) {
+      setTooltipSize({ w: r.width, h: r.height });
+    }
+  });
+
   if (!currentStep) return null;
 
   // If the target covers most of the viewport, don't spotlight it — just show tooltip centered
@@ -512,26 +548,39 @@ function StepOverlay() {
     spotlightRect.width > window.innerWidth * 0.6 &&
     spotlightRect.height > window.innerHeight * 0.6;
 
-  // Position the tooltip near the spotlight (or center if large/missing target)
+  // Position the tooltip near the spotlight (or center if large/missing target).
+  // Final step always clamps with the *measured* tooltip size so it can never
+  // spill off any edge of the viewport, regardless of step description length
+  // or where the spotlight sits.
   const tooltipStyle: React.CSSProperties = {};
+  const pad = 16;
+  const { w: tw, h: th } = tooltipSize;
+  const clampLeft = (l: number) => Math.max(pad, Math.min(l, window.innerWidth - tw - pad));
+  const clampTop = (t: number) => Math.max(pad, Math.min(t, window.innerHeight - th - pad));
+
   if (spotlightRect && !isLargeTarget) {
-    const pad = 16;
-    const tooltipWidth = 340;
-    if (spotlightRect.right + tooltipWidth + pad < window.innerWidth) {
-      tooltipStyle.left = spotlightRect.right + pad;
-      tooltipStyle.top = Math.max(pad, spotlightRect.top);
-    } else if (spotlightRect.left - tooltipWidth - pad > 0) {
-      tooltipStyle.left = spotlightRect.left - tooltipWidth - pad;
-      tooltipStyle.top = Math.max(pad, spotlightRect.top);
+    if (spotlightRect.right + tw + pad < window.innerWidth) {
+      tooltipStyle.left = clampLeft(spotlightRect.right + pad);
+      tooltipStyle.top = clampTop(spotlightRect.top);
+    } else if (spotlightRect.left - tw - pad > 0) {
+      tooltipStyle.left = clampLeft(spotlightRect.left - tw - pad);
+      tooltipStyle.top = clampTop(spotlightRect.top);
     } else {
-      tooltipStyle.left = Math.max(pad, (window.innerWidth - tooltipWidth) / 2);
-      tooltipStyle.top = Math.max(pad, spotlightRect.top + 60);
+      // No room left or right — stack vertically. Prefer above when the
+      // spotlight is in the lower half (bottom-panel case).
+      tooltipStyle.left = clampLeft((window.innerWidth - tw) / 2);
+      const spaceAbove = spotlightRect.top - pad * 2;
+      const spaceBelow = window.innerHeight - spotlightRect.bottom - pad * 2;
+      if (spaceAbove >= th || spaceAbove > spaceBelow) {
+        tooltipStyle.top = clampTop(spotlightRect.top - th - pad);
+      } else {
+        tooltipStyle.top = clampTop(spotlightRect.bottom + pad);
+      }
     }
   } else {
     // Center the tooltip
-    tooltipStyle.left = '50%';
-    tooltipStyle.top = '40%';
-    tooltipStyle.transform = 'translate(-50%, -50%)';
+    tooltipStyle.left = clampLeft((window.innerWidth - tw) / 2);
+    tooltipStyle.top = clampTop((window.innerHeight - th) / 2);
   }
 
   return (
@@ -563,10 +612,13 @@ function StepOverlay() {
 
       {/* Step tooltip */}
       <div
+        ref={tooltipRef}
         className="absolute rounded-xl p-5"
         style={{
           ...tooltipStyle,
-          width: 340,
+          width: Math.min(340, window.innerWidth - pad * 2),
+          maxHeight: window.innerHeight - pad * 2,
+          overflowY: 'auto',
           background: 'var(--glass-heavy)',
           border: '1px solid var(--glass-border-bright)',
           backdropFilter: 'var(--blur-heavy)',

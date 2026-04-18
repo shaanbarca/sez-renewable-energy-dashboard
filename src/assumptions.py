@@ -594,6 +594,9 @@ CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE: dict[str, float] = {
     "steel_bfbof": 0.25,  # Blast furnace-BOF steel: 0.2-0.3 MWh/t (most energy from coke)
     "aluminium": 15.0,  # Primary aluminium smelting: 13-17 MWh/t
     "fertilizer": 10.0,  # Ammonia/urea: 8-12 MWh/t
+    "ammonia": 10.0,  # Merchant NH3 (Haber-Bosch) — same gas + electricity fuel mix as urea
+    # routes. Kept separate from "fertilizer" so cost trajectory uses the
+    # ammonia-specific Scope 1 (2.3 tCO2/t Indonesia) below.
     "cement": 0.9,  # Cement: 0.8-1.0 MWh/t (low electricity, high process emissions)
 }
 
@@ -604,8 +607,32 @@ CBAM_SCOPE1_TCO2_PER_TONNE: dict[str, float] = {
     "steel_eaf": 0.3,  # EAF: minor electrode + alloy process emissions
     "steel_bfbof": 1.8,  # BF-BOF: coke combustion in blast furnace
     "aluminium": 1.5,  # Anode consumption
-    "fertilizer": 1.2,  # NH₃ synthesis process CO₂
+    "fertilizer": 1.2,  # NH₃ synthesis process CO₂ (legacy aggregated figure)
+    "ammonia": 2.3,  # Indonesia-specific: natural gas SMR + urea route.
+    # Source: ICGD "Indonesia Ammonia Decarbonization" research — Indonesian
+    # ammonia plants run on natural gas (SMR) with typical Scope 1 ~2.3 tCO2/t NH3.
+    # Higher than the generic "fertilizer" figure because it isolates the SMR
+    # feedstock + fuel emissions from downstream urea conversion.
     "cement": 0.52,  # Calcination (CaCO₃ → CaO + CO₂) — ~60% of total cement emissions
+}
+
+# Fraction of CBAM Scope 2 savings that is actually RE-addressable.
+# CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE is thermal-inclusive for cement / fertilizer /
+# ammonia — most of that energy is coke, kiln fuel, or SMR gas feedstock that switching
+# the grid to renewables does NOT displace. Multiply Scope 2 savings by this fraction so
+# CBAM cost relief reflects only the genuinely-electric share.
+# Derivation: SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE / CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
+# clamped to [0, 1].
+# See docs/cbam_sector_data_collection_plan.md §4.1 and
+# docs/METHODOLOGY_CONSOLIDATED.md §14.3 for full methodology note.
+CBAM_RE_ADDRESSABLE_FRACTION: dict[str, float] = {
+    "nickel_rkef": 1.0,  # RKEF = electric arc furnace; ~all intensity is electricity
+    "steel_eaf": 1.0,  # EAF is electricity-driven by definition
+    "steel_bfbof": 0.80,  # 0.20 / 0.25 — some aux electricity but most energy is coke (Scope 1)
+    "aluminium": 1.0,  # Hall-Heroult electrolysis = electricity
+    "fertilizer": 0.10,  # 1.0 / 10.0 — CBAM intensity is thermal-inclusive (gas feedstock)
+    "ammonia": 0.10,  # Same as fertilizer — SMR gas is Scope 1 feedstock, not RE-addressable
+    "cement": 0.12,  # 0.11 / 0.9 — kiln thermal dominates; only grinding + aux are electric
 }
 
 # ─── SECTOR DEMAND & RELIABILITY (Industrial Parks Expansion) ────────────────
@@ -624,6 +651,13 @@ SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE: dict[str, float] = {
     "fertilizer": 1.0,  # Ammonia synthesis electricity: 0.8-1.2 MWh/t (IFA 2022)
     "nickel_rkef": 37.5,  # RKEF electric furnace: 30-45 MWh/t (JETP Ch.2)
     "nickel_hpal": 8.0,  # HPAL hydrometallurgical: 6-10 MWh/t (BNEF 2024)
+    "ammonia": 1.0,  # Haber-Bosch electricity share: 0.8-1.2 MWh/t (IFA 2022, IEA Ammonia 2021)
+    # Note: identical to "fertilizer" by design — Indonesian fertilizer plants
+    # are ammonia-based (urea = NH3 + CO2). Kept as a separate key so CBAM cost
+    # trajectory can use the ammonia-specific Scope 1 (2.3 tCO2/t, Indonesia).
+    "petrochemical": 0.70,  # Steam cracker + downstream: 0.5-0.9 MWh/t ethylene equivalent
+    # (IEA Petrochemicals 2018). Wide range — steam-cracker auxiliaries dominate,
+    # most process energy is fuel gas / naphtha (not electricity).
 }
 
 # Minimum reliability requirement by sector (fraction, 0-1).
@@ -634,6 +668,8 @@ SECTOR_RELIABILITY_REQUIREMENT: dict[str, float] = {
     "cement": 0.80,  # Kiln can tolerate short interruptions
     "fertilizer": 0.85,  # Ammonia synthesis prefers continuous operation
     "nickel": 0.90,  # RKEF furnace continuous operation
+    "ammonia": 0.90,  # Haber-Bosch: high-pressure synthesis, stopping/starting is costly
+    "petrochemical": 0.90,  # Steam cracker: continuous furnace + downstream distillation
     "mixed": 0.75,  # Default for mixed-use zones (same as KEK default)
 }
 

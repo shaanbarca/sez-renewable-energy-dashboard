@@ -25,6 +25,7 @@ interface DashboardStore {
   selectedSite: string | null;
   drawerOpen: boolean;
   assumptionsExpanded: boolean;
+  bottomPanelCollapsed: boolean;
   activeTab: BottomTab;
   layerVisibility: Record<string, boolean>;
   benchmarkMode: BenchmarkMode;
@@ -47,6 +48,7 @@ interface DashboardStore {
   setThresholds: (t: Partial<UserThresholds>) => void;
   selectSite: (id: string | null) => void;
   closeDrawer: () => void;
+  setBottomPanelCollapsed: (collapsed: boolean) => void;
   setActiveTab: (tab: BottomTab) => void;
   setEnergyMode: (mode: EnergyMode) => void;
   setBenchmarkMode: (mode: BenchmarkMode) => void;
@@ -84,6 +86,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   selectedSite: null,
   drawerOpen: false,
   assumptionsExpanded: false,
+  bottomPanelCollapsed: false,
   activeTab: 'table',
   layerVisibility: {},
   benchmarkMode: 'bpp',
@@ -136,6 +139,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     }),
 
   closeDrawer: () => set({ drawerOpen: false }),
+
+  setBottomPanelCollapsed: (collapsed) => set({ bottomPanelCollapsed: collapsed }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 

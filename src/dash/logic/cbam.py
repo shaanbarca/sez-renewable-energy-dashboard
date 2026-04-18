@@ -16,6 +16,7 @@ import pandas as pd
 from src.assumptions import (
     CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
     CBAM_FREE_ALLOCATION,
+    CBAM_RE_ADDRESSABLE_FRACTION,
     CBAM_SCOPE1_TCO2_PER_TONNE,
 )
 from src.model.site_types import SITE_TYPES, SiteType
@@ -145,7 +146,9 @@ def compute_cbam_trajectory(
     for ctype in cbam_types:
         elec_intensity = CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE.get(ctype, 0)
         scope1 = CBAM_SCOPE1_TCO2_PER_TONNE.get(ctype, 0)
+        re_fraction = CBAM_RE_ADDRESSABLE_FRACTION.get(ctype, 1.0)
         scope2 = elec_intensity * grid_ef
+        scope2_re_addressable = scope2 * re_fraction
         total_ei = scope2 + scope1
 
         metrics: dict = {
@@ -156,7 +159,9 @@ def compute_cbam_trajectory(
             free_alloc = CBAM_FREE_ALLOCATION.get(year, 0.0)
             effective_rate = price_usd * (1 - free_alloc)
             metrics[f"cost_{year}_usd_per_tonne"] = round(total_ei * effective_rate, 0)
-            metrics[f"savings_{year}_usd_per_tonne"] = round(scope2 * effective_rate, 0)
+            metrics[f"savings_{year}_usd_per_tonne"] = round(
+                scope2_re_addressable * effective_rate, 0
+            )
         per_product[ctype] = metrics
 
     out["cbam_per_product"] = per_product

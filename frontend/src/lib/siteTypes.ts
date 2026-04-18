@@ -7,7 +7,15 @@
  */
 
 export type SiteType = 'kek' | 'standalone' | 'cluster' | 'ki';
-export type Sector = 'steel' | 'cement' | 'aluminium' | 'fertilizer' | 'nickel' | 'mixed';
+export type Sector =
+  | 'steel'
+  | 'cement'
+  | 'aluminium'
+  | 'fertilizer'
+  | 'nickel'
+  | 'ammonia'
+  | 'petrochemical'
+  | 'mixed';
 
 interface SiteTypeConfig {
   markerShape: 'circle' | 'diamond' | 'hexagon' | 'square';

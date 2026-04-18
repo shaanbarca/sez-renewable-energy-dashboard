@@ -31,7 +31,7 @@ flowchart TD
         A7["GEM Cement Tracker\n(32 operating plants)"]
         A8["GEM Iron & Steel Tracker\n(7 active plants)"]
         A9["CGSP Nickel Tracker\n(IIA filter → 10 clusters)"]
-        A10["Residual manual CSV\n(priority1_sites.csv — 5 rows:\n2 aluminium + 3 fertilizer,\nprovenance-enforced)"]
+        A10["Residual manual CSV\n(priority1_sites.csv — 7 rows:\n2 aluminium + 5 fertilizer,\nprovenance-enforced)"]
     end
 
     subgraph BUILDABILITY["Buildability Data (data/buildability/)"]
@@ -44,14 +44,14 @@ flowchart TD
     DL["scripts/download_buildability_data.py\n(downloads B1, B2, B3 automatically)"]
 
     subgraph PIPELINE["Pipeline (run_pipeline.py → src/pipeline/build_*.py)"]
-        P1["dim_sites\n(25 KEK + 44 standalone + 10 cluster = 79 rows)"]
+        P1["dim_sites\n(25 KEK + 46 standalone + 10 cluster = 81 rows)"]
         P2["dim_tech_cost"]
         P3["fct_site_resource\n(PVOUT + buildability)"]
         P4["fct_site_demand\n(area-based OR sector-intensity)"]
         P5["fct_grid_cost_proxy"]
         P6["fct_ruptl_pipeline"]
         P7["fct_substation_proximity"]
-        P8["fct_lcoe\n(1,422 rows: 79 × 9 × 2)"]
+        P8["fct_lcoe\n(1,458 rows: 81 × 9 × 2)"]
         P9["fct_site_scorecard"]
         P10["fct_captive_coal"]
         P11["fct_captive_nickel"]
@@ -128,7 +128,7 @@ flowchart TD
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |
 | Data | pandas | 2.x | All tabular transforms |
 | PDF extraction | pdfplumber | — | RUPTL + ESDM Tech Catalogue tables |
-| Testing | pytest | — | 532 tests, all pure-function |
+| Testing | pytest | — | 541 tests, all pure-function |
 | Linting | ruff | — | Format + lint (configured in pyproject.toml) |
 
 ---
@@ -141,8 +141,8 @@ Topological order enforced by `run_pipeline.py` at runtime:
 Stage 1 — Dimensions (no deps)
   industrial_sites_generated ← build_industrial_sites.py unions GEM Cement (32) + GEM Steel (7)
                                + CGSP Nickel IIA (10, with 5km KEK exclusion + 20km child aggregation)
-                               + residual manual CSV (5, source_url required)
-  dim_sites                 ← 25 KEK rows + industrial_sites_generated (54 rows) = 79 total;
+                               + residual manual CSV (7: 2 aluminium + 5 fertilizer, source_url required)
+  dim_sites                 ← 25 KEK rows + industrial_sites_generated (56 rows) = 81 total;
                               auto-assigns grid_region_id from nearest substation regpln
   dim_tech_cost
 
@@ -156,7 +156,7 @@ Stage 2 — Facts (depend on dim_sites)
 
 Stage 3 — Computed
   fct_lcoe                  ← dim_sites, fct_site_resource, dim_tech_cost, fct_substation_proximity
-                              (1,422 rows = 79 sites × 9 WACC × 2 scenarios)
+                              (1,458 rows = 81 sites × 9 WACC × 2 scenarios)
 
 Stage 4 — Captive power  [dual-mode: proximity_match (KEK/KI) | direct_match (standalone/cluster)]
   fct_captive_coal          ← dim_sites
@@ -239,8 +239,8 @@ src/
     basic_model.py              — Pure LCOE + action flag functions (no API dep)
     site_types.py               — SiteTypeConfig registry + SiteType/Sector StrEnums
   pipeline/
-    build_dim_sites.py          ← unions 25 KEK + 54 industrial sites (tracker-driven + residual CSV)
-    build_industrial_sites.py   ← GEM Cement (32) + GEM Steel (7) + CGSP Nickel IIA (10) + residual manual (5)
+    build_dim_sites.py          ← unions 25 KEK + 56 industrial sites (tracker-driven + residual CSV)
+    build_industrial_sites.py   ← GEM Cement (32) + GEM Steel (7) + CGSP Nickel IIA (10) + residual manual (7)
     build_dim_tech_cost.py
     build_fct_site_resource.py  ← heaviest; raster reads + buildability cascade
     build_fct_site_wind_resource.py
@@ -274,8 +274,9 @@ src/
 
 data/
   industrial_sites/
-    priority1_sites.csv         ← residual manual rows only (5 sites: 2 aluminium + 3 fertilizer),
+    priority1_sites.csv         ← residual manual rows only (7 sites: 2 aluminium + 5 fertilizer),
                                   provenance-enforced (source_url required; loader raises if missing)
+    fertilizer_universe_v1.csv  ← universe-discovery CSV (Pupuk Indonesia subsidiaries, Fakfak, candidates)
 
 scripts/
   download_buildability_data.py — Downloads DEM + ESA WorldCover + GFW peatlands; builds VRTs
@@ -294,7 +295,7 @@ tests/
   test_logic_technology.py      — module-boundary tests for logic/technology.py (BESS/firm/hybrid)
   test_scorecard_golden.py      — bit-identical parity against pickle fixture (pre-refactor snapshot)
 
-532 tests total (all pure-function).
+541 tests total (all pure-function).
 
 frontend/src/
   lib/
