@@ -19,6 +19,7 @@ import { useDashboardStore } from '../../store/dashboard';
 import { ActionTab } from './scoredrawer/ActionTab';
 import { DemandTab } from './scoredrawer/DemandTab';
 import { EconomicsTab } from './scoredrawer/EconomicsTab';
+import { FlipTab } from './scoredrawer/FlipTab';
 import { GridTab } from './scoredrawer/GridTab';
 import { OverviewTab } from './scoredrawer/OverviewTab';
 import { ResourceTab } from './scoredrawer/ResourceTab';
@@ -31,6 +32,7 @@ const TABS = [
   { value: 'economics', label: 'Economics' },
   { value: 'industry', label: 'Industry' },
   { value: 'action', label: 'Action' },
+  { value: 'flip', label: 'Flip' },
 ] as const;
 
 export default function ScoreDrawer() {
@@ -192,14 +194,15 @@ export default function ScoreDrawer() {
           {/* Tabs */}
           <Tabs.Root defaultValue="overview" className="flex-1 flex flex-col min-h-0">
             <Tabs.List
-              className="flex px-4 gap-0.5"
+              className="flex px-3 gap-0 overflow-x-auto"
               style={{ borderBottom: '1px solid var(--border-subtle)' }}
             >
               {TABS.map((tab) => (
                 <Tabs.Trigger
                   key={tab.value}
                   value={tab.value}
-                  className="drawer-tab px-2.5 py-2 text-[11px] font-medium transition-colors relative
+                  className="drawer-tab px-1.5 py-2 text-[11px] font-medium transition-colors relative
+                             whitespace-nowrap flex-shrink-0
                              after:absolute after:bottom-0 after:left-1 after:right-1 after:h-[2px]
                              after:rounded-full after:opacity-0
                              data-[state=active]:after:opacity-100 after:transition-opacity"
@@ -227,6 +230,9 @@ export default function ScoreDrawer() {
               </Tabs.Content>
               <Tabs.Content value="action">
                 <ActionTab row={row} />
+              </Tabs.Content>
+              <Tabs.Content value="flip">
+                <FlipTab row={row} />
               </Tabs.Content>
             </div>
           </Tabs.Root>
