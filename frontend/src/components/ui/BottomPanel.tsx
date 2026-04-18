@@ -4,12 +4,14 @@ import type { BottomTab } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import RuptlChart from '../charts/RuptlChart';
 import SectorSummaryChart from '../charts/SectorSummaryChart';
+import ScenarioCompareTab from '../panels/scenariocompare/ScenarioCompareTab';
 import DataTable from '../table/DataTable';
 
 const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'table', label: 'Ranked Table' },
   { value: 'ruptl', label: 'RUPTL Context' },
   { value: 'sector', label: 'Sector Summary' },
+  { value: 'compare', label: 'Scenario Compare' },
 ];
 
 const TABLE_HEIGHT = 448;
@@ -28,7 +30,13 @@ export default function BottomPanel() {
   const startH = useRef(0);
 
   const defaultHeight =
-    activeTab === 'table' ? TABLE_HEIGHT : activeTab === 'sector' ? 540 : CHART_HEIGHT;
+    activeTab === 'table'
+      ? TABLE_HEIGHT
+      : activeTab === 'sector'
+        ? 540
+        : activeTab === 'compare'
+          ? 540
+          : CHART_HEIGHT;
   const panelHeight = userHeight ?? defaultHeight;
 
   const onDragStart = useCallback(
@@ -164,6 +172,9 @@ export default function BottomPanel() {
         </Tabs.Content>
         <Tabs.Content value="sector" className="flex-1 overflow-hidden">
           <SectorSummaryChart />
+        </Tabs.Content>
+        <Tabs.Content value="compare" className="flex-1 overflow-hidden">
+          <ScenarioCompareTab />
         </Tabs.Content>
       </Tabs.Root>
     </div>
