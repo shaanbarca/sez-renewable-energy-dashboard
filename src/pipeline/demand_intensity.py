@@ -35,6 +35,8 @@ _SECTOR_DEFAULT_KEY: dict[str, str] = {
     "aluminium": "aluminium",
     "fertilizer": "fertilizer",
     "nickel": "nickel_rkef",  # conservative: RKEF is higher electricity per tonne
+    "ammonia": "ammonia",
+    "petrochemical": "petrochemical",
 }
 
 

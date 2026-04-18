@@ -1,17 +1,38 @@
 import { useMemo } from 'react';
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import { ACTION_FLAG_HIERARCHY_BY_MODE } from '../../lib/actionFlags';
+import {
+  ACTION_FLAG_COLORS,
+  ACTION_FLAG_DESCRIPTIONS,
+  ACTION_FLAG_LABELS,
+} from '../../lib/constants';
 import type { Sector } from '../../lib/siteTypes';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
-const SECTOR_ORDER: Sector[] = ['steel', 'cement', 'aluminium', 'fertilizer', 'nickel', 'mixed'];
+// Static column order for the action-flag table. Using the `overall` hierarchy
+// gives the full superset of flags so column positions stay fixed regardless
+// of which sectors currently have which flags populated.
+const ACTION_FLAG_COLUMNS: ActionFlag[] = ACTION_FLAG_HIERARCHY_BY_MODE.overall;
+
+const SECTOR_ORDER: Sector[] = [
+  'steel',
+  'cement',
+  'aluminium',
+  'fertilizer',
+  'ammonia',
+  'petrochemical',
+  'nickel',
+  'mixed',
+];
 
 const SECTOR_LABELS: Record<Sector, string> = {
   steel: 'Steel',
   cement: 'Cement',
   aluminium: 'Aluminium',
   fertilizer: 'Fertilizer',
+  ammonia: 'Ammonia',
+  petrochemical: 'Petrochemical',
   nickel: 'Nickel',
   mixed: 'Mixed (KEK)',
 };
@@ -21,6 +42,8 @@ const SECTOR_COLORS: Record<Sector, string> = {
   cement: '#AB47BC',
   aluminium: '#29B6F6',
   fertilizer: '#FFA726',
+  ammonia: '#26A69A',
+  petrochemical: '#7E57C2',
   nickel: '#FF7043',
   mixed: '#78909C',
 };
@@ -150,14 +173,6 @@ export default function SectorSummaryChart() {
     return rollup(scorecard);
   }, [scorecard]);
 
-  const actionFlagsInUse = useMemo(() => {
-    const set = new Set<string>();
-    for (const d of data) {
-      for (const k of Object.keys(d.actionFlagCounts)) set.add(k);
-    }
-    return Array.from(set);
-  }, [data]);
-
   if (!data.length) {
     return (
       <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
@@ -269,18 +284,32 @@ export default function SectorSummaryChart() {
           <table className="text-[11px] w-full border-collapse">
             <thead>
               <tr style={{ color: 'var(--text-muted)' }}>
-                <th className="text-left py-1 pr-3 font-medium">Sector</th>
-                <th className="text-right py-1 pr-3 font-medium">Sites</th>
-                {actionFlagsInUse.map((flag) => (
-                  <th
-                    key={flag}
-                    className="text-right py-1 pr-3 font-medium whitespace-nowrap"
-                    style={{ color: ACTION_FLAG_COLORS[flag as ActionFlag] }}
-                    title={ACTION_FLAG_LABELS[flag as ActionFlag]}
-                  >
-                    {ACTION_FLAG_LABELS[flag as ActionFlag] ?? flag}
-                  </th>
-                ))}
+                <th
+                  className="text-left py-1 pr-3 font-medium cursor-help"
+                  title="Sector — industrial sector rollup (CBAM-exposed sectors plus mixed KEKs)."
+                >
+                  Sector
+                </th>
+                <th
+                  className="text-right py-1 pr-3 font-medium cursor-help"
+                  title="Sites — total number of sites (KEKs + industrial facilities) in this sector."
+                >
+                  Sites
+                </th>
+                {ACTION_FLAG_COLUMNS.map((f) => {
+                  const label = ACTION_FLAG_LABELS[f] ?? f;
+                  const desc = ACTION_FLAG_DESCRIPTIONS[f];
+                  return (
+                    <th
+                      key={f}
+                      className="text-right py-1 pr-3 font-medium whitespace-nowrap cursor-help"
+                      style={{ color: ACTION_FLAG_COLORS[f] }}
+                      title={desc ? `${label} — ${desc}` : label}
+                    >
+                      {label}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -300,11 +329,11 @@ export default function SectorSummaryChart() {
                     {d.label}
                   </td>
                   <td className="text-right py-1 pr-3">{d.count}</td>
-                  {actionFlagsInUse.map((flag) => {
-                    const n = d.actionFlagCounts[flag] ?? 0;
+                  {ACTION_FLAG_COLUMNS.map((f) => {
+                    const n = d.actionFlagCounts[f] ?? 0;
                     return (
                       <td
-                        key={flag}
+                        key={f}
                         className="text-right py-1 pr-3"
                         style={{ color: n > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}
                       >

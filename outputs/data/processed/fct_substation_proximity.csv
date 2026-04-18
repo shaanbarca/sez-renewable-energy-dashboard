@@ -78,3 +78,5 @@ freeport-smelter-gresik,Freeport Smelter Gresik,GI 150 kV Gresik - Tandes 2,150 
 pupuk-kaltim-bontang,Pupuk Kaltim Bontang,GI 150 kV Teluk Pandan,150 kV,110.0,Kalimantan,8.51,False,remote_captive,2.17,GI 150 kV Sangatta,Kalimantan,invest_substation,True,True,True,37.43,38.5,red
 pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,GI 70 kV Bungaran - Keramasan 2,70 kV,,Sumatera,2.09,False,remote_captive,,,,invest_substation,False,,,,,unknown
 petrokimia-gresik,Petrokimia Gresik,GI 150 kV Petrokimia,150 kV,140.0,Jawa-Bali,1.44,False,remote_captive,6.29,GIS 150 kV Bangil,Jawa-Bali,invest_substation,True,False,True,53.31,49.0,red
+pupuk-kujang-cikampek,Pupuk Kujang Cikampek,GI 150 kV Dawuan - Kosambi Baru 1,150 kV,,Jawa-Bali,3.54,False,remote_captive,1.17,GI 150 kV Sukatani,Jawa-Bali,grid_ready,True,False,True,29.99,,unknown
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,GI 150 kV Arun,150 kV,60.0,Sumatera,2.27,False,remote_captive,,,,invest_substation,False,,,,21.0,unknown

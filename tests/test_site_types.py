@@ -40,13 +40,22 @@ class TestSiteTypeEnum:
 
 class TestSectorEnum:
     def test_sector_enum_values(self):
-        expected = {"steel", "cement", "aluminium", "fertilizer", "nickel", "mixed"}
+        expected = {
+            "steel",
+            "cement",
+            "aluminium",
+            "fertilizer",
+            "nickel",
+            "ammonia",
+            "petrochemical",
+            "mixed",
+        }
         actual = {s.value for s in Sector}
         assert actual == expected
 
     def test_invalid_sector_raises(self):
         with pytest.raises(ValueError):
-            Sector("petrochemical")
+            Sector("coal_mining")
 
 
 class TestSiteTypeConfig:

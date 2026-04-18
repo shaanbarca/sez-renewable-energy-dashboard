@@ -40,6 +40,35 @@ export const ACTION_FLAG_LABELS: Record<ActionFlag, string> = {
   no_re_resource: 'No RE Resource',
 };
 
+export const ACTION_FLAG_DESCRIPTIONS: Record<ActionFlag, string> = {
+  solar_now:
+    'Solar LCOE is already below grid cost at this site. Build now — no subsidy or policy push required.',
+  cbam_urgent:
+    'Solar alone does not beat grid power, but this plant is a CBAM-tariffed exporter (cement, steel, fertilizer, aluminium, ferronickel). Once you credit the EU carbon tariff avoided by greening, renewable energy becomes cheaper net of CBAM. As EU free allocations phase out 2026–2034, the pressure only grows — act before the tariff bites.',
+  wind_now: 'Wind LCOE is already below grid cost at this site. Build now.',
+  hybrid_now:
+    'A solar+wind blend (optimally sized) beats grid cost at this site. Hybrid reduces the battery bridge you would need for 24/7 supply.',
+  invest_resilience:
+    'Solar LCOE is within 20% of grid cost, but the site demands high reliability (≥75% uptime). The decision is not price alone — it is the cost of outages. BESS or firming is the gating investment.',
+  invest_battery:
+    'Daytime solar is competitive, but covering overnight demand requires a battery storage adder. Sizing the BESS correctly is what closes the 24/7 gap.',
+  invest_transmission:
+    'The best nearby solar buildable area sits close to a substation, but that substation is not connected to this site. A transmission line is the missing piece — not more capacity.',
+  invest_substation:
+    'A substation is near the site, but its existing capacity cannot absorb the new solar MWp. Upgrading (or building) substation capacity is what unlocks the project.',
+  grid_first:
+    'No substation within reach of either the site or the nearest solar buildable area. Grid expansion must come before any renewable investment is viable here.',
+  plan_late:
+    'This site is long-dated. Solar LCOE keeps falling every year — locking in today at current capex is leaving money on the table. Plan the project, stage the capital.',
+  not_competitive:
+    'Solar LCOE is more than 20% above grid cost here. No near-term economic case for RE; revisit as grid prices rise or solar capex falls further.',
+  no_solar_resource:
+    'PVOUT below the buildability threshold within a 50 km radius. Solar is not the answer at this location — look at wind, hybrid, or grid power.',
+  no_wind_resource:
+    'Wind capacity factor too low within 50 km (insufficient wind speed or buildable area). Wind is not the answer here.',
+  no_re_resource: 'Neither solar nor wind meets the threshold. This site is grid-dependent.',
+};
+
 // ── 2D Classification System (Option C) ──────────────────────────────────
 
 export const ECONOMIC_TIER_COLORS: Record<EconomicTier, string> = {

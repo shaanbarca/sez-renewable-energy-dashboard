@@ -34,6 +34,8 @@ class Sector(StrEnum):
     ALUMINIUM = "aluminium"
     FERTILIZER = "fertilizer"
     NICKEL = "nickel"
+    AMMONIA = "ammonia"
+    PETROCHEMICAL = "petrochemical"
     MIXED = "mixed"
 
 

@@ -68,9 +68,9 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
         row.cement_plant_count) && (
         <StatCard>
           <SectionHeader
-            title="Captive Power & CBAM Industries"
-            subtitle="What fossil generation and CBAM-exposed industry exists nearby?"
-            tip="Coal plants, nickel smelters, steel mills, and cement plants within 50km. These are transition targets and CBAM-exposed industries."
+            title="Nearby Captive Power & Industry"
+            subtitle="What fossil generation and CBAM-exposed industry exists within 50km?"
+            tip="Coal plants, nickel smelters, steel mills, and cement plants within 50km. These are transition targets and CBAM-exposed industries. Per-site CBAM exposure is shown in the next card."
           />
           {!!row.captive_coal_count && (
             <>
@@ -182,7 +182,7 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
               )}
             </>
           )}
-          {(row.solar_replacement_pct != null || row.perpres_112_status || row.cbam_exposed) && (
+          {(row.solar_replacement_pct != null || row.perpres_112_status) && (
             <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
               {row.solar_replacement_pct != null && (
                 <ColoredStatRow
@@ -205,68 +205,74 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
                   tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
                 />
               )}
-              {row.cbam_exposed && (
-                <>
-                  <ColoredStatRow
-                    label="EU CBAM Exposure"
-                    value={
-                      row.cbam_product_type
-                        ? row.cbam_product_type
-                            .split(',')
-                            .map((t) => {
-                              const labels: Record<string, string> = {
-                                nickel_rkef: 'Nickel (RKEF)',
-                                steel_eaf: 'Steel (EAF)',
-                                steel_bfbof: 'Steel (BF-BOF)',
-                                aluminium: 'Aluminium',
-                                fertilizer: 'Fertilizer',
-                                cement: 'Cement',
-                              };
-                              return labels[t] ?? t;
-                            })
-                            .join(', ')
-                        : 'Exposed'
-                    }
-                    color="#FF7043"
-                    tip="EU CBAM covers iron/steel (nickel RKEF, base metals), aluminium (bauxite processing), and fertilizer (petrochemical). Exports to EU face carbon border pricing from 2026, escalating to full EU ETS price by 2034."
-                  />
-                  {row.cbam_emission_intensity_current != null && (
-                    <StatRowWithTip
-                      label={`Emission Intensity${(row.cbam_product_type ?? '').includes(',') ? ` (${({ nickel_rkef: 'Nickel', steel_eaf: 'Steel EAF', steel_bfbof: 'Steel BF-BOF', aluminium: 'Aluminium', fertilizer: 'Fertilizer', cement: 'Cement' } as Record<string, string>)[(row.cbam_product_type ?? '').split(',')[0]] ?? (row.cbam_product_type ?? '').split(',')[0]})` : ''}`}
-                      value={`${row.cbam_emission_intensity_current} tCO₂/t`}
-                      tip={`Current: ${row.cbam_emission_intensity_current} tCO₂/tonne (grid electricity + process). With solar: ${row.cbam_emission_intensity_solar ?? '?'} tCO₂/tonne (process only, Scope 2 eliminated).${(row.cbam_product_type ?? '').includes(',') ? ' Showing primary product. See chart for per-product breakdown.' : ''}`}
-                    />
-                  )}
-                  {row.cbam_cost_2030_usd_per_tonne != null && (
-                    <StatRowWithTip
-                      label="CBAM Cost 2030"
-                      value={`$${row.cbam_cost_2030_usd_per_tonne?.toLocaleString()}/t`}
-                      tip={`CBAM cost per tonne of product at 2030 rates (51.5% free allocation phased out). 2026: $${row.cbam_cost_2026_usd_per_tonne?.toLocaleString()}/t. 2034: $${row.cbam_cost_2034_usd_per_tonne?.toLocaleString()}/t (full exposure).`}
-                    />
-                  )}
-                  {row.cbam_savings_2030_usd_per_tonne != null &&
-                    row.cbam_savings_2030_usd_per_tonne > 0 && (
-                      <ColoredStatRow
-                        label="RE Savings 2030"
-                        value={`$${row.cbam_savings_2030_usd_per_tonne.toLocaleString()}/t`}
-                        color="#4CAF50"
-                        tip={`CBAM cost avoided per tonne by switching to renewable energy (eliminates Scope 2 emissions). By 2034: $${row.cbam_savings_2034_usd_per_tonne?.toLocaleString()}/t saved. Switching to RE doesn't just lower energy cost, it removes the carbon border tax.`}
-                      />
-                    )}
-                  {row.cbam_adjusted_gap_pct != null && (
-                    <ColoredStatRow
-                      label="CBAM-Adjusted Gap"
-                      value={formatGap(row.cbam_adjusted_gap_pct)}
-                      color={gapColor(row.cbam_adjusted_gap_pct)}
-                      tip={`Standard gap: ${formatGap(row.solar_competitive_gap_pct)} (LCOE vs grid). CBAM saves $${row.cbam_savings_per_mwh?.toFixed(1)}/MWh (= $${row.cbam_savings_2030_usd_per_tonne?.toLocaleString()}/t ÷ ${({ nickel_rkef: '37.5', steel_eaf: '0.45', steel_bfbof: '0.25', aluminium: '15.0', fertilizer: '10.0', cement: '0.9' } as Record<string, string>)[(row.cbam_product_type ?? '').split(',')[0]] ?? '?'} MWh/t). Adjusted = (LCOE − grid − CBAM savings) / grid. At 2030 rates (51.5% free allocation phased out).`}
-                    />
-                  )}
-                  {Number.isFinite(row.cbam_emission_intensity_current) && (
-                    <CbamTrajectoryChart row={row} />
-                  )}
-                </>
-              )}
             </div>
+          )}
+        </StatCard>
+      )}
+
+      {row.cbam_exposed && (
+        <StatCard>
+          <SectionHeader
+            title="EU CBAM Exposure"
+            subtitle="Per-site carbon border cost and RE-driven savings trajectory"
+            tip="EU CBAM covers iron/steel (nickel RKEF, base metals), aluminium (bauxite processing), fertilizer (petrochemical), and cement. Exports to EU face carbon border pricing from 2026, escalating to full EU ETS price by 2034."
+          />
+          <ColoredStatRow
+            label="Exposed Product"
+            value={
+              row.cbam_product_type
+                ? row.cbam_product_type
+                    .split(',')
+                    .map((t) => {
+                      const labels: Record<string, string> = {
+                        nickel_rkef: 'Nickel (RKEF)',
+                        steel_eaf: 'Steel (EAF)',
+                        steel_bfbof: 'Steel (BF-BOF)',
+                        aluminium: 'Aluminium',
+                        fertilizer: 'Fertilizer',
+                        cement: 'Cement',
+                      };
+                      return labels[t] ?? t;
+                    })
+                    .join(', ')
+                : 'Exposed'
+            }
+            color="#FF7043"
+            tip="CBAM product type assigned to this site. For KEKs, inferred from nearby plant counts + business sectors. For standalone industrial sites, read directly from dim_sites."
+          />
+          {row.cbam_emission_intensity_current != null && (
+            <StatRowWithTip
+              label={`Emission Intensity${(row.cbam_product_type ?? '').includes(',') ? ` (${({ nickel_rkef: 'Nickel', steel_eaf: 'Steel EAF', steel_bfbof: 'Steel BF-BOF', aluminium: 'Aluminium', fertilizer: 'Fertilizer', cement: 'Cement' } as Record<string, string>)[(row.cbam_product_type ?? '').split(',')[0]] ?? (row.cbam_product_type ?? '').split(',')[0]})` : ''}`}
+              value={`${row.cbam_emission_intensity_current} tCO₂/t`}
+              tip={`Current: ${row.cbam_emission_intensity_current} tCO₂/tonne (grid electricity + process). With solar: ${row.cbam_emission_intensity_solar ?? '?'} tCO₂/tonne (process only, Scope 2 eliminated).${(row.cbam_product_type ?? '').includes(',') ? ' Showing primary product. See chart for per-product breakdown.' : ''}`}
+            />
+          )}
+          {row.cbam_cost_2030_usd_per_tonne != null && (
+            <StatRowWithTip
+              label="CBAM Cost 2030"
+              value={`$${row.cbam_cost_2030_usd_per_tonne?.toLocaleString()}/t`}
+              tip={`CBAM cost per tonne of product at 2030 rates (51.5% free allocation phased out). 2026: $${row.cbam_cost_2026_usd_per_tonne?.toLocaleString()}/t. 2034: $${row.cbam_cost_2034_usd_per_tonne?.toLocaleString()}/t (full exposure).`}
+            />
+          )}
+          {row.cbam_savings_2030_usd_per_tonne != null &&
+            row.cbam_savings_2030_usd_per_tonne > 0 && (
+              <ColoredStatRow
+                label="RE Savings 2030"
+                value={`$${row.cbam_savings_2030_usd_per_tonne.toLocaleString()}/t`}
+                color="#4CAF50"
+                tip={`CBAM cost avoided per tonne by switching to renewable energy (eliminates Scope 2 emissions). By 2034: $${row.cbam_savings_2034_usd_per_tonne?.toLocaleString()}/t saved. Switching to RE doesn't just lower energy cost, it removes the carbon border tax.`}
+              />
+            )}
+          {row.cbam_adjusted_gap_pct != null && (
+            <ColoredStatRow
+              label="CBAM-Adjusted Gap"
+              value={formatGap(row.cbam_adjusted_gap_pct)}
+              color={gapColor(row.cbam_adjusted_gap_pct)}
+              tip={`Standard gap: ${formatGap(row.solar_competitive_gap_pct)} (LCOE vs grid). CBAM saves $${row.cbam_savings_per_mwh?.toFixed(1)}/MWh (= $${row.cbam_savings_2030_usd_per_tonne?.toLocaleString()}/t ÷ ${({ nickel_rkef: '37.5', steel_eaf: '0.45', steel_bfbof: '0.25', aluminium: '15.0', fertilizer: '10.0', cement: '0.9' } as Record<string, string>)[(row.cbam_product_type ?? '').split(',')[0]] ?? '?'} MWh/t). Adjusted = (LCOE − grid − CBAM savings) / grid. At 2030 rates (51.5% free allocation phased out).`}
+            />
+          )}
+          {Number.isFinite(row.cbam_emission_intensity_current) && (
+            <CbamTrajectoryChart row={row} />
           )}
         </StatCard>
       )}

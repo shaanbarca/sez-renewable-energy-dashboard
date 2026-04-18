@@ -59,7 +59,17 @@ class TestDemandEstimation:
 
     def test_unknown_sector_raises(self):
         with pytest.raises(KeyError, match="Unknown sector"):
-            estimate_demand_sector_intensity(1_000, "petrochemical")
+            estimate_demand_sector_intensity(1_000, "coal_mining")
+
+    def test_ammonia_demand(self):
+        """500K TPA × 1.0 MWh/t = 500,000 MWh (Haber-Bosch electricity share)."""
+        result = estimate_demand_sector_intensity(500_000, "ammonia")
+        assert result == pytest.approx(500_000.0)
+
+    def test_petrochemical_demand(self):
+        """900K TPA × 0.70 MWh/t = 630,000 MWh (steam cracker auxiliaries)."""
+        result = estimate_demand_sector_intensity(900_000, "petrochemical")
+        assert result == pytest.approx(630_000.0)
 
     def test_zero_capacity_returns_zero(self):
         assert estimate_demand_sector_intensity(0, "steel") == 0.0
