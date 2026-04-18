@@ -128,7 +128,7 @@ flowchart TD
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |
 | Data | pandas | 2.x | All tabular transforms |
 | PDF extraction | pdfplumber | — | RUPTL + ESDM Tech Catalogue tables |
-| Testing | pytest | — | 532 tests, all pure-function |
+| Testing | pytest | — | 537 tests, all pure-function |
 | Linting | ruff | — | Format + lint (configured in pyproject.toml) |
 
 ---
@@ -141,7 +141,7 @@ Topological order enforced by `run_pipeline.py` at runtime:
 Stage 1 — Dimensions (no deps)
   industrial_sites_generated ← build_industrial_sites.py unions GEM Cement (32) + GEM Steel (7)
                                + CGSP Nickel IIA (10, with 5km KEK exclusion + 20km child aggregation)
-                               + residual manual CSV (5, source_url required)
+                               + residual manual CSV (5: 2 aluminium + 3 fertilizer, source_url required)
   dim_sites                 ← 25 KEK rows + industrial_sites_generated (54 rows) = 79 total;
                               auto-assigns grid_region_id from nearest substation regpln
   dim_tech_cost
@@ -294,7 +294,7 @@ tests/
   test_logic_technology.py      — module-boundary tests for logic/technology.py (BESS/firm/hybrid)
   test_scorecard_golden.py      — bit-identical parity against pickle fixture (pre-refactor snapshot)
 
-532 tests total (all pure-function).
+537 tests total (all pure-function).
 
 frontend/src/
   lib/

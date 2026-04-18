@@ -109,3 +109,43 @@ def test_compute_cbam_trajectory_cost_monotone_increasing_2026_to_2034() -> None
     )
     assert out["cbam_cost_2026_usd_per_tonne"] <= out["cbam_cost_2030_usd_per_tonne"]
     assert out["cbam_cost_2030_usd_per_tonne"] <= out["cbam_cost_2034_usd_per_tonne"]
+
+
+def test_detect_cbam_direct_mode_ammonia() -> None:
+    """Standalone merchant ammonia plant dispatches to the 'ammonia' cost key."""
+    kek = pd.Series(
+        {
+            "site_type": "standalone",
+            "cbam_product_type": "ammonia",
+            "technology": "Haber-Bosch",
+        }
+    )
+    assert _detect_cbam_types(kek, {}) == ["ammonia"]
+
+
+def test_compute_cbam_trajectory_ammonia_uses_indonesia_scope1() -> None:
+    """Ammonia Scope 1 = 2.3 tCO2/t Indonesia (ICGD) must flow into cost trajectory."""
+    out = compute_cbam_trajectory(
+        ["ammonia"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["cbam_exposed"] is True
+    assert out["cbam_product_type"] == "ammonia"
+    # emission_intensity_solar is pure Scope 1 after switching to RE (no grid Scope 2).
+    # 2.3 tCO2/t (rounded) — Indonesia gas-SMR route.
+    assert out["cbam_emission_intensity_solar"] == 2.3
+    # Current intensity = Scope 1 (2.3) + Scope 2 (elec × grid) = 2.3 + 10.0 × 0.8 = 10.3 tCO2/t
+    assert out["cbam_emission_intensity_current"] == 10.3
+    # 2034 cost should be > 0 (free allocation = 0)
+    assert out["cbam_cost_2034_usd_per_tonne"] > 0
+
+
+def test_detect_cbam_petrochemical_is_not_exposed() -> None:
+    """Petrochemical rows carry an empty cbam_product_type → not CBAM-exposed."""
+    kek = pd.Series(
+        {
+            "site_type": "standalone",
+            "cbam_product_type": "",
+            "technology": "Steam Cracker",
+        }
+    )
+    assert _detect_cbam_types(kek, {}) == []

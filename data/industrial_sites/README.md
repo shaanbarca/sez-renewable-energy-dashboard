@@ -27,7 +27,7 @@ Every row in `priority1_sites.csv` must populate:
 pipeline-build time if any row is missing `source_url`. This enforces the
 reproducibility rule at the loader boundary, not in code review.
 
-## Current state (2026-04-17)
+## Current state (2026-04-18)
 
 | Sector | Source | Count |
 |---|---|---|
@@ -36,10 +36,21 @@ reproducibility rule at the loader boundary, not in code review.
 | Nickel | CGSP Nickel Tracker IIA filter + KEK exclusion + 20km child aggregation (automated via `_build_nickel_rows`) | 10 |
 | Aluminium | Residual manual (this CSV) | 2 |
 | Fertilizer | Residual manual (this CSV) | 3 |
+| Ammonia | Pending — see TODOS M28 (top-down universe discovery) | 0 |
+| Petrochemical | Pending — see TODOS M29 (top-down universe discovery) | 0 |
 | **Total industrial sites** |  | **54** |
 
 Combined with 25 KEKs via `build_dim_sites`, the unified dim table has
 **79 sites** (25 kek + 44 standalone + 10 cluster).
+
+> Why no hand-picked ammonia or petrochemical rows? Picking sites from news
+> coverage doesn't guarantee completeness — Pupuk Kaltim Bontang is Indonesia's
+> largest ammonia producer (~3.4 Mt/yr) but is easy to miss without a
+> systematic source. The plan in TODOS M28/M29 is to derive the universe from
+> the intersection of (a) state holding company subsidiaries (Pupuk Indonesia,
+> Pertamina), (b) industry association rosters (APPI, INAPLAS), (c) government
+> filings (MEMR gas allocation letters, BKPM KBLI 20114/20231), and (d) BPS
+> Direktori Industri + UN Comtrade producer lists.
 
 ## Adding a new tracker
 

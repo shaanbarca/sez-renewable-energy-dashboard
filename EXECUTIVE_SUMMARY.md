@@ -24,7 +24,7 @@
 
 Indonesia's industrial CO2 emissions come overwhelmingly from heavy industry: steel, cement, aluminium, fertilizer, and nickel smelting. Some of these sites sit inside Special Economic Zones (KEKs — *Kawasan Ekonomi Khusus*), but the largest emitters (Krakatau Steel in Cilegon, cement clusters across Java, Inalum in Asahan, Pupuk Kaltim in Bontang) are **standalone plants and industrial parks outside KEK boundaries**. Any serious analysis of industrial decarbonization has to cover both.
 
-This dashboard covers **79 sites**: 25 KEKs plus 54 industrial sites (32 cement plants, 7 steel mills, 10 non-KEK nickel IIA clusters, 2 aluminium smelters, 3 fertilizer plants). For each, it answers the same question investors and policymakers ask: **"How much will electricity cost here, can we get clean energy, and how exposed is this site to the EU Carbon Border Adjustment Mechanism (CBAM)?"**
+This dashboard covers **79 sites**: 25 KEKs plus 54 industrial sites (32 cement plants, 7 steel mills, 10 non-KEK nickel IIA clusters, 2 aluminium smelters, 3 fertilizer plants). Ammonia and petrochemical scaffolding (enums, demand intensities, CBAM 2.3 tCO₂/t Indonesia-specific ammonia Scope 1) is wired in but no rows have been added yet — see TODOS M28/M29 for the planned top-down universe-discovery pass. For each in-scope site, it answers the same question investors and policymakers ask: **"How much will electricity cost here, can we get clean energy, and how exposed is this site to the EU Carbon Border Adjustment Mechanism (CBAM)?"**
 
 Today, answering that question requires piecing together data from multiple government PDFs, energy tariff regulations, asset-level trackers (GEM, CGSP), and satellite datasets — work that takes weeks and is rarely done consistently. This project automates that process and produces a single, transparent scorecard for all 79 sites.
 
@@ -116,7 +116,7 @@ Step 5 — What action does each KEK need?
 The project has three layers:
 
 ### 1. Data Pipeline
-A set of Python scripts that pull from eight public data sources and produce thirteen clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 79 sites (25 KEK + 54 industrial). Industrial site selection is itself pipeline-driven: `build_industrial_sites.py` reads GEM Global Cement Plant Tracker (32 operating Indonesian plants), GEM Global Iron & Steel Plant Tracker (7 active plants), and CGSP Nickel Tracker (10 Integrated Industrial Area parent projects, filtered to exclude KEK overlaps and aggregate capacity from nearby Processing children) and unions them with a small residual manual CSV for the sectors without a tracker step (2 aluminium + 3 fertilizer, each row provenance-enforced with `source_url`). Site-type behavior (demand method, captive power matching, CBAM detection, marker shape) is driven by a single registry (`src/model/site_types.py`, mirrored in `frontend/src/lib/siteTypes.ts`) — adding a new site type is a one-entry change, not a 10-file refactor.
+A set of Python scripts that pull from eight public data sources and produce thirteen clean, analysis-ready tables. The pipeline runs end-to-end with a single command (`python run_pipeline.py`) and outputs structured CSV files for all 79 sites (25 KEK + 54 industrial). Industrial site selection is itself pipeline-driven: `build_industrial_sites.py` reads GEM Global Cement Plant Tracker (32 operating Indonesian plants), GEM Global Iron & Steel Plant Tracker (7 active plants), and CGSP Nickel Tracker (10 Integrated Industrial Area parent projects, filtered to exclude KEK overlaps and aggregate capacity from nearby Processing children) and unions them with a residual manual CSV for the sectors without a tracker step (2 aluminium + 3 fertilizer = 5 rows, each row provenance-enforced with `source_url`). Site-type behavior (demand method, captive power matching, CBAM detection, marker shape) is driven by a single registry (`src/model/site_types.py`, mirrored in `frontend/src/lib/siteTypes.ts`) — adding a new site type is a one-entry change, not a 10-file refactor.
 
 **Data sources used:**
 - Global Solar Atlas v2 satellite data (sun radiation per location)
@@ -129,11 +129,11 @@ A set of Python scripts that pull from eight public data sources and produce thi
 - CGSP Nickel Tracker (nickel smelter locations, process types, ownership)
 
 ### 2. Analytical Model
-A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (498 automated tests) and produces a scorecard table covering all 79 sites with LCOE bands, competitive gap, action flags, 2D classification (economic tier x infrastructure readiness), green energy share estimates, and CBAM cost trajectories (2026, 2030, 2034). CBAM detection is dual-mode: KEKs use a 3-signal inference (business sector + captive infrastructure + nickel process type), industrial sites use direct assignment from the `cbam_product_type` column. Result: 66 of 79 sites (12 KEK + all 54 industrial) are flagged CBAM-exposed.
+A pure Python model (`src/model/basic_model.py`) that implements all five calculation steps above. It is fully tested (532 automated tests) and produces a scorecard table covering all 79 sites with LCOE bands, competitive gap, action flags, 2D classification (economic tier x infrastructure readiness), green energy share estimates, and CBAM cost trajectories (2026, 2030, 2034). CBAM detection is dual-mode: KEKs use a 3-signal inference (business sector + captive infrastructure + nickel process type), industrial sites use direct assignment from the `cbam_product_type` column. Result: 66 of 79 sites are flagged CBAM-exposed (12 KEK + 54 industrial: 32 cement + 17 iron_steel + 3 fertilizer + 2 aluminium). Ammonia calibration (Indonesia-specific Scope 1 = 2.3 tCO₂/t, ICGD gas-SMR) is wired into the cost model and ready for when ammonia rows land via TODOS M28; petrochemical is intentionally outside EU CBAM Annex I.
 
 ### 3. Dashboard
 An interactive web dashboard (React + Vite frontend with FastAPI backend) that lets analysts adjust assumptions — financing rate, capital cost, BESS parameters — and instantly see how the rankings change. Seven views:
-- **Map** — 79 sites with 2D classification encoding (circle fill = economic tier, stroke = infrastructure readiness, outer ring = modifier badges) on MapLibre GL with 3D terrain, buildable area overlays, substation markers; filterable by site type (KEK / KI / standalone / cluster) and sector (steel / cement / aluminium / fertilizer / nickel / mixed)
+- **Map** — 79 sites with 2D classification encoding (circle fill = economic tier, stroke = infrastructure readiness, outer ring = modifier badges) on MapLibre GL with 3D terrain, buildable area overlays, substation markers; filterable by site type (KEK / KI / standalone / cluster) and sector (steel / cement / aluminium / fertilizer / nickel / mixed; ammonia/petrochemical reserved in registry)
 - **Ranked table** — sortable, filterable TanStack Table with column filters, sector + site-type dropdowns, CSV export
 - **Quadrant chart** — solar cost vs. grid cost scatter with action flag zones
 - **RUPTL context** — regional grid pipeline timing by technology
@@ -151,7 +151,7 @@ All thirteen output tables are produced by the pipeline. Key outputs:
 
 | What it tells you | Table | Status |
 |-------------------|-------|--------|
-| Which site is where, what sector, what grid region, what type (KEK/KI/standalone/cluster) | `dim_sites` | ✅ 79 rows — 25 KEK + 54 industrial (tracker-driven) |
+| Which site is where, what sector, what grid region, what type (KEK/KI/standalone/cluster) | `dim_sites` | ✅ 79 rows — 25 KEK + 54 industrial (tracker-driven + residual CSV) |
 | Solar radiation quality per site | `fct_site_resource` | ✅ Filtered — 4-layer buildability applied (ESA WorldCover, GFW Peatlands, DEM slope/elev, Kawasan Hutan) |
 | Wind resource per site (speed, CF, buildability) | `fct_site_wind_resource` | ✅ Global Wind Atlas v3 + 6-layer filter |
 | Estimated 2030 electricity demand per site | `fct_site_demand` | ✅ Dual-mode — KEKs use area × intensity, industrial sites use capacity × sector intensity (steel/cement/aluminium/fertilizer/nickel) |
@@ -159,7 +159,7 @@ All thirteen output tables are produced by the pipeline. Key outputs:
 | Grid electricity cost per PLN region | `fct_grid_cost_proxy` | ✅ Official tariff |
 | PLN's planned solar additions 2025–2034 | `fct_ruptl_pipeline` | ✅ Manually verified |
 | Captive coal, nickel, steel, cement matched to each site | `fct_captive_*` | ✅ Dual-mode — KEKs use 50km proximity scan; standalone/cluster sites matched directly by site_id. Shared `src/pipeline/geo_utils.py` (haversine + proximity_match + direct_match). |
-| EU CBAM exposure: cost trajectory 2026-2034 | Scorecard fields | ✅ 66/79 sites exposed (12 KEK 3-signal + 54 industrial direct assignment). |
+| EU CBAM exposure: cost trajectory 2026-2034 | Scorecard fields | ✅ 66/79 sites exposed (12 KEK 3-signal + 54 industrial direct). Ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (TODOS M28). |
 | Full scorecard: LCOE vs. grid cost + action flags + 2D classification + CBAM | `fct_site_scorecard` | ✅ 79 rows. |
 
 > **Column-by-column reference:** See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for every table, every column, its source, and its status.

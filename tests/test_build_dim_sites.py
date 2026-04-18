@@ -105,7 +105,6 @@ class TestIndustrialSites:
 
     def test_industrial_cbam_product_type(self, dim_sites: pd.DataFrame):
         ind = dim_sites[dim_sites["site_type"].isin(["standalone", "cluster"])]
-        # All industrial sites should have direct cbam_product_type
         assert ind["cbam_product_type"].notna().all()
 
     def test_kek_cbam_product_type_null(self, dim_sites: pd.DataFrame):

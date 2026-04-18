@@ -9,13 +9,24 @@ import type { Sector } from '../../lib/siteTypes';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
-const SECTOR_ORDER: Sector[] = ['steel', 'cement', 'aluminium', 'fertilizer', 'nickel', 'mixed'];
+const SECTOR_ORDER: Sector[] = [
+  'steel',
+  'cement',
+  'aluminium',
+  'fertilizer',
+  'ammonia',
+  'petrochemical',
+  'nickel',
+  'mixed',
+];
 
 const SECTOR_LABELS: Record<Sector, string> = {
   steel: 'Steel',
   cement: 'Cement',
   aluminium: 'Aluminium',
   fertilizer: 'Fertilizer',
+  ammonia: 'Ammonia',
+  petrochemical: 'Petrochemical',
   nickel: 'Nickel',
   mixed: 'Mixed (KEK)',
 };
@@ -25,6 +36,8 @@ const SECTOR_COLORS: Record<Sector, string> = {
   cement: '#AB47BC',
   aluminium: '#29B6F6',
   fertilizer: '#FFA726',
+  ammonia: '#26A69A',
+  petrochemical: '#7E57C2',
   nickel: '#FF7043',
   mixed: '#78909C',
 };

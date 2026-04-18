@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Ammonia + petrochemical scaffolding (no rows yet).** `Sector` enum extended with `ammonia` and `petrochemical`; demand intensities and reliability defaults wired into `src/pipeline/demand_intensity.py` and `src/model/site_types.py`. CBAM cost model calibrated for ammonia using Indonesia-specific Scope 1 = **2.3 tCO₂/t** (ICGD gas-SMR — higher than the legacy aggregated "fertilizer" 1.2 tCO₂/t); ammonia is CBAM-exposed via CN 2814. Petrochemical is intentionally **NOT** in EU CBAM Annex I.
+- Frontend rollup colors: `SectorSummaryChart.tsx` reserves teal (#26A69A) for ammonia and purple (#7E57C2) for petrochemical.
+- TODOS M28 (ammonia) and M29 (petrochemical) opened to drive completeness via top-down universe discovery (state-holdings + industry-association + government-filing + trade-stat intersection) instead of ad-hoc hand-picked rows.
+
+### Changed
+- No site count change yet. Scope remains **79 sites** until the universe-discovery pass for ammonia and petrochemical lands.
+
 ## [1.1.0] - 2026-04-17
 
 V4.1 Industrial Parks Expansion + internal refactors.

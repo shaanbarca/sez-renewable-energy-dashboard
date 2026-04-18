@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
 **Version:** 3.7 (Consolidated, April 2026)
-**Status:** Implemented in code. 79 sites (25 KEKs + 54 industrial: 32 cement + 17 steel + 3 fertilizer + 2 aluminium), 498 tests passing. CBAM Layer 3 complete, hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers.
+**Status:** Implemented in code. 79 sites (25 KEKs + 54 industrial: 32 cement + 17 steel + 3 fertilizer + 2 aluminium + 10 nickel IIA), 537 tests passing. CBAM Layer 3 complete (66/79 sites exposed), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -1163,7 +1163,8 @@ Each CBAM product type has two physical parameters: electricity intensity (MWh c
 | `steel_eaf` | 0.45 | 0.3 | worldsteel Association | EAF scrap-based: 0.4-0.5 MWh/t |
 | `steel_bfbof` | 0.25 | 1.8 | worldsteel Association | BF-BOF: most energy from coke, low electricity |
 | `aluminium` | 15.0 | 1.5 | IEA | Primary smelting: 13-17 MWh/t |
-| `fertilizer` | 10.0 | 1.2 | IEA | Ammonia/urea: 8-12 MWh/t |
+| `fertilizer` | 10.0 | 1.2 | IEA | Ammonia/urea aggregated: 8-12 MWh/t |
+| `ammonia` | 10.0 | 2.3 | ICGD Indonesia (gas-SMR route) | Indonesia-specific Scope 1: gas-SMR ammonia is higher than the 1.2 tCO2/t aggregated "fertilizer" row. Merchant NH3 sold standalone (not urea). |
 | `cement` | 0.9 | 0.52 | IEA | Low electricity, high process emissions (calcination) |
 
 **Constants:** `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` and `CBAM_SCOPE1_TCO2_PER_TONNE` in `src/assumptions.py`.
@@ -1190,6 +1191,8 @@ Solar has zero Scope 2 emissions. Only the irreducible Scope 1 process emissions
 - Reduction: 23.6 tCO2/t (Scope 2 eliminated)
 
 **Simplification:** This assumes 100% electricity substitution to solar. Partial substitution would reduce Scope 2 proportionally. The model does not currently compute partial substitution scenarios.
+
+**Known methodology gap (deferred — see [docs/cbam_sector_data_collection_plan.md](cbam_sector_data_collection_plan.md) §4.1):** For cement (0.9 MWh/t) and ammonia/fertilizer (10 MWh/t), `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` is **thermal-inclusive** — it converts kiln gas and SMR feedstock gas into electricity equivalents (see comment at `src/assumptions.py:622-625`). Computing $EI_{\text{current}} - EI_{\text{solar}}$ and treating the difference as "avoided by solar" therefore implicitly assumes full thermal electrification + renewable electricity supply — a larger claim than "switch the site to solar." True electricity-only intensities are ~0.11 MWh/t for cement and ~1.0 MWh/t for fertilizer (see `SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE` in `src/assumptions.py`). Planned fix: multiply Scope 2 savings by a per-sector `re_addressable_fraction` (cement ~0.12, fertilizer/ammonia ~0.10, nickel/steel-EAF/aluminium ~1.0). Effect: cement RE savings at the 32 existing cement sites drop ~88% (e.g. 2030 savings ~$32/t → ~$4/t under default assumptions). Scope 1 separation already present is unaffected. CBAM outputs are not yet externally circulated, so the fix ships alongside fertilizer site additions in one coherent change.
 
 ### 14.4 CBAM cost trajectory
 
