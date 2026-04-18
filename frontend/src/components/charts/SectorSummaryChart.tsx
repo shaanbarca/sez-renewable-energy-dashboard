@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ACTION_FLAG_COLORS, ACTION_FLAG_LABELS } from '../../lib/constants';
+import {
+  ACTION_FLAG_COLORS,
+  ACTION_FLAG_DESCRIPTIONS,
+  ACTION_FLAG_LABELS,
+} from '../../lib/constants';
 import type { Sector } from '../../lib/siteTypes';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -271,16 +275,21 @@ export default function SectorSummaryChart() {
               <tr style={{ color: 'var(--text-muted)' }}>
                 <th className="text-left py-1 pr-3 font-medium">Sector</th>
                 <th className="text-right py-1 pr-3 font-medium">Sites</th>
-                {actionFlagsInUse.map((flag) => (
-                  <th
-                    key={flag}
-                    className="text-right py-1 pr-3 font-medium whitespace-nowrap"
-                    style={{ color: ACTION_FLAG_COLORS[flag as ActionFlag] }}
-                    title={ACTION_FLAG_LABELS[flag as ActionFlag]}
-                  >
-                    {ACTION_FLAG_LABELS[flag as ActionFlag] ?? flag}
-                  </th>
-                ))}
+                {actionFlagsInUse.map((flag) => {
+                  const f = flag as ActionFlag;
+                  const label = ACTION_FLAG_LABELS[f] ?? flag;
+                  const desc = ACTION_FLAG_DESCRIPTIONS[f];
+                  return (
+                    <th
+                      key={flag}
+                      className="text-right py-1 pr-3 font-medium whitespace-nowrap cursor-help"
+                      style={{ color: ACTION_FLAG_COLORS[f] }}
+                      title={desc ? `${label} — ${desc}` : label}
+                    >
+                      {label}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
