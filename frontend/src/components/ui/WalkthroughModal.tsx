@@ -63,33 +63,34 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'Overview Map',
     description:
-      'Scan the map. Green markers = solar already competitive. Red = not yet. Notice the geographic clustering: Java manufacturing belt vs. eastern islands with higher BPP.',
+      'All 81 sites at a glance: 25 KEKs plus 56 industrial sites (cement, steel, aluminium, fertilizer, nickel clusters) selected from public trackers (GEM, CGSP). Green markers = RE already competitive. Red = not yet. Notice the Java manufacturing belt vs. eastern islands, where Papua BPP is $133/MWh against $57/MWh in Java-Bali.',
     target: 'map',
   },
   {
     title: 'Energy Mode',
     description:
-      'Use the Solar / Wind / Hybrid / Overall toggle in the header. The dashboard recomputes LCOE, action flags, and competitiveness metrics for each technology. Start with "Overall" to see which RE technology wins at each site.',
+      'The Solar / Wind / Hybrid / Overall toggle drives the whole dashboard — LCOE, action flags, and 2D competitiveness metrics all recompute per technology. "Overall" picks the cheapest RE per site from solar+BESS vs wind vs hybrid.',
     target: 'header',
     action: (s) => s.setEnergyMode('overall'),
   },
   {
-    title: 'Switch WACC to 8%',
+    title: 'WACC is now 8%',
     description:
-      'Lower WACC to 8% (concessional DFI financing). Watch which sites flip from red to green. This is the case for concessional finance instruments — quantified, site by site.',
+      'We just dropped WACC from 10% to 8% — the concessional-DFI financing case. Watch which sites flip from red to green. This single slider movement IS the quantified impact of a concessional lending program, at site level, with transparent assumptions. Move it yourself to anything between 4% (sovereign rate) and 20% (equity hurdle).',
     target: 'assumptions',
+    action: (s) => s.setAssumptions({ wacc_pct: 8 }),
   },
   {
     title: 'Ranked Table — LCOE Gap',
     description:
-      'This column shows each site\u2019s LCOE gap to the grid benchmark. Sort ascending to surface the sites closest to parity. Click a site and check Carbon Breakeven in the Economics tab \u2014 the carbon price ($/tCO2) needed to close the gap. Low values = easy carbon finance candidates.',
+      'This column is each site\u2019s LCOE gap to the grid benchmark (BPP or I-4 tariff, your choice). Sort ascending to find sites closest to parity. Click any site and check Carbon Breakeven in the Economics tab — the carbon price ($/tCO2) needed to close the gap. Low breakeven = easy carbon-finance candidate.',
     target: 'column:solar_competitive_gap_pct',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: 'Site Scorecard — Economics',
     description:
-      'Click any site to open its scorecard. The Economics tab shows LCOE across WACC bands, BESS storage cost (14h bridge-hours for 24/7 loads), and firm solar coverage — the split between daytime-direct supply and storage-dependent nighttime demand.',
+      'The Economics tab shows LCOE across all 9 WACC bands (4-20%), BESS storage cost (14h bridge-hours × 87% round-trip efficiency for 24/7 industrial loads), panel degradation (0.5%/yr, ~7% LCOE impact), and firm solar coverage — daytime-direct supply vs storage-dependent nighttime demand.',
     target: 'map',
     action: (s) => {
       const scorecard = s.scorecard;
@@ -99,20 +100,20 @@ const ECONOMIST_STEPS: TourStep[] = [
   {
     title: 'CBAM Carbon Arbitrage',
     description:
-      'Check the Industry tab for CBAM-exposed sites. The CBAM trajectory chart shows EU border tax costs from 2026-2034 as free allocation phases out. Where CBAM savings exceed the RE premium, the "CBAM Urgent" flag fires — carbon arbitrage at the trade border.',
+      '68 of 81 sites export CBAM-liable products. The Industry tab\u2019s trajectory chart shows EU border-tax costs 2026-2034 as free allocation phases out (97.5% → 0%). RE savings are bound by the sector\u2019s RE-addressable fraction (cement 12%, fertilizer/ammonia 10%, steel BF-BOF 80%) because Scope 2 only covers the electric share of thermal-inclusive intensity. Where CBAM savings still exceed the RE premium, the "CBAM Urgent" flag fires.',
     target: 'drawer',
   },
   {
     title: 'Export CSV',
     description:
-      'Download the full scorecard CSV from the table view. Includes LCOE bands, carbon breakeven, wind LCOE, best RE technology, and grid investment estimates — ready for your economic analysis annex.',
+      'Download the full scorecard CSV from the table. LCOE bands, carbon breakeven, wind LCOE, best RE technology, CBAM cost 2026-2034, grid investment estimates — drops straight into your economic analysis annex. Assumptions and benchmark mode are embedded in the export for reproducibility.',
     target: 'bottom-panel',
     action: (s) => s.setActiveTab('table'),
   },
   {
     title: "You're Ready!",
     description:
-      'Explore freely. Toggle energy modes, adjust assumptions, switch map layers, and drill into any site. Re-launch this guide from the "Guide" button anytime.',
+      'Explore freely. Toggle energy modes, adjust sliders (WACC is still at 8% from the demo — hit Reset in the Assumptions panel to restore defaults), swap map layers, drill into any site. Re-launch this guide from "Guide" in the header anytime.',
     target: 'header',
   },
 ];
@@ -121,7 +122,7 @@ const DFI_STEPS: TourStep[] = [
   {
     title: 'Grid Integration Map',
     description:
-      'The map color-codes sites by grid integration category. Your opportunity set: "invest transmission" and "invest substation" sites where solar resource and demand exist, but specific grid infrastructure is the bottleneck.',
+      'All 81 sites on one map — 25 KEKs plus 56 industrial sites across cement, steel, aluminium, fertilizer, and nickel IIA clusters. Color-coded by grid integration category. Your opportunity set: "invest transmission" and "invest substation" sites where solar resource and demand both exist, but specific grid infrastructure is the bottleneck.',
     target: 'map',
   },
   {
@@ -184,7 +185,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: 'Captive Power Exposure',
     description:
-      'The Industry column tags sites near coal plants and nickel smelters — those face Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar.',
+      'The Industry column tags sites near coal plants, nickel smelters, steel mills, and cement kilns — the captive-heavy sectors facing Perpres 112/2022 phase-out pressure. Solar replacement potential shows what % of captive coal could be replaced by buildable solar. 32 cement + 7 steel + 10 nickel IIA clusters are now in the dataset alongside the 25 KEKs.',
     target: 'column:industry',
     action: (s) => s.setActiveTab('table'),
   },
@@ -203,10 +204,11 @@ const POLICYMAKER_STEPS: TourStep[] = [
     action: (s) => s.setActiveTab('table'),
   },
   {
-    title: 'Concessional Finance Case',
+    title: 'WACC is now 8%',
     description:
-      'Set WACC to 8% in the Assumptions panel. Count how many sites flip to "solar now". This quantifies the impact of concessional finance instruments — the core DFI policy argument.',
+      'We just dropped WACC from 10% to 8% — the concessional-DFI financing case. Count how many sites flip to "solar now". This single slider movement IS the quantified impact of a concessional finance instrument, at site level, with transparent assumptions. Move the WACC slider yourself between 4% (sovereign rate) and 20% (equity hurdle).',
     target: 'assumptions',
+    action: (s) => s.setAssumptions({ wacc_pct: 8 }),
   },
   {
     title: 'Energy Mode — Overall',
@@ -228,7 +230,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: 'CBAM Trade Pressure',
     description:
-      '68 of 81 sites export products subject to the EU Carbon Border Adjustment Mechanism (cement, iron/steel, fertilizer, aluminium). This column shows the 2030 cost per tonne. The "CBAM Urgent" flag fires where border tax savings alone justify RE — an international financial stick alongside Perpres 112 domestic regulation.',
+      '68 of 81 sites export products subject to the EU Carbon Border Adjustment Mechanism (cement, iron/steel, fertilizer, aluminium). This column shows the 2030 cost per tonne. Free allocation phases out 97.5% → 0% from 2026 to 2034. RE savings are bounded by the sector\u2019s RE-addressable fraction (cement 12%, fertilizer/ammonia 10%, steel BF-BOF 80%) because only the electric share of thermal-inclusive intensity is genuinely RE-addressable. The "CBAM Urgent" flag fires where border-tax savings alone justify RE — an international financial stick alongside Perpres 112 domestic regulation.',
     target: 'column:cbam_2030',
     action: (s) => s.setActiveTab('table'),
   },
@@ -248,7 +250,7 @@ const POLICYMAKER_STEPS: TourStep[] = [
   {
     title: "You're Ready!",
     description:
-      'Explore freely. Toggle energy modes, adjust assumptions, and drill into any site. Re-launch this guide from "Guide" anytime.',
+      'Explore freely. Toggle energy modes, adjust assumptions, and drill into any site. WACC is still at 8% from the demo — hit Reset in the Assumptions panel to restore defaults. Re-launch this guide from "Guide" anytime.',
     target: 'header',
   },
 ];
@@ -697,9 +699,13 @@ export default function WalkthroughModal() {
   const persona = useDashboardStore((s) => s.walkthroughPersona);
   const dismissed = useDashboardStore((s) => s.walkthroughDismissed);
   const loading = useDashboardStore((s) => s.loading);
+  const scorecard = useDashboardStore((s) => s.scorecard);
 
-  // Don't show while data is loading
-  if (loading) return null;
+  // Only hide during the INITIAL data load (before the first scorecard arrives).
+  // During in-session recomputes (e.g. when a walkthrough step auto-adjusts a slider),
+  // loading flips true briefly — if we unmounted here the StepOverlay would remount,
+  // re-fire its action effect, trigger another recompute, and loop.
+  if (loading && !scorecard) return null;
 
   // Show persona selector if not dismissed and no persona selected
   if (!dismissed && !persona) return <PersonaSelector />;
