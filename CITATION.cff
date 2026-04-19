@@ -6,13 +6,17 @@ authors:
 title: "SEZ Renewable Energy Dashboard"
 abstract: >-
   An analytical model and interactive dashboard assessing renewable energy
-  competitiveness across Indonesia's 25 Special Economic Zones (KEKs).
-  Computes solar and wind LCOE, grid integration costs, BESS storage
-  requirements, and action flags for each KEK under user-adjustable
-  financing and cost assumptions. Built for development bank analysts,
-  energy investors, and policy advisors.
-version: 1.0.0
-date-released: 2026-04-14
+  competitiveness across 81 Indonesian industrial sites — 25 Special Economic
+  Zones (KEKs) plus 56 priority standalone and cluster sites spanning cement,
+  steel, nickel, aluminium, and fertilizer. Computes solar and wind LCOE,
+  grid integration costs, BESS storage requirements, EU CBAM exposure
+  (with Energy-vs-Process emissions decomposition and RE-addressable
+  fraction), and action flags for each site under user-adjustable financing
+  and cost assumptions. Includes A/B scenario comparison with flip detection.
+  Built for development bank analysts, energy investors, policy advisors,
+  and sector decarbonization roadmap planners.
+version: 1.2.0
+date-released: 2026-04-19
 license: MIT
 type: software
 keywords:
@@ -25,3 +29,8 @@ keywords:
   - energy-economics
   - cbam
   - industrial-decarbonization
+  - scenario-analysis
+  - cement
+  - steel
+  - nickel
+  - fertilizer

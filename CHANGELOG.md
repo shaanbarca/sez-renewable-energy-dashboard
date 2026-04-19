@@ -4,7 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-19
+
+Scenario Compare + CBAM methodology rewrite + 81-site universe + Persona 6.
+
 ### Added
+- **Scenario Compare — A/B flip vs baseline.** New `compare` bottom-panel tab runs a second scorecard under a flip scenario (e.g. concessional finance, higher CBAM price, grid fix) and diffs against baseline. Per-site delta LCOE, gap-to-grid delta, tier transitions, and flip counts.
 - **Scenario Compare — Phase 5: map flip rings + per-site Flip tab.** Sites whose economic tier moves under the flip scenario now wear a coloured halo on the map (green = improved, red = worsened) sized just outside the CBAM amber ring. A second `kek-flip-pulse` layer pulses continuously (radius 14→26 px over 2 s, opacity 0.85→0) like a Google-Maps active-location indicator so flipped sites read at a glance. Both layers are gated on `activeTab === 'compare' && flipScorecard != null` and powered by `requestAnimationFrame`; cleanup zeros the paint properties when Compare is closed. New 7th `Flip` tab in `ScoreDrawer` (`scoredrawer/FlipTab.tsx`) shows per-site scenario banner with direction chip, tier transition (baseline → flip), delta LCOE, gap-to-grid delta, and CBAM-urgency before/after with NEW / CLEARED chips. Empty state CTA jumps the user to the Scenario Compare bottom tab when no flip has been computed yet.
 - **ScoreDrawer tab bar fits 7 tabs at 420 px.** Reduced tab-list padding (`px-4 gap-0.5` → `px-3 gap-0`) and per-tab padding (`px-2.5` → `px-1.5`); added `whitespace-nowrap flex-shrink-0` and `overflow-x-auto` as a safety net. Previously the 7th `Flip` tab was clipped off the right edge of the drawer.
 - **Sector pictogram map markers.** Every site marker now shows a white SVG pictogram inside the coloured econ-tier disc — steel anvil, cement kiln, ammonia flask, petrochem column, nickel factory, aluminium ingots, fertilizer sack, KEK/mixed skyline. Single path source in `frontend/src/lib/sectorIcons.ts` shared by map (SDF layer via MapLibre `icon-color` tinting) and `ActionFlagLegend.tsx` (new "Icon = Sector" section) so they can't drift. CBAM amber ring sized just outside the marker disc.
@@ -16,16 +21,22 @@ All notable changes to this project will be documented in this file.
 - **CBAM `CBAM_RE_ADDRESSABLE_FRACTION` fix (M30 complete, 2026-04-18).** New dict in `src/assumptions.py` (cement 0.12, fertilizer 0.10, ammonia 0.10, steel_bfbof 0.80, everything else 1.0). Wired into `src/dash/logic/cbam.py::compute_cbam_trajectory`: Scope 2 RE savings now multiplied by the sector's electric share of thermal-inclusive intensity values. Scope 1 path untouched. 4 new tests in `tests/test_logic_cbam.py` lock behaviour. Golden-master fixture regenerated.
 - **Walkthrough copy refresh + WACC auto-adjust.** Economist, DFI Investor, and Policy Maker walkthroughs re-grounded in current metrics: 81 sites (25 KEK + 56 industrial), 68/81 CBAM-exposed, Papua \$133/MWh vs Java \$57/MWh BPP spread, M30 RE-addressable fractions, 97.5% → 0% free-allocation phase-out. The "WACC at 8%" demo step now auto-sets the assumptions slider via `setAssumptions({ wacc_pct: 8 })`, and the final step reminds the user to Reset.
 - **Bottom panel default height + drag discoverability.** Default ranked-table height grows 448 → 580 px so more rows show out of the box. Tailwind `group-hover:` widens the resize-grip pill and reveals an "↕ Drag to resize" label on hover, making the previously invisible drag handle discoverable.
-
-### Fixed
-- **WalkthroughModal unmount/remount loop.** When a walkthrough auto-action mutated state (e.g. WACC slider step), the global `loading` flag flipped true mid-recompute, the modal returned `null`, and remounting re-fired the action effect — kicking off another recompute and looping. Guard now reads `loading && !scorecard` so it only short-circuits during the initial pre-scorecard load.
+- **CBAM methodology §14 rewrite: Energy-vs-Process framing.** `docs/METHODOLOGY_CONSOLIDATED.md` §14.2 now leads with the plain-language two-bucket mental model — energy emissions (Scope 2, solar-addressable) vs process emissions (Scope 1, chemistry-bound). §14.3 shows the code's formula first, then worked examples (nickel RKEF ~89% cut with solar, cement ~7% cut because it's mostly calcination), then the M30 RE-addressable fraction. Explains why cement savings are $7.6/t not $63/t.
+- **Persona 6: Green Industry Roadmap Planner.** BKPM/KESDM/Bappenas/sustainability-consultancy user documented in `PERSONAS.md` as the primary beneficiary of the V4.1 expansion. User journey: Sector Summary chart → sector filter → ScoreDrawer → Scenario Compare flip → CBAM trajectory → CSV → Zenodo DOI citation. Readiness 87% (pathway_flag + sectoral PDF export + M28/M29 remain gaps).
+- **Priority 6 export spec stashed.** `docs/PLAN_EXPORTS_PRIORITY6.md` captures the sectoral summary PDF + flip diff CSV rollups design, scoping Qs, and revisit triggers. Not yet built.
 
 ### Changed
+- **Pipeline-of-enrichers refactor (`src/dash/logic/scorecard.py`).** `compute_scorecard_live` split from a 720-LOC monolith into a `STAGES` list of enrichers + a thin per-site loop. Each stage owns one concept (lcoe, cbam, grid, technology) and receives a `SiteContext` scratchpad. External API preserved via `src/dash/logic/__init__.py` re-exports. Pickle golden-master confirms bit-identical output.
+- **Performance quick wins.** gzip response compression on the API, Vite chunk splitting for the frontend, and a fix for a zoom-lag handler that was remounting map layers on every render. First-paint and map interactions noticeably snappier on slower connections.
+
 - Site count **79 → 81** (25 KEK + 46 standalone + 10 cluster). Fertilizer rows 3 → 5 — the full Pupuk Indonesia Group operating fleet now covered.
 - `fct_lcoe` rows **1,422 → 1,458** (81 × 9 WACC × 2 scenarios).
 - CBAM exposed sites **66/79 → 68/81** (12 KEK 3-signal + 56 industrial direct: 32 cement + 17 iron_steel + 5 fertilizer + 2 aluminium).
 - Cement/fertilizer/ammonia CBAM savings drop sharply (cement 2034 savings 63 USD/t → 7.6 USD/t) because Scope 2 savings are now bound to the electric share of thermal-inclusive intensity values. CBAM cost itself is unchanged.
 - Test count **537 → 541** (4 new CBAM fraction tests).
+
+### Fixed
+- **WalkthroughModal unmount/remount loop.** When a walkthrough auto-action mutated state (e.g. WACC slider step), the global `loading` flag flipped true mid-recompute, the modal returned `null`, and remounting re-fired the action effect — kicking off another recompute and looping. Guard now reads `loading && !scorecard` so it only short-circuits during the initial pre-scorecard load.
 
 ## [1.1.0] - 2026-04-17
 
