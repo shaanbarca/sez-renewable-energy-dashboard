@@ -109,7 +109,7 @@ function ReAssessmentCell({ info }: { info: CellContext<ScorecardRow, ActionFlag
   const energyMode = useDashboardStore((s) => s.energyMode);
   const row = info.row.original;
   const tier = getEffectiveEconomicTier(row, energyMode);
-  const infra = getEffectiveInfraReadiness(row);
+  const infra = getEffectiveInfraReadiness(row, energyMode);
   const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
   const tierLabel = getEconomicTierLabel(tier, energyMode);
   const infraLabel = INFRA_READINESS_LABELS[infra] ?? infra;
@@ -240,6 +240,8 @@ export const columns = [
       <HeaderWithTooltip label="Grid Integration" columnId="grid_integration_category" />
     ),
     cell: (info) => {
+      const energyMode = useDashboardStore.getState().energyMode;
+      if (getEffectiveInfraReadiness(info.row.original, energyMode) === 'no_resource') return '—';
       const val = info.getValue();
       return val ? formatSnakeLabel(val) : '—';
     },
@@ -273,11 +275,13 @@ export const columns = [
     header: () => <HeaderWithTooltip label="Infra Ready" columnId="infrastructure_readiness" />,
     enableColumnFilter: true,
     filterFn: (row, _columnId, filterValue: string) => {
-      const infra = getEffectiveInfraReadiness(row.original);
+      const energyMode = useDashboardStore.getState().energyMode;
+      const infra = getEffectiveInfraReadiness(row.original, energyMode);
       return infra === filterValue;
     },
     cell: (info) => {
-      const infra = getEffectiveInfraReadiness(info.row.original);
+      const energyMode = useDashboardStore.getState().energyMode;
+      const infra = getEffectiveInfraReadiness(info.row.original, energyMode);
       const color = INFRA_READINESS_COLORS[infra] ?? '#666';
       const label = INFRA_READINESS_LABELS[infra] ?? formatSnakeLabel(infra);
       return (

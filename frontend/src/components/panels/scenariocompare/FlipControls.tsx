@@ -5,6 +5,7 @@ import {
 } from '../../../lib/flipPresets';
 import type { UserAssumptions } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
+import HelpBadge from '../../ui/HelpBadge';
 
 const PRESETS: FlipPreset[] = [
   'concessional_finance',
@@ -19,7 +20,12 @@ type LeverKey =
   | 'lifetime_yr'
   | 'fom_usd_per_kw_yr'
   | 'bess_capex_usd_per_kwh'
-  | 'cbam_certificate_price_eur';
+  | 'cbam_certificate_price_eur'
+  | 'land_cost_usd_per_kw'
+  | 'connection_cost_per_kw_km'
+  | 'grid_connection_fixed_per_kw'
+  | 'substation_utilization_pct'
+  | 'meaningful_share_pct';
 
 interface LeverConfig {
   key: LeverKey;
@@ -28,13 +34,46 @@ interface LeverConfig {
   step: number;
   min: number;
   max: number;
+  tip: string;
 }
 
 const LEVERS: LeverConfig[] = [
-  { key: 'wacc_pct', label: 'WACC', unit: '%', step: 0.5, min: 2, max: 20 },
-  { key: 'capex_usd_per_kw', label: 'Solar CAPEX', unit: '$/kW', step: 25, min: 300, max: 2000 },
-  { key: 'lifetime_yr', label: 'Project Life', unit: 'yr', step: 1, min: 10, max: 40 },
-  { key: 'fom_usd_per_kw_yr', label: 'FOM', unit: '$/kW·yr', step: 1, min: 0, max: 50 },
+  {
+    key: 'wacc_pct',
+    label: 'WACC',
+    unit: '%',
+    step: 0.5,
+    min: 2,
+    max: 20,
+    tip: 'Weighted Average Cost of Capital. Lower = cheaper financing → lower LCOE. DFI concessional debt sits ~4-6%, merchant equity ~12-15%.',
+  },
+  {
+    key: 'capex_usd_per_kw',
+    label: 'Solar CAPEX',
+    unit: '$/kW',
+    step: 25,
+    min: 300,
+    max: 2000,
+    tip: 'Installed solar cost per kW of AC capacity. ESDM 2023 central: $850/kW. Low ~$500, high ~$1,200.',
+  },
+  {
+    key: 'lifetime_yr',
+    label: 'Project Life',
+    unit: 'yr',
+    step: 1,
+    min: 10,
+    max: 40,
+    tip: 'Economic project life in years. Drives the CRF annuity factor. Industry standard for utility-scale solar is 25-30 years.',
+  },
+  {
+    key: 'fom_usd_per_kw_yr',
+    label: 'FOM',
+    unit: '$/kW·yr',
+    step: 1,
+    min: 0,
+    max: 50,
+    tip: 'Fixed O&M cost per kW per year (inverter replacements, inspections, cleaning). ESDM default ~$7.5/kW-yr.',
+  },
   {
     key: 'bess_capex_usd_per_kwh',
     label: 'BESS CAPEX',
@@ -42,6 +81,7 @@ const LEVERS: LeverConfig[] = [
     step: 10,
     min: 100,
     max: 800,
+    tip: 'Battery energy storage cost per kWh. Drives firming adder for 24/7 loads. 2025 tracker price ~$150/kWh and falling.',
   },
   {
     key: 'cbam_certificate_price_eur',
@@ -50,6 +90,52 @@ const LEVERS: LeverConfig[] = [
     step: 5,
     min: 0,
     max: 200,
+    tip: 'EU CBAM certificate price in €/tCO₂. ~€80 central. Drives CBAM cost exposure on exports to the EU (cement, steel, fertilizer, aluminium).',
+  },
+  {
+    key: 'land_cost_usd_per_kw',
+    label: 'Land Cost',
+    unit: '$/kW',
+    step: 5,
+    min: 0,
+    max: 300,
+    tip: 'Land lease/purchase cost per kW. Typically small vs CAPEX but flips scenarios near parity. Zero if land contributed in-kind.',
+  },
+  {
+    key: 'connection_cost_per_kw_km',
+    label: 'Gen-Tie $/km',
+    unit: '$/kW·km',
+    step: 0.5,
+    min: 0,
+    max: 20,
+    tip: 'Per-km gen-tie line cost to run from solar farm to nearest substation. Default $5/kW·km. Multiplies with solar-to-sub distance.',
+  },
+  {
+    key: 'grid_connection_fixed_per_kw',
+    label: 'Gen-Tie Fixed',
+    unit: '$/kW',
+    step: 5,
+    min: 0,
+    max: 300,
+    tip: 'One-time fixed connection fee per kW (metering, studies, protection). Default $80/kW. Added on top of distance × $/km.',
+  },
+  {
+    key: 'substation_utilization_pct',
+    label: 'Sub Utilization',
+    unit: '',
+    step: 0.05,
+    min: 0,
+    max: 0.95,
+    tip: 'Assumed fraction of nearest substation capacity already in use. Available headroom = rated MVA × (1 - utilization). Higher = less room for new solar.',
+  },
+  {
+    key: 'meaningful_share_pct',
+    label: 'Project Sizing',
+    unit: '',
+    step: 0.05,
+    min: 0.1,
+    max: 1.0,
+    tip: 'First-phase solar sized to cover this share of site demand. Lower = smaller project, fewer substation upgrades. 0.30 = phase-1 realistic, 1.00 = full self-sufficiency.',
   },
 ];
 
@@ -186,8 +272,12 @@ export default function FlipControls() {
           return (
             <div key={lever.key} className="flex items-center justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <div className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                <div
+                  className="text-[11px] flex items-center"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
                   {lever.label}
+                  <HelpBadge tip={lever.tip} />
                 </div>
                 {changed && (
                   <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>

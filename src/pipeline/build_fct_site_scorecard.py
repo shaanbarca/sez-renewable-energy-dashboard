@@ -40,6 +40,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.assumptions import PERPRES_112_CEILING_USD_MWH, SUBSTATION_COLOCATION_RADIUS_KM
 from src.model.basic_model import (
     action_flags,
     carbon_breakeven_price,
@@ -213,6 +214,13 @@ def build_fct_site_scorecard(
         "inter_substation_dist_km",
         "available_capacity_mva",
         "capacity_assessment",
+        # V3.7: substation-anchored solar search diagnostics
+        "nearest_substation_capacity_source",
+        "solar_search_method",
+        "chosen_anchor_substation_name",
+        "solar_supply_share_pct",
+        "solar_delivered_share_pct",
+        "project_scale_solar_mwp",
     ]:
         if _col in fct_sub.columns:
             _sub_cols.append(_col)
@@ -546,6 +554,35 @@ def build_fct_site_scorecard(
         np.nan,
     )
 
+    # V3.7 / Action 4: solar_regime classification.
+    # Heuristic: a gazetted industrial estate (KEK or KI) where the anchor solar
+    # patch sits within the co-location radius is a co-located captive project
+    # (no sale to PLN). Otherwise the solar must be sold to PLN as a grid-connected
+    # IPP, which is subject to the Perpres 112/2022 ceiling tariff.
+    def _classify_solar_regime(row: pd.Series) -> str:
+        site_type = row.get("site_type")
+        dist_km = row.get("dist_solar_to_nearest_substation_km")
+        if pd.isna(site_type) or site_type in (None, ""):
+            return "unclear"
+        if (
+            site_type in ("kek", "ki")
+            and pd.notna(dist_km)
+            and dist_km <= SUBSTATION_COLOCATION_RADIUS_KM
+        ):
+            return "co_located_captive"
+        return "grid_connected_ipp"
+
+    df["solar_regime"] = df.apply(_classify_solar_regime, axis=1)
+
+    # Apply Perpres 112 ceiling only to grid-connected IPP rows. Captive rows pass
+    # through unchanged (there's no sale to PLN). "unclear" rows also pass through
+    # rather than assume a tariff cap that may not apply.
+    df["lcoe_grid_connected_capped_usd_mwh"] = np.where(
+        (df["solar_regime"] == "grid_connected_ipp") & df["lcoe_grid_connected_usd_mwh"].notna(),
+        np.minimum(df["lcoe_grid_connected_usd_mwh"], PERPRES_112_CEILING_USD_MWH),
+        df["lcoe_grid_connected_usd_mwh"],
+    )
+
     return df[
         [
             "site_id",
@@ -577,6 +614,7 @@ def build_fct_site_scorecard(
             "buildability_constraint",
             "resource_quality",
             "dist_to_nearest_substation_km",
+            "dist_solar_to_nearest_substation_km",
             "nearest_substation_capacity_mva",
             "siting_scenario",
             "grid_integration_category",
@@ -586,6 +624,13 @@ def build_fct_site_scorecard(
             "inter_substation_dist_km",
             "available_capacity_mva",
             "capacity_assessment",
+            "nearest_substation_capacity_source",
+            "solar_search_method",
+            "chosen_anchor_substation_name",
+            "solar_supply_share_pct",
+            "solar_delivered_share_pct",
+            "project_scale_solar_mwp",
+            "solar_regime",
             "within_boundary_coverage_pct",
             "firm_solar_coverage_pct",
             "nighttime_demand_mwh",
@@ -597,6 +642,7 @@ def build_fct_site_scorecard(
             "lcoe_mid_usd_mwh",
             "lcoe_high_usd_mwh",
             "lcoe_grid_connected_usd_mwh",
+            "lcoe_grid_connected_capped_usd_mwh",
             "lcoe_grid_connected_low_usd_mwh",
             "lcoe_grid_connected_high_usd_mwh",
             "connection_cost_per_kw",

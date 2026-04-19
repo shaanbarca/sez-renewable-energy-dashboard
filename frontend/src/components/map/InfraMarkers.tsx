@@ -17,6 +17,7 @@ interface SubstationMarker {
   name: string;
   dist_km: number;
   is_nearest: boolean;
+  is_anchor?: boolean;
   rank?: number | null;
   voltage?: string;
   capacity_mva?: string | number | null;
@@ -187,7 +188,12 @@ function infraToGeojson(markers: InfraMarker[]) {
   };
 }
 
-function substationIconId(m: SubstationMarker): string {
+function substationIconId(m: SubstationMarker, hasAnchor: boolean): string {
+  // Gold/largest = the substation the picker anchored on (paired with the chosen
+  // amber polygon). Falls back to rank-1-by-distance only when no anchor exists
+  // (best_pvout_fallback picker).
+  if (m.is_anchor) return 'substation-nearest';
+  if (hasAnchor && m.rank === 1) return 'substation-rank2';
   if (m.rank === 1) return 'substation-nearest';
   if (m.rank === 2) return 'substation-rank2';
   if (m.rank === 3) return 'substation-rank3';
@@ -195,6 +201,7 @@ function substationIconId(m: SubstationMarker): string {
 }
 
 function substationsToGeojson(markers: SubstationMarker[]) {
+  const hasAnchor = markers.some((m) => m.is_anchor);
   return {
     type: 'FeatureCollection' as const,
     features: markers.map((m) => ({
@@ -202,7 +209,7 @@ function substationsToGeojson(markers: SubstationMarker[]) {
       geometry: { type: 'Point' as const, coordinates: [m.lon, m.lat] },
       properties: {
         ...m,
-        icon_id: substationIconId(m),
+        icon_id: substationIconId(m, hasAnchor),
       },
     })),
   };
@@ -278,14 +285,20 @@ export default function InfraMarkers() {
       const rank = props.rank as number | null;
       const name = (props.name as string) || 'Substation';
       const dist = props.dist_km as number;
+      const isAnchor = props.is_anchor as boolean | undefined;
       const rankLabel =
         rank === 1 ? 'Rank #1' : rank === 2 ? 'Rank #2' : rank === 3 ? 'Rank #3' : null;
+      const subtitle = isAnchor
+        ? 'Anchor Substation'
+        : rankLabel
+          ? `${rankLabel} Substation`
+          : 'Substation';
       setHoverInfo({
         longitude: coords[0],
         latitude: coords[1],
         title: `${name}${dist ? ` (${dist.toFixed(1)} km)` : ''}`,
         infraType: 'power',
-        subtitle: rankLabel ? `${rankLabel} Substation` : 'Substation',
+        subtitle,
         rank,
         capacityAssessment: props.capacity_assessment as string | null,
         totalGridCapex: props.total_grid_capex_per_kw as number | null,

@@ -28,6 +28,11 @@ Output columns (one row per site_id):
     inter_substation_dist_km           haversine between B_solar and B_kek, NaN if same sub (V3.1)
     available_capacity_mva             rated × (1 − utilization), None if unknown (V3.1)
     capacity_assessment                green|yellow|red|unknown traffic light (V3.1)
+    nearest_substation_capacity_source 'actual'|'proxy_{voltage}kV'|'unknown' (V3.7)
+    solar_search_method                'substation_anchored'|'best_pvout_fallback'|... (V3.7)
+    chosen_anchor_substation_name      name of substation the anchored picker latched onto (V3.7)
+    solar_supply_share_pct             nameplate supply share of 2030 demand (V3.7)
+    solar_delivered_share_pct          CF-corrected delivered-energy share of demand (V3.7)
 
 Methodology:
     - Only operational substations (statopr == "Operasi") are considered.
@@ -52,6 +57,9 @@ from shapely.geometry import Point, shape
 
 from src.assumptions import (
     GRID_LINE_BUFFER_KM,
+    HOSTING_CAPACITY_AVAILABILITY_PCT,
+    MEANINGFUL_SHARE_PCT,
+    SUBSTATION_HOSTING_CAPACITY_PROXY_MVA,
     SUBSTATION_UTILIZATION_PCT,
 )
 from src.model.basic_model import capacity_assessment, grid_integration_category
@@ -64,9 +72,14 @@ SUBSTATION_GEOJSON = REPO_ROOT / "data" / "substation.geojson"
 GRID_LINES_GEOJSON = REPO_ROOT / "data" / "pln_grid_lines.geojson"
 DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
 FKT_SITE_RESOURCE_CSV = PROCESSED / "fct_site_resource.csv"
+FKT_SITE_DEMAND_CSV = PROCESSED / "fct_site_demand.csv"
 KEK_POLYGONS_GEOJSON = RAW / "kek_polygons.geojson"
 
 _OPERATIONAL_STATUS = "Operasi"
+
+# Demand year used to size the project for capacity_assessment (V3.7).
+# Picked to match the scorecard's 2030 demand reference horizon.
+DEMAND_YEAR_FOR_SIZING = 2030
 
 # kapgi unit normalization thresholds (see DATA_DICTIONARY.md §3.5)
 # PLN encodes capacity inconsistently: some rows in MVA, others in VA.
@@ -113,6 +126,46 @@ def _normalize_capacity_mva(raw: float | None) -> float | None:
     return float(raw)
 
 
+def _voltage_class_from_teggi(teggi: str | None) -> str | None:
+    """Parse the PLN `teggi` string (e.g. '150 kV', '70kv', '500') → voltage-class key.
+
+    Returns the voltage number as a string (e.g. '150'), matching the keys in
+    SUBSTATION_HOSTING_CAPACITY_PROXY_MVA. Returns None when parsing fails.
+    """
+    if not teggi:
+        return None
+    digits = "".join(ch for ch in str(teggi) if ch.isdigit())
+    if not digits:
+        return None
+    return digits
+
+
+def _resolve_capacity(raw_kapgi: float | None, teggi: str | None) -> tuple[float | None, str]:
+    """Return (rated_capacity_mva, capacity_source).
+
+    Precedence:
+        1. Actual kapgi (normalized)                          → ('actual')
+        2. Voltage-class proxy nameplate (see PROXY_MVA dict) → ('proxy_<kv>kV')
+        3. Unknown                                            → ('unknown')
+
+    The returned MVA is the *rated nameplate*, not the effective available
+    capacity. Downstream code derates via utilization_pct (SUBSTATION_UTILIZATION_PCT
+    for actual rows, 1 - HOSTING_CAPACITY_AVAILABILITY_PCT for proxy rows).
+    Keeping rated nameplate here means the SUBSTATION_MIN_CAPACITY_MVA threshold
+    inside grid_integration_category() still compares apples-to-apples.
+    """
+    actual = _normalize_capacity_mva(raw_kapgi)
+    if actual is not None:
+        return actual, "actual"
+
+    voltage_class = _voltage_class_from_teggi(teggi)
+    proxy_nameplate = SUBSTATION_HOSTING_CAPACITY_PROXY_MVA.get(voltage_class)
+    if proxy_nameplate is not None:
+        return float(proxy_nameplate), f"proxy_{voltage_class}kV"
+
+    return None, "unknown"
+
+
 # ─── Loaders ──────────────────────────────────────────────────────────────────
 
 
@@ -127,11 +180,14 @@ def _load_substations(path: Path) -> list[dict]:
         if props.get("statopr", "").strip() != _OPERATIONAL_STATUS:
             continue
         lon, lat = feat["geometry"]["coordinates"]
+        teggi = props.get("teggi", "")
+        capacity_mva, capacity_source = _resolve_capacity(props.get("kapgi"), teggi)
         substations.append(
             {
                 "name": props.get("namobj", ""),
-                "voltage_kv": props.get("teggi", ""),
-                "capacity_mva": _normalize_capacity_mva(props.get("kapgi")),
+                "voltage_kv": teggi,
+                "capacity_mva": capacity_mva,
+                "capacity_source": capacity_source,
                 "regpln": props.get("regpln", ""),
                 "lat": lat,
                 "lon": lon,
@@ -242,12 +298,13 @@ def _has_internal_substation(
 # ─── Main builder ─────────────────────────────────────────────────────────────
 
 
-def build_fct_substation_proximity(
+def build_fct_substation_proximity(  # noqa: PLR0913
     substation_geojson: Path = SUBSTATION_GEOJSON,
     grid_lines_geojson: Path = GRID_LINES_GEOJSON,
     dim_sites_csv: Path = DIM_SITES_CSV,
     kek_polygons_geojson: Path = KEK_POLYGONS_GEOJSON,
     fct_site_resource_csv: Path = FKT_SITE_RESOURCE_CSV,
+    fct_site_demand_csv: Path = FKT_SITE_DEMAND_CSV,
     substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
 ) -> pd.DataFrame:
     """Compute nearest PLN substation distance, siting scenario, and grid integration category.
@@ -265,7 +322,9 @@ def build_fct_substation_proximity(
     print(f"  Substations: {len(substations)} operational")
     print(f"  Grid lines: {len(grid_lines)} loaded")
 
-    # V2: Load best solar site coordinates from fct_site_resource
+    # V2: Load best solar site coordinates from fct_site_resource.
+    # V3.7: also surface the anchored-picker diagnostics so the scorecard can
+    # distinguish "Build Substation" caused by a real gap from a fallback artefact.
     solar_data: dict[str, dict] = {}
     if fct_site_resource_csv.exists():
         resource_df = pd.read_csv(fct_site_resource_csv)
@@ -279,6 +338,13 @@ def build_fct_substation_proximity(
                         "lat": float(lat),
                         "lon": float(lon),
                         "capacity_mwp": float(cap) if pd.notna(cap) else None,
+                        "cf_centroid": float(r["cf_centroid"])
+                        if pd.notna(r.get("cf_centroid"))
+                        else None,
+                        "solar_search_method": r.get("solar_search_method"),
+                        "chosen_anchor_substation_name": r.get("chosen_anchor_substation_name"),
+                        "solar_supply_share_pct": r.get("solar_supply_share_pct"),
+                        "solar_delivered_share_pct": r.get("solar_delivered_share_pct"),
                     }
             print(
                 f"  V2: Loaded solar site coordinates for {len(solar_data)}/{len(resource_df)} KEKs"
@@ -289,6 +355,19 @@ def build_fct_substation_proximity(
             )
     else:
         print(f"  V2: {fct_site_resource_csv.name} not found — solar proximity columns will be NaN")
+
+    # V3.7: Load 2030 site demand so we can size the project at actual required_mwp
+    # instead of total buildable patch. Without this, capacity_assessment compares
+    # substation capacity against the whole buildable area (e.g. 2,351 MWp for Batam
+    # Aero Technic when only ~12 MWp is needed) and silently flags invest_substation.
+    demand_lookup: dict[str, float] = {}
+    if fct_site_demand_csv.exists():
+        demand_df = pd.read_csv(fct_site_demand_csv)
+        demand_2030 = demand_df[demand_df["year"] == DEMAND_YEAR_FOR_SIZING]
+        for _, r in demand_2030.iterrows():
+            if pd.notna(r.get("demand_mwh")):
+                demand_lookup[r["site_id"]] = float(r["demand_mwh"])
+        print(f"  V3.7: Loaded {DEMAND_YEAR_FOR_SIZING} demand for {len(demand_lookup)} sites")
 
     # ─── TRANSFORM ────────────────────────────────────────────────────────────
     records = []
@@ -306,6 +385,7 @@ def build_fct_substation_proximity(
         nearest_to_solar_regpln = None
         nearest_to_solar_sub = None
         solar_cap_mwp = None
+        project_scale_mwp: float | None = None
         if site_id in solar_data:
             sd = solar_data[site_id]
             solar_lat, solar_lon = sd["lat"], sd["lon"]
@@ -317,6 +397,23 @@ def build_fct_substation_proximity(
                 dist_solar_to_sub = round(dist_solar, 2)
                 nearest_to_solar_name = nearest_to_solar_sub["name"]
                 nearest_to_solar_regpln = nearest_to_solar_sub.get("regpln", "")
+
+            # V3.7: Size the project at Phase-1 = MEANINGFUL_SHARE_PCT × required_mwp,
+            # capped by the buildable patch. This aligns cost math with the picker's
+            # viability floor: the anchored picker qualifies patches at 30% of demand,
+            # so sizing the project (and substation-upgrade costs) at 100% coverage
+            # creates a logical gap — inflates $/kW and triggers false "Build
+            # Substation" flags. Full-demand coverage is a later phase, not this model.
+            # max_captive_capacity_mwp is the upper bound on the land.
+            demand_mwh = demand_lookup.get(site_id)
+            cf = sd.get("cf_centroid")
+            if demand_mwh and cf and cf > 0:
+                required_mwp = demand_mwh / (8760.0 * cf)
+                phase1_mwp = required_mwp * MEANINGFUL_SHARE_PCT
+                if solar_cap_mwp is not None:
+                    project_scale_mwp = round(min(phase1_mwp, solar_cap_mwp), 2)
+                else:
+                    project_scale_mwp = round(phase1_mwp, 2)
 
         # V3.1: Grid connectivity check
         kek_sub_regpln = nearest_to_kek.get("regpln", "") if nearest_to_kek else ""
@@ -356,11 +453,30 @@ def build_fct_substation_proximity(
             # Same substation — inherently connected
             inter_connected = True
 
-        # V3.1: Capacity assessment
+        # V3.1 + V3.7: Capacity assessment — proxy rows represent the rated nameplate
+        # of an unmeasured substation at a given voltage class. We derate with a
+        # different utilization (1 - HOSTING_CAPACITY_AVAILABILITY_PCT = 0.70, i.e.
+        # only 30% of rated is assumed free for new injection) to reflect that the
+        # proxy is an upper bound. Actual kapgi rows use SUBSTATION_UTILIZATION_PCT.
+        kek_capacity_source = (
+            nearest_to_kek.get("capacity_source", "unknown") if nearest_to_kek else "unknown"
+        )
+        kek_util_pct = (
+            (1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT)
+            if kek_capacity_source.startswith("proxy_")
+            else substation_utilization_pct
+        )
+
+        # V3.7: Use project_scale_mwp (required capacity) for capacity checks, not the
+        # buildable-patch maximum. The latter gave false invest_substation flags at
+        # small-demand sites like Batam Aero Technic where a 2,351 MWp patch dwarfed
+        # any realistic substation yet only ~12 MWp of solar was actually needed.
+        assessed_mwp = project_scale_mwp if project_scale_mwp is not None else solar_cap_mwp
+
         cap_light, avail_mva = capacity_assessment(
             nearest_to_kek["capacity_mva"] if nearest_to_kek else None,
-            solar_cap_mwp,
-            utilization_pct=substation_utilization_pct,
+            assessed_mwp,
+            utilization_pct=kek_util_pct,
         )
 
         # Derive grid integration category
@@ -371,11 +487,12 @@ def build_fct_substation_proximity(
             else None,
             dist_kek_to_substation_km=dist_km,
             substation_capacity_mva=nearest_to_kek["capacity_mva"] if nearest_to_kek else None,
-            substation_utilization_pct=substation_utilization_pct,
-            solar_capacity_mwp=solar_cap_mwp,
+            substation_utilization_pct=kek_util_pct,
+            solar_capacity_mwp=assessed_mwp,
             inter_substation_connected=inter_connected,
         )
 
+        sd = solar_data.get(site_id, {})
         records.append(
             {
                 "site_id": site_id,
@@ -387,6 +504,7 @@ def build_fct_substation_proximity(
                 "nearest_substation_capacity_mva": nearest_to_kek["capacity_mva"]
                 if nearest_to_kek
                 else None,
+                "nearest_substation_capacity_source": kek_capacity_source,
                 "nearest_substation_regpln": kek_sub_regpln,
                 "dist_to_nearest_substation_km": round(dist_km, 2),
                 "has_internal_substation": internal,
@@ -405,6 +523,12 @@ def build_fct_substation_proximity(
                 "inter_substation_dist_km": inter_sub_dist,
                 "available_capacity_mva": avail_mva,
                 "capacity_assessment": cap_light,
+                # V3.7: surface anchored-picker diagnostics + project-scale sizing
+                "solar_search_method": sd.get("solar_search_method"),
+                "chosen_anchor_substation_name": sd.get("chosen_anchor_substation_name"),
+                "solar_supply_share_pct": sd.get("solar_supply_share_pct"),
+                "solar_delivered_share_pct": sd.get("solar_delivered_share_pct"),
+                "project_scale_solar_mwp": project_scale_mwp,
             }
         )
 
@@ -428,6 +552,11 @@ def main() -> None:
     print(f"  Inter-substation connected: {conn.sum()} of {conn.notna().sum()} checked")
     print("\nCapacity assessment (V3.1):")
     print(df["capacity_assessment"].value_counts().to_dict())
+    print("\nSubstation capacity source (V3.7):")
+    print(df["nearest_substation_capacity_source"].value_counts(dropna=False).to_dict())
+    if "solar_search_method" in df.columns and df["solar_search_method"].notna().any():
+        print("\nSolar picker method (V3.7):")
+        print(df["solar_search_method"].value_counts(dropna=False).to_dict())
     print("\nDistance KEK→substation (km):")
     print(df["dist_to_nearest_substation_km"].describe().round(2).to_string())
     solar_dists = df["dist_solar_to_nearest_substation_km"].dropna()

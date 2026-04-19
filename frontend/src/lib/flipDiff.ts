@@ -1,5 +1,5 @@
 import { ECONOMIC_TIER_HIERARCHY } from './constants';
-import type { EconomicTier, ScorecardRow } from './types';
+import type { EconomicTier, InfrastructureReadiness, ScorecardRow } from './types';
 
 export type FlipDirection = 'improved' | 'worsened' | 'unchanged';
 
@@ -9,6 +9,8 @@ export interface FlipDiffRow {
   sector: string;
   tier_baseline: EconomicTier;
   tier_flip: EconomicTier;
+  infra_baseline: InfrastructureReadiness;
+  infra_flip: InfrastructureReadiness;
   lcoe_baseline: number | null;
   lcoe_flip: number | null;
   delta_lcoe: number | null;
@@ -43,6 +45,10 @@ function tierOf(row: ScorecardRow | undefined): EconomicTier {
   return row?.economic_tier ?? 'no_resource';
 }
 
+function infraOf(row: ScorecardRow | undefined): InfrastructureReadiness {
+  return row?.infrastructure_readiness ?? 'no_resource';
+}
+
 function lcoeOf(row: ScorecardRow | undefined): number | null {
   if (!row) return null;
   const v = row.best_re_lcoe_mid_usd_mwh ?? row.lcoe_mid_usd_mwh;
@@ -73,6 +79,8 @@ export function computeFlipDiff(
     const f = flipById.get(b.site_id);
     const tierBase = tierOf(b);
     const tierFlip = tierOf(f);
+    const infraBase = infraOf(b);
+    const infraFlip = infraOf(f);
     const lcoeBase = lcoeOf(b);
     const lcoeFlip = lcoeOf(f);
     const gapBase = gapOf(b);
@@ -90,6 +98,8 @@ export function computeFlipDiff(
       sector: b.sector,
       tier_baseline: tierBase,
       tier_flip: tierFlip,
+      infra_baseline: infraBase,
+      infra_flip: infraFlip,
       lcoe_baseline: lcoeBase,
       lcoe_flip: lcoeFlip,
       delta_lcoe: lcoeBase != null && lcoeFlip != null ? lcoeFlip - lcoeBase : null,
@@ -143,6 +153,8 @@ export function flipDiffToCsv(rows: FlipDiffRow[]): string {
     'sector',
     'tier_baseline',
     'tier_flip',
+    'infra_baseline',
+    'infra_flip',
     'flip_direction',
     'lcoe_baseline_usd_mwh',
     'lcoe_flip_usd_mwh',
@@ -165,6 +177,8 @@ export function flipDiffToCsv(rows: FlipDiffRow[]): string {
       r.sector,
       r.tier_baseline,
       r.tier_flip,
+      r.infra_baseline,
+      r.infra_flip,
       r.flip_direction,
       r.lcoe_baseline,
       r.lcoe_flip,

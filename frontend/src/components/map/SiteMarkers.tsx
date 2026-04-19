@@ -7,7 +7,7 @@ import {
   getEffectiveInfraReadiness,
 } from '../../lib/actionFlags';
 import { ECONOMIC_TIER_COLORS, INFRA_READINESS_LABELS } from '../../lib/constants';
-import { type FlipDirection, computeFlipDiff } from '../../lib/flipDiff';
+import { computeFlipDiff, type FlipDirection } from '../../lib/flipDiff';
 import { registerSectorIcons } from '../../lib/sectorIcons';
 import type { Sector } from '../../lib/siteTypes';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
@@ -226,7 +226,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
           category: row.category ?? '',
           area_ha: row.area_ha ?? null,
           grid_integration_category: row.grid_integration_category ?? '',
-          infrastructure_readiness: getEffectiveInfraReadiness(row),
+          infrastructure_readiness: getEffectiveInfraReadiness(row, energyMode),
           cbam_exposed: row.cbam_exposed ?? false,
           flip_direction: flipDirections?.get(row.site_id) ?? 'none',
         },
@@ -337,13 +337,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
         <Layer
           id="kek-flip-glow"
           type="circle"
-          filter={[
-            'match',
-            ['get', 'flip_direction'],
-            ['improved', 'worsened'],
-            true,
-            false,
-          ]}
+          filter={['match', ['get', 'flip_direction'], ['improved', 'worsened'], true, false]}
           paint={{
             'circle-radius': [
               'interpolate',
@@ -381,13 +375,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
         <Layer
           id="kek-flip-pulse"
           type="circle"
-          filter={[
-            'match',
-            ['get', 'flip_direction'],
-            ['improved', 'worsened'],
-            true,
-            false,
-          ]}
+          filter={['match', ['get', 'flip_direction'], ['improved', 'worsened'], true, false]}
           paint={{
             'circle-radius': 14,
             'circle-color': [

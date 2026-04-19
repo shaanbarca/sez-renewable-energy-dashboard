@@ -93,8 +93,14 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         resource = resource.merge(dim_sites[dim_sites_cols], on="site_id", how="left")
 
     # Add green_share_geas and within_boundary_coverage_pct from scorecard
+    # V3.7: also surface solar_regime + Perpres 112 capped LCOE for regulatory tab
     scorecard_cols = ["site_id"]
-    for col in ["green_share_geas", "within_boundary_coverage_pct"]:
+    for col in [
+        "green_share_geas",
+        "within_boundary_coverage_pct",
+        "solar_regime",
+        "lcoe_grid_connected_capped_usd_mwh",
+    ]:
         if col not in resource.columns and col in scorecard.columns:
             scorecard_cols.append(col)
     if len(scorecard_cols) > 1:
@@ -119,6 +125,8 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
             "inter_substation_dist_km",
             "same_grid_region",
             "line_connected",
+            "nearest_substation_capacity_source",
+            "project_scale_solar_mwp",
         ]:
             if col in prox.columns:
                 prox_cols.append(col)

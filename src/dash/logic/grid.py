@@ -60,10 +60,17 @@ def compute_grid_integration(
     sub_cap_mva = _get_float(kek, "nearest_substation_capacity_mva")
     solar_cap_mwp = _get_float(kek, "max_captive_capacity_mwp")
 
-    # H10: cap buildable capacity with user target
-    effective_cap = solar_cap_mwp
-    if assumptions.target_capacity_mwp and solar_cap_mwp:
-        effective_cap = min(assumptions.target_capacity_mwp, solar_cap_mwp)
+    # Prefer LCOE-derived effective capacity: it already reflects both
+    # `meaningful_share_pct` (phase-1 sizing, slider) and `target_capacity_mwp`
+    # (H10 hard override). Fall back to full buildable when there's no
+    # grid-connected scenario, with target_capacity_mwp as final guard.
+    eff_from_gc = _get_float(gc_row, "effective_capacity_mwp") if gc_row is not None else None
+    if eff_from_gc is not None and eff_from_gc > 0:
+        effective_cap = eff_from_gc
+    else:
+        effective_cap = solar_cap_mwp
+        if assumptions.target_capacity_mwp and solar_cap_mwp:
+            effective_cap = min(assumptions.target_capacity_mwp, solar_cap_mwp)
 
     cap_light, avail_mva = compute_capacity_assessment(
         sub_cap_mva, effective_cap, assumptions.substation_utilization_pct

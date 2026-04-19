@@ -1,5 +1,5 @@
 import * as RadixSlider from '@radix-ui/react-slider';
-import { useState } from 'react';
+import HelpBadge from './HelpBadge';
 
 interface SliderProps {
   value: number;
@@ -24,8 +24,6 @@ export default function Slider({
   description,
   marks,
 }: SliderProps) {
-  const [showTip, setShowTip] = useState(false);
-
   return (
     <div className="group py-1.5">
       <div className="flex items-center justify-between mb-1">
@@ -34,29 +32,7 @@ export default function Slider({
           style={{ color: 'var(--text-secondary)' }}
         >
           {label}
-          {description && (
-            <span
-              className="ml-1 cursor-help inline-block"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={() => setShowTip(true)}
-              onMouseLeave={() => setShowTip(false)}
-            >
-              ?
-              {showTip && (
-                <span
-                  className="absolute left-0 top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-48"
-                  style={{
-                    background: 'var(--popup-bg)',
-                    color: 'var(--text-value)',
-                    border: '1px solid var(--popup-border)',
-                    boxShadow: 'var(--popup-shadow)',
-                  }}
-                >
-                  {description}
-                </span>
-              )}
-            </span>
-          )}
+          {description && <HelpBadge tip={description} />}
         </label>
         <span
           className="text-[11px] font-medium tabular-nums"

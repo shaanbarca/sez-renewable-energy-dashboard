@@ -461,9 +461,12 @@ class TestInfrastructureCosts:
                 "dist_solar_to_nearest_substation_km": [3.0],
             }
         )
+        # Pin meaningful_share_pct=1.0 so phase-1 sizing doesn't shrink the
+        # project below max_captive — keeps this test focused on the utilization
+        # slider, not the project-sizing slider.
         low_util = compute_scorecard_live(
             resource_df,
-            UserAssumptions(substation_utilization_pct=0.10),
+            UserAssumptions(substation_utilization_pct=0.10, meaningful_share_pct=1.0),
             get_default_thresholds(),
             sample_ruptl_metrics,
             sample_demand_df,
@@ -471,7 +474,7 @@ class TestInfrastructureCosts:
         )
         high_util = compute_scorecard_live(
             resource_df,
-            UserAssumptions(substation_utilization_pct=0.90),
+            UserAssumptions(substation_utilization_pct=0.90, meaningful_share_pct=1.0),
             get_default_thresholds(),
             sample_ruptl_metrics,
             sample_demand_df,

@@ -25,7 +25,11 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-from src.assumptions import CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE
+from src.assumptions import (
+    CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
+    PERPRES_112_CEILING_USD_MWH,
+    SUBSTATION_COLOCATION_RADIUS_KM,
+)
 from src.dash.logic.assumptions import UserAssumptions, UserThresholds
 from src.dash.logic.cbam import _detect_cbam_types, compute_cbam_trajectory
 from src.dash.logic.lcoe import _round, compute_lcoe_live, compute_lcoe_wind_live
@@ -92,6 +96,72 @@ def enrich_lcoe_and_gaps(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, An
 def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
     """Grid integration fields (category, infra cost, connectivity, capacity)."""
     return dict(ctx.grid_out)
+
+
+def enrich_anchor_and_regime(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
+    """V3.7: substation-anchored search diagnostics + solar_regime classification.
+
+    Surfaces the anchor picker's decision (which substation, search method, delivered
+    share of demand) and classifies the project as co-located captive vs grid-connected
+    IPP. For IPP rows, applies the Perpres 112/2022 ceiling tariff to the live
+    grid-connected LCOE so the dashboard shows the effective PPA price.
+    """
+    kek = ctx.kek
+    site_type = kek.get("site_type")
+    dist_solar_km = kek.get("dist_solar_to_nearest_substation_km")
+
+    def _val(k: str) -> Any:
+        v = kek.get(k)
+        if v is None:
+            return None
+        try:
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            pass
+        return v
+
+    # Classification heuristic mirrors build_fct_site_scorecard._classify_solar_regime:
+    # site inside a gazetted estate AND anchor within co-location radius → captive.
+    if pd.isna(site_type) or site_type in (None, ""):
+        regime = "unclear"
+    elif (
+        site_type in ("kek", "ki")
+        and pd.notna(dist_solar_km)
+        and float(dist_solar_km) <= SUBSTATION_COLOCATION_RADIUS_KM
+    ):
+        regime = "co_located_captive"
+    else:
+        regime = "grid_connected_ipp"
+
+    # Perpres 112 ceiling only applies to grid-connected IPP (sale to PLN).
+    gc_lcoe = row.get("lcoe_grid_connected_usd_mwh")
+    if gc_lcoe is None and ctx.gc_row is not None:
+        gc_lcoe = ctx.gc_row.get("lcoe_mid_usd_mwh")
+    if regime == "grid_connected_ipp" and gc_lcoe is not None and pd.notna(gc_lcoe):
+        capped = min(float(gc_lcoe), PERPRES_112_CEILING_USD_MWH)
+    else:
+        capped = float(gc_lcoe) if gc_lcoe is not None and pd.notna(gc_lcoe) else None
+
+    # Live project scale reflects `meaningful_share_pct` slider + target override,
+    # derived in compute_lcoe_live and surfaced via ctx.grid_out.
+    grid_out = getattr(ctx, "grid_out", None) or {}
+    live_scale = grid_out.get("effective_capacity_mwp")
+    if live_scale is None or (isinstance(live_scale, float) and pd.isna(live_scale)):
+        live_scale = _val("project_scale_solar_mwp")  # pipeline fallback
+    else:
+        live_scale = _round(float(live_scale), 2)
+
+    return {
+        "solar_regime": regime,
+        "lcoe_grid_connected_capped_usd_mwh": _round(capped),
+        "solar_search_method": _val("solar_search_method"),
+        "chosen_anchor_substation_name": _val("chosen_anchor_substation_name"),
+        "solar_supply_share_pct": _val("solar_supply_share_pct"),
+        "solar_delivered_share_pct": _val("solar_delivered_share_pct"),
+        "project_scale_solar_mwp": live_scale,
+        "nearest_substation_capacity_source": _val("nearest_substation_capacity_source"),
+    }
 
 
 def enrich_action_flags(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
@@ -484,7 +554,13 @@ def enrich_cross_domain(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]
         near_parity_threshold_pct=ctx.thresholds.resilience_gap_pct,
     )
     out["economic_tier"] = econ_tier
-    out["infrastructure_readiness"] = ctx.grid_out["grid_integration_category"]
+    # When no RE resource exists, grid integration is not applicable —
+    # there's nothing to connect. Frontend short-circuits the same way per energy mode.
+    out["infrastructure_readiness"] = (
+        "no_resource"
+        if econ_tier == EconomicTier.NO_RESOURCE
+        else ctx.grid_out["grid_integration_category"]
+    )
 
     # Modifier badges (overlay signals that cross-cut the 2D grid)
     badges: list[str] = []
@@ -521,6 +597,7 @@ def enrich_cross_domain(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]
 STAGES: list[Enricher] = [
     enrich_lcoe_and_gaps,
     enrich_grid_passthroughs,
+    enrich_anchor_and_regime,
     enrich_action_flags,
     enrich_carbon_and_viability,
     enrich_bess,
@@ -571,8 +648,15 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
     wind_tech:
         Wind tech cost parameters (capex, FOM, lifetime). If None, uses defaults.
     """
+    # Build demand lookup first — compute_lcoe_live needs it to size the
+    # effective project MWp (meaningful_share_pct slider + target override).
+    demand_by_site: dict[str, float] = {}
+    if demand_df is not None and not demand_df.empty:
+        for _, d_row in demand_df.iterrows():
+            demand_by_site[d_row["site_id"]] = float(d_row["demand_mwh"])
+
     # Shared setup (computed once, indexed for fast per-row lookup)
-    lcoe_df = compute_lcoe_live(resource_df, assumptions)
+    lcoe_df = compute_lcoe_live(resource_df, assumptions, demand_by_site=demand_by_site)
     wind_defaults = wind_tech or {
         "capex_usd_per_kw": 1650.0,
         "fom_usd_per_kw_yr": 40.0,
@@ -590,11 +674,6 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
     gc = lcoe_df[lcoe_df["scenario"] == "grid_connected_solar"].set_index("site_id")
 
     default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
-
-    demand_by_site: dict[str, float] = {}
-    if demand_df is not None and not demand_df.empty:
-        for _, d_row in demand_df.iterrows():
-            demand_by_site[d_row["site_id"]] = float(d_row["demand_mwh"])
 
     # Per-row pipeline
     rows: list[dict[str, Any]] = []
@@ -614,6 +693,12 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
             demand_by_site=demand_by_site,
         )
         row: dict[str, Any] = {"site_id": site_id}
+        # Expose the chosen solar patch coordinates so the frontend can
+        # highlight the buildable polygon the picker anchored to.
+        bs_lat = kek.get("best_solar_site_lat")
+        bs_lon = kek.get("best_solar_site_lon")
+        row["best_solar_site_lat"] = float(bs_lat) if pd.notna(bs_lat) else None
+        row["best_solar_site_lon"] = float(bs_lon) if pd.notna(bs_lon) else None
         for stage in STAGES:
             row.update(stage(ctx, row))
         rows.append(row)

@@ -42,6 +42,13 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
     pvout_within_boundary      avg annual PVOUT from buildable pixels within KEK boundary (V2.1)
                                NaN when fallback (theoretical) — uses pvout_centroid instead
     within_boundary_source     "raster" if spatial intersection, "theoretical" if fallback
+    solar_search_method        V3.7: "substation_anchored" if a co-located patch met
+                               MEANINGFUL_SHARE_PCT, else "best_pvout_fallback".
+                               Only fallback should produce "Build Substation" labels.
+    chosen_anchor_substation_name  V3.7: substation that anchors the chosen patch
+                               (None when fallback fires).
+    solar_supply_share_pct     V3.7: chosen patch nameplate ÷ required_mwp (capped 1.0).
+    solar_delivered_share_pct  V3.7: chosen patch generation_mwh ÷ demand_mwh (capped 1.0).
 
 Methodology reference: METHODOLOGY_CONSOLIDATED.md Sections 2.4 and 2.5, METHODOLOGY_V2.md §2
 50km buffer formula: lat_buf = 50/111.32, lon_buf = 50/(111.32×cos(lat_rad))
@@ -66,12 +73,22 @@ from rasterio.windows import from_bounds
 from shapely.geometry import shape
 from shapely.ops import unary_union
 
-from src.model.basic_model import pvout_daily_to_annual
+from src.model.basic_model import (
+    capacity_factor_from_pvout,
+    grid_connection_cost_per_kw,
+    lcoe_solar,
+    pvout_daily_to_annual,
+)
 from src.pipeline.assumptions import (
+    BASE_WACC_DECIMAL,
     HOURS_PER_YEAR,
+    KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM,
+    KEK_TO_SUBSTATION_THRESHOLD_KM,
     KM_PER_DEGREE_LAT,
+    MEANINGFUL_SHARE_PCT,
     PVOUT_BUFFER_KM,
     PVOUT_SOURCE,
+    SUBSTATION_COLOCATION_RADIUS_KM,
 )
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
@@ -86,6 +103,7 @@ from src.pipeline.buildability_filters import (
     compute_slope_degrees,
     haversine_km,
 )
+from src.pipeline.demand_intensity import required_solar_mwp
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GEOTIFF_ZIP = (
@@ -417,6 +435,199 @@ def _resample_landcover_binary_window(
         return None
 
 
+# ─── Substation-anchored picker (V3.7) ────────────────────────────────────────
+
+
+_REGION_TO_TIER_KEY: dict[str, str] = {
+    # dim_sites.grid_region_id values
+    "JAVA_BALI": "JAMALI",
+    "SUMATERA": "SUMATRA",
+    "KALIMANTAN": "KALIMANTAN",
+    "SULAWESI": "SULAWESI",
+    "MALUKU": "MALUKU_PAPUA",
+    "PAPUA": "MALUKU_PAPUA",
+    "NTB": "MALUKU_PAPUA",  # eastern islands behave like Maluku/Papua sparsity-wise
+    # PLN regpln values (Title-Case with hyphens)
+    "Jawa-Bali": "JAMALI",
+    "Sumatera": "SUMATRA",
+    "Kalimantan": "KALIMANTAN",
+    "Sulawesi": "SULAWESI",
+    "Maluku": "MALUKU_PAPUA",
+    "Maluku-Papua": "MALUKU_PAPUA",
+    "Papua": "MALUKU_PAPUA",
+    "Nusa Tenggara": "MALUKU_PAPUA",
+}
+
+
+def _search_radius_km(grid_region_id: str | None) -> float:
+    """Geography-tiered KEK→substation search radius. Falls back to legacy 15 km."""
+    if not grid_region_id:
+        return KEK_TO_SUBSTATION_THRESHOLD_KM
+    tier = _REGION_TO_TIER_KEY.get(grid_region_id)
+    if tier is None:
+        return KEK_TO_SUBSTATION_THRESHOLD_KM
+    return KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM.get(tier, KEK_TO_SUBSTATION_THRESHOLD_KM)
+
+
+def _annuity_factor(wacc: float, lifetime_yr: int) -> float:
+    """Capital recovery factor — same convention as basic_model.lcoe_solar."""
+    factor = (1 + wacc) ** lifetime_yr
+    return wacc * factor / (factor - 1)
+
+
+def _pick_anchored_patch(
+    filtered_mask: np.ndarray,
+    pvout_patch: np.ndarray,
+    win_transform: rasterio.transform.Affine,
+    site_lat: float,
+    site_lon: float,
+    site_demand_mwh: float,
+    cf_centroid: float,
+    substations: list[dict],
+    grid_region_id: str | None,
+    pix_ha: float,
+    tech_params: dict,
+) -> dict | None:
+    """Find the lowest-LCOE buildable patch co-located with an existing substation.
+
+    Returns a dict with patch coordinates, capacity, anchor substation name, and
+    delivered/supply share. Returns None when no candidate substation has enough
+    buildable area to meet meaningful_mwp — caller then falls back to argmax.
+
+    Algorithm (METHODOLOGY_CONSOLIDATED.md §8 — V3.7):
+      1. required_mwp  = demand_mwh / (8760 × cf_centroid)
+      2. meaningful_mwp = required_mwp × MEANINGFUL_SHARE_PCT  (default 30%)
+      3. For each substation within KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM[region]:
+           - intersect filtered_mask with circular SUBSTATION_COLOCATION_RADIUS_KM
+             buffer around the substation
+           - if buildable_mwp >= meaningful_mwp → keep as candidate
+      4. For each candidate, compute LCOE proxy:
+           lcoe_solar(cf_candidate) + amortised connection cost(dist)
+      5. Pick lowest-LCOE candidate → solar_search_method = "substation_anchored"
+    """
+    if site_demand_mwh <= 0 or cf_centroid <= 0 or not substations:
+        return None
+    if filtered_mask is None or filtered_mask.sum() == 0:
+        return None
+
+    required_mwp = required_solar_mwp(site_demand_mwh, cf_centroid)
+    if required_mwp <= 0:
+        return None
+    meaningful_mwp = required_mwp * MEANINGFUL_SHARE_PCT
+
+    radius_km = _search_radius_km(grid_region_id)
+
+    # Pre-compute pixel grids for distance masking — one mask per substation.
+    height, width = filtered_mask.shape
+    rows = np.arange(height)
+    cols = np.arange(width)
+    # Pixel center coordinates via affine transform (offset="center")
+    pixel_lons, pixel_lats = rasterio.transform.xy(
+        win_transform,
+        np.repeat(rows, width),
+        np.tile(cols, height),
+        offset="center",
+    )
+    pixel_lats = np.asarray(pixel_lats, dtype=float).reshape(height, width)
+    pixel_lons = np.asarray(pixel_lons, dtype=float).reshape(height, width)
+
+    candidates: list[dict] = []
+    for sub in substations:
+        sub_lat = sub["lat"]
+        sub_lon = sub["lon"]
+        site_to_sub = haversine_km(site_lat, site_lon, sub_lat, sub_lon)
+        if site_to_sub > radius_km:
+            continue
+
+        # Distance from each pixel to the substation
+        dlat = np.radians(pixel_lats - sub_lat)
+        dlon = np.radians(pixel_lons - sub_lon)
+        a = (
+            np.sin(dlat / 2) ** 2
+            + np.cos(np.radians(sub_lat)) * np.cos(np.radians(pixel_lats)) * np.sin(dlon / 2) ** 2
+        )
+        dist_to_sub_km = 6_371.0 * 2 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+        co_located = dist_to_sub_km <= SUBSTATION_COLOCATION_RADIUS_KM
+
+        candidate_mask = filtered_mask & co_located & np.isfinite(pvout_patch)
+        n_pixels = int(candidate_mask.sum())
+        if n_pixels == 0:
+            continue
+
+        candidate_area_ha = n_pixels * pix_ha
+        candidate_mwp = candidate_area_ha / HA_PER_MWP
+        if candidate_mwp < meaningful_mwp:
+            continue
+
+        # Mean PVOUT (daily) over the candidate patch
+        patch_vals = pvout_patch[candidate_mask]
+        finite_vals = patch_vals[np.isfinite(patch_vals) & (patch_vals > 0)]
+        if len(finite_vals) == 0:
+            continue
+        mean_pvout_daily = float(np.mean(finite_vals))
+
+        try:
+            mean_pvout_annual = pvout_daily_to_annual(mean_pvout_daily)
+        except ValueError:
+            continue
+        cf_candidate = capacity_factor_from_pvout(mean_pvout_annual)
+        if cf_candidate <= 0:
+            continue
+
+        # LCOE proxy: solar LCOE at candidate CF + amortised connection cost.
+        # Use the SITE→substation distance — that's the relevant gen-tie length
+        # because the patch is BY DEFINITION ≤ 10 km from the substation.
+        try:
+            lcoe_base = lcoe_solar(
+                tech_params["capex_usd_per_kw"],
+                tech_params["fixed_om_usd_per_kw_yr"],
+                tech_params["wacc"],
+                tech_params["lifetime_yr"],
+                cf_candidate,
+            )
+        except ValueError:
+            continue
+
+        conn_capex = grid_connection_cost_per_kw(site_to_sub)
+        # Amortise connection capex over lifetime, divide by annual generation.
+        # generation_per_kw_yr = cf × 8760 h × 1 kW = cf × 8760 kWh = cf × 8.76 MWh
+        crf = _annuity_factor(tech_params["wacc"], tech_params["lifetime_yr"])
+        conn_lcoe = (conn_capex * crf) / (cf_candidate * 8.76)
+        lcoe_proxy = lcoe_base + conn_lcoe
+
+        # Area-weighted patch centroid (for downstream best_solar_site_lat/lon)
+        patch_lat = float(np.mean(pixel_lats[candidate_mask]))
+        patch_lon = float(np.mean(pixel_lons[candidate_mask]))
+
+        # Delivered-energy share corrects for capacity-factor reality:
+        # nameplate × 8760 × cf = annual MWh actually generated.
+        candidate_generation_mwh = candidate_mwp * 1000 * 8760 * cf_candidate
+        supply_share = min(candidate_mwp / required_mwp, 1.0)
+        delivered_share = min(candidate_generation_mwh / site_demand_mwh, 1.0)
+
+        candidates.append(
+            {
+                "anchor_name": sub["name"],
+                "site_to_sub_km": site_to_sub,
+                "patch_lat": round(patch_lat, 5),
+                "patch_lon": round(patch_lon, 5),
+                "mean_pvout_daily": mean_pvout_daily,
+                "patch_area_ha": round(candidate_area_ha, 1),
+                "patch_capacity_mwp": round(candidate_mwp, 1),
+                "supply_share_pct": round(supply_share, 4),
+                "delivered_share_pct": round(delivered_share, 4),
+                "lcoe_proxy": lcoe_proxy,
+            }
+        )
+
+    if not candidates:
+        return None
+
+    # Pick lowest LCOE proxy
+    best = min(candidates, key=lambda c: c["lcoe_proxy"])
+    return best
+
+
 def _compute_buildable_pvout(
     pvout_patch: np.ndarray,
     window: rasterio.windows.Window,
@@ -424,25 +635,59 @@ def _compute_buildable_pvout(
     lon: float,
     lat: float,
     data_dir: Path = BUILDABILITY_DIR,
-) -> tuple[float, float, float, str, float, float, float, np.ndarray | None, object | None]:
+    site_demand_mwh: float = 0.0,
+    cf_centroid: float = 0.0,
+    substations: list[dict] | None = None,
+    grid_region_id: str | None = None,
+    tech_params: dict | None = None,
+) -> tuple[
+    float,
+    float,
+    float,
+    str,
+    float,
+    float,
+    float,
+    np.ndarray | None,
+    object | None,
+    str,
+    str | None,
+    float,
+    float,
+]:
     """Apply the 4-layer land suitability filter to a PVOUT patch.
 
     Applies whatever data files are present in data_dir — layers with missing
     files are skipped (pass-through). Returns "data_unavailable" only when
     NO buildability files at all are present.
 
+    V3.7: when site_demand_mwh > 0 and substations are provided, picks the best
+    *substation-anchored* buildable patch (lowest LCOE proxy) instead of the
+    naive argmax(PVOUT) pixel. Falls back to argmax when no candidate substation
+    has enough buildable area to meet MEANINGFUL_SHARE_PCT of demand.
+    See METHODOLOGY_CONSOLIDATED.md §8 for the search algorithm.
+
     Args:
-        pvout_patch:   2D daily PVOUT values (kWh/kWp/day) from the raw raster window.
-        window:        rasterio Window corresponding to the patch.
-        src_transform: Affine transform of the source PVOUT raster.
-        lon, lat:      KEK centroid coordinates (for pixel-area computation).
-        data_dir:      Directory containing buildability data files.
+        pvout_patch:       2D daily PVOUT values (kWh/kWp/day) from the raw raster window.
+        window:            rasterio Window corresponding to the patch.
+        src_transform:     Affine transform of the source PVOUT raster.
+        lon, lat:          KEK centroid coordinates (for pixel-area computation).
+        data_dir:          Directory containing buildability data files.
+        site_demand_mwh:   Annual demand for sizing the meaningful-share floor.
+        cf_centroid:       Capacity factor at site centroid (sizes required_mwp).
+        substations:       Operational substations [{"name", "lat", "lon", ...}, ...].
+        grid_region_id:    Site's grid region (drives geography-tiered search radius).
+        tech_params:       Dict with capex_usd_per_kw, fixed_om_usd_per_kw_yr,
+                           wacc, lifetime_yr — used for LCOE-proxy ranking.
 
     Returns:
         (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str,
          best_solar_site_lat, best_solar_site_lon, best_solar_site_dist_km,
-         filtered_mask, win_transform)
-        Returns (NaN, ..., None, None) when no files are present.
+         filtered_mask, win_transform,
+         solar_search_method, chosen_anchor_substation_name,
+         solar_supply_share_pct, solar_delivered_share_pct)
+        Returns (NaN, ..., None, None, "data_unavailable", None, NaN, NaN)
+        when no files are present.
 
     Note on resolution:
         PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
@@ -452,7 +697,21 @@ def _compute_buildable_pvout(
 
     available = _available_build_files(data_dir)
     if not available:
-        return np.nan, np.nan, np.nan, "data_unavailable", np.nan, np.nan, np.nan, None, None
+        return (
+            np.nan,
+            np.nan,
+            np.nan,
+            "data_unavailable",
+            np.nan,
+            np.nan,
+            np.nan,
+            None,
+            None,
+            "data_unavailable",
+            None,
+            np.nan,
+            np.nan,
+        )
 
     win_transform = rasterio.windows.transform(window, src_transform)
     height, width = pvout_patch.shape
@@ -471,7 +730,21 @@ def _compute_buildable_pvout(
     n_raw = int(valid.sum())
 
     if n_raw == 0:
-        return np.nan, 0.0, 0.0, "unconstrained", np.nan, np.nan, np.nan, None, None
+        return (
+            np.nan,
+            0.0,
+            0.0,
+            "unconstrained",
+            np.nan,
+            np.nan,
+            np.nan,
+            None,
+            None,
+            "no_pvout",
+            None,
+            np.nan,
+            np.nan,
+        )
 
     pvout_working = np.where(valid, pvout_patch, 0.0).astype(float)
 
@@ -562,23 +835,80 @@ def _compute_buildable_pvout(
     buildable_area_ha = round(n_after_4 * pix_ha, 1)
     max_mwp = round(buildable_area_ha / HA_PER_MWP, 1)
 
-    # Find best buildable pixel and its geographic coordinates
-    buildable_pvout = np.where(filtered_mask & np.isfinite(pvout_patch), pvout_patch, -np.inf)
-    if buildable_pvout.max() > -np.inf:
-        best_idx = np.unravel_index(buildable_pvout.argmax(), buildable_pvout.shape)
-        pvout_buildable_daily = float(pvout_patch[best_idx])
-        # Convert pixel row/col to geographic coordinates using the window transform
-        best_lon, best_lat = rasterio.transform.xy(
-            win_transform, best_idx[0], best_idx[1], offset="center"
+    # ── Substation-anchored picker (V3.7) ────────────────────────────────────
+    # Try the anchored picker first when demand + substation context is supplied.
+    # If it returns None (no candidate hits MEANINGFUL_SHARE_PCT), fall back to
+    # the legacy argmax(PVOUT) pixel. The "fallback" path is exactly what should
+    # produce a legitimate "Build Substation" recommendation downstream.
+    anchored = None
+    if (
+        substations is not None
+        and tech_params is not None
+        and site_demand_mwh > 0
+        and cf_centroid > 0
+    ):
+        anchored = _pick_anchored_patch(
+            filtered_mask=filtered_mask,
+            pvout_patch=pvout_patch,
+            win_transform=win_transform,
+            site_lat=lat,
+            site_lon=lon,
+            site_demand_mwh=site_demand_mwh,
+            cf_centroid=cf_centroid,
+            substations=substations,
+            grid_region_id=grid_region_id,
+            pix_ha=pix_ha,
+            tech_params=tech_params,
         )
-        best_solar_lat = round(float(best_lat), 5)
-        best_solar_lon = round(float(best_lon), 5)
+
+    if anchored is not None:
+        pvout_buildable_daily = anchored["mean_pvout_daily"]
+        best_solar_lat = anchored["patch_lat"]
+        best_solar_lon = anchored["patch_lon"]
         best_solar_dist_km = round(haversine_km(lat, lon, best_solar_lat, best_solar_lon), 2)
+        solar_search_method = "substation_anchored"
+        chosen_anchor_substation_name = anchored["anchor_name"]
+        solar_supply_share_pct = anchored["supply_share_pct"]
+        solar_delivered_share_pct = anchored["delivered_share_pct"]
     else:
-        pvout_buildable_daily = np.nan
-        best_solar_lat = np.nan
-        best_solar_lon = np.nan
-        best_solar_dist_km = np.nan
+        # Fallback: legacy argmax(PVOUT) pixel
+        buildable_pvout = np.where(filtered_mask & np.isfinite(pvout_patch), pvout_patch, -np.inf)
+        if buildable_pvout.max() > -np.inf:
+            best_idx = np.unravel_index(buildable_pvout.argmax(), buildable_pvout.shape)
+            pvout_buildable_daily = float(pvout_patch[best_idx])
+            best_lon, best_lat = rasterio.transform.xy(
+                win_transform, best_idx[0], best_idx[1], offset="center"
+            )
+            best_solar_lat = round(float(best_lat), 5)
+            best_solar_lon = round(float(best_lon), 5)
+            best_solar_dist_km = round(haversine_km(lat, lon, best_solar_lat, best_solar_lon), 2)
+        else:
+            pvout_buildable_daily = np.nan
+            best_solar_lat = np.nan
+            best_solar_lon = np.nan
+            best_solar_dist_km = np.nan
+        solar_search_method = "best_pvout_fallback"
+        chosen_anchor_substation_name = None
+        # When fallback fires, derive shares from the chosen pixel's nameplate
+        # (max_mwp covers the whole 50km radius; the fallback pixel's "patch"
+        # is effectively the entire buildable area).
+        if site_demand_mwh > 0 and cf_centroid > 0 and np.isfinite(pvout_buildable_daily):
+            required_mwp = required_solar_mwp(site_demand_mwh, cf_centroid)
+            if required_mwp > 0:
+                solar_supply_share_pct = round(min(max_mwp / required_mwp, 1.0), 4)
+                try:
+                    pvout_annual_fb = pvout_daily_to_annual(pvout_buildable_daily)
+                    cf_fb = capacity_factor_from_pvout(pvout_annual_fb)
+                    gen_mwh = max_mwp * 1000 * 8760 * cf_fb
+                    solar_delivered_share_pct = round(min(gen_mwh / site_demand_mwh, 1.0), 4)
+                except ValueError:
+                    solar_delivered_share_pct = np.nan
+            else:
+                solar_supply_share_pct = np.nan
+                solar_delivered_share_pct = np.nan
+        else:
+            solar_supply_share_pct = np.nan
+            solar_delivered_share_pct = np.nan
 
     constraint = compute_buildability_constraint(
         n_raw, n_after_1a, n_after_1b, n_after_1cd, n_after_3a, n_after_2, n_after_4
@@ -588,6 +918,7 @@ def _compute_buildable_pvout(
     def _pct(removed: int) -> str:
         return f"{removed / n_raw * 100:.1f}%" if n_raw > 0 else "—"
 
+    anchor_tag = f" anchor={chosen_anchor_substation_name}" if chosen_anchor_substation_name else ""
     print(
         f"    layers: raw={n_raw}"
         f"  -kh={n_raw - n_after_1a}({_pct(n_raw - n_after_1a)})"
@@ -596,6 +927,7 @@ def _compute_buildable_pvout(
         f"  -road={n_after_1cd - n_after_3a}({_pct(n_after_1cd - n_after_3a)})"
         f"  -slope={n_after_3a - n_after_2}({_pct(n_after_3a - n_after_2)})"
         f"  buildable={n_after_4}  constraint={constraint}"
+        f"  picker={solar_search_method}{anchor_tag}"
     )
 
     return (
@@ -608,10 +940,69 @@ def _compute_buildable_pvout(
         best_solar_dist_km,
         filtered_mask,
         win_transform,
+        solar_search_method,
+        chosen_anchor_substation_name,
+        solar_supply_share_pct,
+        solar_delivered_share_pct,
     )
 
 
 # ─── Builder ──────────────────────────────────────────────────────────────────
+
+
+def _load_substations_for_picker(path: Path) -> list[dict]:
+    """Load operational PLN substations as a flat list for the anchored picker.
+
+    Mirrors _load_substations() in build_fct_substation_proximity.py but lives
+    here to avoid a circular dependency (proximity reads fct_site_resource).
+    """
+    if not path.exists():
+        return []
+    with path.open() as f:
+        gj = json.load(f)
+    subs: list[dict] = []
+    for feat in gj["features"]:
+        props = feat["properties"]
+        if props.get("statopr", "").strip() != "Operasi":
+            continue
+        lon, lat = feat["geometry"]["coordinates"]
+        subs.append(
+            {
+                "name": props.get("namobj", ""),
+                "lat": float(lat),
+                "lon": float(lon),
+            }
+        )
+    return subs
+
+
+def _load_site_demand_2030_mwh(path: Path) -> dict[str, float]:
+    """Return {site_id: demand_mwh_2030} from fct_site_demand.csv. Missing → 0.0."""
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path)
+    df = df[df["year"] == 2030]
+    return {str(r["site_id"]): float(r["demand_mwh"]) for _, r in df.iterrows()}
+
+
+def _load_tech_params(path: Path) -> dict:
+    """Load TECH006 (utility-scale solar) parameters for LCOE-proxy ranking."""
+    if not path.exists():
+        # Hardcoded fallback matches dim_tech_cost.csv ground truth
+        return {
+            "capex_usd_per_kw": 960.0,
+            "fixed_om_usd_per_kw_yr": 7.5,
+            "wacc": BASE_WACC_DECIMAL,
+            "lifetime_yr": 27,
+        }
+    df = pd.read_csv(path)
+    row = df[df["tech_id"] == "TECH006"].iloc[0]
+    return {
+        "capex_usd_per_kw": float(row["capex_usd_per_kw"]),
+        "fixed_om_usd_per_kw_yr": float(row["fixed_om_usd_per_kw_yr"]),
+        "wacc": BASE_WACC_DECIMAL,
+        "lifetime_yr": int(row["lifetime_yr"]),
+    }
 
 
 def build_fct_site_resource(
@@ -623,6 +1014,9 @@ def build_fct_site_resource(
 
     When buildability data is available in buildability_dir, also computes
     pvout_buildable_best_50km and related columns (see module docstring).
+
+    V3.7: substation-anchored picker requires fct_site_demand.csv + substation.geojson
+    + dim_tech_cost.csv. If any are missing, falls back to legacy argmax(PVOUT).
     """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
@@ -630,6 +1024,24 @@ def build_fct_site_resource(
     tif_bytes = (
         _load_pvout_tif_bytes()
     )  # uses module-level GEOTIFF_ZIP; geotiff_zip param reserved for override
+
+    # V3.7: substation-anchored picker context
+    substation_geojson = REPO_ROOT / "data" / "substation.geojson"
+    fct_site_demand_csv = PROCESSED / "fct_site_demand.csv"
+    dim_tech_cost_csv = PROCESSED / "dim_tech_cost.csv"
+    substations = _load_substations_for_picker(substation_geojson)
+    site_demand_lookup = _load_site_demand_2030_mwh(fct_site_demand_csv)
+    tech_params = _load_tech_params(dim_tech_cost_csv)
+    if substations and site_demand_lookup:
+        print(
+            f"  V3.7 anchored picker: {len(substations)} substations, "
+            f"{len(site_demand_lookup)} site demands"
+        )
+    else:
+        print(
+            "  V3.7 anchored picker: prerequisites missing — falling back to "
+            "argmax(PVOUT) for all sites"
+        )
 
     available = _available_build_files(buildability_dir)
     n_avail = len(available)
@@ -705,6 +1117,16 @@ def build_fct_site_resource(
                 print(f"  WARNING best_50km {row['site_id']}: {e}")
                 pvout_b = np.nan
 
+            # V3.7: per-site picker context — demand, region, centroid CF
+            site_id_for_lookup = str(row["site_id"])
+            site_demand_mwh = site_demand_lookup.get(site_id_for_lookup, 0.0)
+            grid_region_id = (
+                str(row["grid_region_id"]) if pd.notna(row.get("grid_region_id")) else None
+            )
+            cf_centroid_for_picker = (
+                float(pvout_c) / HOURS_PER_YEAR if np.isfinite(pvout_c) else 0.0
+            )
+
             # Buildability filter (graceful degradation when data absent)
             (
                 pvout_buildable_daily,
@@ -716,8 +1138,22 @@ def build_fct_site_resource(
                 best_solar_dist_km,
                 build_mask,
                 build_win_tf,
+                solar_search_method,
+                chosen_anchor_substation_name,
+                solar_supply_share_pct,
+                solar_delivered_share_pct,
             ) = _compute_buildable_pvout(
-                pvout_patch, window_50km, src.transform, lon, lat, buildability_dir
+                pvout_patch,
+                window_50km,
+                src.transform,
+                lon,
+                lat,
+                buildability_dir,
+                site_demand_mwh=site_demand_mwh,
+                cf_centroid=cf_centroid_for_picker,
+                substations=substations or None,
+                grid_region_id=grid_region_id,
+                tech_params=tech_params,
             )
             try:
                 pvout_buildable = (
@@ -817,6 +1253,15 @@ def build_fct_site_resource(
                     if np.isfinite(wb_pvout_annual)
                     else np.nan,
                     "within_boundary_source": wb_source,
+                    # V3.7: substation-anchored picker outputs
+                    "solar_search_method": solar_search_method,
+                    "chosen_anchor_substation_name": chosen_anchor_substation_name,
+                    "solar_supply_share_pct": solar_supply_share_pct
+                    if np.isfinite(solar_supply_share_pct)
+                    else np.nan,
+                    "solar_delivered_share_pct": solar_delivered_share_pct
+                    if np.isfinite(solar_delivered_share_pct)
+                    else np.nan,
                 }
             )
 
@@ -850,6 +1295,12 @@ def main() -> None:
         n_raster = (df["within_boundary_source"] == "raster").sum()
         n_theoretical = (df["within_boundary_source"] == "theoretical").sum()
         print(f"  within-boundary source: {n_raster} raster, {n_theoretical} theoretical")
+
+    # V3.7: substation-anchored picker distribution
+    if "solar_search_method" in df.columns:
+        method_counts = df["solar_search_method"].value_counts().to_dict()
+        method_summary = ", ".join(f"{k}={v}" for k, v in sorted(method_counts.items()))
+        print(f"  solar_search_method: {method_summary}")
 
     out = PROCESSED / "fct_site_resource.csv"
     PROCESSED.mkdir(parents=True, exist_ok=True)

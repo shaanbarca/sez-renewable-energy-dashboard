@@ -31,6 +31,7 @@ export function GridTab({
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
   const utilizationConfig = sliderConfigs?.tier2?.substation_utilization_pct;
+  const meaningfulShareConfig = sliderConfigs?.tier2?.meaningful_share_pct;
   const cap = row.capacity_assessment ?? 'unknown';
   const nearest = substations.find((s) => s.is_nearest);
 
@@ -78,9 +79,55 @@ export function GridTab({
           label="Solar-Sub Distance"
           value={row.dist_solar_to_nearest_substation_km?.toFixed(1)}
           unit="km"
-          tip="Distance from the best solar site to the nearest substation. Drives gen-tie connection cost ($5/kW per km + $80/kW fixed)."
+          tip="Distance from the chosen solar patch to the nearest substation. Drives gen-tie connection cost ($5/kW per km + $80/kW fixed)."
         />
       </StatCard>
+
+      {row.solar_search_method && (
+        <StatCard>
+          <SectionHeader
+            title="Solar Site Selection"
+            subtitle="How was the best solar patch within 50km chosen?"
+            tip="V3.7 anchored search: ranks candidate patches by LCOE including gen-tie cost instead of raw PVOUT, so small PVOUT deltas don't override large connection-cost savings."
+          />
+          <StatRowWithTip
+            label="Search Method"
+            value={
+              row.solar_search_method === 'substation_anchored'
+                ? 'Anchored to substation'
+                : 'Best PVOUT (fallback)'
+            }
+            tip="'Anchored' = a buildable patch within 10km of an existing substation met the 30% demand-coverage floor and beat other candidates on all-in LCOE. 'Fallback' = no nearby patch qualified, reverted to pure PVOUT argmax."
+          />
+          {row.chosen_anchor_substation_name && (
+            <StatRow label="Anchor Substation" value={row.chosen_anchor_substation_name} />
+          )}
+          {row.project_scale_solar_mwp != null && (
+            <StatRowWithTip
+              label="Project Scale"
+              value={row.project_scale_solar_mwp.toFixed(1)}
+              unit="MWp"
+              tip="Project-scale solar capacity = min(required_mwp, max_buildable). This is what actually gets built to cover site demand, not the full buildable area."
+            />
+          )}
+          {row.solar_delivered_share_pct != null && (
+            <StatRowWithTip
+              label="Demand Coverage"
+              value={(row.solar_delivered_share_pct * 100).toFixed(0)}
+              unit="%"
+              tip="Share of annual site demand (2030) that the anchored patch can deliver, accounting for capacity factor. Supply share (nameplate) is {row.solar_supply_share_pct}."
+            />
+          )}
+          {row.nearest_substation_capacity_source &&
+            row.nearest_substation_capacity_source !== 'actual' && (
+              <StatRowWithTip
+                label="Capacity Source"
+                value={formatSnakeLabel(row.nearest_substation_capacity_source) ?? 'N/A'}
+                tip="PLN kapgi (nameplate MVA) was missing for this substation. Used voltage-class proxy × 30% availability as a conservative upper bound."
+              />
+            )}
+        </StatCard>
+      )}
 
       <StatCard>
         <SectionHeader
@@ -126,6 +173,22 @@ export function GridTab({
             unit={utilizationConfig.unit}
             description={utilizationConfig.description}
           />
+          {meaningfulShareConfig && (
+            <div className="mt-3">
+              <Slider
+                value={assumptions.meaningful_share_pct}
+                onChange={(v) =>
+                  setAssumptions({ meaningful_share_pct: v } as Partial<UserAssumptions>)
+                }
+                min={meaningfulShareConfig.min}
+                max={meaningfulShareConfig.max}
+                step={meaningfulShareConfig.step}
+                label={meaningfulShareConfig.label}
+                unit={meaningfulShareConfig.unit}
+                description={meaningfulShareConfig.description}
+              />
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-1">
             <span
               className="inline-block w-2.5 h-2.5 rounded-full"
@@ -142,8 +205,46 @@ export function GridTab({
             }
             unit="MVA"
           />
+          {(cap === 'red' || cap === 'yellow') &&
+            row.project_scale_solar_mwp != null &&
+            row.available_capacity_mva != null && (
+              <div
+                className="mt-2 p-2 rounded text-[10px] leading-relaxed"
+                style={{
+                  background: 'rgba(244, 67, 54, 0.08)',
+                  border: '1px solid rgba(244, 67, 54, 0.25)',
+                  color: 'var(--text-value)',
+                }}
+              >
+                <div className="font-medium mb-0.5" style={{ color: CAPACITY_COLORS[cap] }}>
+                  Why upgrade?
+                </div>
+                At{' '}
+                <strong>
+                  {(assumptions.meaningful_share_pct * 100).toFixed(0)}% meaningful share
+                </strong>
+                , project sizes to <strong>{row.project_scale_solar_mwp.toFixed(0)} MWp</strong>{' '}
+                solar, but the anchor substation has only{' '}
+                <strong>{(row.available_capacity_mva * 0.85).toFixed(0)} MW</strong> of free
+                throughput ({row.available_capacity_mva.toFixed(0)} MVA × 0.85 power factor).
+                Transformers need uprating — not a new substation — to absorb the surplus.
+                {row.substation_upgrade_cost_per_kw != null &&
+                  row.substation_upgrade_cost_per_kw > 0 && (
+                    <>
+                      {' '}
+                      Deficit shows up as{' '}
+                      <strong>${row.substation_upgrade_cost_per_kw.toFixed(0)}/kW</strong> of uprate
+                      cost below.
+                    </>
+                  )}
+                <div className="mt-1 opacity-80">
+                  Lower the meaningful-share slider above to shrink the project and see if the flag
+                  flips to Grid Ready.
+                </div>
+              </div>
+            )}
           <div className="mt-1 text-[9px] text-[var(--text-muted)] leading-relaxed">
-            Applies to all KEKs. Actual utilization requires PLN grid study.
+            Applies to all sites. Actual utilization requires PLN grid study.
           </div>
         </StatCard>
       )}

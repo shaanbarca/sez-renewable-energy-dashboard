@@ -1,9 +1,31 @@
 import { useMemo, useState } from 'react';
-import { ECONOMIC_TIER_COLORS, ECONOMIC_TIER_LABELS } from '../../../lib/constants';
+import {
+  ECONOMIC_TIER_COLORS,
+  ECONOMIC_TIER_LABELS,
+  INFRA_READINESS_COLORS,
+  INFRA_READINESS_HIERARCHY,
+  INFRA_READINESS_LABELS,
+} from '../../../lib/constants';
 import { type FlipDiffRow, flipDiffToCsv } from '../../../lib/flipDiff';
 import { useDashboardStore } from '../../../store/dashboard';
 
-type SortKey = 'site_name' | 'sector' | 'tier' | 'lcoe' | 'delta_lcoe' | 'gap_delta' | 'direction';
+type SortKey =
+  | 'site_name'
+  | 'sector'
+  | 'tier'
+  | 'infra'
+  | 'lcoe'
+  | 'delta_lcoe'
+  | 'gap_delta'
+  | 'direction';
+
+const INFRA_RANK: Record<string, number> = INFRA_READINESS_HIERARCHY.reduce(
+  (acc, key, idx) => {
+    acc[key] = idx;
+    return acc;
+  },
+  {} as Record<string, number>,
+);
 
 type SortDir = 'asc' | 'desc';
 
@@ -65,6 +87,9 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
           break;
         case 'tier':
           cmp = a.tier_flip.localeCompare(b.tier_flip);
+          break;
+        case 'infra':
+          cmp = (INFRA_RANK[a.infra_flip] ?? 99) - (INFRA_RANK[b.infra_flip] ?? 99);
           break;
         case 'lcoe': {
           const av = a.lcoe_flip ?? Number.POSITIVE_INFINITY;
@@ -179,6 +204,9 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
               <th className="px-2 py-1.5">
                 <HeaderBtn label="Tier (flip)" k="tier" />
               </th>
+              <th className="px-2 py-1.5">
+                <HeaderBtn label="Infra Ready (flip)" k="infra" />
+              </th>
               <th className="px-2 py-1.5 text-right">
                 <HeaderBtn label="Direction" k="direction" />
               </th>
@@ -229,6 +257,23 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
                     ) : (
                       <span style={{ color: ECONOMIC_TIER_COLORS[r.tier_flip] }}>
                         {ECONOMIC_TIER_LABELS[r.tier_flip]}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    {r.infra_baseline !== r.infra_flip ? (
+                      <span>
+                        <span style={{ color: INFRA_READINESS_COLORS[r.infra_baseline] }}>
+                          {INFRA_READINESS_LABELS[r.infra_baseline]}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}> → </span>
+                        <span style={{ color: INFRA_READINESS_COLORS[r.infra_flip] }}>
+                          {INFRA_READINESS_LABELS[r.infra_flip]}
+                        </span>
+                      </span>
+                    ) : (
+                      <span style={{ color: INFRA_READINESS_COLORS[r.infra_flip] }}>
+                        {INFRA_READINESS_LABELS[r.infra_flip]}
                       </span>
                     )}
                   </td>

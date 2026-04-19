@@ -183,6 +183,7 @@ def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge
     solar_lon = None
     utilization_pct = 0.65  # default
 
+    anchor_name: str | None = None
     if not res_row.empty:
         r = res_row.iloc[0]
         solar_mwp = (
@@ -203,6 +204,14 @@ def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge
         solar_lon = (
             float(r["best_solar_site_lon"]) if pd.notna(r.get("best_solar_site_lon")) else None
         )
+        anchor_val = r.get("chosen_anchor_substation_name")
+        if pd.notna(anchor_val):
+            anchor_name = str(anchor_val)
+
+    # Mark the picker's anchor substation (the one that co-chose the amber polygon).
+    # Falls through to is_nearest when no anchor exists (fallback picker).
+    for s in nearby:
+        s["is_anchor"] = anchor_name is not None and s["name"] == anchor_name
 
     def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Haversine distance in km."""

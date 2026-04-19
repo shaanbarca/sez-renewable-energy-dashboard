@@ -645,9 +645,9 @@ When set to BPP, competitive gap, action flags, and carbon breakeven all recompu
 
 | Point | Source | Description |
 |---|---|---|
-| **A** - Best solar site | `fct_kek_resource` (`best_solar_site_lat/lon`) | Highest-PVOUT buildable pixel within 50km |
+| **A** - Chosen solar site | `fct_site_resource` (`best_solar_site_lat/lon`) | V3.7: substation-anchored patch (lowest LCOE proxy) if one qualifies, else fallback to highest-PVOUT buildable pixel within 50km. See §8.7. |
 | **B** - Nearest PLN substation | `data/substation.geojson` (2,913 substations) | Nearest to point A or C (may differ) |
-| **C** - KEK centroid | `dim_kek` | Geographic center of KEK polygon |
+| **C** - Site centroid | `dim_sites` | Geographic center of site polygon (KEK) or tracker coordinate (industrial) |
 
 For each KEK:
 - **d(A, B_solar):** solar site to nearest substation
@@ -746,6 +746,56 @@ $$\text{upgrade\_cost} = \text{deficit\_fraction} \times \$80/\text{kW}$$
 The power factor conversion (0.85, see §8.4) ensures the comparison is between real power quantities. Cost is \$0 when available real power exceeds solar capacity, and scales linearly to \$80/kW when the substation has zero available capacity. The \$80/kW default covers transformer upgrade, new bay, buswork, and protection relay upgrades (IRENA 2023: \$50-150/kW range). Returns \$0 when capacity data is unknown (conservative).
 
 **Multi-substation comparison (implemented V3.1).** The `/kek/{id}/substations` API endpoint evaluates the top 3 substations within search radius and compares total interconnection cost per substation (connection + upgrade + transmission). Displayed in the ScoreDrawer Grid tab as a side-by-side comparison with capacity traffic lights and rank-coded map markers (gold/silver/cyan).
+
+### 8.7 Substation-anchored solar search (V3.7)
+
+**Problem.** Pre-V3.7, point A was `argmax(PVOUT)` over the 50 km buildable mask. PVOUT varies ~1-2% across 50 km in tropical Indonesia, but substation distance can vary 10× over the same area. Optimizing for the 1% PVOUT delta sent the model to pixels geometrically far from any substation, producing false "Build Substation" labels for small-demand sites whose nearest substation was visibly adjacent on the map (e.g. Batam Aero Technic: labeled `invest_substation` with a 17.9 km solar-to-substation distance, when GI 150 kV Nongsa 1 sat 3.96 km from the site).
+
+**Solution.** Pick the lowest-LCOE buildable patch co-located with an existing substation, falling back to `argmax(PVOUT)` only when no patch meets a meaningful-share floor. The fallback path is the only one that should produce `invest_substation`.
+
+**Algorithm** (implemented in `_pick_anchored_patch()` in `src/pipeline/build_fct_site_resource.py`):
+
+1. **Required capacity** from 2030 demand:
+   $$\text{required\_mwp} = \frac{\text{demand\_mwh}}{8760 \times \text{cf\_centroid}}$$
+2. **Meaningful-share floor:**
+   $$\text{meaningful\_mwp} = \text{required\_mwp} \times \text{MEANINGFUL\_SHARE\_PCT}$$
+3. **For each substation** within `KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM[region]` of the site:
+   - intersect the 5-layer buildable mask with a `SUBSTATION_COLOCATION_RADIUS_KM` (10 km) circular buffer around the substation
+   - if buildable area × (1 / `HA_PER_MWP`) ≥ `meaningful_mwp`, keep as candidate
+4. **LCOE proxy** for each candidate:
+   $$\text{lcoe\_proxy} = \text{lcoe\_solar}(\text{cf\_candidate}) + \frac{\text{conn\_capex\_per\_kw}(d_\text{site→sub}) \times \text{CRF}}{cf \times 8.76}$$
+   where the second term amortises the gen-tie CAPEX over annual generation. This trades the small PVOUT delta against the often-larger connection cost saving.
+5. **Pick** the candidate with the lowest `lcoe_proxy` → `solar_search_method = "substation_anchored"`.
+6. **Fallback.** If no substation within the tiered radius has enough buildable area within 10 km to meet `meaningful_mwp`, revert to the legacy argmax pixel and flag `solar_search_method = "best_pvout_fallback"`. Only the fallback path can legitimately produce `invest_substation`.
+
+**Thresholds:**
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| `MEANINGFUL_SHARE_PCT` | 0.30 (default, **user-adjustable via slider**) | Patches covering <30% of demand are too small to count as a meaningful decarbonization play; fallback produces a legitimate "Build Substation" label instead. The pipeline-time picker floor remains fixed at 30%; the slider controls live project sizing (`project_scale_solar_mwp = min(required × share, max_buildable)`) which in turn drives `capacity_assessment` and the `invest_substation` label. Raising the slider makes more sites appear to need substation upgrades; lowering it makes more sites appear Grid Ready. |
+| `SUBSTATION_COLOCATION_RADIUS_KM` | 10.0 km | Search-candidate radius around each substation. Restores pre-V3.1 radius; `SOLAR_TO_SUBSTATION_THRESHOLD_KM` (5 km) remains the classification threshold. Indonesian permitting + land economics allow longer gen-ties than US/EU 5 km benchmarks. |
+| `KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM` | JAMALI 15, SUMATRA 25, KALIMANTAN 30, SULAWESI 30, MALUKU_PAPUA 40 | Geography-tiered — Indonesia's grid density varies by order of magnitude across regions. |
+
+**New output columns** (`fct_site_resource` + surfaced on scorecard):
+
+| Column | Description |
+|---|---|
+| `solar_search_method` | `substation_anchored` or `best_pvout_fallback` |
+| `chosen_anchor_substation_name` | Name of the substation anchoring the chosen patch (null on fallback) |
+| `solar_supply_share_pct` | Chosen patch nameplate MWp / required_mwp (capped 1.0) |
+| `solar_delivered_share_pct` | Chosen patch annual generation MWh / demand MWh, capped 1.0 — the CF-corrected version of supply share |
+| `project_scale_solar_mwp` | min(required_mwp, max_buildable) — what actually gets built to cover site demand, not the full buildable area |
+
+**Hosting-capacity proxy (V3.7 Action 2).** PLN `kapgi` (nameplate MVA) is missing for ~XX% of operational substations. Without a proxy, every capacity check silently passes on NaN. When `kapgi` is missing, the pipeline substitutes a voltage-class proxy from `SUBSTATION_HOSTING_CAPACITY_PROXY_MVA` (500 kV = 500 MVA, 275 kV = 250, 150 kV = 60, 70 kV = 20, 20 kV = 5) and applies `HOSTING_CAPACITY_AVAILABILITY_PCT = 0.30` instead of the `SUBSTATION_UTILIZATION_PCT = 0.65` used for actual kapgi. The `nearest_substation_capacity_source` column records which path fired: `actual` / `proxy_500kV` / `proxy_150kV` / etc.
+
+**Regulatory regime and Perpres 112/2022 ceiling (V3.7 Action 4).** A new `solar_regime` enum distinguishes:
+- `co_located_captive` — `site_type ∈ {kek, ki}` AND solar patch ≤ `SUBSTATION_COLOCATION_RADIUS_KM` from a substation inside the site. Self-consumption, no sale to PLN, no tariff ceiling.
+- `grid_connected_ipp` — everything else that reaches the grid. Subject to Perpres 112/2022 Art. 10 ceiling tariff (`PERPRES_112_CEILING_USD_MWH = 75.0`).
+- `unclear` — when `site_type` is missing.
+
+For IPP rows, `lcoe_grid_connected_capped_usd_mwh = min(lcoe_grid_connected_usd_mwh, 75)`. Captive rows pass through unchanged. The cap is economically binding across the 81-site portfolio — all 68 IPP rows hit the ceiling at default assumptions, which is precisely the signal: Indonesian LCOEs run above the statutory cap, so the ceiling functions as a procurement constraint rather than a pricing guide.
+
+**Verification — Batam Aero Technic:** Pre-V3.7 label `invest_substation` (17.9 km to Tg. Kasam). Post-V3.7: `solar_search_method = substation_anchored`, anchor = GI 150 kV Nongsa 1, solar-to-substation distance = 1.22 km, `project_scale_solar_mwp = 14.89`, label = `grid_ready`.
 
 ---
 

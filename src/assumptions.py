@@ -294,6 +294,85 @@ TRANSMISSION_FALLBACK_CAPACITY_MWP: float = 20.0
 # when max_captive_capacity_mwp is unavailable. All 25 KEKs currently have capacity
 # data, so this only fires for future KEKs with missing buildability data.
 
+# ─── SUBSTATION-ANCHORED SOLAR SEARCH (V3.7) ─────────────────────────────────
+# Replaces the single-pixel argmax(PVOUT) picker with a search that finds
+# buildable patches co-located with existing substations. Rationale: PVOUT varies
+# ~1-2% across a 50km radius in tropical Indonesia, but substation distance varies
+# 10x+ over the same area — optimizing for PVOUT sends the model to a pixel far
+# from any substation, producing false "Build Substation" labels.
+# See docs/PLAN_SUBSTATION_ANCHORED_SOLAR.md for full rationale.
+
+MEANINGFUL_SHARE_PCT: float = 0.30
+# Minimum share of site's 2030 demand that a candidate anchored patch must cover
+# via nameplate capacity to qualify as viable. Patches smaller than this are
+# thrown out and the search falls back to the legacy argmax picker.
+# Source: user-resolved (docs/PLAN_SUBSTATION_ANCHORED_SOLAR.md Q1).
+# Rationale: patches covering <30% of demand are not a meaningful decarbonization
+# play for a single captive project; fallback produces a legitimate
+# "Build Substation" recommendation instead.
+
+SUBSTATION_COLOCATION_RADIUS_KM: float = 10.0
+# Search radius (km) around each candidate substation for counting buildable area.
+# Source: user-resolved (docs/PLAN_SUBSTATION_ANCHORED_SOLAR.md Q2).
+# Rationale: SOLAR_TO_SUBSTATION_THRESHOLD_KM = 5km is a global benchmark
+# (YSG, IFC), not Indonesia-specific. The V3.1 comment notes it was tightened
+# from 10km. Indonesian land economics + permitting density allow longer
+# gen-ties than US/EU benchmarks assume (Norton Rose Fulbright: 20-40km typical).
+# The LCOE-proxy tiebreaker penalises long connections economically, so we
+# don't need a tight radius to enforce economic discipline.
+# Note: this is the search-candidate radius, NOT the classification threshold.
+# SOLAR_TO_SUBSTATION_THRESHOLD_KM (5km) remains the threshold for
+# grid_integration_category classification.
+
+KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM: dict[str, float] = {
+    "JAMALI": 15.0,  # Java-Madura-Bali: dense grid, short gen-ties typical
+    "SUMATRA": 25.0,  # Sumatra: medium density
+    "KALIMANTAN": 30.0,  # Kalimantan: sparse coverage
+    "SULAWESI": 30.0,  # Sulawesi: sparse, mountainous
+    "MALUKU_PAPUA": 40.0,  # Eastern Indonesia: very sparse, island grids
+}
+# Maximum distance (km) from site centroid to a substation for that substation
+# to be considered a candidate anchor. Geography-tiered because Indonesia's grid
+# density varies by order of magnitude across regions.
+# Source: docs/substation methodology fix.md §Action 1 (external review).
+# PLN regpln values used as-is. Fallback to KEK_TO_SUBSTATION_THRESHOLD_KM (15km)
+# when regpln is unknown or unmapped.
+
+SUBSTATION_HOSTING_CAPACITY_PROXY_MVA: dict[str, float] = {
+    "500": 500.0,  # 500 kV ultra-high voltage backbone
+    "275": 250.0,  # 275 kV (rare in Indonesia, use intermediate)
+    "150": 60.0,  # 150 kV transmission — most common in Java-Sumatra backbone
+    "70": 20.0,  # 70 kV regional
+    "20": 5.0,  # 20 kV distribution (not typically used for utility-scale solar)
+}
+# Proxy nameplate capacity (MVA) by voltage class, for substations where the
+# PLN kapgi field is missing or zero. Substations with known kapgi use the
+# actual value; this dict only fires as a fallback.
+# Source: docs/substation methodology fix.md §Action 2 — Indonesian voltage-tier
+# conventions + international transmission planning norms.
+# Rationale: PLN kapgi is missing for ~XX% of operational substations (e.g. Batam
+# Nongsa 1). Without a proxy, every capacity-based check silently passes on NaN.
+
+HOSTING_CAPACITY_AVAILABILITY_PCT: float = 0.30
+# Fraction of proxy nameplate capacity available for new solar injection.
+# Applied to SUBSTATION_HOSTING_CAPACITY_PROXY_MVA only (not to actual kapgi,
+# which uses SUBSTATION_UTILIZATION_PCT).
+# Source: docs/substation methodology fix.md §Action 2.
+# Rationale: conservative — proxy values are already optimistic nameplate
+# upper bounds; 30% availability reflects that (a) existing load already
+# consumes most headroom, (b) N-1 contingency reserves 10-20%, (c) inverter
+# + protection limits effectively cap injection below nameplate.
+
+# ─── GRID-CONNECTED IPP TARIFF CEILING (Perpres 112/2022) ────────────────────
+
+PERPRES_112_CEILING_USD_MWH: float = 75.0
+# Maximum tariff (USD/MWh) for new grid-connected solar IPP sales to PLN.
+# Source: Perpres 112/2022 Art. 10 — ceiling for on-grid renewable PPAs.
+# Cited value ~$0.075/kWh = 75 USD/MWh (varies by region and year vintage).
+# Applied only when solar_regime == "grid_connected_ipp". Captive solar is
+# exempt because there's no sale to PLN (self-consumption).
+# See docs/substation methodology fix.md §Action 4.
+
 # ─── PROJECT VIABILITY THRESHOLDS ────────────────────────────────────────────
 # V2 splits the viability threshold by siting scenario.
 # Source: METHODOLOGY_V2.md §1.1.

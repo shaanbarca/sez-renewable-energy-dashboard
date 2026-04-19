@@ -22,6 +22,7 @@ from src.assumptions import (
     GRID_CONNECTION_FIXED_PER_KW,
     IDR_USD_RATE,
     LAND_COST_USD_PER_KW,
+    MEANINGFUL_SHARE_PCT,
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PROJECT_VIABLE_MIN_MWP,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
@@ -48,6 +49,7 @@ class UserAssumptions:
     bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH
     land_cost_usd_per_kw: float = LAND_COST_USD_PER_KW
     substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT
+    meaningful_share_pct: float = MEANINGFUL_SHARE_PCT
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
 
@@ -93,6 +95,7 @@ class UserAssumptions:
             "bess_capex_usd_per_kwh": self.bess_capex_usd_per_kwh,
             "land_cost_usd_per_kw": self.land_cost_usd_per_kw,
             "substation_utilization_pct": self.substation_utilization_pct,
+            "meaningful_share_pct": self.meaningful_share_pct,
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
             "cbam_certificate_price_eur": self.cbam_certificate_price_eur,

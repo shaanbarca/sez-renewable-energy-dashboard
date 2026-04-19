@@ -382,8 +382,8 @@ export function getEconomicTierDescription(tier: EconomicTier, energyMode: Energ
 
 /** Context-aware infrastructure readiness label.
  *  Distinguishes "Upgrade Substation" (capacity issue) from "Build Substation" (distance issue). */
-export function getInfraReadinessLabel(row: ScorecardRow): string {
-  const infra = row.infrastructure_readiness || row.grid_integration_category;
+export function getInfraReadinessLabel(row: ScorecardRow, energyMode?: EnergyMode): string {
+  const infra = getEffectiveInfraReadiness(row, energyMode);
   if (infra === 'invest_substation') {
     // If substation exists nearby but capacity is insufficient, it's an upgrade not a build
     const cap = row.capacity_assessment;
@@ -394,8 +394,15 @@ export function getInfraReadinessLabel(row: ScorecardRow): string {
   );
 }
 
-/** Resolve infrastructure readiness from backend field or grid_integration_category. */
-export function getEffectiveInfraReadiness(row: ScorecardRow): InfrastructureReadiness {
+/** Resolve infrastructure readiness from backend field or grid_integration_category.
+ *  When the site has no renewable resource in the active energy mode, grid integration
+ *  is not applicable — we short-circuit to 'no_resource' because there's nothing to
+ *  connect to the grid. */
+export function getEffectiveInfraReadiness(
+  row: ScorecardRow,
+  energyMode: EnergyMode = 'overall',
+): InfrastructureReadiness {
+  if (getEffectiveEconomicTier(row, energyMode) === 'no_resource') return 'no_resource';
   if (row.infrastructure_readiness) return row.infrastructure_readiness;
   const cat = row.grid_integration_category;
   if (

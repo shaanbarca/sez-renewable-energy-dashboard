@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **V3.7 substation-anchored solar search** (`src/pipeline/build_fct_site_resource.py`). Replaces the argmax-PVOUT pixel picker in `_compute_buildable_pvout()` with a multi-step search that prefers buildable patches sitting near existing substations. Algorithm: compute `required_mwp = demand_mwh / (8760 × cf_centroid)`, set `meaningful_mwp = 0.30 × required_mwp`, enumerate candidate patches within `SUBSTATION_COLOCATION_RADIUS_KM = 10 km` of every substation within a region-tiered KEK radius, keep candidates meeting the meaningful-share floor, rank by LCOE-proxy (`lcoe_solar(cf_candidate) + annualised gen-tie cost`), and fall back to argmax PVOUT only when no candidate qualifies.
+- **Geography-tiered search radius.** `KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM` in `src/assumptions.py`: JAMALI 15 / Sumatra 25 / Kalimantan 30 / Sulawesi 30 / Maluku-Papua 40. Recognises that dense Java grid permits a tight radius while eastern Indonesia's sparse grid needs more reach. Helper `_search_radius_km()` dispatches on both dim_sites `grid_region_id` values (JAVA_BALI, SUMATERA, etc.) and PLN `regpln` values (Jawa-Bali, Sumatera, etc.) with graceful fallback for unknown regions.
+- **Voltage-class hosting-capacity proxy.** When PLN `kapgi` (nameplate MVA) is missing for a substation, infer from `teggi` voltage class: 500kV → 500 MVA, 275kV → 250, 150kV → 60, 70kV → 20, 20kV → 5. Apply `HOSTING_CAPACITY_AVAILABILITY_PCT = 0.30` (conservative upper bound for proxied rows only — actual kapgi rows use their real value). New column `nearest_substation_capacity_source` records whether the capacity came from `actual` kapgi or a `proxy_<voltage>` inference.
+- **CF-corrected delivered-share column.** New `solar_delivered_share_pct = (nameplate_mwp × 8760 × cf_anchored) / demand_mwh` distinguishes the anchored patch's actual annual energy delivery from its nameplate supply share (`solar_supply_share_pct`). Surfaces in ScoreDrawer Grid tab tooltips.
+- **Solar regulatory regime + Perpres 112/2022 ceiling.** New `solar_regime` enum (`co_located_captive` / `grid_connected_ipp` / `unclear`) on the scorecard, derived from within-boundary coverage + grid integration category + Perpres-112 exempt sectors. New `lcoe_grid_connected_capped_usd_mwh` applies `PERPRES_112_CEILING_USD_MWH = 75.0` as a ceiling when regime is `grid_connected_ipp`, reflecting the regulated IPP tariff cap. Captive and unclear regimes bypass the ceiling.
+- **New scorecard columns:** `solar_search_method`, `chosen_anchor_substation_name`, `solar_supply_share_pct`, `solar_delivered_share_pct`, `project_scale_solar_mwp`, `nearest_substation_capacity_source`, `solar_regime`, `lcoe_grid_connected_capped_usd_mwh`.
+- **ScoreDrawer Grid tab V3.7 visibility.** New "Solar Site Selection" card surfaces the picker method, chosen anchor substation, project scale, demand coverage (supply + delivered), and capacity source when a hosting-capacity proxy was used.
+- **21 new tests in `tests/test_substation_anchored_search.py`.** Five classes covering `required_solar_mwp`, search-radius dispatch (5 regions + regpln + unknown fallback), anchored picker happy path (near wins; lowest LCOE beats farther), fallback paths (no subs in range; demand too large; empty input), and regime/ceiling application (captive + IPP + unclear + standalone).
+
+### Changed
+- **Three-point proximity inputs.** `grid_integration_category()` contract is unchanged, but its inputs (best solar lat/lon, solar-to-substation distance) now reflect the V3.7 anchored pick. Existing `TestGridIntegrationCategory` suite passes unmodified — 22/22 green.
+- **Golden-master fixture.** `tests/fixtures/scorecard_golden.pkl` regenerated to 81 rows × 122 cols (was 114 cols). 8 new V3.7 columns captured as the new baseline.
+
+### Fixed
+- **Batam Aero Technic "Build Substation" false positive.** The site sits 3.96 km from GI 150 kV Nongsa 1, but the argmax-PVOUT picker selected a pixel ~50 km away in Bintan with nearest sub GI 150 kV Tg. Kasam at 17.9 km — triggering `invest_substation`. Post-V3.7 the anchored picker selects a 14.89 MWp patch 1.22 km from Nongsa 1, the site's `grid_integration_category` flips to `grid_ready`, and the dashboard shows "Grid Ready" with the correct anchor substation.
+
+### Docs
+- `docs/METHODOLOGY_CONSOLIDATED.md` — updated §8.1 three-point inputs for V3.7; new §8.7 covers the full algorithm, thresholds, hosting-capacity proxy, regulatory regime, Perpres ceiling, and Batam verification.
+- `DATA_DICTIONARY.md` — §3.1 (fct_site_resource) adds 5 new column rows; §3.4 (fct_substation_proximity) adds 2; §3.6 (fct_site_scorecard) adds `solar_regime` and `lcoe_grid_connected_capped_usd_mwh`.
+
 ## [1.2.0] - 2026-04-19
 
 Scenario Compare + CBAM methodology rewrite + 81-site universe + Persona 6.
