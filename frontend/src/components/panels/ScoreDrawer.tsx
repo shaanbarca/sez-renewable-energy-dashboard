@@ -8,14 +8,11 @@ import {
   getInfraReadinessLabel,
 } from '../../lib/actionFlags';
 import { fetchSiteSubstations } from '../../lib/api';
-import {
-  ECONOMIC_TIER_COLORS,
-  MODIFIER_BADGE_COLORS,
-  MODIFIER_BADGE_LABELS,
-} from '../../lib/constants';
+import { ECONOMIC_TIER_COLORS } from '../../lib/constants';
 import { formatGridRegion } from '../../lib/format';
 import type { SubstationWithCosts } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import ModifierBadgePill from '../ui/ModifierBadgePill';
 import { ActionTab } from './scoredrawer/ActionTab';
 import { DemandTab } from './scoredrawer/DemandTab';
 import { EconomicsTab } from './scoredrawer/EconomicsTab';
@@ -97,7 +94,7 @@ export default function ScoreDrawer() {
   const tierDescription = effectiveTier
     ? getEconomicTierDescription(effectiveTier, energyMode)
     : '';
-  const infraLabel = row ? getInfraReadinessLabel(row) : '';
+  const infraLabel = row ? getInfraReadinessLabel(row, energyMode) : '';
   const modifiers = row ? getEffectiveModifiers(row) : [];
 
   return (
@@ -174,17 +171,7 @@ export default function ScoreDrawer() {
               {modifiers.length > 0 && (
                 <div className="flex gap-1.5 mt-1.5 pl-[18px]">
                   {modifiers.map((badge) => (
-                    <span
-                      key={badge}
-                      className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
-                      style={{
-                        backgroundColor: `${MODIFIER_BADGE_COLORS[badge]}22`,
-                        color: MODIFIER_BADGE_COLORS[badge],
-                        border: `1px solid ${MODIFIER_BADGE_COLORS[badge]}44`,
-                      }}
-                    >
-                      {MODIFIER_BADGE_LABELS[badge]}
-                    </span>
+                    <ModifierBadgePill key={badge} badge={badge} />
                   ))}
                 </div>
               )}

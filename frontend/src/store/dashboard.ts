@@ -151,14 +151,14 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       if (!id)
         return { selectedSite: null, drawerOpen: false, layerVisibility: state.layerVisibility };
       const lv = { ...state.layerVisibility };
+      // Always show solar buildable polygons so the amber chosen-polygon highlight is visible.
+      lv.buildable_polygons = true;
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;
         lv.wind = true;
       } else if (state.energyMode === 'solar') {
-        lv.buildable_polygons = true;
         lv.pvout = true;
       } else {
-        lv.buildable_polygons = true;
         lv.wind_buildable_polygons = true;
       }
       return { selectedSite: id, drawerOpen: true, layerVisibility: lv };

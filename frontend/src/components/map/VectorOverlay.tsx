@@ -1,6 +1,7 @@
 import type maplibregl from 'maplibre-gl';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre';
+import { findContainingPolygon } from '../../lib/map/pointInPolygon';
 import { useDashboardStore } from '../../store/dashboard';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -163,7 +164,34 @@ interface CementHover {
 export default function VectorOverlay() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const layers = useDashboardStore((s) => s.layers);
+  const scorecard = useDashboardStore((s) => s.scorecard);
+  const selectedSite = useDashboardStore((s) => s.selectedSite);
   const { current: mapRef } = useMap();
+
+  // Part 2B: user override — clicking a different buildable polygon overrides the picker's choice.
+  // Resets whenever the selected site changes.
+  const [overriddenFeatureIndex, setOverriddenFeatureIndex] = useState<number | null>(null);
+  useEffect(() => {
+    setOverriddenFeatureIndex(null);
+  }, [selectedSite]);
+
+  // Part 2A: resolve the buildable polygon that the picker anchored to for the selected site.
+  // PIP against best_solar_site_lat/lon; falls back to nearest centroid if no polygon contains it.
+  // Part 2B: user's override wins when set.
+  const selectedBuildableFeatureIndex = useMemo<number | null>(() => {
+    if (!selectedSite || !scorecard) return null;
+    if (overriddenFeatureIndex !== null) return overriddenFeatureIndex;
+    const row = scorecard.find((r) => r.site_id === selectedSite);
+    if (!row) return null;
+    const lat = row.best_solar_site_lat;
+    const lon = row.best_solar_site_lon;
+    if (lat == null || lon == null) return null;
+    const fc = layers.buildable_polygons;
+    if (!fc || fc._loading || !fc.features?.length) return null;
+    const match = findContainingPolygon(fc, lat, lon);
+    return match ? match.feature_index : null;
+  }, [selectedSite, scorecard, layers.buildable_polygons, overriddenFeatureIndex]);
+
   const [subHover, setSubHover] = useState<SubHover | null>(null);
   const [gridHover, setGridHover] = useState<GridLineHover | null>(null);
   const [buildableClick, setBuildableClick] = useState<BuildableClick | null>(null);
@@ -259,6 +287,11 @@ export default function VectorOverlay() {
           avg_pvout_annual: feat.properties?.avg_pvout_annual ?? 0,
           capacity_mwp: feat.properties?.capacity_mwp ?? 0,
         });
+        // Part 2B: if a site is selected, override the picker's chosen polygon.
+        if (selectedSite) {
+          const fi = feat.properties?.feature_index;
+          if (typeof fi === 'number') setOverriddenFeatureIndex(fi);
+        }
       }
     };
     map.on('mouseenter', 'overlay-buildable-polygons-fill', onEnter);
@@ -269,7 +302,7 @@ export default function VectorOverlay() {
       map.off('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
       map.off('click', 'overlay-buildable-polygons-fill', onClick);
     };
-  }, [mapRef]);
+  }, [mapRef, selectedSite]);
 
   // Wind buildable polygon click + hover cursor
   useEffect(() => {
@@ -688,6 +721,22 @@ export default function VectorOverlay() {
                 type="line"
                 paint={{ 'line-color': '#00ACC1', 'line-width': 1, 'line-opacity': 0.5 }}
               />
+              {selectedBuildableFeatureIndex !== null && (
+                <Layer
+                  id="overlay-buildable-polygons-selected-fill"
+                  type="fill"
+                  filter={['==', ['get', 'feature_index'], selectedBuildableFeatureIndex]}
+                  paint={{ 'fill-color': '#FFD54F', 'fill-opacity': 0.6 }}
+                />
+              )}
+              {selectedBuildableFeatureIndex !== null && (
+                <Layer
+                  id="overlay-buildable-polygons-selected-outline"
+                  type="line"
+                  filter={['==', ['get', 'feature_index'], selectedBuildableFeatureIndex]}
+                  paint={{ 'line-color': '#FFA000', 'line-width': 3 }}
+                />
+              )}
             </Source>
           );
         })()}

@@ -12,17 +12,16 @@ import {
   INFRA_READINESS_DESCRIPTIONS,
   INFRA_READINESS_HIERARCHY,
   INFRA_READINESS_LABELS,
-  MODIFIER_BADGE_COLORS,
-  MODIFIER_BADGE_LABELS,
 } from '../../../lib/constants';
 import type { ScorecardRow } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
+import ModifierBadgePill from '../../ui/ModifierBadgePill';
 import { FlagStep, SectionHeader, StatCard, StatRowWithTip } from './StatComponents';
 
 export function ActionTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
   const activeTier = getEffectiveEconomicTier(row, energyMode);
-  const activeInfra = getEffectiveInfraReadiness(row);
+  const activeInfra = getEffectiveInfraReadiness(row, energyMode);
   const modifiers = getEffectiveModifiers(row);
   const activeTierIdx = ECONOMIC_TIER_HIERARCHY.indexOf(activeTier);
   const activeInfraIdx = INFRA_READINESS_HIERARCHY.indexOf(activeInfra);
@@ -94,17 +93,7 @@ export function ActionTab({ row }: { row: ScorecardRow }) {
             style={{ borderTop: '1px solid var(--border-subtle)' }}
           >
             {modifiers.map((badge) => (
-              <span
-                key={badge}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium"
-                style={{
-                  backgroundColor: `${MODIFIER_BADGE_COLORS[badge]}22`,
-                  color: MODIFIER_BADGE_COLORS[badge],
-                  border: `1px solid ${MODIFIER_BADGE_COLORS[badge]}44`,
-                }}
-              >
-                {MODIFIER_BADGE_LABELS[badge]}
-              </span>
+              <ModifierBadgePill key={badge} badge={badge} size="md" />
             ))}
           </div>
         )}
