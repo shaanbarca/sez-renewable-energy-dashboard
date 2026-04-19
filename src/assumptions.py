@@ -311,8 +311,10 @@ MEANINGFUL_SHARE_PCT: float = 0.30
 # play for a single captive project; fallback produces a legitimate
 # "Build Substation" recommendation instead.
 
-SUBSTATION_COLOCATION_RADIUS_KM: float = 10.0
-# Search radius (km) around each candidate substation for counting buildable area.
+ANCHOR_SEARCH_RADIUS_KM: float = 10.0
+# Picker radius (km) around each candidate substation for counting buildable area
+# when V3.7 anchored search runs. Used ONLY by build_fct_site_resource's
+# _pick_anchored_patch.
 # Source: user-resolved (docs/PLAN_SUBSTATION_ANCHORED_SOLAR.md Q2).
 # Rationale: SOLAR_TO_SUBSTATION_THRESHOLD_KM = 5km is a global benchmark
 # (YSG, IFC), not Indonesia-specific. The V3.1 comment notes it was tightened
@@ -323,6 +325,13 @@ SUBSTATION_COLOCATION_RADIUS_KM: float = 10.0
 # Note: this is the search-candidate radius, NOT the classification threshold.
 # SOLAR_TO_SUBSTATION_THRESHOLD_KM (5km) remains the threshold for
 # grid_integration_category classification.
+
+CAPTIVE_REGIME_MAX_KM: float = 10.0
+# Classification cutoff (km) between co-located captive and grid-connected IPP
+# regimes in scorecard.enrich_anchor_and_regime. Kept intentionally separate
+# from ANCHOR_SEARCH_RADIUS_KM so tuning the picker's reach doesn't silently
+# move the regulatory-regime boundary. Same starting value (10 km) because
+# the co-location threshold and the picker's reach happen to coincide today.
 
 KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM: dict[str, float] = {
     "JAMALI": 15.0,  # Java-Madura-Bali: dense grid, short gen-ties typical

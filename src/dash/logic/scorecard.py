@@ -26,9 +26,9 @@ import numpy as np
 import pandas as pd
 
 from src.assumptions import (
+    CAPTIVE_REGIME_MAX_KM,
     CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
     PERPRES_112_CEILING_USD_MWH,
-    SUBSTATION_COLOCATION_RADIUS_KM,
 )
 from src.dash.logic.assumptions import UserAssumptions, UserThresholds
 from src.dash.logic.cbam import _detect_cbam_types, compute_cbam_trajectory
@@ -128,7 +128,7 @@ def enrich_anchor_and_regime(ctx: SiteContext, row: dict[str, Any]) -> dict[str,
     elif (
         site_type in ("kek", "ki")
         and pd.notna(dist_solar_km)
-        and float(dist_solar_km) <= SUBSTATION_COLOCATION_RADIUS_KM
+        and float(dist_solar_km) <= CAPTIVE_REGIME_MAX_KM
     ):
         regime = "co_located_captive"
     else:

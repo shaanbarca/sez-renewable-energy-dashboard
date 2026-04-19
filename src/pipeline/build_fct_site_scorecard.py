@@ -40,7 +40,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.assumptions import PERPRES_112_CEILING_USD_MWH, SUBSTATION_COLOCATION_RADIUS_KM
+from src.assumptions import CAPTIVE_REGIME_MAX_KM, PERPRES_112_CEILING_USD_MWH
 from src.model.basic_model import (
     action_flags,
     carbon_breakeven_price,
@@ -564,11 +564,7 @@ def build_fct_site_scorecard(
         dist_km = row.get("dist_solar_to_nearest_substation_km")
         if pd.isna(site_type) or site_type in (None, ""):
             return "unclear"
-        if (
-            site_type in ("kek", "ki")
-            and pd.notna(dist_km)
-            and dist_km <= SUBSTATION_COLOCATION_RADIUS_KM
-        ):
+        if site_type in ("kek", "ki") and pd.notna(dist_km) and dist_km <= CAPTIVE_REGIME_MAX_KM:
             return "co_located_captive"
         return "grid_connected_ipp"
 

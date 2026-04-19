@@ -48,7 +48,6 @@ See METHODOLOGY_V2.md §2 for three-point proximity analysis.
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 import numpy as np
@@ -63,6 +62,7 @@ from src.assumptions import (
     SUBSTATION_UTILIZATION_PCT,
 )
 from src.model.basic_model import capacity_assessment, grid_integration_category
+from src.pipeline.geo_utils import haversine_km
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -88,21 +88,6 @@ _KAPGI_VA_THRESHOLD = 10_000  # above this → raw value is in VA, not MVA
 
 # Approximate degrees per km at Indonesian latitudes (~5°S)
 _DEG_PER_KM = 1.0 / 111.32
-
-
-# ─── Geometry helpers ─────────────────────────────────────────────────────────
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance between two points in kilometres."""
-    R = 6_371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    )
-    return R * 2 * math.asin(math.sqrt(a))
 
 
 # ─── Unit helpers ─────────────────────────────────────────────────────────────
@@ -273,7 +258,7 @@ def _nearest_substation(
     best_sub = None
     best_dist = float("inf")
     for sub in substations:
-        d = _haversine_km(kek_lat, kek_lon, sub["lat"], sub["lon"])
+        d = haversine_km(kek_lat, kek_lon, sub["lat"], sub["lon"])
         if d < best_dist:
             best_dist = d
             best_sub = sub
@@ -334,13 +319,29 @@ def build_fct_substation_proximity(  # noqa: PLR0913
                 lon = r.get("best_solar_site_lon")
                 cap = r.get("max_captive_capacity_mwp")
                 if pd.notna(lat) and pd.notna(lon):
+                    # V3.7 fix: when centroid pixel is NaN (raster hole / edge pixel),
+                    # fall back to the best-in-50km buildable PVOUT so project_scale_mwp
+                    # still gets sized from real resource data rather than silently
+                    # defaulting to full buildable patch (which reintroduces the exact
+                    # false "Build Substation" flags this V3.7 step was meant to kill).
+                    cf_centroid_val = (
+                        float(r["cf_centroid"]) if pd.notna(r.get("cf_centroid")) else None
+                    )
+                    cf_fallback = None
+                    pvout_buildable_annual = r.get("pvout_buildable_best_50km")
+                    if pd.notna(pvout_buildable_annual) and pvout_buildable_annual > 0:
+                        cf_fallback = float(pvout_buildable_annual) / 8760.0
+                    cf_for_sizing = (
+                        cf_centroid_val
+                        if (cf_centroid_val is not None and cf_centroid_val > 0)
+                        else cf_fallback
+                    )
                     solar_data[r["site_id"]] = {
                         "lat": float(lat),
                         "lon": float(lon),
                         "capacity_mwp": float(cap) if pd.notna(cap) else None,
-                        "cf_centroid": float(r["cf_centroid"])
-                        if pd.notna(r.get("cf_centroid"))
-                        else None,
+                        "cf_centroid": cf_centroid_val,
+                        "cf_for_sizing": cf_for_sizing,
                         "solar_search_method": r.get("solar_search_method"),
                         "chosen_anchor_substation_name": r.get("chosen_anchor_substation_name"),
                         "solar_supply_share_pct": r.get("solar_supply_share_pct"),
@@ -405,8 +406,13 @@ def build_fct_substation_proximity(  # noqa: PLR0913
             # creates a logical gap — inflates $/kW and triggers false "Build
             # Substation" flags. Full-demand coverage is a later phase, not this model.
             # max_captive_capacity_mwp is the upper bound on the land.
+            #
+            # V3.7 NaN-safety: use cf_for_sizing (cf_centroid with buildable-best
+            # fallback) so raster holes / edge pixels at the centroid don't silently
+            # leave project_scale_mwp=None → capacity check falls back to full
+            # buildable patch → false "Build Substation".
             demand_mwh = demand_lookup.get(site_id)
-            cf = sd.get("cf_centroid")
+            cf = sd.get("cf_for_sizing")
             if demand_mwh and cf and cf > 0:
                 required_mwp = demand_mwh / (8760.0 * cf)
                 phase1_mwp = required_mwp * MEANINGFUL_SHARE_PCT
@@ -433,7 +439,7 @@ def build_fct_substation_proximity(  # noqa: PLR0913
         ):
             # Different substations — check connectivity
             inter_sub_dist = round(
-                _haversine_km(
+                haversine_km(
                     nearest_to_kek["lat"],
                     nearest_to_kek["lon"],
                     nearest_to_solar_sub["lat"],

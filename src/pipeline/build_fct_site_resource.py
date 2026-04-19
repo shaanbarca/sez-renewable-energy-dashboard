@@ -80,6 +80,7 @@ from src.model.basic_model import (
     pvout_daily_to_annual,
 )
 from src.pipeline.assumptions import (
+    ANCHOR_SEARCH_RADIUS_KM,
     BASE_WACC_DECIMAL,
     HOURS_PER_YEAR,
     KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM,
@@ -88,7 +89,6 @@ from src.pipeline.assumptions import (
     MEANINGFUL_SHARE_PCT,
     PVOUT_BUFFER_KM,
     PVOUT_SOURCE,
-    SUBSTATION_COLOCATION_RADIUS_KM,
 )
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
@@ -498,7 +498,7 @@ def _pick_anchored_patch(
       1. required_mwp  = demand_mwh / (8760 × cf_centroid)
       2. meaningful_mwp = required_mwp × MEANINGFUL_SHARE_PCT  (default 30%)
       3. For each substation within KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM[region]:
-           - intersect filtered_mask with circular SUBSTATION_COLOCATION_RADIUS_KM
+           - intersect filtered_mask with circular ANCHOR_SEARCH_RADIUS_KM
              buffer around the substation
            - if buildable_mwp >= meaningful_mwp → keep as candidate
       4. For each candidate, compute LCOE proxy:
@@ -547,7 +547,7 @@ def _pick_anchored_patch(
             + np.cos(np.radians(sub_lat)) * np.cos(np.radians(pixel_lats)) * np.sin(dlon / 2) ** 2
         )
         dist_to_sub_km = 6_371.0 * 2 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
-        co_located = dist_to_sub_km <= SUBSTATION_COLOCATION_RADIUS_KM
+        co_located = dist_to_sub_km <= ANCHOR_SEARCH_RADIUS_KM
 
         candidate_mask = filtered_mask & co_located & np.isfinite(pvout_patch)
         n_pixels = int(candidate_mask.sum())
@@ -600,8 +600,8 @@ def _pick_anchored_patch(
         patch_lon = float(np.mean(pixel_lons[candidate_mask]))
 
         # Delivered-energy share corrects for capacity-factor reality:
-        # nameplate × 8760 × cf = annual MWh actually generated.
-        candidate_generation_mwh = candidate_mwp * 1000 * 8760 * cf_candidate
+        # nameplate MWp × 8760 h × cf = annual MWh actually generated.
+        candidate_generation_mwh = candidate_mwp * 8760 * cf_candidate
         supply_share = min(candidate_mwp / required_mwp, 1.0)
         delivered_share = min(candidate_generation_mwh / site_demand_mwh, 1.0)
 
@@ -899,7 +899,8 @@ def _compute_buildable_pvout(
                 try:
                     pvout_annual_fb = pvout_daily_to_annual(pvout_buildable_daily)
                     cf_fb = capacity_factor_from_pvout(pvout_annual_fb)
-                    gen_mwh = max_mwp * 1000 * 8760 * cf_fb
+                    # nameplate MWp × 8760 h × cf = annual MWh actually generated.
+                    gen_mwh = max_mwp * 8760 * cf_fb
                     solar_delivered_share_pct = round(min(gen_mwh / site_demand_mwh, 1.0), 4)
                 except ValueError:
                     solar_delivered_share_pct = np.nan
