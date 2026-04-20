@@ -760,7 +760,7 @@ The power factor conversion (0.85, see §8.4) ensures the comparison is between 
 2. **Meaningful-share floor:**
    $$\text{meaningful\_mwp} = \text{required\_mwp} \times \text{MEANINGFUL\_SHARE\_PCT}$$
 3. **For each substation** within `KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM[region]` of the site:
-   - intersect the 5-layer buildable mask with a `SUBSTATION_COLOCATION_RADIUS_KM` (10 km) circular buffer around the substation
+   - intersect the 5-layer buildable mask with an `ANCHOR_SEARCH_RADIUS_KM` (10 km) circular buffer around the substation
    - if buildable area × (1 / `HA_PER_MWP`) ≥ `meaningful_mwp`, keep as candidate
 4. **LCOE proxy** for each candidate:
    $$\text{lcoe\_proxy} = \text{lcoe\_solar}(\text{cf\_candidate}) + \frac{\text{conn\_capex\_per\_kw}(d_\text{site→sub}) \times \text{CRF}}{cf \times 8.76}$$
@@ -773,7 +773,8 @@ The power factor conversion (0.85, see §8.4) ensures the comparison is between 
 | Parameter | Value | Rationale |
 |---|---|---|
 | `MEANINGFUL_SHARE_PCT` | 0.30 (default, **user-adjustable via slider**) | Patches covering <30% of demand are too small to count as a meaningful decarbonization play; fallback produces a legitimate "Build Substation" label instead. The pipeline-time picker floor remains fixed at 30%; the slider controls live project sizing (`project_scale_solar_mwp = min(required × share, max_buildable)`) which in turn drives `capacity_assessment` and the `invest_substation` label. Raising the slider makes more sites appear to need substation upgrades; lowering it makes more sites appear Grid Ready. |
-| `SUBSTATION_COLOCATION_RADIUS_KM` | 10.0 km | Search-candidate radius around each substation. Restores pre-V3.1 radius; `SOLAR_TO_SUBSTATION_THRESHOLD_KM` (5 km) remains the classification threshold. Indonesian permitting + land economics allow longer gen-ties than US/EU 5 km benchmarks. |
+| `ANCHOR_SEARCH_RADIUS_KM` | 10.0 km | Search-candidate radius around each substation (picker). Restores pre-V3.1 radius; `SOLAR_TO_SUBSTATION_THRESHOLD_KM` (5 km) remains the classification threshold. Indonesian permitting + land economics allow longer gen-ties than US/EU 5 km benchmarks. |
+| `CAPTIVE_REGIME_MAX_KM` | 10.0 km | Classification cutoff between `co_located_captive` and `grid_connected_ipp` regimes. Kept separate from `ANCHOR_SEARCH_RADIUS_KM` so tuning the picker's reach doesn't silently move the regulatory-regime boundary. Same starting value today because the thresholds happen to coincide. |
 | `KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM` | JAMALI 15, SUMATRA 25, KALIMANTAN 30, SULAWESI 30, MALUKU_PAPUA 40 | Geography-tiered — Indonesia's grid density varies by order of magnitude across regions. |
 
 **New output columns** (`fct_site_resource` + surfaced on scorecard):
@@ -789,7 +790,7 @@ The power factor conversion (0.85, see §8.4) ensures the comparison is between 
 **Hosting-capacity proxy (V3.7 Action 2).** PLN `kapgi` (nameplate MVA) is missing for ~XX% of operational substations. Without a proxy, every capacity check silently passes on NaN. When `kapgi` is missing, the pipeline substitutes a voltage-class proxy from `SUBSTATION_HOSTING_CAPACITY_PROXY_MVA` (500 kV = 500 MVA, 275 kV = 250, 150 kV = 60, 70 kV = 20, 20 kV = 5) and applies `HOSTING_CAPACITY_AVAILABILITY_PCT = 0.30` instead of the `SUBSTATION_UTILIZATION_PCT = 0.65` used for actual kapgi. The `nearest_substation_capacity_source` column records which path fired: `actual` / `proxy_500kV` / `proxy_150kV` / etc.
 
 **Regulatory regime and Perpres 112/2022 ceiling (V3.7 Action 4).** A new `solar_regime` enum distinguishes:
-- `co_located_captive` — `site_type ∈ {kek, ki}` AND solar patch ≤ `SUBSTATION_COLOCATION_RADIUS_KM` from a substation inside the site. Self-consumption, no sale to PLN, no tariff ceiling.
+- `co_located_captive` — `site_type ∈ {kek, ki}` AND solar patch ≤ `CAPTIVE_REGIME_MAX_KM` from a substation inside the site. Self-consumption, no sale to PLN, no tariff ceiling.
 - `grid_connected_ipp` — everything else that reaches the grid. Subject to Perpres 112/2022 Art. 10 ceiling tariff (`PERPRES_112_CEILING_USD_MWH = 75.0`).
 - `unclear` — when `site_type` is missing.
 
