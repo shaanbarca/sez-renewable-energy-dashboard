@@ -176,20 +176,14 @@ PLAN.md
 TODOS.md
 MIGRATION.md
 
+# All markdown under docs/ is internal (methodology, plans, analyses, specs)
+docs/**/*.md
+
 # Archived/superseded methodology drafts
 docs/archives/
 
-# Internal gap analyses
-docs/gap_analysis_existing_vs_conversation_spec.md
-docs/gap_analysis_jetp_captive_power.md
-docs/USER_JOURNEYS.md
-
-# Internal specs & private docs
-docs/layer3_green_industrial_products_spec.md
-docs/super_grid_corridor_feature_spec.md
+# Non-markdown internal docs
 docs/BV_SF01_Application_Form_Filled.docx
-docs/physics_vs_tool_technical_gaps.md
-docs/substack.md
 
 # Design mockup HTML exports
 docs/designs/
