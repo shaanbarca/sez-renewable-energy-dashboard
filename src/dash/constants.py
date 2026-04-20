@@ -181,7 +181,7 @@ TIER2_SLIDERS = {
         "step": 0.05,
         "label": "Substation utilization (%)",
         "unit": "",
-        "description": "Assumed fraction of substation capacity in use. Available capacity = rated × (1 - utilization)",
+        "description": "Global override. Left at 65%, each site uses its RUPTL-derived default (uprate=85%, extension=75%, none=65%). Drag off default to stress-test uniformly.",
     },
     "meaningful_share_pct": {
         "min": 0.10,

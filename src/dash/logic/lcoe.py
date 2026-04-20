@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.assumptions import TRANSMISSION_FALLBACK_CAPACITY_MWP
+from src.assumptions import SUBSTATION_UTILIZATION_PCT, TRANSMISSION_FALLBACK_CAPACITY_MWP
 from src.dash.logic.assumptions import UserAssumptions
 from src.model.basic_model import (
     capacity_factor_from_pvout,
@@ -183,9 +183,18 @@ def compute_lcoe_live(
             if assumptions.grant_funded_transmission:
                 upgrade_cost = 0.0
             else:
-                upgrade_cost = substation_upgrade_cost_per_kw(
-                    sub_cap, effective_mwp, assumptions.substation_utilization_pct
-                )
+                # V3.8: same priority rule as grid.py — slider wins when dragged
+                # off the fleet default, else RUPTL-derived per-site value wins.
+                if assumptions.substation_utilization_pct != SUBSTATION_UTILIZATION_PCT:
+                    upgrade_util = assumptions.substation_utilization_pct
+                else:
+                    effective_util = kek.get("substation_utilization_pct_effective")
+                    upgrade_util = (
+                        float(effective_util)
+                        if pd.notna(effective_util)
+                        else assumptions.substation_utilization_pct
+                    )
+                upgrade_cost = substation_upgrade_cost_per_kw(sub_cap, effective_mwp, upgrade_util)
 
             eff_c = capex_c + conn_cost + land_cost + trans_cost + upgrade_cost
             eff_l = capex_l + conn_cost + land_cost + trans_cost + upgrade_cost

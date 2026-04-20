@@ -119,6 +119,7 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         for col in [
             "dist_solar_to_nearest_substation_km",
             "grid_integration_category",
+            "nearest_substation_name",
             "nearest_substation_capacity_mva",
             "has_internal_substation",
             "inter_substation_connected",
@@ -127,6 +128,13 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
             "line_connected",
             "nearest_substation_capacity_source",
             "project_scale_solar_mwp",
+            # V3.8: RUPTL-derived per-substation utilization signal
+            "substation_utilization_pct_effective",
+            "ruptl_project_type",
+            "ruptl_strongest_status",
+            "ruptl_earliest_target_year",
+            "ruptl_mva_added_total",
+            "ruptl_match_confidence",
         ]:
             if col in prox.columns:
                 prox_cols.append(col)

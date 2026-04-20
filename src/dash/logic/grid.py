@@ -15,7 +15,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.assumptions import HOSTING_CAPACITY_AVAILABILITY_PCT
+from src.assumptions import HOSTING_CAPACITY_AVAILABILITY_PCT, SUBSTATION_UTILIZATION_PCT
 from src.dash.logic.assumptions import UserAssumptions
 from src.model.basic_model import capacity_assessment as compute_capacity_assessment
 from src.model.basic_model import grid_integration_category as compute_grid_integration_category
@@ -77,12 +77,22 @@ def compute_grid_integration(
     # bound, not a measured figure. Match the precompute pipeline's derating
     # (build_fct_substation_proximity.py:470) so the capacity light and grid
     # category agree with the CSV.
+    # V3.8: actual-source substations use the RUPTL-derived per-substation
+    # utilization (column `substation_utilization_pct_effective` from
+    # build_fct_substation_proximity) as the per-site default. The slider acts
+    # as a global override — when the user drags it away from the fleet default
+    # (SUBSTATION_UTILIZATION_PCT = 0.65), their value wins and uniformly stress-
+    # tests every site. When the slider is at default, each site uses its RUPTL
+    # tier. Proxy rows bypass both because their nameplate is already a guess.
     cap_source = kek.get("nearest_substation_capacity_source")
     cap_source_str = str(cap_source) if pd.notna(cap_source) else ""
     if cap_source_str.startswith("proxy_"):
         util_pct = 1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT
-    else:
+    elif assumptions.substation_utilization_pct != SUBSTATION_UTILIZATION_PCT:
         util_pct = assumptions.substation_utilization_pct
+    else:
+        ruptl_util = _get_float(kek, "substation_utilization_pct_effective")
+        util_pct = ruptl_util if ruptl_util is not None else assumptions.substation_utilization_pct
 
     cap_light, avail_mva = compute_capacity_assessment(sub_cap_mva, effective_cap, util_pct)
 
@@ -152,4 +162,15 @@ def compute_grid_integration(
         "inter_substation_dist_km": kek.get("inter_substation_dist_km", None),
         "dist_solar_to_nearest_substation_km": kek.get("dist_solar_to_nearest_substation_km", None),
         "dist_to_nearest_substation_km": kek.get("dist_to_nearest_substation_km", None),
+        # V3.8: expose the utilization that actually drove the decision so the
+        # ScoreDrawer can narrate "85% — PLN plans +60 MVA uprate in 2028".
+        "substation_utilization_pct_effective": round(util_pct, 3),
+        "nearest_substation_name": kek.get("nearest_substation_name", None),
+        "nearest_substation_capacity_mva": sub_cap_mva,
+        "nearest_substation_capacity_source": cap_source_str or None,
+        "ruptl_project_type": kek.get("ruptl_project_type", None),
+        "ruptl_strongest_status": kek.get("ruptl_strongest_status", None),
+        "ruptl_earliest_target_year": kek.get("ruptl_earliest_target_year", None),
+        "ruptl_mva_added_total": kek.get("ruptl_mva_added_total", None),
+        "ruptl_match_confidence": kek.get("ruptl_match_confidence", None),
     }

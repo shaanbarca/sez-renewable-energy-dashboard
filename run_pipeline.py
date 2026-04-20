@@ -29,8 +29,10 @@ DAG (dependencies enforced by topological sort at runtime):
     └── fct_ruptl_pipeline   hardcoded RUPTL 2025-2034 extraction
 
     Stage 3 — Computed (read from processed/fct_* + dim_*)
-    ├── fct_substation_proximity  processed: dim_sites + data/substation.geojson + raw/kek_polygons.geojson
-    └── fct_lcoe          processed: dim_sites + fct_site_resource + dim_tech_cost + fct_substation_proximity
+    ├── raw_ruptl_substation_plans  RUPTL 2025-2034 PDF Lampiran A/B/C → per-GI upgrade plans
+    ├── fct_substation_ruptl_signal matched RUPTL plans → substation.geojson (namobj, regpln)
+    ├── fct_substation_proximity    processed: dim_sites + substation.geojson + fct_substation_ruptl_signal
+    └── fct_lcoe                    processed: dim_sites + fct_site_resource + dim_tech_cost + fct_substation_proximity
 
     Stage 4 — Final scorecard (joins everything)
     └── fct_site_scorecard processed: all above
@@ -65,7 +67,11 @@ from src.pipeline.build_fct_site_resource import build_fct_site_resource
 from src.pipeline.build_fct_site_scorecard import build_fct_site_scorecard
 from src.pipeline.build_fct_site_wind_resource import build_fct_site_wind_resource
 from src.pipeline.build_fct_substation_proximity import build_fct_substation_proximity
+from src.pipeline.build_fct_substation_ruptl_signal import (
+    build_fct_substation_ruptl_signal_from_disk,
+)
 from src.pipeline.build_industrial_sites import build_industrial_sites
+from src.pipeline.pdf_extract_ruptl_substations import build_raw_ruptl_substation_plans
 
 
 @dataclass
@@ -131,11 +137,28 @@ PIPELINE: list[Step] = [
         depends_on=["dim_sites"],
     ),
     # Stage 3: Computed
+    # V3.8: RUPTL substation signal feeds fct_substation_proximity for per-site utilization tiers
+    Step(
+        "raw_ruptl_substation_plans",
+        build_raw_ruptl_substation_plans,
+        "raw_ruptl_substation_plans.csv",
+    ),
+    Step(
+        "fct_substation_ruptl_signal",
+        build_fct_substation_ruptl_signal_from_disk,
+        "fct_substation_ruptl_signal.csv",
+        depends_on=["raw_ruptl_substation_plans"],
+    ),
     Step(
         "fct_substation_proximity",
         build_fct_substation_proximity,
         "fct_substation_proximity.csv",
-        depends_on=["dim_sites", "fct_site_resource", "fct_site_demand"],
+        depends_on=[
+            "dim_sites",
+            "fct_site_resource",
+            "fct_site_demand",
+            "fct_substation_ruptl_signal",
+        ],
     ),
     Step(
         "fct_lcoe",

@@ -18,6 +18,22 @@ const CAPACITY_LABELS: Record<string, string> = {
   unknown: 'Unknown',
 };
 
+const RUPTL_PROJECT_LABELS: Record<string, string> = {
+  uprate: 'Uprate',
+  extension: 'Extension',
+  line_bay: 'Line bay addition',
+  new: 'New substation',
+  other: 'Other',
+};
+const RUPTL_STATUS_LABELS: Record<string, string> = {
+  konstruksi: 'Under construction',
+  committed: 'Committed',
+  pengadaan: 'In procurement',
+  rencana: 'Planned',
+  studi: 'Under study',
+  other: 'Other',
+};
+
 export function GridTab({
   row,
   substations,
@@ -161,6 +177,70 @@ export function GridTab({
             subtitle="Can the local substation absorb new solar output without upgrades?"
             tip="Can the nearest substation handle the solar output? Green = sufficient headroom. Red = upgrade needed."
           />
+          {row.substation_utilization_pct_effective != null && (
+            <div
+              className="mb-3 p-2 rounded text-[10px] leading-relaxed"
+              style={{
+                background: row.ruptl_project_type
+                  ? 'rgba(33, 150, 243, 0.08)'
+                  : 'rgba(255, 255, 255, 0.03)',
+                border: row.ruptl_project_type
+                  ? '1px solid rgba(33, 150, 243, 0.25)'
+                  : '1px solid var(--glass-border-bright)',
+                color: 'var(--text-value)',
+              }}
+            >
+              <div
+                className="font-medium mb-0.5"
+                style={{ color: row.ruptl_project_type ? '#64B5F6' : 'var(--text-muted)' }}
+              >
+                Utilization default {(row.substation_utilization_pct_effective * 100).toFixed(0)}%
+              </div>
+              {row.ruptl_project_type ? (
+                <>
+                  PLN RUPTL plans a{' '}
+                  <strong>
+                    {RUPTL_PROJECT_LABELS[row.ruptl_project_type] ?? row.ruptl_project_type}
+                  </strong>
+                  {row.ruptl_mva_added_total != null && row.ruptl_mva_added_total > 0 && (
+                    <>
+                      {' '}
+                      adding <strong>+{row.ruptl_mva_added_total.toFixed(0)} MVA</strong>
+                    </>
+                  )}
+                  {row.ruptl_earliest_target_year != null && (
+                    <>
+                      {' '}
+                      by <strong>{row.ruptl_earliest_target_year}</strong>
+                    </>
+                  )}
+                  {row.ruptl_strongest_status && (
+                    <>
+                      {' '}
+                      (
+                      {RUPTL_STATUS_LABELS[row.ruptl_strongest_status] ??
+                        row.ruptl_strongest_status}
+                      )
+                    </>
+                  )}
+                  . PLN only plans upgrades on capacity-constrained assets, so we default to{' '}
+                  {(row.substation_utilization_pct_effective * 100).toFixed(0)}% utilization for
+                  this site (vs. the 65% fleet average).
+                </>
+              ) : row.nearest_substation_capacity_source &&
+                row.nearest_substation_capacity_source.startsWith('proxy_') ? (
+                <>
+                  No nameplate MVA published for this substation. Used a voltage-class proxy with a
+                  conservative 30% availability allowance.
+                </>
+              ) : (
+                <>
+                  No RUPTL upgrade plan matched this substation — using the fleet-average
+                  utilization (65%). Adjust below if you have local intel.
+                </>
+              )}
+            </div>
+          )}
           <Slider
             value={assumptions.substation_utilization_pct}
             onChange={(v) =>

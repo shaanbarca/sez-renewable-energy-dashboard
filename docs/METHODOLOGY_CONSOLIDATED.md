@@ -691,7 +691,7 @@ available_capacity_mva = rated_capacity_mva x (1 - utilization_pct)
 available_capacity_mw  = available_capacity_mva x power_factor
 ```
 
-Default `utilization_pct`: 65% (user-adjustable, range 30-95%).
+Default `utilization_pct`: per-substation tier derived from PLN's RUPTL 2025-2034 upgrade plan — see §8.4a. User-adjustable slider (range 30-95%) overrides the per-site defaults uniformly.
 
 **Power factor (V3.4):** Substation capacity is rated in MVA (apparent power), but solar output is measured in MWp (real power). The model applies a power factor of 0.85 (`SUBSTATION_POWER_FACTOR`) to convert MVA to MW before comparing to solar capacity. Industrial loads in Indonesia typically operate at PF 0.85-0.90 (PLN grid code minimum: 0.85). Without this correction, a 60 MVA substation appears to deliver 60 MW but only delivers 51 MW real power, overstating capacity by ~15%.
 
@@ -709,6 +709,36 @@ The returned `available_capacity_mva` column retains the MVA value for display. 
 Bands are aligned with `substation_upgrade_cost_per_kw`: green is exactly the regime where the upgrade cost is $0, so the UI's traffic light and the cost column never contradict each other.
 
 **Implementation:** `capacity_assessment()` in `basic_model.py`
+
+### 8.4a RUPTL-driven substation utilization (V3.8)
+
+Rather than applying a uniform 65% fleet-average utilization to all 2,913 PLN substations, the model derives a per-substation default from whether PLN themselves plan to upgrade that specific asset in the RUPTL 2025-2034 plan. The reasoning: PLN only schedules uprates/extensions for substations that are already capacity-constrained, so a published upgrade plan is strong evidence the asset is running hotter than the fleet average. Conversely, substations absent from the plan's 10-year horizon are probably headroom assets.
+
+**Tier mapping (`src.assumptions.SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL`):**
+
+| RUPTL project type | Utilization | Rationale |
+|---|---|---|
+| `uprate` | 85% | Transformer replacement planned — most congested tier |
+| `extension` | 75% | Adding bay/feeder — capacity-limited on some dimension |
+| `line_bay` | 70% | Minor addition — slightly above fleet average |
+| `none` (matched but no upgrade) | 55% | No RUPTL activity — below fleet average |
+| unmatched (absent from Lampiran A/B/C) | 65% | Neutral fleet-default fallback |
+
+**Source pipeline:** `src/pipeline/pdf_extract_ruptl_substations.py` extracts per-GI upgrade rows from RUPTL 2025-2034 Lampiran A/B/C (Sumatera, Jawa-Bali, Kalimantan, Sulawesi, Maluku, Papua, Nusa Tenggara). `src/pipeline/build_fct_substation_ruptl_signal.py` matches those rows to `data/substation.geojson` features via a tiered matcher:
+  1. **High confidence** — exact normalized-name match within same PLN region (`regpln`). Normalization strips GI/GITET/GIS prefixes, voltage tokens (e.g. "150 kV"), MVA annotations (e.g. "(30 MVA No.1)"), and trailing single digits so "Parungmulya" == "Parungmulya 1" == "Parungmulya 2".
+  2. **Medium** — token-set Jaccard ratio ≥ 0.85 within same region.
+  3. **Lower** — token-set ratio ≥ 0.75 within same region *and* matching `voltage_primary_kv`.
+  4. **Unmatched** — no signal emitted; substation falls through to the 65% fallback.
+
+Province-level placeholders ("Eksisting", "Tersebar") and `project_type == "new"` rows are filtered before matching because they don't correspond to a specific existing substation. When multiple RUPTL plans match the same substation, the builder aggregates: strongest `project_type` wins (`uprate > extension > line_bay`), strongest status wins (`konstruksi > committed > pengadaan > rencana`), MVA additions sum, earliest target year wins. Output: `outputs/data/processed/fct_substation_ruptl_signal.csv`.
+
+**Proxy-source substations bypass RUPTL.** When the PLN geojson has no published `kapgi`, `build_fct_substation_proximity.py` substitutes a voltage-class proxy nameplate and derates it at `1 − HOSTING_CAPACITY_AVAILABILITY_PCT` (0.70). Because the nameplate is itself a guess, the 30%-availability derating already subsumes utilization uncertainty — layering a RUPTL tier on top would double-count uncertainty.
+
+**Slider interaction.** `assumptions.substation_utilization_pct` (the dashboard's global slider, default 65%) acts as an override. When the user leaves it at the fleet default, each site uses its per-substation RUPTL tier. When the user drags it off default, the slider value wins uniformly across all sites — a stress-test mode for scenario comparison. Proxy-source rows are unaffected by the slider (they always use 0.70). This priority rule is enforced identically in `src/dash/logic/grid.py` (for capacity assessment + integration category) and `src/dash/logic/lcoe.py` (for substation upgrade cost).
+
+**Output columns** on `fct_substation_proximity` (surfaced through the scorecard to the ScoreDrawer Grid tab): `substation_utilization_pct_effective`, `ruptl_project_type`, `ruptl_strongest_status`, `ruptl_earliest_target_year`, `ruptl_mva_added_total`, `ruptl_match_confidence`.
+
+**Implementation:** `_ruptl_utilization_for_substation()` in `build_fct_substation_proximity.py`; override priority in `dash/logic/grid.py` and `dash/logic/lcoe.py`.
 
 ### 8.5 Inter-substation connectivity
 

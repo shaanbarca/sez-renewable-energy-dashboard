@@ -174,6 +174,23 @@ export interface ScorecardRow {
   solar_regime?: 'co_located_captive' | 'grid_connected_ipp' | 'unclear' | null;
   lcoe_grid_connected_capped_usd_mwh?: number | null;
 
+  // V3.8: RUPTL-derived per-substation utilization signal
+  nearest_substation_name?: string | null;
+  nearest_substation_capacity_mva?: number | null;
+  substation_utilization_pct_effective?: number | null;
+  ruptl_project_type?: 'uprate' | 'extension' | 'line_bay' | 'new' | 'other' | null;
+  ruptl_strongest_status?:
+    | 'konstruksi'
+    | 'committed'
+    | 'pengadaan'
+    | 'rencana'
+    | 'studi'
+    | 'other'
+    | null;
+  ruptl_earliest_target_year?: number | null;
+  ruptl_mva_added_total?: number | null;
+  ruptl_match_confidence?: 'high' | 'medium' | 'low' | null;
+
   // H9: Captive power context
   captive_coal_count?: number | null;
   captive_coal_mw?: number | null;

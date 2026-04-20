@@ -250,7 +250,26 @@ SUBSTATION_UTILIZATION_PCT: float = 0.65
 # Available capacity = rated_capacity_mva × (1 − utilization_pct).
 # Source: docs/methodology_testing.md §3 — default 60–70%, mid-point 65%.
 # User-adjustable in dashboard. Range: 0.30–0.95.
-# Proxies for smarter defaults (future): night-light intensity, industrial load, PLN RUPTL flags.
+# Used as fallback when no RUPTL signal matches a substation.
+
+SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL: dict[str, float] = {
+    "uprate": 0.85,
+    "extension": 0.75,
+    "line_bay": 0.70,
+    "none": 0.55,
+}
+# RUPTL-derived per-substation utilization defaults (closes TODOS M11).
+# Rationale: PLN only plans to uprate/extend substations that are already
+# capacity-constrained, so a strong signal is strong evidence the asset is
+# running hotter than the 65% fleet average. Conversely, substations that
+# appear nowhere in RUPTL's 10-year plan are probably headroom assets.
+#   uprate    → 85%  (transformer replacement planned — most congested tier)
+#   extension → 75%  (adding bay/feeder — capacity-limited on some dimension)
+#   line_bay  → 70%  (minor addition — slightly above fleet average)
+#   none      → 55%  (no RUPTL activity — below fleet average)
+# "Unmatched" (substation not found in RUPTL appendices at all) uses
+# SUBSTATION_UTILIZATION_PCT (0.65) as the neutral fallback.
+# Source: src/pipeline/build_fct_substation_ruptl_signal.py + PLN RUPTL 2025-2034.
 
 SUBSTATION_UPGRADE_COST_PER_KW: float = 80.0
 # Cost to upgrade substation capacity when available capacity is insufficient to absorb
