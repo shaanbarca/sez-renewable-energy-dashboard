@@ -15,6 +15,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.assumptions import HOSTING_CAPACITY_AVAILABILITY_PCT
 from src.dash.logic.assumptions import UserAssumptions
 from src.model.basic_model import capacity_assessment as compute_capacity_assessment
 from src.model.basic_model import grid_integration_category as compute_grid_integration_category
@@ -72,9 +73,18 @@ def compute_grid_integration(
         if assumptions.target_capacity_mwp and solar_cap_mwp:
             effective_cap = min(assumptions.target_capacity_mwp, solar_cap_mwp)
 
-    cap_light, avail_mva = compute_capacity_assessment(
-        sub_cap_mva, effective_cap, assumptions.substation_utilization_pct
-    )
+    # V3.7: proxy-source substations represent a voltage-class nameplate upper
+    # bound, not a measured figure. Match the precompute pipeline's derating
+    # (build_fct_substation_proximity.py:470) so the capacity light and grid
+    # category agree with the CSV.
+    cap_source = kek.get("nearest_substation_capacity_source")
+    cap_source_str = str(cap_source) if pd.notna(cap_source) else ""
+    if cap_source_str.startswith("proxy_"):
+        util_pct = 1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT
+    else:
+        util_pct = assumptions.substation_utilization_pct
+
+    cap_light, avail_mva = compute_capacity_assessment(sub_cap_mva, effective_cap, util_pct)
 
     has_internal = kek.get("has_internal_substation", False)
     has_internal = bool(has_internal) if pd.notna(has_internal) else False
@@ -89,7 +99,7 @@ def compute_grid_integration(
         dist_solar_to_substation_km=dist_solar,
         dist_kek_to_substation_km=dist_kek,
         substation_capacity_mva=sub_cap_mva,
-        substation_utilization_pct=assumptions.substation_utilization_pct,
+        substation_utilization_pct=util_pct,
         solar_capacity_mwp=effective_cap,
         inter_substation_connected=inter_connected,
         within_boundary_coverage_pct=wb_coverage,
