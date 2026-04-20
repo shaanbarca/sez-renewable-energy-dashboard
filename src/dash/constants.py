@@ -5,6 +5,8 @@ Source: DESIGN.md §4 (Action flag colours) and §3 (Component Architecture).
 
 from __future__ import annotations
 
+from src.assumptions import SUBSTATION_UTILIZATION_PCT, WB_BUILDOUT_FOOTPRINT_RATIO
+
 # ---------------------------------------------------------------------------
 # Action flag colours (DESIGN.md §4)
 # ---------------------------------------------------------------------------
@@ -179,6 +181,7 @@ TIER2_SLIDERS = {
         "min": 0.30,
         "max": 0.95,
         "step": 0.05,
+        "default": SUBSTATION_UTILIZATION_PCT,
         "label": "Substation utilization (%)",
         "unit": "",
         "description": "Global override. Left at 65%, each site uses its RUPTL-derived default (uprate=85%, extension=75%, none=65%). Drag off default to stress-test uniformly.",
@@ -190,6 +193,15 @@ TIER2_SLIDERS = {
         "label": "Project sizing (% of demand)",
         "unit": "",
         "description": "First-phase solar sized to cover this share of site demand. Lower = smaller project, fewer substation upgrades needed. 0.30 = phase-1 realistic, 1.00 = full self-sufficiency.",
+    },
+    "wb_buildout_footprint_ratio": {
+        "min": 0.05,
+        "max": 1.00,
+        "step": 0.05,
+        "default": WB_BUILDOUT_FOOTPRINT_RATIO,
+        "label": "WB buildout footprint (%)",
+        "unit": "",
+        "description": "Share of KEK area realistically free for on-site solar after factories, roads, and buffers. Haircuts within-boundary coverage before the within_boundary gate. 0.20 = operating park, 1.0 = greenfield.",
     },
     "idr_usd_rate": {
         "min": 14000,

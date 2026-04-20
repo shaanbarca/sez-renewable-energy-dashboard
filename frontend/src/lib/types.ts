@@ -10,6 +10,7 @@ export interface UserAssumptions {
   land_cost_usd_per_kw: number;
   substation_utilization_pct: number;
   meaningful_share_pct: number;
+  wb_buildout_footprint_ratio: number;
   idr_usd_rate: number;
   grant_funded_transmission?: boolean;
   target_capacity_mwp?: number | null;
@@ -135,6 +136,7 @@ export interface ScorecardRow {
   solar_supply_coverage_pct?: number;
   within_boundary_generation_gwh?: number;
   within_boundary_coverage_pct?: number;
+  within_boundary_coverage_effective_pct?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;
@@ -149,6 +151,12 @@ export interface ScorecardRow {
   lcoe_with_battery_usd_mwh?: number;
   bess_competitive?: boolean | null;
   land_cost_usd_per_kw?: number;
+  // LCOE waterfall inputs (echoed from assumptions + resolved primary CF)
+  capex_usd_per_kw?: number;
+  wacc_pct?: number;
+  fom_usd_per_kw_yr?: number;
+  lifetime_yr?: number;
+  primary_cf?: number;
   dist_to_nearest_substation_km?: number;
   dist_solar_to_nearest_substation_km?: number;
 
@@ -290,6 +298,7 @@ export interface SliderConfig {
   min: number;
   max: number;
   step: number;
+  default?: number;
   label: string;
   unit: string;
   description: string;

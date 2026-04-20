@@ -432,6 +432,21 @@ WB_SOLAR_FRACTION: float = 0.10
 # User-adjustable in dashboard. Range: 0.05–0.25 (5–25% of KEK area).
 # Note: At 10%, a 500 ha KEK yields 50 ha × (1 MWp / 1.5 ha) ≈ 33 MWp.
 
+WB_BUILDOUT_FOOTPRINT_RATIO: float = 0.20
+# Share of the KEK area that is realistically available for on-site solar
+# buildout after factories, roads, utilities, and operational buffers. Applied
+# as a haircut to `within_boundary_coverage_pct` before the V3.9 gate checks
+# it against `meaningful_share_pct`. Only affects the grid_integration_category
+# decision (does the KEK qualify as `within_boundary` and skip connection/
+# transmission/upgrade costs?) — LCOE per MWh is unchanged because CAPEX and
+# CF don't depend on installed volume.
+# Default 0.20 = operating industrial park (most land already spoken for).
+# Range: 0.05–1.00 (greenfield KEK with nothing built yet = closer to 1.0).
+# Source: resolved after Galang Batang flagged ~59% of its KEK area as
+# "buildable" from the raster filter — vacant land inside a greenfield KEK
+# counts even when earmarked for future factories, so raw buildable area
+# overstates what's actually free for solar today.
+
 # ─── FIRMING / WHEELING ADDER ─────────────────────────────────────────────────
 
 FIRMING_ADDER_LOW_USD_MWH: float = 6.0

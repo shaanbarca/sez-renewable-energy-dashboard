@@ -1172,6 +1172,8 @@ def grid_integration_category(
     solar_capacity_mwp: float | None = None,
     inter_substation_connected: bool | None = None,
     within_boundary_coverage_pct: float | None = None,
+    meaningful_share_pct: float = 1.0,
+    site_type: str | None = None,
 ) -> str:
     """Classify a KEK's grid integration readiness using three-point proximity.
 
@@ -1217,8 +1219,22 @@ def grid_integration_category(
         None = unknown / same substation / not checked (falls back to distance logic).
     within_boundary_coverage_pct:
         V3.2: Fraction of KEK demand coverable by within-boundary solar (0.0–N).
-        If >= 1.0, the KEK is self-sufficient with on-site solar and classifies as
-        'within_boundary' regardless of substation distances.
+        If >= `meaningful_share_pct` and site_type == "kek", the KEK is treated as
+        self-sufficient with on-site solar and classifies as 'within_boundary'
+        regardless of substation distances.
+    meaningful_share_pct:
+        V3.9: Threshold (0.0–1.0) for declaring a KEK self-sufficient via
+        within-boundary solar. Defaults to 1.0 (full self-supply) to preserve
+        legacy behaviour when callers don't pass the slider value. When the
+        dashboard passes the live slider, sites whose buildable solar covers at
+        least this share of demand skip substation/transmission/connection costs.
+    site_type:
+        V3.9: 'kek' | 'ki' | 'standalone' | 'cluster' | None. The partial-coverage
+        within_boundary rule applies only to 'kek' sites because they have real
+        polygon boundaries and realistic `within_boundary_coverage_pct`. Non-KEK
+        sites have point coordinates and a 50km-radius buildability buffer, so
+        their coverage figure is a synthetic artifact — applying the gate there
+        would zero out real grid costs based on made-up land.
 
     Returns
     -------
@@ -1229,8 +1245,15 @@ def grid_integration_category(
     if has_internal_substation:
         return "within_boundary"
 
-    # V3.2: If within-boundary solar covers >= 100% of demand, KEK is self-sufficient
-    if within_boundary_coverage_pct is not None and within_boundary_coverage_pct >= 1.0:
+    # V3.9: If within-boundary solar covers >= meaningful_share_pct of demand AND
+    # the site is a KEK (real polygon boundary), treat as self-sufficient. Non-KEK
+    # sites are excluded because their `within_boundary_coverage_pct` is computed
+    # over a 50km-radius buffer around point coordinates — not a real site boundary.
+    if (
+        site_type == "kek"
+        and within_boundary_coverage_pct is not None
+        and within_boundary_coverage_pct >= meaningful_share_pct
+    ):
         return "within_boundary"
 
     # Check substation rated capacity — if too small, treat as if grid is not ready

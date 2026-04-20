@@ -103,6 +103,16 @@ def compute_grid_integration(
     inter_raw = kek.get("inter_substation_connected")
     inter_connected = bool(inter_raw) if pd.notna(inter_raw) else None
     wb_coverage = _get_float(kek, "within_boundary_coverage_pct")
+    # V3.9.1: Raw buildable area from the raster counts every vacant KEK pixel,
+    # including land earmarked for future factories. Haircut by the user-set
+    # footprint ratio so an operating industrial park (default 0.20) doesn't
+    # get treated like a greenfield. Only gates category; LCOE $/MWh unchanged.
+    if wb_coverage is not None:
+        effective_wb_coverage: float | None = wb_coverage * assumptions.wb_buildout_footprint_ratio
+    else:
+        effective_wb_coverage = None
+    site_type_raw = kek.get("site_type")
+    site_type = str(site_type_raw) if pd.notna(site_type_raw) else None
 
     gi_cat = compute_grid_integration_category(
         has_internal_substation=has_internal,
@@ -112,7 +122,13 @@ def compute_grid_integration(
         substation_utilization_pct=util_pct,
         solar_capacity_mwp=effective_cap,
         inter_substation_connected=inter_connected,
-        within_boundary_coverage_pct=wb_coverage,
+        within_boundary_coverage_pct=effective_wb_coverage,
+        # V3.9: KEK self-sufficiency gate. When on-site buildable solar can cover
+        # at least `meaningful_share_pct` of demand, skip substation + transmission
+        # + connection costs. KEK-only because non-KEK sites have point coords and
+        # a 50km-radius buffer — their coverage % is not a real boundary figure.
+        meaningful_share_pct=assumptions.meaningful_share_pct,
+        site_type=site_type,
     )
 
     if gc_row is not None:
@@ -165,6 +181,12 @@ def compute_grid_integration(
         # V3.8: expose the utilization that actually drove the decision so the
         # ScoreDrawer can narrate "85% — PLN plans +60 MVA uprate in 2028".
         "substation_utilization_pct_effective": round(util_pct, 3),
+        # V3.9.1: effective within-boundary coverage after buildout-footprint
+        # haircut — what the gate actually checked. Lets the UI narrate
+        # "raw 59% × 0.20 footprint = 12% effective, below 30% threshold".
+        "within_boundary_coverage_effective_pct": (
+            round(effective_wb_coverage, 4) if effective_wb_coverage is not None else None
+        ),
         "nearest_substation_name": kek.get("nearest_substation_name", None),
         "nearest_substation_capacity_mva": sub_cap_mva,
         "nearest_substation_capacity_source": cap_source_str or None,

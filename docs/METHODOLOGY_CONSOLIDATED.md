@@ -658,17 +658,26 @@ For each KEK:
 
 | Category | Condition | Meaning |
 |---|---|---|
-| `within_boundary` | Operational substation inside KEK polygon, OR within-boundary solar coverage >= 100% of demand | No grid connection needed (behind-the-meter) |
+| `within_boundary` | Operational substation inside KEK polygon, OR within-boundary solar coverage >= `meaningful_share_pct` of demand (KEK-only) | No grid connection needed (behind-the-meter) |
 | `grid_ready` | d(A, B_solar) < 5km AND d(C, B_kek) < 15km | Both short distances, grid can absorb and deliver |
 | `invest_transmission` | d(A, B_solar) < 5km AND d(C, B_kek) >= 15km | Solar near substation but KEK far. **Build transmission to KEK.** |
 | `invest_substation` | d(C, B_kek) < 15km AND d(A, B_solar) >= 5km | KEK near grid but solar far. **Build substation near solar.** |
 | `grid_first` | Both distances exceed thresholds | No nearby grid infrastructure. Major grid expansion needed. |
 
-**Within-boundary override (V3.2):** If buildable solar within the KEK boundary can generate >= 100% of the KEK's 2030 demand (using within-boundary PVOUT), the KEK is self-sufficient with on-site solar. It classifies as `within_boundary` regardless of substation distances, because the project can be deployed behind-the-meter without grid export. 9 KEKs qualify: Singhasari (201%), Lido (166%), Gresik (155%), Maloy Batuta (150%), Kendal (148%), Palu (142%), Industropolis Batang (138%), Tanjung Kelayang (136%), Galang Batang (103%).
+**Within-boundary override (V3.9):** If buildable solar within the KEK boundary can cover >= `meaningful_share_pct` of the KEK's 2030 demand (live slider, default 30%), the project classifies as `within_boundary` — self-sufficient on-site, deployed behind-the-meter, no grid export. When this fires:
 
-**Current results:** 11 `within_boundary` (2 internal substation + 9 coverage override), 10 `invest_substation`, 3 `grid_first`, 1 `grid_ready`.
+- The primary LCOE reported on the scorecard is the **within-boundary LCOE** (centroid PVOUT, no connection/transmission/upgrade costs baked in), not the grid-connected LCOE. See `src/dash/logic/site_context.py`.
+- The infrastructure cost rollup zeros out gen-tie, new transmission, and substation upgrade costs in `src/dash/logic/grid.py`.
 
-**Implementation:** `grid_integration_category()` in `basic_model.py`; proximity pipeline in `build_fct_substation_proximity.py`; coverage override in `build_fct_kek_scorecard.py`
+**Gate is KEK-only.** The rule requires `site_type == "kek"` because only KEKs have real polygon boundaries (`kek_polygons.geojson`). Non-KEK sites (standalone, cluster, KI) get their `within_boundary_coverage_pct` from a synthetic 50km-radius buffer around their point coordinates — that number has no physical meaning as "on-site." Excluding them from this gate is defense-in-depth; in practice their `within_boundary_capacity_mwp` is already 0 because `_compute_within_boundary_buildable()` in `build_fct_site_resource.py` requires a KEK polygon.
+
+**V3.2 history:** The original override required >= 100% coverage (no slider). V3.9 replaces the hard-coded threshold with the live `meaningful_share_pct` slider so the gate aligns with phase-1 project sizing: if on-site solar can meet the user's chosen "meaningful share" of demand, grid infrastructure is not part of the captive project.
+
+**Buildout-footprint haircut (V3.9.1):** Before comparing `within_boundary_coverage_pct` to the meaningful-share threshold, it is multiplied by `wb_buildout_footprint_ratio` (default 0.20, user slider range 0.05–1.00). Motivation: the raw `within_boundary_capacity_mwp` is derived from the spatial intersection of the KEK polygon with the buildability-filtered raster — that filter rejects forest, peatland, steep slope, and built-up pixels, but still counts every remaining vacant pixel as "buildable for solar." Inside an operating industrial park, most vacant land is earmarked for future factories, roads, utilities, and buffers, so the raw number systematically overstates what is actually free for on-site solar today. Galang Batang triggered this: the raster flagged ~59% of the KEK as buildable, which at face value made the KEK look self-sufficient on solar alone and incorrectly zeroed out all grid-infrastructure costs.
+
+The ratio is a **gate-only haircut**: it gates whether the KEK clears the `meaningful_share_pct` threshold (and therefore whether grid infrastructure costs load into the LCOE). It does **not** scale the installed volume or the $/MWh LCOE — CAPEX and CF are volume-independent. Default 0.20 is tuned to operating parks. Greenfield KEKs should use higher values (0.50–1.00). Implementation: `effective_wb_coverage = wb_coverage × wb_buildout_footprint_ratio` in `src/dash/logic/grid.py` before the call to `grid_integration_category()`. Exposed to the UI as `within_boundary_coverage_effective_pct` so banners can narrate "raw 59% × 0.20 → 12% effective, below 30% threshold."
+
+**Implementation:** `grid_integration_category()` in `basic_model.py` (takes `meaningful_share_pct` + `site_type` args); plumbed through `compute_grid_integration()` in `src/dash/logic/grid.py`; primary LCOE picker in `src/dash/logic/site_context.py` flips to `wb_row` when category is `within_boundary`.
 
 ### 8.3 Threshold values
 

@@ -30,6 +30,7 @@ from src.assumptions import (
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
+    WB_BUILDOUT_FOOTPRINT_RATIO,
 )
 
 
@@ -50,6 +51,7 @@ class UserAssumptions:
     land_cost_usd_per_kw: float = LAND_COST_USD_PER_KW
     substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT
     meaningful_share_pct: float = MEANINGFUL_SHARE_PCT
+    wb_buildout_footprint_ratio: float = WB_BUILDOUT_FOOTPRINT_RATIO
     idr_usd_rate: float = IDR_USD_RATE
     grid_benchmark_usd_mwh: float = 63.08
 
@@ -96,6 +98,7 @@ class UserAssumptions:
             "land_cost_usd_per_kw": self.land_cost_usd_per_kw,
             "substation_utilization_pct": self.substation_utilization_pct,
             "meaningful_share_pct": self.meaningful_share_pct,
+            "wb_buildout_footprint_ratio": self.wb_buildout_footprint_ratio,
             "idr_usd_rate": self.idr_usd_rate,
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
             "cbam_certificate_price_eur": self.cbam_certificate_price_eur,
