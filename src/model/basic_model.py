@@ -1291,10 +1291,14 @@ def capacity_assessment(
     The returned available value remains in MVA (for display purposes).
 
     Returns (traffic_light, available_mva):
-        'green'   — available real power > 2× solar potential
-        'yellow'  — available real power between 0.5× and 2× solar potential
-        'red'     — available real power < 0.5× solar potential (upgrade needed)
+        'green'   — available real power >= solar potential (fits, no uprating)
+        'yellow'  — available real power 0.5×–1× solar potential (partial overflow)
+        'red'     — available real power < 0.5× solar potential (major upgrade)
         'unknown' — capacity data unavailable
+
+    Bands are aligned with `substation_upgrade_cost_per_kw`: green is exactly
+    the regime where the upgrade cost is $0. This keeps the UI's traffic light
+    and the cost column from contradicting each other.
     """
     if substation_capacity_mva is None or substation_capacity_mva <= 0:
         return "unknown", None
@@ -1303,7 +1307,7 @@ def capacity_assessment(
         return "unknown", round(available, 1)
     available_mw = available * power_factor
     ratio = available_mw / solar_capacity_mwp
-    if ratio > 2.0:
+    if ratio >= 1.0:
         return "green", round(available, 1)
     elif ratio >= 0.5:
         return "yellow", round(available, 1)

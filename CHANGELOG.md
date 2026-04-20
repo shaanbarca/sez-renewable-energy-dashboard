@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Substation capacity traffic-light false positives.** `capacity_assessment()` classified ratios between 1.0 and 2.0 (available real power / solar MWp) as yellow "Marginal" and surfaced a "Why upgrade? Transformers need uprating to absorb the surplus" panel in the ScoreDrawer Grid tab — even though the project fit entirely within the available throughput and `substation_upgrade_cost_per_kw` correctly returned $0. User-reported case: 28 MWp solar vs 36 MW available (42 MVA × 0.85 PF) wrongly flagged as needing an upgrade. Bands now aligned with the cost function: green = ratio ≥ 1.0 (fits, no uprating), yellow = 0.5–1.0 (partial overflow), red = < 0.5 (major deficit). Traffic light and cost column can no longer contradict each other. Golden-master scorecard regenerated — several sites flipped yellow → green.
+
 ## [1.3.0] - 2026-04-20
 
 V3.7 substation-anchored solar picker fixes "Build Substation" false positives + chosen-polygon highlight + pre-landing review cleanups.
@@ -42,7 +45,6 @@ V3.7 substation-anchored solar picker fixes "Build Substation" false positives +
 ### Docs
 - `docs/METHODOLOGY_CONSOLIDATED.md` — updated §8.1 three-point inputs for V3.7; new §8.7 covers the full algorithm, thresholds, hosting-capacity proxy, regulatory regime, Perpres ceiling, and Batam verification.
 - `DATA_DICTIONARY.md` — §3.1 (fct_site_resource) adds 5 new column rows; §3.4 (fct_substation_proximity) adds 2; §3.6 (fct_site_scorecard) adds `solar_regime` and `lcoe_grid_connected_capped_usd_mwh`.
-
 ## [1.2.0] - 2026-04-19
 
 Scenario Compare + CBAM methodology rewrite + 81-site universe + Persona 6.

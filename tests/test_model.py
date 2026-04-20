@@ -793,16 +793,18 @@ class TestCapacityAssessment:
     def test_yellow(self):
         from src.model.basic_model import capacity_assessment
 
-        light, avail = capacity_assessment(60.0, 15.0, utilization_pct=0.65)
+        # 60 MVA × 0.35 = 21 available MVA × 0.85 PF = 17.85 MW real power
+        # vs 30 MWp solar: ratio = 17.85 / 30 = 0.595 → yellow (partial overflow)
+        light, avail = capacity_assessment(60.0, 30.0, utilization_pct=0.65)
         assert light == "yellow"
-        assert avail == 21.0  # 60 × 0.35 = 21, ratio = 21/15 = 1.4
+        assert avail == 21.0
 
     def test_red(self):
         from src.model.basic_model import capacity_assessment
 
         light, avail = capacity_assessment(60.0, 50.0, utilization_pct=0.65)
         assert light == "red"
-        # 60 × 0.35 = 21, ratio = 21/50 = 0.42 < 0.5
+        # 60 × 0.35 × 0.85 / 50 = 0.357 < 0.5 → red
 
     def test_unknown_no_capacity(self):
         from src.model.basic_model import capacity_assessment
@@ -867,11 +869,11 @@ class TestSubstationUpgradeCost:
     def test_power_factor_affects_traffic_light(self):
         from src.model.basic_model import capacity_assessment
 
-        # 100 MVA, 15 MWp, util=0.65: available=35 MVA
-        # PF=1.0: ratio = 35/15 = 2.33 -> green
-        # PF=0.85: ratio = 29.75/15 = 1.98 -> yellow (below 2.0 threshold)
-        light_no_pf, _ = capacity_assessment(100.0, 15.0, utilization_pct=0.65, power_factor=1.0)
-        light_with_pf, _ = capacity_assessment(100.0, 15.0, utilization_pct=0.65, power_factor=0.85)
+        # 100 MVA × 0.35 = 35 available MVA; solar = 33 MWp
+        # PF=1.0: ratio = 35/33 = 1.06 → green (fits)
+        # PF=0.85: ratio = 29.75/33 = 0.90 → yellow (partial overflow after PF correction)
+        light_no_pf, _ = capacity_assessment(100.0, 33.0, utilization_pct=0.65, power_factor=1.0)
+        light_with_pf, _ = capacity_assessment(100.0, 33.0, utilization_pct=0.65, power_factor=0.85)
         assert light_no_pf == "green"
         assert light_with_pf == "yellow"
 

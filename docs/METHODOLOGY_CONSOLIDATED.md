@@ -701,10 +701,12 @@ The returned `available_capacity_mva` column retains the MVA value for display. 
 
 | Status | Criteria |
 |---|---|
-| Green | Available real power (MW) > 2x solar potential |
-| Yellow | Available real power (MW) 0.5-2x solar potential |
-| Red | Available real power (MW) < 0.5x solar potential (upgrade needed) |
+| Green | Available real power (MW) >= solar potential (fits, no uprating) |
+| Yellow | Available real power (MW) 0.5-1x solar potential (partial overflow, uprating needed) |
+| Red | Available real power (MW) < 0.5x solar potential (major upgrade) |
 | Unknown | Capacity data unavailable |
+
+Bands are aligned with `substation_upgrade_cost_per_kw`: green is exactly the regime where the upgrade cost is $0, so the UI's traffic light and the cost column never contradict each other.
 
 **Implementation:** `capacity_assessment()` in `basic_model.py`
 
