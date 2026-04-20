@@ -211,9 +211,11 @@ def _sum_child_capacity(
         return 0.0, None
 
     dists = processing.apply(
-        lambda r: haversine_km(iia_lat, iia_lon, r["latitude"], r["longitude"])
-        if pd.notna(r["latitude"]) and pd.notna(r["longitude"])
-        else float("inf"),
+        lambda r: (
+            haversine_km(iia_lat, iia_lon, r["latitude"], r["longitude"])
+            if pd.notna(r["latitude"]) and pd.notna(r["longitude"])
+            else float("inf")
+        ),
         axis=1,
     )
     within = processing[dists <= radius_km].copy()
