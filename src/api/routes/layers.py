@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, Query
 
 from src.assumptions import (
     BASE_WACC_DECIMAL,
+    HOSTING_CAPACITY_AVAILABILITY_PCT,
+    SUBSTATION_UTILIZATION_PCT,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
     TECH006_LIFETIME_YR,
@@ -181,16 +183,28 @@ def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge
     pvout_annual = None
     solar_lat = None
     solar_lon = None
-    utilization_pct = 0.65  # default
+    utilization_pct = SUBSTATION_UTILIZATION_PCT
 
     anchor_name: str | None = None
     if not res_row.empty:
         r = res_row.iloc[0]
-        solar_mwp = (
-            float(r["max_captive_capacity_mwp"])
-            if pd.notna(r.get("max_captive_capacity_mwp"))
-            else None
-        )
+        # V3.7: prefer anchored project scale; fall back to 50km envelope for
+        # pre-anchor rows (wind-only, industrial sites without picker output).
+        anchor_mwp_val = r.get("project_scale_solar_mwp")
+        envelope_mwp_val = r.get("max_captive_capacity_mwp")
+        if pd.notna(anchor_mwp_val):
+            solar_mwp = float(anchor_mwp_val)
+        elif pd.notna(envelope_mwp_val):
+            solar_mwp = float(envelope_mwp_val)
+        # Per-site proxy-aware utilization — mirror build_fct_substation_proximity
+        # derating so top-3 comparison matches the scorecard. Note: this applies
+        # the KEK's nearest-substation source to all 3 candidates; strictly each
+        # candidate could have its own source, but substations in the same area
+        # tend to share voltage class — acceptable approximation.
+        cap_source = r.get("nearest_substation_capacity_source")
+        cap_source_str = str(cap_source) if pd.notna(cap_source) else ""
+        if cap_source_str.startswith("proxy_"):
+            utilization_pct = 1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT
         # Column is pvout_best_50km (annual kWh/kWp/yr), fallback to pvout_centroid
         pvout_val = (
             r.get("pvout_best_50km")
