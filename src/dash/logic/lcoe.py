@@ -30,9 +30,34 @@ def _round(value: float, decimals: int = 2) -> float:
     return round(float(value), decimals)
 
 
+def live_effective_mwp(
+    demand_mwh: float | None,
+    cf: float | None,
+    max_buildable_mwp: float | None,
+    meaningful_share_pct: float,
+    target_capacity_mwp: float | None = None,
+) -> float:
+    """Phase-1 sized project capacity the substation sees.
+
+    Priority: explicit ``target_capacity_mwp`` override wins. Otherwise derive
+    phase-1 from demand coverage: `meaningful_share_pct` of the capacity
+    required to meet annual site demand. Always capped by the buildable upper
+    bound. Falls back to full buildable when demand/cf are unknown.
+    """
+    max_mwp = float(max_buildable_mwp) if max_buildable_mwp and max_buildable_mwp > 0 else 0.0
+    if target_capacity_mwp:
+        return min(float(target_capacity_mwp), max_mwp) if max_mwp else float(target_capacity_mwp)
+    if not demand_mwh or not cf or cf <= 0:
+        return max_mwp
+    required_mwp = float(demand_mwh) / (8760.0 * float(cf))
+    phase1_mwp = required_mwp * float(meaningful_share_pct)
+    return min(phase1_mwp, max_mwp) if max_mwp else phase1_mwp
+
+
 def compute_lcoe_live(
     resource_df: pd.DataFrame,
     assumptions: UserAssumptions,
+    demand_by_site: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """Compute LCOE for all KEKs at user-specified assumptions.
 
@@ -72,6 +97,7 @@ def compute_lcoe_live(
     rows = []
     for _, kek in resource_df.iterrows():
         site_id = kek["site_id"]
+        demand_mwh = (demand_by_site or {}).get(site_id, 0.0)
 
         dist_solar = kek.get("dist_solar_to_nearest_substation_km")
         dist_kek = kek.get("dist_to_nearest_substation_km", 0.0)
@@ -129,10 +155,12 @@ def compute_lcoe_live(
                 if pd.notna(max_mwp_val) and float(max_mwp_val) > 0
                 else TRANSMISSION_FALLBACK_CAPACITY_MWP
             )
-            effective_mwp = (
-                min(assumptions.target_capacity_mwp, max_mwp)
-                if assumptions.target_capacity_mwp
-                else max_mwp
+            effective_mwp = live_effective_mwp(
+                demand_mwh=demand_mwh,
+                cf=cf_gc,
+                max_buildable_mwp=max_mwp,
+                meaningful_share_pct=assumptions.meaningful_share_pct,
+                target_capacity_mwp=assumptions.target_capacity_mwp,
             )
 
             inter_connected = kek.get("inter_substation_connected")

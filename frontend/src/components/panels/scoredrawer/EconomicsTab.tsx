@@ -248,6 +248,51 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
         </StatCard>
       )}
 
+      {row.solar_regime && row.solar_regime !== 'unclear' && (
+        <StatCard>
+          <SectionHeader
+            title="Regulatory Regime"
+            subtitle="Captive self-consumption or IPP sale to PLN?"
+            tip="Captive solar inside a gazetted estate sells to the tenant directly — no PPA with PLN. Grid-connected IPPs sell to PLN and face the Perpres 112/2022 ceiling tariff (~$75/MWh)."
+          />
+          <StatRowWithTip
+            label="Regime"
+            value={
+              row.solar_regime === 'co_located_captive'
+                ? 'Co-located captive'
+                : 'Grid-connected IPP'
+            }
+            tip={
+              row.solar_regime === 'co_located_captive'
+                ? 'Site sits inside a gazetted KEK/KI and the anchor patch is within 10km — no PLN sale needed, no tariff ceiling.'
+                : 'Anchor patch is outside the estate or the site is not in a gazetted area. Solar must be sold to PLN under Perpres 112/2022.'
+            }
+          />
+          {row.solar_regime === 'grid_connected_ipp' &&
+            row.lcoe_grid_connected_capped_usd_mwh != null && (
+              <>
+                <StatRowWithTip
+                  label="PPA Ceiling"
+                  value={row.lcoe_grid_connected_capped_usd_mwh.toFixed(1)}
+                  unit="$/MWh"
+                  tip="Perpres 112/2022 Art. 10 caps new grid-connected solar PPAs at ~$75/MWh. If the unconstrained LCOE is above this, the project is below breakeven at PLN's offered tariff."
+                />
+                {row.lcoe_mid_usd_mwh != null &&
+                  row.lcoe_mid_usd_mwh > row.lcoe_grid_connected_capped_usd_mwh && (
+                    <div
+                      className="text-[10px] mt-1 leading-relaxed"
+                      style={{ color: 'var(--warning, #F59E0B)' }}
+                    >
+                      Unconstrained LCOE (${row.lcoe_mid_usd_mwh.toFixed(0)}/MWh) exceeds the
+                      Perpres ceiling — project is below economic breakeven under current tariff
+                      rules.
+                    </div>
+                  )}
+              </>
+            )}
+        </StatCard>
+      )}
+
       <StatCard>
         <SectionHeader
           title="Carbon & Policy"

@@ -96,11 +96,14 @@ PIPELINE: list[Step] = [
     Step("dim_tech_cost", build_dim_tech_cost, "dim_tech_cost.csv"),
     Step("dim_tech_cost_wind", build_dim_tech_cost_wind, "dim_tech_cost_wind.csv"),
     # Stage 2: Facts
+    # V3.7: fct_site_demand moved ahead of fct_site_resource so the substation-anchored
+    # solar picker can size required_solar_mwp from demand_2030_gwh.
+    Step("fct_site_demand", build_fct_site_demand, "fct_site_demand.csv", depends_on=["dim_sites"]),
     Step(
         "fct_site_resource",
         build_fct_site_resource,
         "fct_site_resource.csv",
-        depends_on=["dim_sites"],
+        depends_on=["dim_sites", "fct_site_demand"],
     ),
     Step(
         "fct_site_wind_resource",
@@ -108,7 +111,6 @@ PIPELINE: list[Step] = [
         "fct_site_wind_resource.csv",
         depends_on=["dim_sites"],
     ),
-    Step("fct_site_demand", build_fct_site_demand, "fct_site_demand.csv", depends_on=["dim_sites"]),
     Step(
         "fct_grid_cost_proxy",
         build_fct_grid_cost_proxy,
@@ -133,7 +135,7 @@ PIPELINE: list[Step] = [
         "fct_substation_proximity",
         build_fct_substation_proximity,
         "fct_substation_proximity.csv",
-        depends_on=["dim_sites"],
+        depends_on=["dim_sites", "fct_site_resource", "fct_site_demand"],
     ),
     Step(
         "fct_lcoe",

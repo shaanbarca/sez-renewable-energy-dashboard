@@ -9,6 +9,7 @@ export interface UserAssumptions {
   bess_sizing_hours_override?: number | null;
   land_cost_usd_per_kw: number;
   substation_utilization_pct: number;
+  meaningful_share_pct: number;
   idr_usd_rate: number;
   grant_funded_transmission?: boolean;
   target_capacity_mwp?: number | null;
@@ -54,7 +55,8 @@ export type InfrastructureReadiness =
   | 'grid_ready'
   | 'invest_transmission'
   | 'invest_substation'
-  | 'grid_first';
+  | 'grid_first'
+  | 'no_resource';
 
 export type ModifierBadge = 'cbam_urgent' | 'plan_late' | 'storage_info';
 
@@ -113,6 +115,9 @@ export interface ScorecardRow {
   pvout_centroid_kwh_kwp_yr?: number;
   pvout_best_50km_kwh_kwp_yr?: number;
 
+  best_solar_site_lat?: number | null;
+  best_solar_site_lon?: number | null;
+
   // Wind resource fields (from precomputed scorecard)
   lcoe_wind_mid_usd_mwh?: number;
   lcoe_wind_allin_mid_usd_mwh?: number;
@@ -158,6 +163,16 @@ export interface ScorecardRow {
   substation_upgrade_cost_per_kw?: number;
   grid_investment_needed_usd?: number;
   effective_capacity_mwp?: number;
+
+  // V3.7: Substation-anchored solar search + regulatory regime
+  solar_search_method?: 'substation_anchored' | 'best_pvout_fallback' | null;
+  chosen_anchor_substation_name?: string | null;
+  solar_supply_share_pct?: number | null;
+  solar_delivered_share_pct?: number | null;
+  project_scale_solar_mwp?: number | null;
+  nearest_substation_capacity_source?: string | null;
+  solar_regime?: 'co_located_captive' | 'grid_connected_ipp' | 'unclear' | null;
+  lcoe_grid_connected_capped_usd_mwh?: number | null;
 
   // H9: Captive power context
   captive_coal_count?: number | null;
@@ -240,6 +255,7 @@ export interface SubstationWithCosts {
   dist_km: number;
   dist_solar_km?: number | null;
   is_nearest: boolean;
+  is_anchor?: boolean;
   rank?: number | null;
   voltage?: string;
   capacity_mva?: number | string | null;

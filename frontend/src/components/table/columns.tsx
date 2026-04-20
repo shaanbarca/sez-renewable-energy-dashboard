@@ -109,7 +109,7 @@ function ReAssessmentCell({ info }: { info: CellContext<ScorecardRow, ActionFlag
   const energyMode = useDashboardStore((s) => s.energyMode);
   const row = info.row.original;
   const tier = getEffectiveEconomicTier(row, energyMode);
-  const infra = getEffectiveInfraReadiness(row);
+  const infra = getEffectiveInfraReadiness(row, energyMode);
   const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
   const tierLabel = getEconomicTierLabel(tier, energyMode);
   const infraLabel = INFRA_READINESS_LABELS[infra] ?? infra;
@@ -177,6 +177,54 @@ function GridRateCell({ info }: { info: CellContext<ScorecardRow, number> }) {
   return <>{value.toFixed(1)}</>;
 }
 
+/* ---------- Energy-mode-reactive cells ---------- */
+// These subscribe to `energyMode` via the hook (NOT getState()) so the cell
+// re-renders when the user toggles solar/wind/hybrid/overall; otherwise the
+// label stays stale until an unrelated store change forces a re-render.
+
+function GridIntegrationCell({
+  info,
+}: {
+  info: CellContext<ScorecardRow, string | null | undefined>;
+}) {
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  if (getEffectiveInfraReadiness(info.row.original, energyMode) === 'no_resource') return '—';
+  const val = info.getValue();
+  return <>{val ? formatSnakeLabel(val) : '—'}</>;
+}
+
+function EconomicTierCell({ info }: { info: CellContext<ScorecardRow, unknown> }) {
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const tier = getEffectiveEconomicTier(info.row.original, energyMode);
+  const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
+  const label = getEconomicTierLabel(tier, energyMode);
+  return (
+    <span className="flex items-center gap-1">
+      <span
+        className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+        style={{ background: color }}
+      />
+      <span style={{ color, fontSize: 11 }}>{label}</span>
+    </span>
+  );
+}
+
+function InfrastructureReadinessCell({ info }: { info: CellContext<ScorecardRow, unknown> }) {
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const infra = getEffectiveInfraReadiness(info.row.original, energyMode);
+  const color = INFRA_READINESS_COLORS[infra] ?? '#666';
+  const label = INFRA_READINESS_LABELS[infra] ?? formatSnakeLabel(infra);
+  return (
+    <span className="flex items-center gap-1">
+      <span
+        className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+        style={{ background: color }}
+      />
+      <span style={{ color, fontSize: 11 }}>{label}</span>
+    </span>
+  );
+}
+
 /* ---------- Column definitions ---------- */
 
 const col = createColumnHelper<ScorecardRow>();
@@ -239,10 +287,7 @@ export const columns = [
     header: () => (
       <HeaderWithTooltip label="Grid Integration" columnId="grid_integration_category" />
     ),
-    cell: (info) => {
-      const val = info.getValue();
-      return val ? formatSnakeLabel(val) : '—';
-    },
+    cell: (info) => <GridIntegrationCell info={info} />,
   }),
   col.display({
     id: 'economic_tier',
@@ -252,44 +297,18 @@ export const columns = [
       const tier = getEffectiveEconomicTier(row.original, useDashboardStore.getState().energyMode);
       return tier === filterValue;
     },
-    cell: (info) => {
-      const energyMode = useDashboardStore.getState().energyMode;
-      const tier = getEffectiveEconomicTier(info.row.original, energyMode);
-      const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
-      const label = getEconomicTierLabel(tier, energyMode);
-      return (
-        <span className="flex items-center gap-1">
-          <span
-            className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-            style={{ background: color }}
-          />
-          <span style={{ color, fontSize: 11 }}>{label}</span>
-        </span>
-      );
-    },
+    cell: (info) => <EconomicTierCell info={info} />,
   }),
   col.display({
     id: 'infrastructure_readiness',
     header: () => <HeaderWithTooltip label="Infra Ready" columnId="infrastructure_readiness" />,
     enableColumnFilter: true,
     filterFn: (row, _columnId, filterValue: string) => {
-      const infra = getEffectiveInfraReadiness(row.original);
+      const energyMode = useDashboardStore.getState().energyMode;
+      const infra = getEffectiveInfraReadiness(row.original, energyMode);
       return infra === filterValue;
     },
-    cell: (info) => {
-      const infra = getEffectiveInfraReadiness(info.row.original);
-      const color = INFRA_READINESS_COLORS[infra] ?? '#666';
-      const label = INFRA_READINESS_LABELS[infra] ?? formatSnakeLabel(infra);
-      return (
-        <span className="flex items-center gap-1">
-          <span
-            className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-            style={{ background: color }}
-          />
-          <span style={{ color, fontSize: 11 }}>{label}</span>
-        </span>
-      );
-    },
+    cell: (info) => <InfrastructureReadinessCell info={info} />,
   }),
   col.accessor('grid_investment_needed_usd', {
     header: () => (

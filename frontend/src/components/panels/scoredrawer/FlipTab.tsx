@@ -36,10 +36,7 @@ function CompareRow({
       <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
         {label}
       </span>
-      <span
-        className="text-[12px] tabular-nums"
-        style={{ color: 'var(--text-secondary)' }}
-      >
+      <span className="text-[12px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>
         {before}
         {unit ? ` ${unit}` : ''}
       </span>
@@ -81,9 +78,9 @@ export function FlipTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
           No flip scenario computed yet. Pick a preset and click{' '}
-          <strong style={{ color: 'var(--accent)' }}>Compute Flip</strong> in the
-          Scenario Compare tab to see how this site's tier, LCOE, and CBAM exposure would
-          shift under the flipped assumptions.
+          <strong style={{ color: 'var(--accent)' }}>Compute Flip</strong> in the Scenario Compare
+          tab to see how this site's tier, LCOE, and CBAM exposure would shift under the flipped
+          assumptions.
         </p>
         <button
           type="button"
@@ -111,9 +108,7 @@ export function FlipTab({ row }: { row: ScorecardRow }) {
   }
 
   const presetLabel =
-    flipPreset && flipPreset !== 'custom'
-      ? FLIP_PRESET_LABELS[flipPreset]
-      : 'Custom edits';
+    flipPreset && flipPreset !== 'custom' ? FLIP_PRESET_LABELS[flipPreset] : 'Custom edits';
 
   const directionColor =
     diff.flip_direction === 'improved'
@@ -139,7 +134,10 @@ export function FlipTab({ row }: { row: ScorecardRow }) {
       <StatCard>
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            <div
+              className="text-[10px] uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}
+            >
               Scenario
             </div>
             <div className="text-[12px] font-medium" style={{ color: 'var(--text-value)' }}>
@@ -158,10 +156,7 @@ export function FlipTab({ row }: { row: ScorecardRow }) {
           </span>
         </div>
         {flipStale && (
-          <div
-            className="mt-2 text-[10px] italic"
-            style={{ color: 'var(--warning, #f59e0b)' }}
-          >
+          <div className="mt-2 text-[10px] italic" style={{ color: 'var(--warning, #f59e0b)' }}>
             Baseline changed — recompute to refresh this view
           </div>
         )}

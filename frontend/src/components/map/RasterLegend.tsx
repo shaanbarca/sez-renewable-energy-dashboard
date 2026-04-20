@@ -104,6 +104,25 @@ export default function RasterLegend() {
                 Remote solar (50 km)
               </span>
             </div>
+            {showSolarBuildable && (
+              <div className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <rect
+                    x="1"
+                    y="1"
+                    width="12"
+                    height="12"
+                    rx="2"
+                    fill="rgba(255, 213, 79, 0.6)"
+                    stroke="#FFA000"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Chosen solar polygon
+                </span>
+              </div>
+            )}
             {showWindBuildable && (
               <>
                 <div

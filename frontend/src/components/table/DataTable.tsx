@@ -130,7 +130,7 @@ function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: 
       } else if (column.id === 'economic_tier') {
         vals.add(getEffectiveEconomicTier(row, energyMode));
       } else if (column.id === 'infrastructure_readiness') {
-        vals.add(getEffectiveInfraReadiness(row));
+        vals.add(getEffectiveInfraReadiness(row, energyMode));
       } else {
         const v = row[column.id as keyof ScorecardRow];
         if (v != null && v !== '') vals.add(String(v));
@@ -220,11 +220,14 @@ export default function DataTable() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [cbamOnly, setCbamOnly] = useState(false);
+  const [kekOnly, setKekOnly] = useState(false);
 
-  const data = useMemo(
-    () => (cbamOnly ? (scorecard ?? []).filter((r) => r.cbam_exposed) : (scorecard ?? [])),
-    [scorecard, cbamOnly],
-  );
+  const data = useMemo(() => {
+    let rows = scorecard ?? [];
+    if (cbamOnly) rows = rows.filter((r) => r.cbam_exposed);
+    if (kekOnly) rows = rows.filter((r) => r.site_type === 'kek');
+    return rows;
+  }, [scorecard, cbamOnly, kekOnly]);
 
   const table = useReactTable({
     data,
@@ -364,6 +367,22 @@ export default function DataTable() {
           )}
         </div>
         <div className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setKekOnly(!kekOnly)}
+          className="px-2 py-1 text-[10px] rounded cursor-pointer transition-colors"
+          style={
+            kekOnly
+              ? {
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent-border)',
+                  background: 'var(--accent-soft)',
+                }
+              : { color: 'var(--text-muted)', border: '1px solid var(--input-border)' }
+          }
+        >
+          KEKs only
+        </button>
         <button
           type="button"
           onClick={() => setCbamOnly(!cbamOnly)}

@@ -89,3 +89,25 @@ def estimate_demand_sector_intensity(
     key = get_intensity_key(sector, technology)
     intensity = SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE[key]
     return capacity_annual_tonnes * intensity
+
+
+def required_solar_mwp(annual_demand_mwh: float, cf: float) -> float:
+    """Nameplate solar capacity (MWp) required to produce `annual_demand_mwh`.
+
+    Parameters
+    ----------
+    annual_demand_mwh
+        Site's annual electricity demand in MWh.
+    cf
+        Solar capacity factor (0-1) at the site. Typically 0.15-0.20 for
+        equatorial Indonesia. Use cf_centroid for a site-typical estimate.
+
+    Returns
+    -------
+    float
+        Required nameplate MWp. Returns 0.0 for zero/negative demand or CF.
+    """
+    if annual_demand_mwh <= 0 or cf <= 0:
+        return 0.0
+    # MWp × 8760h × CF = annual generation in MWh
+    return annual_demand_mwh / (8760 * cf)

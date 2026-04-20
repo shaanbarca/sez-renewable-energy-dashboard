@@ -49,6 +49,12 @@ class AssumptionsInput(BaseModel):
     )
     land_cost_usd_per_kw: float = Field(ge=0)
     substation_utilization_pct: float = Field(ge=0.0, le=1.0, default=0.65)
+    meaningful_share_pct: float = Field(
+        ge=0.10,
+        le=1.0,
+        default=0.30,
+        description="First-phase solar sizing as share of site demand (0.10-1.0). Lower = smaller project.",
+    )
     idr_usd_rate: float = Field(gt=0)
     grid_benchmark_usd_mwh: float = Field(ge=0)
     grant_funded_transmission: bool = Field(

@@ -183,6 +183,14 @@ TIER2_SLIDERS = {
         "unit": "",
         "description": "Assumed fraction of substation capacity in use. Available capacity = rated × (1 - utilization)",
     },
+    "meaningful_share_pct": {
+        "min": 0.10,
+        "max": 1.00,
+        "step": 0.05,
+        "label": "Project sizing (% of demand)",
+        "unit": "",
+        "description": "First-phase solar sized to cover this share of site demand. Lower = smaller project, fewer substation upgrades needed. 0.30 = phase-1 realistic, 1.00 = full self-sufficiency.",
+    },
     "idr_usd_rate": {
         "min": 14000,
         "max": 18000,

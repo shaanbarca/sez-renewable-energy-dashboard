@@ -583,12 +583,21 @@ def load_wind_raster() -> tuple[str, list[list[float]]] | None:
 
 
 def load_buildable_polygons() -> dict | None:
-    """Load solar buildable area polygons (M14: raster-to-polygon conversion)."""
+    """Load solar buildable area polygons (M14: raster-to-polygon conversion).
+
+    Injects a stable ``feature_index`` property (array position) on each feature
+    so the frontend can filter/highlight a single polygon by index after a
+    point-in-polygon test against the chosen solar patch centroid.
+    """
     path = REPO_ROOT / "outputs" / "assets" / "buildable_polygons.geojson"
     if not path.exists():
         return None
     with open(path) as f:
-        return json.load(f)
+        data = json.load(f)
+    for idx, feat in enumerate(data.get("features", [])):
+        props = feat.setdefault("properties", {})
+        props["feature_index"] = idx
+    return data
 
 
 def load_wind_buildable_polygons() -> dict | None:
