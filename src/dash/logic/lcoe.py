@@ -149,12 +149,14 @@ def compute_lcoe_live(
                 )
             land_cost = assumptions.land_cost_usd_per_kw
 
-            max_mwp_val = kek.get("max_captive_capacity_mwp")
-            max_mwp = (
-                float(max_mwp_val)
-                if pd.notna(max_mwp_val) and float(max_mwp_val) > 0
-                else TRANSMISSION_FALLBACK_CAPACITY_MWP
-            )
+            anchor_mwp_val = kek.get("project_scale_solar_mwp")
+            envelope_mwp_val = kek.get("max_captive_capacity_mwp")
+            if pd.notna(anchor_mwp_val) and float(anchor_mwp_val) > 0:
+                max_mwp = float(anchor_mwp_val)
+            elif pd.notna(envelope_mwp_val) and float(envelope_mwp_val) > 0:
+                max_mwp = float(envelope_mwp_val)
+            else:
+                max_mwp = TRANSMISSION_FALLBACK_CAPACITY_MWP
             effective_mwp = live_effective_mwp(
                 demand_mwh=demand_mwh,
                 cf=cf_gc,
