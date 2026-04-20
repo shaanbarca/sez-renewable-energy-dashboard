@@ -35,6 +35,7 @@ Contract for the data pipeline. Three parts:
   - [3.3 fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv)
   - [3.4 fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv)
   - [3.4b fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv)
+  - [3.4c fct_substation_ruptl_signal](#34c-outputsdataprocessedfct_substation_ruptl_signalcsv)
   - [3.5 fct_lcoe](#35-outputsdataprocessedfct_lcoecsv)
   - [3.6 fct_site_scorecard](#36-outputsdataprocessedfct_site_scorecardcsv)
   - [3.7 fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv)
@@ -58,7 +59,8 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_site_demand](#32-outputsdataprocessedfct_site_demandcsv) | fact | 81 | Estimated 2030 electricity demand per site — dual-mode: area × intensity (KEK/KI) OR capacity_tpa × sector_intensity (standalone/cluster) | `dim_sites` · `src/pipeline/demand_intensity.py` · `src/assumptions.py` | Answers "how much electricity will this site need by 2030?" — used for GEAS share, BESS sizing, infrastructure needs. Dual-mode dispatches via `SITE_TYPES[site_type].demand_method`. | ⚠️ Provisional — area-proxy for KEKs; production-based for industrial sites |
 | [fct_grid_cost_proxy](#33-outputsdataprocessedfct_grid_cost_proxycsv) | fact | 7 | I-4/TT and I-3/TM industrial tariffs per PLN grid system (USD/MWh) | `dim_sites` (grid_region_id list) · Permen ESDM 7/2024 (hardcoded tariffs) | The benchmark each site's solar LCOE is compared against. If solar LCOE < grid tariff, captive solar is already cost-competitive without any policy support. | ✅ Official — Permen ESDM 7/2024 |
 | [fct_ruptl_pipeline](#34-outputsdataprocessedfct_ruptl_pipelinecsv) | fact | 70 | PLN solar capacity additions 2025–2034 by region, RE Base + ARED scenarios | `docs/b967d-ruptl-pln-2025-2034-pub-.pdf` (Tables 5.84–5.103, manually transcribed) | Answers "what grid-scale solar is PLN planning near this site's region?" — used to compute the GEAS green energy share each site can claim, and to flag sites where the grid upgrade comes too late (post-2030). | ✅ Manually verified from RUPTL PDF |
-| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 81 | Nearest PLN substation per site — site-to-substation + solar-to-substation distances, grid connectivity, capacity assessment | `dim_sites` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_site_resource` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
+| [fct_substation_proximity](#34b-outputsdataprocessedfct_substation_proximitycsv) | fact | 81 | Nearest PLN substation per site — site-to-substation + solar-to-substation distances, grid connectivity, capacity assessment, RUPTL-tiered utilization | `dim_sites` · `data/substation.geojson` · `data/pln_grid_lines.geojson` · `raw/kek_polygons.geojson` · `fct_site_resource` · `fct_substation_ruptl_signal` | V3.1: Three-point proximity + geometric grid line connectivity check + substation capacity utilization assessment. V3.8: RUPTL-derived per-substation utilization tier. Drives connection and transmission cost in `fct_lcoe`. | ✅ |
+| [fct_substation_ruptl_signal](#34c-outputsdataprocessedfct_substation_ruptl_signalcsv) | fact | variable | Per-substation RUPTL upgrade signal — aggregates PLN's 2025-2034 upgrade plans into one row per matched substation (uprate/extension/line_bay + MVA + target year + status + match confidence) | `raw_ruptl_substation_plans.csv` · `data/substation.geojson` | V3.8: Replaces fleet-default 65% utilization with per-substation tier. `fct_substation_proximity` joins against this to set `substation_utilization_pct_effective`. | ✅ |
 | [fct_lcoe](#35-outputsdataprocessedfct_lcoecsv) | fact | 1,458 | Precomputed LCOE bands — 81 sites × 9 WACC values (4–20% in 2% steps) × 2 siting scenarios (within_boundary/grid_connected_solar) | `dim_sites` · `fct_site_resource` · `dim_tech_cost` · `fct_substation_proximity` | Powers the WACC slider and scenario comparison. `within_boundary` is base-case; `grid_connected_solar` adds connection cost (solar→substation). Row count is `len(dim_sites) × 9 × 2` — never hardcoded. | ✅ |
 | [fct_site_scorecard](#36-outputsdataprocessedfct_site_scorecardcsv) | fact | 81 | Full join: LCOE + grid cost + demand + RUPTL + action flags + competitive gap + captive power + CBAM exposure + site_type/sector | `dim_sites` · `fct_lcoe` (WACC=10%) · `fct_site_resource` · `fct_site_demand` · `fct_grid_cost_proxy` · `fct_ruptl_pipeline` · `fct_captive_{coal,nickel,steel,cement}_summary` | The single table the dashboard reads. For each site: is solar already cheaper than the grid? If not, how close? What action is recommended? What captive fossil power could solar displace? What CBAM exposure? | ⚠️ Provisional until CAPEX verified |
 | [fct_captive_coal_summary](#37-outputsdataprocessedfct_captive_coal_summarycsv) | fact | variable | Per-site captive coal plant aggregation — dual-mode: 50km proximity (KEK/KI) OR direct site_id match (standalone/cluster) | `dim_sites` · GEM Global Coal Plant Tracker (KAPSARC mirror) | Identifies sites with existing captive coal subject to Perpres 112/2022 phase-out. Feeds `has_captive_coal` and `perpres_112_status` on scorecard. | ✅ |
@@ -590,6 +592,12 @@ Sector intensity constants (from `src/pipeline/demand_intensity.py`, calibrated 
 | `available_capacity_mva` | float | computed | ✅ V3.1: `capacity_mva × (1 − substation_utilization_pct)`. Default utilization = 65%. NaN if capacity unknown. |
 | `capacity_assessment` | str | computed | ✅ V3.1: Traffic light — `green` (available > 2× solar), `yellow` (0.5–2×), `red` (< 0.5×), `unknown` (data unavailable). See METHODOLOGY_CONSOLIDATED.md §7. |
 | `nearest_substation_capacity_source` | str | computed | ✅ V3.7: `actual` (used PLN `kapgi`) or `proxy_500kV` / `proxy_275kV` / `proxy_150kV` / `proxy_70kV` / `proxy_20kV` when `kapgi` was missing. Proxy rows use `HOSTING_CAPACITY_AVAILABILITY_PCT = 0.30` instead of `SUBSTATION_UTILIZATION_PCT = 0.65`. See METHODOLOGY_CONSOLIDATED.md §8.7. |
+| `substation_utilization_pct_effective` | float | computed | ✅ V3.8: RUPTL-derived per-substation utilization. Actual-source rows use the tier from `fct_substation_ruptl_signal` (uprate=0.85 / extension=0.75 / line_bay=0.70 / none=0.55 / unmatched=0.65). Proxy-source rows always use `1 − HOSTING_CAPACITY_AVAILABILITY_PCT = 0.70`. See METHODOLOGY_CONSOLIDATED.md §8.4a. |
+| `ruptl_project_type` | str \| null | from fct_substation_ruptl_signal | ✅ V3.8: `uprate` / `extension` / `line_bay` / `other` when RUPTL matched this substation; null for unmatched or proxy rows. |
+| `ruptl_strongest_status` | str \| null | from fct_substation_ruptl_signal | ✅ V3.8: Strongest status across matched plans — `konstruksi` / `committed` / `pengadaan` / `rencana` / `studi` / `other` / null. |
+| `ruptl_earliest_target_year` | int \| null | from fct_substation_ruptl_signal | ✅ V3.8: Earliest target year across RUPTL RE-Base and ARED scenarios; null if unmatched. |
+| `ruptl_mva_added_total` | float \| null | from fct_substation_ruptl_signal | ✅ V3.8: Sum of MVA added across all RUPTL plans matching this substation; null if unmatched. |
+| `ruptl_match_confidence` | str \| null | from fct_substation_ruptl_signal | ✅ V3.8: `high` (exact normalized match) / `medium` (token-set ≥0.85) / `lower` (≥0.75 + voltage guard) / null if unmatched. |
 | `project_scale_solar_mwp` | float | computed (**live-derived**) | ✅ V3.7: Now live-derived in the scorecard enricher from `required_mwp × meaningful_share_pct` (slider), capped by `max_buildable_mwp`. The pipeline value in `fct_site_resource` is a default; the slider lets users test different phase-1 build sizes and watch `capacity_assessment` / `substation_upgrade_cost_per_kw` flip in real time. |
 
 **M15: Multi-substation comparison (API-only, not stored in CSV)**
@@ -607,6 +615,44 @@ Sector intensity constants (from `src/pipeline/demand_intensity.py`, calibrated 
 | `transmission_cost_per_kw` | float\|null | New inter-substation line cost (rank 2+ only) |
 | `total_grid_capex_per_kw` | float\|null | Sum of connection + upgrade + transmission |
 | `lcoe_estimate_usd_mwh` | float\|null | LCOE at default assumptions with this substation's grid costs |
+
+---
+
+## 3.4c `outputs/data/processed/fct_substation_ruptl_signal.csv`
+
+**What it is:** Per-substation rollup of PLN RUPTL 2025-2034 upgrade plans. Each row is a substation (`namobj`, `regpln`) that PLN plans to upgrade, with the strongest project type, total MVA added, earliest target year, strongest status, and the fuzzy-match confidence. Drives the per-substation default utilization in `fct_substation_proximity`.
+**Builder:** `src/pipeline/build_fct_substation_ruptl_signal.py`
+**Lineage:** `raw_ruptl_substation_plans.csv` (extracted from RUPTL Lampiran A/B/C by `src/pipeline/pdf_extract_ruptl_substations.py`) + `data/substation.geojson` (PLN substation stock)
+**Rows:** variable — one per matched substation. Unmatched substations absent from this file entirely (treated as fleet-default 65% downstream).
+
+**Build logic:**
+1. Load RUPTL plans; drop `project_type == "new"` (those substations don't exist yet in stock).
+2. Drop placeholder names ("Eksisting", "Tersebar", etc.) — these are province-level line items with no specific GI.
+3. Normalize names: lowercase, strip `GI`/`GITET`/`GIS` prefixes, drop voltage tokens (`150 kV`), drop `(30 MVA No.1)` annotations, drop trailing single digits (`Parungmulya 1` → `Parungmulya`).
+4. Match tier-by-tier within same PLN region (`regpln`):
+   - Tier 1 (confidence = `high`): exact normalized-name match.
+   - Tier 2 (confidence = `medium`): token-set Jaccard ratio ≥ 0.85.
+   - Tier 3 (confidence = `lower`): ratio ≥ 0.75 *and* matching `voltage_primary_kv`.
+5. Aggregate multiple matches to the same substation: `max` on project type and status ranks, `sum` on MVA, `min` on target year, `count` of line items.
+
+**Ranking used for aggregation:**
+- Project type strength: `uprate (3) > extension (2) > line_bay (1) > other (0)`
+- Status strength: `konstruksi (4) > committed (3) > pengadaan (2) > rencana (1) > studi (0) > other (-1)`
+
+| Column | Type | Source | Notes |
+|--------|------|--------|-------|
+| `namobj` | str | substation.geojson | Join key to `substation.geojson` and `fct_substation_proximity.nearest_substation_name` |
+| `regpln` | str | substation.geojson | PLN region join key (prevents cross-region false matches) |
+| `has_planned_upgrade` | bool | computed | Always True here (absent rows imply False downstream) |
+| `mva_added_total` | float | sum(ruptl.mva_added) | Sum of MVA across all matched RUPTL line items |
+| `project_type_strongest` | str | max(ruptl.project_type by rank) | Highest-tier project type: `uprate` / `extension` / `line_bay` / `other` |
+| `strongest_status` | str | max(ruptl.status by rank) | Highest-tier status: `konstruksi` / `committed` / `pengadaan` / `rencana` / `studi` / `other` |
+| `earliest_target_year` | int | min(target_year_re_base, target_year_ared) | Earliest COD year across RE-Base and ARED scenarios |
+| `match_confidence` | str | tier at which match fired | `high` / `medium` / `lower` |
+| `n_ruptl_matches` | int | count | Number of RUPTL line items aggregated into this row |
+| `ruptl_substation_name_matched` | str | comma-joined RUPTL names | Raw substation names from RUPTL that matched this geojson feature (audit trail) |
+
+**Downstream consumer:** `fct_substation_proximity` looks up `(namobj, regpln)` here to set `substation_utilization_pct_effective` per the tier map in `SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL` (src/assumptions.py). See METHODOLOGY_CONSOLIDATED.md §8.4a.
 
 ---
 

@@ -140,8 +140,19 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
     )
     wind_gen_mwh = wind_cap * wind_cf_best * 8760 if wind_cap > 0 and wind_cf_best > 0 else 0.0
 
-    # Primary LCOE: grid-connected first, fall back to within-boundary
-    if gc_row is not None:
+    # V3.9: Compute grid integration first so the primary LCOE pick can respect
+    # `grid_integration_category`. When a site qualifies as within_boundary
+    # (on-site solar covers >= meaningful_share_pct of demand, KEK-only), the
+    # displayed LCOE must use the within-boundary scenario (centroid PVOUT, no
+    # conn/trans/upgrade costs) — otherwise we'd contradict the zeroed infra
+    # cost rollup shown in the GridTab.
+    grid_out = compute_grid_integration(kek=kek, gc_row=gc_row, assumptions=assumptions)
+    gi_cat = grid_out.get("grid_integration_category")
+
+    if gi_cat == "within_boundary" and wb_row is not None:
+        lcoe_mid = wb_row["lcoe_mid_usd_mwh"]
+        primary_cf = _as_float(wb_row.get("cf"))
+    elif gc_row is not None:
         lcoe_mid = gc_row["lcoe_mid_usd_mwh"]
         primary_cf = _as_float(gc_row.get("cf"))
     elif wb_row is not None:
@@ -173,8 +184,6 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
         if pd.notna(lcoe_mid) and pd.notna(bpp_rate) and bpp_rate > 0
         else np.nan
     )
-
-    grid_out = compute_grid_integration(kek=kek, gc_row=gc_row, assumptions=assumptions)
 
     return SiteContext(
         kek=kek,

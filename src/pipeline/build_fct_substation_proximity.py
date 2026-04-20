@@ -28,6 +28,12 @@ Output columns (one row per site_id):
     inter_substation_dist_km           haversine between B_solar and B_kek, NaN if same sub (V3.1)
     available_capacity_mva             rated × (1 − utilization), None if unknown (V3.1)
     capacity_assessment                green|yellow|red|unknown traffic light (V3.1)
+    substation_utilization_pct_effective  RUPTL-tiered per-substation utilization (V3.8)
+    ruptl_project_type                 uprate|extension|line_bay|none|None (V3.8)
+    ruptl_strongest_status             konstruksi|committed|pengadaan|rencana|None (V3.8)
+    ruptl_earliest_target_year         earliest RUPTL target year across matches (V3.8)
+    ruptl_mva_added_total              sum of MVA added across RUPTL rows (V3.8)
+    ruptl_match_confidence             high|medium|low|None (V3.8)
     nearest_substation_capacity_source 'actual'|'proxy_{voltage}kV'|'unknown' (V3.7)
     solar_search_method                'substation_anchored'|'best_pvout_fallback'|... (V3.7)
     chosen_anchor_substation_name      name of substation the anchored picker latched onto (V3.7)
@@ -60,6 +66,7 @@ from src.assumptions import (
     MEANINGFUL_SHARE_PCT,
     SUBSTATION_HOSTING_CAPACITY_PROXY_MVA,
     SUBSTATION_UTILIZATION_PCT,
+    SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL,
 )
 from src.model.basic_model import capacity_assessment, grid_integration_category
 from src.pipeline.geo_utils import haversine_km
@@ -73,6 +80,7 @@ GRID_LINES_GEOJSON = REPO_ROOT / "data" / "pln_grid_lines.geojson"
 DIM_SITES_CSV = PROCESSED / "dim_sites.csv"
 FKT_SITE_RESOURCE_CSV = PROCESSED / "fct_site_resource.csv"
 FKT_SITE_DEMAND_CSV = PROCESSED / "fct_site_demand.csv"
+FKT_SUBSTATION_RUPTL_SIGNAL_CSV = PROCESSED / "fct_substation_ruptl_signal.csv"
 KEK_POLYGONS_GEOJSON = RAW / "kek_polygons.geojson"
 
 _OPERATIONAL_STATUS = "Operasi"
@@ -194,6 +202,81 @@ def _load_kek_polygons(path: Path) -> dict[str, object]:
     return polygons
 
 
+def _load_ruptl_signal(path: Path) -> dict[tuple[str, str], dict]:
+    """Load the RUPTL per-substation signal CSV → {(namobj, regpln): signal_dict}.
+
+    Returns empty dict (silently) if the file is missing — callers then fall
+    back to the fleet-default utilization. This keeps the pipeline runnable on
+    a fresh clone that hasn't yet executed the RUPTL extractor.
+    """
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path)
+    lookup: dict[tuple[str, str], dict] = {}
+    for _, r in df.iterrows():
+        key = (str(r["namobj"]), str(r["regpln"]))
+        lookup[key] = {
+            "has_planned_upgrade": bool(r.get("has_planned_upgrade", False)),
+            "project_type_strongest": (
+                str(r["project_type_strongest"])
+                if pd.notna(r.get("project_type_strongest"))
+                else None
+            ),
+            "strongest_status": (
+                str(r["strongest_status"]) if pd.notna(r.get("strongest_status")) else None
+            ),
+            "earliest_target_year": (
+                int(r["earliest_target_year"]) if pd.notna(r.get("earliest_target_year")) else None
+            ),
+            "mva_added_total": (
+                float(r["mva_added_total"]) if pd.notna(r.get("mva_added_total")) else None
+            ),
+            "match_confidence": (
+                str(r["match_confidence"]) if pd.notna(r.get("match_confidence")) else None
+            ),
+        }
+    return lookup
+
+
+def _ruptl_utilization_for_substation(
+    namobj: str | None,
+    regpln: str | None,
+    ruptl_lookup: dict[tuple[str, str], dict],
+    fallback_pct: float,
+) -> tuple[float, dict | None]:
+    """Return (utilization_pct, ruptl_signal_dict) for a substation.
+
+    Lookup precedence:
+        1. Exact (namobj, regpln) match in RUPTL signal table.
+           - uprate    → 0.85
+           - extension → 0.75
+           - line_bay  → 0.70
+           - none (matched row but no upgrade) → 0.55
+        2. No match in signal table → fleet-default fallback (0.65).
+
+    The fallback fires for substations outside the RUPTL appendices entirely
+    (a statopr-Operasi substation absent from Lampiran A/B/C). For those we
+    can't distinguish "no upgrade planned" from "PLN didn't publish a detail
+    row", so we default to the neutral fleet-average utilization.
+    """
+    if not namobj or not regpln:
+        return fallback_pct, None
+
+    signal = ruptl_lookup.get((str(namobj), str(regpln)))
+    if signal is None:
+        return fallback_pct, None
+
+    project_type = signal.get("project_type_strongest")
+    if (
+        signal.get("has_planned_upgrade")
+        and project_type in SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL
+    ):
+        return SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL[project_type], signal
+
+    # Matched but no actionable upgrade signal → "none" tier.
+    return SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL["none"], signal
+
+
 def _load_grid_lines(path: Path) -> list[dict]:
     """Load PLN transmission grid lines from GeoJSON.
 
@@ -290,22 +373,27 @@ def build_fct_substation_proximity(  # noqa: PLR0913
     kek_polygons_geojson: Path = KEK_POLYGONS_GEOJSON,
     fct_site_resource_csv: Path = FKT_SITE_RESOURCE_CSV,
     fct_site_demand_csv: Path = FKT_SITE_DEMAND_CSV,
+    fct_substation_ruptl_signal_csv: Path = FKT_SUBSTATION_RUPTL_SIGNAL_CSV,
     substation_utilization_pct: float = SUBSTATION_UTILIZATION_PCT,
 ) -> pd.DataFrame:
     """Compute nearest PLN substation distance, siting scenario, and grid integration category.
 
     V2 adds three-point proximity analysis: solar site → substation → KEK centroid.
     V3.1 adds geometric grid line connectivity check and capacity utilization.
+    V3.8 replaces the fleet-default utilization with a per-substation default
+    derived from PLN RUPTL upgrade plans (fct_substation_ruptl_signal).
     """
 
     # ─── RAW ──────────────────────────────────────────────────────────────────
     substations = _load_substations(substation_geojson)
     kek_polygons = _load_kek_polygons(kek_polygons_geojson)
     grid_lines = _load_grid_lines(grid_lines_geojson)
+    ruptl_lookup = _load_ruptl_signal(fct_substation_ruptl_signal_csv)
     dim_sites = pd.read_csv(dim_sites_csv)[["site_id", "site_name", "latitude", "longitude"]]
 
     print(f"  Substations: {len(substations)} operational")
     print(f"  Grid lines: {len(grid_lines)} loaded")
+    print(f"  RUPTL signal rows: {len(ruptl_lookup)} loaded")
 
     # V2: Load best solar site coordinates from fct_site_resource.
     # V3.7: also surface the anchored-picker diagnostics so the scorecard can
@@ -463,15 +551,24 @@ def build_fct_substation_proximity(  # noqa: PLR0913
         # of an unmeasured substation at a given voltage class. We derate with a
         # different utilization (1 - HOSTING_CAPACITY_AVAILABILITY_PCT = 0.70, i.e.
         # only 30% of rated is assumed free for new injection) to reflect that the
-        # proxy is an upper bound. Actual kapgi rows use SUBSTATION_UTILIZATION_PCT.
+        # proxy is an upper bound.
+        # V3.8: For actual kapgi rows, look up the RUPTL signal to pick a tiered
+        # default (uprate=85%, extension=75%, line_bay=70%, none=55%, unmatched=65%).
+        # Proxy rows bypass RUPTL because their nameplate is already a guess — the
+        # availability fraction (30%) already subsumes utilization uncertainty.
         kek_capacity_source = (
             nearest_to_kek.get("capacity_source", "unknown") if nearest_to_kek else "unknown"
         )
-        kek_util_pct = (
-            (1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT)
-            if kek_capacity_source.startswith("proxy_")
-            else substation_utilization_pct
-        )
+        if kek_capacity_source.startswith("proxy_"):
+            kek_util_pct = 1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT
+            kek_ruptl_signal: dict | None = None
+        else:
+            kek_util_pct, kek_ruptl_signal = _ruptl_utilization_for_substation(
+                nearest_to_kek["name"] if nearest_to_kek else None,
+                nearest_to_kek.get("regpln") if nearest_to_kek else None,
+                ruptl_lookup,
+                fallback_pct=substation_utilization_pct,
+            )
 
         # V3.7: Use project_scale_mwp (required capacity) for capacity checks, not the
         # buildable-patch maximum. The latter gave false invest_substation flags at
@@ -529,6 +626,23 @@ def build_fct_substation_proximity(  # noqa: PLR0913
                 "inter_substation_dist_km": inter_sub_dist,
                 "available_capacity_mva": avail_mva,
                 "capacity_assessment": cap_light,
+                # V3.8: RUPTL-derived per-substation utilization signal
+                "substation_utilization_pct_effective": round(kek_util_pct, 3),
+                "ruptl_project_type": (
+                    kek_ruptl_signal.get("project_type_strongest") if kek_ruptl_signal else None
+                ),
+                "ruptl_strongest_status": (
+                    kek_ruptl_signal.get("strongest_status") if kek_ruptl_signal else None
+                ),
+                "ruptl_earliest_target_year": (
+                    kek_ruptl_signal.get("earliest_target_year") if kek_ruptl_signal else None
+                ),
+                "ruptl_mva_added_total": (
+                    kek_ruptl_signal.get("mva_added_total") if kek_ruptl_signal else None
+                ),
+                "ruptl_match_confidence": (
+                    kek_ruptl_signal.get("match_confidence") if kek_ruptl_signal else None
+                ),
                 # V3.7: surface anchored-picker diagnostics + project-scale sizing
                 "solar_search_method": sd.get("solar_search_method"),
                 "chosen_anchor_substation_name": sd.get("chosen_anchor_substation_name"),
@@ -560,6 +674,10 @@ def main() -> None:
     print(df["capacity_assessment"].value_counts().to_dict())
     print("\nSubstation capacity source (V3.7):")
     print(df["nearest_substation_capacity_source"].value_counts(dropna=False).to_dict())
+    print("\nRUPTL signal tier (V3.8):")
+    print(df["ruptl_project_type"].value_counts(dropna=False).to_dict())
+    print("\nEffective utilization % (V3.8):")
+    print(df["substation_utilization_pct_effective"].describe().round(3).to_string())
     if "solar_search_method" in df.columns and df["solar_search_method"].notna().any():
         print("\nSolar picker method (V3.7):")
         print(df["solar_search_method"].value_counts(dropna=False).to_dict())

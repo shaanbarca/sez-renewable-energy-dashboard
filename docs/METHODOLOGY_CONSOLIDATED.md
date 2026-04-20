@@ -658,17 +658,26 @@ For each KEK:
 
 | Category | Condition | Meaning |
 |---|---|---|
-| `within_boundary` | Operational substation inside KEK polygon, OR within-boundary solar coverage >= 100% of demand | No grid connection needed (behind-the-meter) |
+| `within_boundary` | Operational substation inside KEK polygon, OR within-boundary solar coverage >= `meaningful_share_pct` of demand (KEK-only) | No grid connection needed (behind-the-meter) |
 | `grid_ready` | d(A, B_solar) < 5km AND d(C, B_kek) < 15km | Both short distances, grid can absorb and deliver |
 | `invest_transmission` | d(A, B_solar) < 5km AND d(C, B_kek) >= 15km | Solar near substation but KEK far. **Build transmission to KEK.** |
 | `invest_substation` | d(C, B_kek) < 15km AND d(A, B_solar) >= 5km | KEK near grid but solar far. **Build substation near solar.** |
 | `grid_first` | Both distances exceed thresholds | No nearby grid infrastructure. Major grid expansion needed. |
 
-**Within-boundary override (V3.2):** If buildable solar within the KEK boundary can generate >= 100% of the KEK's 2030 demand (using within-boundary PVOUT), the KEK is self-sufficient with on-site solar. It classifies as `within_boundary` regardless of substation distances, because the project can be deployed behind-the-meter without grid export. 9 KEKs qualify: Singhasari (201%), Lido (166%), Gresik (155%), Maloy Batuta (150%), Kendal (148%), Palu (142%), Industropolis Batang (138%), Tanjung Kelayang (136%), Galang Batang (103%).
+**Within-boundary override (V3.9):** If buildable solar within the KEK boundary can cover >= `meaningful_share_pct` of the KEK's 2030 demand (live slider, default 30%), the project classifies as `within_boundary` — self-sufficient on-site, deployed behind-the-meter, no grid export. When this fires:
 
-**Current results:** 11 `within_boundary` (2 internal substation + 9 coverage override), 10 `invest_substation`, 3 `grid_first`, 1 `grid_ready`.
+- The primary LCOE reported on the scorecard is the **within-boundary LCOE** (centroid PVOUT, no connection/transmission/upgrade costs baked in), not the grid-connected LCOE. See `src/dash/logic/site_context.py`.
+- The infrastructure cost rollup zeros out gen-tie, new transmission, and substation upgrade costs in `src/dash/logic/grid.py`.
 
-**Implementation:** `grid_integration_category()` in `basic_model.py`; proximity pipeline in `build_fct_substation_proximity.py`; coverage override in `build_fct_kek_scorecard.py`
+**Gate is KEK-only.** The rule requires `site_type == "kek"` because only KEKs have real polygon boundaries (`kek_polygons.geojson`). Non-KEK sites (standalone, cluster, KI) get their `within_boundary_coverage_pct` from a synthetic 50km-radius buffer around their point coordinates — that number has no physical meaning as "on-site." Excluding them from this gate is defense-in-depth; in practice their `within_boundary_capacity_mwp` is already 0 because `_compute_within_boundary_buildable()` in `build_fct_site_resource.py` requires a KEK polygon.
+
+**V3.2 history:** The original override required >= 100% coverage (no slider). V3.9 replaces the hard-coded threshold with the live `meaningful_share_pct` slider so the gate aligns with phase-1 project sizing: if on-site solar can meet the user's chosen "meaningful share" of demand, grid infrastructure is not part of the captive project.
+
+**Buildout-footprint haircut (V3.9.1):** Before comparing `within_boundary_coverage_pct` to the meaningful-share threshold, it is multiplied by `wb_buildout_footprint_ratio` (default 0.20, user slider range 0.05–1.00). Motivation: the raw `within_boundary_capacity_mwp` is derived from the spatial intersection of the KEK polygon with the buildability-filtered raster — that filter rejects forest, peatland, steep slope, and built-up pixels, but still counts every remaining vacant pixel as "buildable for solar." Inside an operating industrial park, most vacant land is earmarked for future factories, roads, utilities, and buffers, so the raw number systematically overstates what is actually free for on-site solar today. Galang Batang triggered this: the raster flagged ~59% of the KEK as buildable, which at face value made the KEK look self-sufficient on solar alone and incorrectly zeroed out all grid-infrastructure costs.
+
+The ratio is a **gate-only haircut**: it gates whether the KEK clears the `meaningful_share_pct` threshold (and therefore whether grid infrastructure costs load into the LCOE). It does **not** scale the installed volume or the $/MWh LCOE — CAPEX and CF are volume-independent. Default 0.20 is tuned to operating parks. Greenfield KEKs should use higher values (0.50–1.00). Implementation: `effective_wb_coverage = wb_coverage × wb_buildout_footprint_ratio` in `src/dash/logic/grid.py` before the call to `grid_integration_category()`. Exposed to the UI as `within_boundary_coverage_effective_pct` so banners can narrate "raw 59% × 0.20 → 12% effective, below 30% threshold."
+
+**Implementation:** `grid_integration_category()` in `basic_model.py` (takes `meaningful_share_pct` + `site_type` args); plumbed through `compute_grid_integration()` in `src/dash/logic/grid.py`; primary LCOE picker in `src/dash/logic/site_context.py` flips to `wb_row` when category is `within_boundary`.
 
 ### 8.3 Threshold values
 
@@ -691,7 +700,7 @@ available_capacity_mva = rated_capacity_mva x (1 - utilization_pct)
 available_capacity_mw  = available_capacity_mva x power_factor
 ```
 
-Default `utilization_pct`: 65% (user-adjustable, range 30-95%).
+Default `utilization_pct`: per-substation tier derived from PLN's RUPTL 2025-2034 upgrade plan — see §8.4a. User-adjustable slider (range 30-95%) overrides the per-site defaults uniformly.
 
 **Power factor (V3.4):** Substation capacity is rated in MVA (apparent power), but solar output is measured in MWp (real power). The model applies a power factor of 0.85 (`SUBSTATION_POWER_FACTOR`) to convert MVA to MW before comparing to solar capacity. Industrial loads in Indonesia typically operate at PF 0.85-0.90 (PLN grid code minimum: 0.85). Without this correction, a 60 MVA substation appears to deliver 60 MW but only delivers 51 MW real power, overstating capacity by ~15%.
 
@@ -709,6 +718,36 @@ The returned `available_capacity_mva` column retains the MVA value for display. 
 Bands are aligned with `substation_upgrade_cost_per_kw`: green is exactly the regime where the upgrade cost is $0, so the UI's traffic light and the cost column never contradict each other.
 
 **Implementation:** `capacity_assessment()` in `basic_model.py`
+
+### 8.4a RUPTL-driven substation utilization (V3.8)
+
+Rather than applying a uniform 65% fleet-average utilization to all 2,913 PLN substations, the model derives a per-substation default from whether PLN themselves plan to upgrade that specific asset in the RUPTL 2025-2034 plan. The reasoning: PLN only schedules uprates/extensions for substations that are already capacity-constrained, so a published upgrade plan is strong evidence the asset is running hotter than the fleet average. Conversely, substations absent from the plan's 10-year horizon are probably headroom assets.
+
+**Tier mapping (`src.assumptions.SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL`):**
+
+| RUPTL project type | Utilization | Rationale |
+|---|---|---|
+| `uprate` | 85% | Transformer replacement planned — most congested tier |
+| `extension` | 75% | Adding bay/feeder — capacity-limited on some dimension |
+| `line_bay` | 70% | Minor addition — slightly above fleet average |
+| `none` (matched but no upgrade) | 55% | No RUPTL activity — below fleet average |
+| unmatched (absent from Lampiran A/B/C) | 65% | Neutral fleet-default fallback |
+
+**Source pipeline:** `src/pipeline/pdf_extract_ruptl_substations.py` extracts per-GI upgrade rows from RUPTL 2025-2034 Lampiran A/B/C (Sumatera, Jawa-Bali, Kalimantan, Sulawesi, Maluku, Papua, Nusa Tenggara). `src/pipeline/build_fct_substation_ruptl_signal.py` matches those rows to `data/substation.geojson` features via a tiered matcher:
+  1. **High confidence** — exact normalized-name match within same PLN region (`regpln`). Normalization strips GI/GITET/GIS prefixes, voltage tokens (e.g. "150 kV"), MVA annotations (e.g. "(30 MVA No.1)"), and trailing single digits so "Parungmulya" == "Parungmulya 1" == "Parungmulya 2".
+  2. **Medium** — token-set Jaccard ratio ≥ 0.85 within same region.
+  3. **Lower** — token-set ratio ≥ 0.75 within same region *and* matching `voltage_primary_kv`.
+  4. **Unmatched** — no signal emitted; substation falls through to the 65% fallback.
+
+Province-level placeholders ("Eksisting", "Tersebar") and `project_type == "new"` rows are filtered before matching because they don't correspond to a specific existing substation. When multiple RUPTL plans match the same substation, the builder aggregates: strongest `project_type` wins (`uprate > extension > line_bay`), strongest status wins (`konstruksi > committed > pengadaan > rencana`), MVA additions sum, earliest target year wins. Output: `outputs/data/processed/fct_substation_ruptl_signal.csv`.
+
+**Proxy-source substations bypass RUPTL.** When the PLN geojson has no published `kapgi`, `build_fct_substation_proximity.py` substitutes a voltage-class proxy nameplate and derates it at `1 − HOSTING_CAPACITY_AVAILABILITY_PCT` (0.70). Because the nameplate is itself a guess, the 30%-availability derating already subsumes utilization uncertainty — layering a RUPTL tier on top would double-count uncertainty.
+
+**Slider interaction.** `assumptions.substation_utilization_pct` (the dashboard's global slider, default 65%) acts as an override. When the user leaves it at the fleet default, each site uses its per-substation RUPTL tier. When the user drags it off default, the slider value wins uniformly across all sites — a stress-test mode for scenario comparison. Proxy-source rows are unaffected by the slider (they always use 0.70). This priority rule is enforced identically in `src/dash/logic/grid.py` (for capacity assessment + integration category) and `src/dash/logic/lcoe.py` (for substation upgrade cost).
+
+**Output columns** on `fct_substation_proximity` (surfaced through the scorecard to the ScoreDrawer Grid tab): `substation_utilization_pct_effective`, `ruptl_project_type`, `ruptl_strongest_status`, `ruptl_earliest_target_year`, `ruptl_mva_added_total`, `ruptl_match_confidence`.
+
+**Implementation:** `_ruptl_utilization_for_substation()` in `build_fct_substation_proximity.py`; override priority in `dash/logic/grid.py` and `dash/logic/lcoe.py`.
 
 ### 8.5 Inter-substation connectivity
 

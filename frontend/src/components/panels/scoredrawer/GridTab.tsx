@@ -18,6 +18,22 @@ const CAPACITY_LABELS: Record<string, string> = {
   unknown: 'Unknown',
 };
 
+const RUPTL_PROJECT_LABELS: Record<string, string> = {
+  uprate: 'Uprate',
+  extension: 'Extension',
+  line_bay: 'Line bay addition',
+  new: 'New substation',
+  other: 'Other',
+};
+const RUPTL_STATUS_LABELS: Record<string, string> = {
+  konstruksi: 'Under construction',
+  committed: 'Committed',
+  pengadaan: 'In procurement',
+  rencana: 'Planned',
+  studi: 'Under study',
+  other: 'Other',
+};
+
 export function GridTab({
   row,
   substations,
@@ -30,10 +46,19 @@ export function GridTab({
   const assumptions = useDashboardStore((s) => s.assumptions);
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
-  const utilizationConfig = sliderConfigs?.tier2?.substation_utilization_pct;
   const meaningfulShareConfig = sliderConfigs?.tier2?.meaningful_share_pct;
+  const wbBuildoutConfig = sliderConfigs?.tier2?.wb_buildout_footprint_ratio;
   const cap = row.capacity_assessment ?? 'unknown';
   const nearest = substations.find((s) => s.is_nearest);
+  const isWithinBoundary = row.grid_integration_category === 'within_boundary';
+  const wbCoveragePct =
+    row.within_boundary_coverage_pct != null ? row.within_boundary_coverage_pct * 100 : null;
+  const wbCoverageEffectivePct =
+    row.within_boundary_coverage_effective_pct != null
+      ? row.within_boundary_coverage_effective_pct * 100
+      : null;
+  const hasWbCoverage =
+    row.within_boundary_coverage_pct != null && row.within_boundary_coverage_pct > 0;
 
   return (
     <>
@@ -43,10 +68,91 @@ export function GridTab({
           subtitle="Is existing infrastructure ready for solar, or does it need upgrades?"
           tip="How ready is the grid for solar at this KEK. Determines what investment is needed to connect."
         />
+        {isWithinBoundary && (
+          <div
+            className="mb-3 p-2 rounded text-[10px] leading-relaxed"
+            style={{
+              background: 'rgba(76, 175, 80, 0.08)',
+              border: '1px solid rgba(76, 175, 80, 0.25)',
+              color: 'var(--text-value)',
+            }}
+          >
+            <div className="font-medium mb-0.5" style={{ color: '#66BB6A' }}>
+              Covered on-site — no grid infrastructure required
+            </div>
+            {wbCoveragePct != null && wbCoverageEffectivePct != null && assumptions && (
+              <>
+                Raw buildable area covers <strong>{wbCoveragePct.toFixed(0)}%</strong> of 2030
+                demand. After the{' '}
+                <strong>{(assumptions.wb_buildout_footprint_ratio * 100).toFixed(0)}%</strong>{' '}
+                buildout-footprint haircut, effective coverage is{' '}
+                <strong>{wbCoverageEffectivePct.toFixed(0)}%</strong> — above the{' '}
+                <strong>{(assumptions.meaningful_share_pct * 100).toFixed(0)}%</strong> meaningful
+                share threshold. Gen-tie, new transmission, and substation upgrade costs are all
+                zero: the project is self-contained.
+              </>
+            )}
+            {wbBuildoutConfig && assumptions && (
+              <div className="mt-2">
+                <Slider
+                  value={assumptions.wb_buildout_footprint_ratio}
+                  onChange={(v) =>
+                    setAssumptions({ wb_buildout_footprint_ratio: v } as Partial<UserAssumptions>)
+                  }
+                  min={wbBuildoutConfig.min}
+                  max={wbBuildoutConfig.max}
+                  step={wbBuildoutConfig.step}
+                  label={wbBuildoutConfig.label}
+                  unit={wbBuildoutConfig.unit}
+                  description={wbBuildoutConfig.description}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {!isWithinBoundary && hasWbCoverage && wbBuildoutConfig && assumptions && (
+          <div
+            className="mb-3 p-2 rounded text-[10px] leading-relaxed"
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-value)',
+            }}
+          >
+            <div className="font-medium mb-0.5" style={{ color: 'var(--text-muted)' }}>
+              On-site solar below self-sufficiency threshold
+            </div>
+            {wbCoveragePct != null && wbCoverageEffectivePct != null && assumptions && (
+              <>
+                Raw buildable area covers <strong>{wbCoveragePct.toFixed(0)}%</strong> of demand.
+                After the{' '}
+                <strong>{(assumptions.wb_buildout_footprint_ratio * 100).toFixed(0)}%</strong>{' '}
+                buildout haircut, effective coverage is{' '}
+                <strong>{wbCoverageEffectivePct.toFixed(0)}%</strong> — below the{' '}
+                <strong>{(assumptions.meaningful_share_pct * 100).toFixed(0)}%</strong> threshold,
+                so grid infrastructure still applies.
+              </>
+            )}
+            <div className="mt-2">
+              <Slider
+                value={assumptions.wb_buildout_footprint_ratio}
+                onChange={(v) =>
+                  setAssumptions({ wb_buildout_footprint_ratio: v } as Partial<UserAssumptions>)
+                }
+                min={wbBuildoutConfig.min}
+                max={wbBuildoutConfig.max}
+                step={wbBuildoutConfig.step}
+                label={wbBuildoutConfig.label}
+                unit={wbBuildoutConfig.unit}
+                description={wbBuildoutConfig.description}
+              />
+            </div>
+          </div>
+        )}
         <StatRowWithTip
           label="Category"
           value={formatSnakeLabel(row.grid_integration_category) ?? 'N/A'}
-          tip="within_boundary = solar inside KEK. grid_ready = substation nearby. invest_transmission = build line from sub to KEK. invest_substation = build sub near solar. grid_first = major grid expansion needed."
+          tip="within_boundary = on-site solar covers demand. grid_ready = substation nearby. invest_transmission = build line from sub to KEK. invest_substation = build sub near solar. grid_first = major grid expansion needed."
         />
         <StatRowWithTip
           label="Grid Upgrade Planned"
@@ -154,25 +260,78 @@ export function GridTab({
         )}
       </StatCard>
 
-      {utilizationConfig && assumptions && (
+      {assumptions && (
         <StatCard>
           <SectionHeader
             title="Substation Capacity"
             subtitle="Can the local substation absorb new solar output without upgrades?"
             tip="Can the nearest substation handle the solar output? Green = sufficient headroom. Red = upgrade needed."
           />
-          <Slider
-            value={assumptions.substation_utilization_pct}
-            onChange={(v) =>
-              setAssumptions({ substation_utilization_pct: v } as Partial<UserAssumptions>)
-            }
-            min={utilizationConfig.min}
-            max={utilizationConfig.max}
-            step={utilizationConfig.step}
-            label={utilizationConfig.label}
-            unit={utilizationConfig.unit}
-            description={utilizationConfig.description}
-          />
+          {row.substation_utilization_pct_effective != null && (
+            <div
+              className="mb-3 p-2 rounded text-[10px] leading-relaxed"
+              style={{
+                background: row.ruptl_project_type
+                  ? 'rgba(33, 150, 243, 0.08)'
+                  : 'rgba(255, 255, 255, 0.03)',
+                border: row.ruptl_project_type
+                  ? '1px solid rgba(33, 150, 243, 0.25)'
+                  : '1px solid var(--glass-border-bright)',
+                color: 'var(--text-value)',
+              }}
+            >
+              <div
+                className="font-medium mb-0.5"
+                style={{ color: row.ruptl_project_type ? '#64B5F6' : 'var(--text-muted)' }}
+              >
+                Utilization default {(row.substation_utilization_pct_effective * 100).toFixed(0)}%
+              </div>
+              {row.ruptl_project_type ? (
+                <>
+                  PLN RUPTL plans a{' '}
+                  <strong>
+                    {RUPTL_PROJECT_LABELS[row.ruptl_project_type] ?? row.ruptl_project_type}
+                  </strong>
+                  {row.ruptl_mva_added_total != null && row.ruptl_mva_added_total > 0 && (
+                    <>
+                      {' '}
+                      adding <strong>+{row.ruptl_mva_added_total.toFixed(0)} MVA</strong>
+                    </>
+                  )}
+                  {row.ruptl_earliest_target_year != null && (
+                    <>
+                      {' '}
+                      by <strong>{row.ruptl_earliest_target_year}</strong>
+                    </>
+                  )}
+                  {row.ruptl_strongest_status && (
+                    <>
+                      {' '}
+                      (
+                      {RUPTL_STATUS_LABELS[row.ruptl_strongest_status] ??
+                        row.ruptl_strongest_status}
+                      )
+                    </>
+                  )}
+                  . PLN only plans upgrades on capacity-constrained assets, so we default to{' '}
+                  {(row.substation_utilization_pct_effective * 100).toFixed(0)}% utilization for
+                  this site (vs. the 65% fleet average).
+                </>
+              ) : row.nearest_substation_capacity_source &&
+                row.nearest_substation_capacity_source.startsWith('proxy_') ? (
+                <>
+                  No nameplate MVA published for this substation. Used a voltage-class proxy with a
+                  conservative 30% availability allowance.
+                </>
+              ) : (
+                <>
+                  No RUPTL upgrade plan matched this substation — using the fleet-average
+                  utilization (65%). Override via the global Substation utilization slider in the
+                  Assumptions panel if you have local intel.
+                </>
+              )}
+            </div>
+          )}
           {meaningfulShareConfig && (
             <div className="mt-3">
               <Slider
@@ -243,54 +402,53 @@ export function GridTab({
                 </div>
               </div>
             )}
-          <div className="mt-1 text-[9px] text-[var(--text-muted)] leading-relaxed">
-            Applies to all sites. Actual utilization requires PLN grid study.
-          </div>
         </StatCard>
       )}
 
-      {(row.connection_cost_per_kw != null ||
-        row.transmission_cost_per_kw != null ||
-        row.substation_upgrade_cost_per_kw != null ||
-        row.grid_investment_needed_usd != null) && (
-        <StatCard>
-          <SectionHeader
-            title="Connection Costs"
-            subtitle="What does it cost to connect solar to the grid here?"
-            tip="Estimated infrastructure cost to connect solar to the KEK. Scales with project capacity (MWp)."
-          />
-          {row.connection_cost_per_kw != null && (
-            <StatRowWithTip
-              label="Gen-Tie Cost"
-              value={row.connection_cost_per_kw.toFixed(0)}
-              unit="$/kW"
-              tip="Cost to connect the solar farm to the nearest substation. Formula: distance x $5/kW-km + $80/kW fixed."
+      {!isWithinBoundary &&
+        (row.connection_cost_per_kw != null ||
+          row.transmission_cost_per_kw != null ||
+          row.substation_upgrade_cost_per_kw != null ||
+          row.grid_investment_needed_usd != null) && (
+          <StatCard>
+            <SectionHeader
+              title="Connection Costs"
+              subtitle="What does it cost to connect solar to the grid here?"
+              tip="Estimated infrastructure cost to connect solar to the KEK. Scales with project capacity (MWp)."
             />
-          )}
-          {row.transmission_cost_per_kw != null && row.transmission_cost_per_kw > 0 && (
-            <StatRowWithTip
-              label="New Line Cost"
-              value={row.transmission_cost_per_kw.toFixed(0)}
-              unit="$/kW"
-              tip="Cost to build a new transmission line between substations. Only applies when KEK-nearest and solar-nearest substations are not already connected."
-            />
-          )}
-          {row.substation_upgrade_cost_per_kw != null && row.substation_upgrade_cost_per_kw > 0 && (
-            <StatRow
-              label="Sub Upgrade Cost"
-              value={row.substation_upgrade_cost_per_kw.toFixed(0)}
-              unit="$/kW"
-            />
-          )}
-          {row.grid_investment_needed_usd != null && (
-            <StatRowWithTip
-              label="Total Grid Investment"
-              value={`$${(row.grid_investment_needed_usd / 1_000_000).toFixed(1)}M`}
-              tip="Estimated total: gen-tie + new transmission line + substation upgrade. This is the infrastructure price tag for connecting solar to this KEK."
-            />
-          )}
-        </StatCard>
-      )}
+            {row.connection_cost_per_kw != null && (
+              <StatRowWithTip
+                label="Gen-Tie Cost"
+                value={row.connection_cost_per_kw.toFixed(0)}
+                unit="$/kW"
+                tip="Cost to connect the solar farm to the nearest substation. Formula: distance x $5/kW-km + $80/kW fixed."
+              />
+            )}
+            {row.transmission_cost_per_kw != null && row.transmission_cost_per_kw > 0 && (
+              <StatRowWithTip
+                label="New Line Cost"
+                value={row.transmission_cost_per_kw.toFixed(0)}
+                unit="$/kW"
+                tip="Cost to build a new transmission line between substations. Only applies when KEK-nearest and solar-nearest substations are not already connected."
+              />
+            )}
+            {row.substation_upgrade_cost_per_kw != null &&
+              row.substation_upgrade_cost_per_kw > 0 && (
+                <StatRow
+                  label="Sub Upgrade Cost"
+                  value={row.substation_upgrade_cost_per_kw.toFixed(0)}
+                  unit="$/kW"
+                />
+              )}
+            {row.grid_investment_needed_usd != null && (
+              <StatRowWithTip
+                label="Total Grid Investment"
+                value={`$${(row.grid_investment_needed_usd / 1_000_000).toFixed(1)}M`}
+                tip="Estimated total: gen-tie + new transmission line + substation upgrade. This is the infrastructure price tag for connecting solar to this KEK."
+              />
+            )}
+          </StatCard>
+        )}
 
       {substations.length > 1 && <SubstationComparison substations={substations} />}
     </>

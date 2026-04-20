@@ -15,7 +15,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.assumptions import HOSTING_CAPACITY_AVAILABILITY_PCT
+from src.assumptions import HOSTING_CAPACITY_AVAILABILITY_PCT, SUBSTATION_UTILIZATION_PCT
 from src.dash.logic.assumptions import UserAssumptions
 from src.model.basic_model import capacity_assessment as compute_capacity_assessment
 from src.model.basic_model import grid_integration_category as compute_grid_integration_category
@@ -77,12 +77,22 @@ def compute_grid_integration(
     # bound, not a measured figure. Match the precompute pipeline's derating
     # (build_fct_substation_proximity.py:470) so the capacity light and grid
     # category agree with the CSV.
+    # V3.8: actual-source substations use the RUPTL-derived per-substation
+    # utilization (column `substation_utilization_pct_effective` from
+    # build_fct_substation_proximity) as the per-site default. The slider acts
+    # as a global override — when the user drags it away from the fleet default
+    # (SUBSTATION_UTILIZATION_PCT = 0.65), their value wins and uniformly stress-
+    # tests every site. When the slider is at default, each site uses its RUPTL
+    # tier. Proxy rows bypass both because their nameplate is already a guess.
     cap_source = kek.get("nearest_substation_capacity_source")
     cap_source_str = str(cap_source) if pd.notna(cap_source) else ""
     if cap_source_str.startswith("proxy_"):
         util_pct = 1.0 - HOSTING_CAPACITY_AVAILABILITY_PCT
-    else:
+    elif assumptions.substation_utilization_pct != SUBSTATION_UTILIZATION_PCT:
         util_pct = assumptions.substation_utilization_pct
+    else:
+        ruptl_util = _get_float(kek, "substation_utilization_pct_effective")
+        util_pct = ruptl_util if ruptl_util is not None else assumptions.substation_utilization_pct
 
     cap_light, avail_mva = compute_capacity_assessment(sub_cap_mva, effective_cap, util_pct)
 
@@ -93,6 +103,16 @@ def compute_grid_integration(
     inter_raw = kek.get("inter_substation_connected")
     inter_connected = bool(inter_raw) if pd.notna(inter_raw) else None
     wb_coverage = _get_float(kek, "within_boundary_coverage_pct")
+    # V3.9.1: Raw buildable area from the raster counts every vacant KEK pixel,
+    # including land earmarked for future factories. Haircut by the user-set
+    # footprint ratio so an operating industrial park (default 0.20) doesn't
+    # get treated like a greenfield. Only gates category; LCOE $/MWh unchanged.
+    if wb_coverage is not None:
+        effective_wb_coverage: float | None = wb_coverage * assumptions.wb_buildout_footprint_ratio
+    else:
+        effective_wb_coverage = None
+    site_type_raw = kek.get("site_type")
+    site_type = str(site_type_raw) if pd.notna(site_type_raw) else None
 
     gi_cat = compute_grid_integration_category(
         has_internal_substation=has_internal,
@@ -102,7 +122,13 @@ def compute_grid_integration(
         substation_utilization_pct=util_pct,
         solar_capacity_mwp=effective_cap,
         inter_substation_connected=inter_connected,
-        within_boundary_coverage_pct=wb_coverage,
+        within_boundary_coverage_pct=effective_wb_coverage,
+        # V3.9: KEK self-sufficiency gate. When on-site buildable solar can cover
+        # at least `meaningful_share_pct` of demand, skip substation + transmission
+        # + connection costs. KEK-only because non-KEK sites have point coords and
+        # a 50km-radius buffer — their coverage % is not a real boundary figure.
+        meaningful_share_pct=assumptions.meaningful_share_pct,
+        site_type=site_type,
     )
 
     if gc_row is not None:
@@ -152,4 +178,21 @@ def compute_grid_integration(
         "inter_substation_dist_km": kek.get("inter_substation_dist_km", None),
         "dist_solar_to_nearest_substation_km": kek.get("dist_solar_to_nearest_substation_km", None),
         "dist_to_nearest_substation_km": kek.get("dist_to_nearest_substation_km", None),
+        # V3.8: expose the utilization that actually drove the decision so the
+        # ScoreDrawer can narrate "85% — PLN plans +60 MVA uprate in 2028".
+        "substation_utilization_pct_effective": round(util_pct, 3),
+        # V3.9.1: effective within-boundary coverage after buildout-footprint
+        # haircut — what the gate actually checked. Lets the UI narrate
+        # "raw 59% × 0.20 footprint = 12% effective, below 30% threshold".
+        "within_boundary_coverage_effective_pct": (
+            round(effective_wb_coverage, 4) if effective_wb_coverage is not None else None
+        ),
+        "nearest_substation_name": kek.get("nearest_substation_name", None),
+        "nearest_substation_capacity_mva": sub_cap_mva,
+        "nearest_substation_capacity_source": cap_source_str or None,
+        "ruptl_project_type": kek.get("ruptl_project_type", None),
+        "ruptl_strongest_status": kek.get("ruptl_strongest_status", None),
+        "ruptl_earliest_target_year": kek.get("ruptl_earliest_target_year", None),
+        "ruptl_mva_added_total": kek.get("ruptl_mva_added_total", None),
+        "ruptl_match_confidence": kek.get("ruptl_match_confidence", None),
     }

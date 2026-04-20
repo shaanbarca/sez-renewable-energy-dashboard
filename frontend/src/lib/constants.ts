@@ -138,9 +138,9 @@ export const MODIFIER_BADGE_DESCRIPTIONS: Record<ModifierBadge, string> = {
   cbam_urgent:
     'Plant exports to the EU and faces CBAM tariffs. Once you credit the avoided border tax, RE beats grid on a net-of-CBAM basis — even when raw LCOE is higher. EU free allocations phase out 2026–2034, so the pressure only grows.',
   plan_late:
-    'Over 60% of this grid region\'s RUPTL solar pipeline is scheduled after 2030. Solar capex is falling year over year — building today locks in today\'s price for tomorrow\'s cheaper equivalent. Stage the capital.',
+    "Over 60% of this grid region's RUPTL solar pipeline is scheduled after 2030. Solar capex is falling year over year — building today locks in today's price for tomorrow's cheaper equivalent. Stage the capital.",
   storage_info:
-    'RE is competitive or within 20% of grid cost, but this site needs high uptime (≥75% reliability threshold). You\'ll need battery storage (≥2h bridge) to cover overnight or intermittency gaps — budget accordingly.',
+    "RE is competitive or within 20% of grid cost, but this site needs high uptime (≥75% reliability threshold). You'll need battery storage (≥2h bridge) to cover overnight or intermittency gaps — budget accordingly.",
 };
 
 export const ECONOMIC_TIER_HIERARCHY: EconomicTier[] = [

@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { capitalize } from '../../../lib/format';
 import type { ScorecardRow, UserAssumptions } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import Slider from '../../ui/Slider';
 import { computeGapPct, formatGap, gapColor } from './formatting';
+import { LcoeWaterfallModal } from './LcoeWaterfallModal';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 export function EconomicsTab({ row }: { row: ScorecardRow }) {
+  const [waterfallOpen, setWaterfallOpen] = useState(false);
   const assumptions = useDashboardStore((s) => s.assumptions);
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
@@ -62,7 +65,49 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
           subtitle={`Does ${techLabel.toLowerCase()} save PLN money versus their actual cost of supply?`}
           tip={`Compares ${techLabel.toLowerCase()} LCOE to PLN's true cost of supply. If ${techLabel.toLowerCase()} beats BPP, PLN saves money. This is the IPP benchmark.`}
         />
-        <StatRow label={`${techLabel} LCOE`} value={activeLcoe?.toFixed(1)} unit="$/MWh" />
+        {energyMode === 'solar' && activeLcoe != null ? (
+          <button
+            type="button"
+            onClick={() => setWaterfallOpen(true)}
+            className="group flex items-center justify-between py-1.5 w-full text-left cursor-pointer transition-colors"
+            style={{
+              background: 'transparent',
+              borderBottom: '1px dashed rgba(76, 141, 255, 0.4)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(76, 141, 255, 0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+            title="Click for LCOE cost breakdown"
+          >
+            <span
+              className="text-[11px] flex items-center gap-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {techLabel} LCOE
+              <span
+                className="text-[9px] px-1 py-0.5 rounded-sm font-medium tracking-wide"
+                style={{
+                  background: 'rgba(76, 141, 255, 0.2)',
+                  color: '#93C5FD',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                BREAKDOWN →
+              </span>
+            </span>
+            <span
+              className="text-[12px] font-medium tabular-nums group-hover:underline"
+              style={{ color: 'var(--text-value)' }}
+            >
+              {activeLcoe.toFixed(1)} $/MWh
+            </span>
+          </button>
+        ) : (
+          <StatRow label={`${techLabel} LCOE`} value={activeLcoe?.toFixed(1)} unit="$/MWh" />
+        )}
         <StatRowWithTip
           label="BPP"
           value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}
@@ -342,6 +387,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
           tip="% of 2030 demand that GEAS-allocated solar could cover. GEAS and captive solar are substitutes — high share means strong policy support."
         />
       </StatCard>
+      <LcoeWaterfallModal open={waterfallOpen} onClose={() => setWaterfallOpen(false)} row={row} />
     </>
   );
 }

@@ -243,6 +243,11 @@ def enrich_carbon_and_viability(ctx: SiteContext, _row: dict[str, Any]) -> dict[
         "wacc_pct": ctx.assumptions.wacc_pct,
         "capex_usd_per_kw": ctx.assumptions.capex_usd_per_kw,
         "land_cost_usd_per_kw": ctx.assumptions.land_cost_usd_per_kw,
+        # LCOE waterfall inputs: expose primary-CF + FOM + lifetime so the UI
+        # can reproduce the CRF-annuity breakdown (CAPEX×CRF + FOM) / (CF×8760).
+        "fom_usd_per_kw_yr": ctx.assumptions.fom_usd_per_kw_yr,
+        "lifetime_yr": ctx.assumptions.lifetime_yr,
+        "primary_cf": ctx.primary_cf,
     }
 
 

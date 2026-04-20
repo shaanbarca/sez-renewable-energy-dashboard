@@ -10,6 +10,7 @@ export interface UserAssumptions {
   land_cost_usd_per_kw: number;
   substation_utilization_pct: number;
   meaningful_share_pct: number;
+  wb_buildout_footprint_ratio: number;
   idr_usd_rate: number;
   grant_funded_transmission?: boolean;
   target_capacity_mwp?: number | null;
@@ -135,6 +136,7 @@ export interface ScorecardRow {
   solar_supply_coverage_pct?: number;
   within_boundary_generation_gwh?: number;
   within_boundary_coverage_pct?: number;
+  within_boundary_coverage_effective_pct?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;
@@ -149,6 +151,12 @@ export interface ScorecardRow {
   lcoe_with_battery_usd_mwh?: number;
   bess_competitive?: boolean | null;
   land_cost_usd_per_kw?: number;
+  // LCOE waterfall inputs (echoed from assumptions + resolved primary CF)
+  capex_usd_per_kw?: number;
+  wacc_pct?: number;
+  fom_usd_per_kw_yr?: number;
+  lifetime_yr?: number;
+  primary_cf?: number;
   dist_to_nearest_substation_km?: number;
   dist_solar_to_nearest_substation_km?: number;
 
@@ -173,6 +181,23 @@ export interface ScorecardRow {
   nearest_substation_capacity_source?: string | null;
   solar_regime?: 'co_located_captive' | 'grid_connected_ipp' | 'unclear' | null;
   lcoe_grid_connected_capped_usd_mwh?: number | null;
+
+  // V3.8: RUPTL-derived per-substation utilization signal
+  nearest_substation_name?: string | null;
+  nearest_substation_capacity_mva?: number | null;
+  substation_utilization_pct_effective?: number | null;
+  ruptl_project_type?: 'uprate' | 'extension' | 'line_bay' | 'new' | 'other' | null;
+  ruptl_strongest_status?:
+    | 'konstruksi'
+    | 'committed'
+    | 'pengadaan'
+    | 'rencana'
+    | 'studi'
+    | 'other'
+    | null;
+  ruptl_earliest_target_year?: number | null;
+  ruptl_mva_added_total?: number | null;
+  ruptl_match_confidence?: 'high' | 'medium' | 'low' | null;
 
   // H9: Captive power context
   captive_coal_count?: number | null;
@@ -273,6 +298,7 @@ export interface SliderConfig {
   min: number;
   max: number;
   step: number;
+  default?: number;
   label: string;
   unit: string;
   description: string;

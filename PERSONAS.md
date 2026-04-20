@@ -231,6 +231,7 @@ Ranked CSV of `invest_transmission`/`invest_substation` KEKs with investment est
 | ~~`grid_investment_needed_usd` not yet a first-class column~~ | ~~Order-of-magnitude total investment estimate.~~ | ✅ Built — precomputed in pipeline, surfaced as sortable DataTable column ($XM format, color-coded) + ScoreDrawer Overview and Grid tabs. 18/25 KEKs have values ($8M to $2.4B). Also in CSV export. |
 | BPP data vintage | Regional BPP from Kepmen ESDM 169/2021 (FY2020). More recent PLN Statistik 2024 data would strengthen procurement economics. | ⚠️ Partial — FY2020 data available, more recent data desirable. |
 | Substation capacity partial | 6 of 25 KEKs have null `nearest_substation_capacity_mva`. V3.1 `capacity_assessment` shows `unknown` for these. | Available with gaps — 19/25 KEKs have data. |
+| ~~Fixed 65% substation utilization~~ | ~~Fleet-average masks which specific substations are actually capacity-constrained.~~ | ✅ Built (V3.8, closes M11) — `fct_substation_ruptl_signal` extracts PLN's RUPTL 2025-2034 upgrade plans by substation; `substation_utilization_pct_effective` tiers defaults at uprate=85% / extension=75% / line_bay=70% / none=55% / unmatched=65%. ScoreDrawer narrates the rationale. |
 | Flood hazard layer (Layer 2d) missing | Coastal sites may have buildable land on flood-prone ground. | Deferred — BNPB portal inaccessible. |
 
 ---

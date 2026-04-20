@@ -250,7 +250,26 @@ SUBSTATION_UTILIZATION_PCT: float = 0.65
 # Available capacity = rated_capacity_mva × (1 − utilization_pct).
 # Source: docs/methodology_testing.md §3 — default 60–70%, mid-point 65%.
 # User-adjustable in dashboard. Range: 0.30–0.95.
-# Proxies for smarter defaults (future): night-light intensity, industrial load, PLN RUPTL flags.
+# Used as fallback when no RUPTL signal matches a substation.
+
+SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL: dict[str, float] = {
+    "uprate": 0.85,
+    "extension": 0.75,
+    "line_bay": 0.70,
+    "none": 0.55,
+}
+# RUPTL-derived per-substation utilization defaults (closes TODOS M11).
+# Rationale: PLN only plans to uprate/extend substations that are already
+# capacity-constrained, so a strong signal is strong evidence the asset is
+# running hotter than the 65% fleet average. Conversely, substations that
+# appear nowhere in RUPTL's 10-year plan are probably headroom assets.
+#   uprate    → 85%  (transformer replacement planned — most congested tier)
+#   extension → 75%  (adding bay/feeder — capacity-limited on some dimension)
+#   line_bay  → 70%  (minor addition — slightly above fleet average)
+#   none      → 55%  (no RUPTL activity — below fleet average)
+# "Unmatched" (substation not found in RUPTL appendices at all) uses
+# SUBSTATION_UTILIZATION_PCT (0.65) as the neutral fallback.
+# Source: src/pipeline/build_fct_substation_ruptl_signal.py + PLN RUPTL 2025-2034.
 
 SUBSTATION_UPGRADE_COST_PER_KW: float = 80.0
 # Cost to upgrade substation capacity when available capacity is insufficient to absorb
@@ -412,6 +431,21 @@ WB_SOLAR_FRACTION: float = 0.10
 # 20-25% to roads/utilities, 10-20% to green space/buffer. 10% is a conservative floor.
 # User-adjustable in dashboard. Range: 0.05–0.25 (5–25% of KEK area).
 # Note: At 10%, a 500 ha KEK yields 50 ha × (1 MWp / 1.5 ha) ≈ 33 MWp.
+
+WB_BUILDOUT_FOOTPRINT_RATIO: float = 0.20
+# Share of the KEK area that is realistically available for on-site solar
+# buildout after factories, roads, utilities, and operational buffers. Applied
+# as a haircut to `within_boundary_coverage_pct` before the V3.9 gate checks
+# it against `meaningful_share_pct`. Only affects the grid_integration_category
+# decision (does the KEK qualify as `within_boundary` and skip connection/
+# transmission/upgrade costs?) — LCOE per MWh is unchanged because CAPEX and
+# CF don't depend on installed volume.
+# Default 0.20 = operating industrial park (most land already spoken for).
+# Range: 0.05–1.00 (greenfield KEK with nothing built yet = closer to 1.0).
+# Source: resolved after Galang Batang flagged ~59% of its KEK area as
+# "buildable" from the raster filter — vacant land inside a greenfield KEK
+# counts even when earmarked for future factories, so raw buildable area
+# overstates what's actually free for solar today.
 
 # ─── FIRMING / WHEELING ADDER ─────────────────────────────────────────────────
 

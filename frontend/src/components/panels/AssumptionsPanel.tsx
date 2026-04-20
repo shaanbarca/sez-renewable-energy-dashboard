@@ -116,6 +116,64 @@ function WaccSlider() {
   );
 }
 
+function SubstationUtilizationSlider() {
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
+
+  const config = sliderConfigs?.tier2?.substation_utilization_pct;
+  if (!assumptions || !config) return null;
+
+  const fleetDefault = config.default ?? 0.65;
+  const isOverridden = Math.abs(assumptions.substation_utilization_pct - fleetDefault) > 1e-6;
+
+  return (
+    <div>
+      <Slider
+        value={assumptions.substation_utilization_pct}
+        onChange={(v) =>
+          setAssumptions({ substation_utilization_pct: v } as Partial<UserAssumptions>)
+        }
+        min={config.min}
+        max={config.max}
+        step={config.step}
+        label={config.label}
+        unit={config.unit}
+        description={config.description}
+      />
+      <div className="flex items-center justify-between mt-0.5 mb-1 text-[10px] leading-relaxed">
+        <span
+          style={{
+            color: isOverridden ? '#FFB74D' : '#81C784',
+          }}
+        >
+          {isOverridden
+            ? `Global override — applies to all sites at ${(assumptions.substation_utilization_pct * 100).toFixed(0)}%`
+            : 'Per-site RUPTL tiers active (each site uses its own estimated utilization)'}
+        </span>
+        {isOverridden && (
+          <button
+            type="button"
+            onClick={() =>
+              setAssumptions({
+                substation_utilization_pct: fleetDefault,
+              } as Partial<UserAssumptions>)
+            }
+            className="px-1.5 py-0.5 rounded"
+            style={{
+              color: 'var(--text-value)',
+              background: 'var(--glass-heavy)',
+              border: '1px solid var(--glass-border-bright)',
+            }}
+          >
+            ↺ Reset to per-site
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BenchmarkToggle() {
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
   const setBenchmarkMode = useDashboardStore((s) => s.setBenchmarkMode);
@@ -386,6 +444,7 @@ export default function AssumptionsPanel() {
                 <AccordionTrigger>Advanced Assumptions</AccordionTrigger>
               </Accordion.Header>
               <Accordion.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                <SubstationUtilizationSlider />
                 <SliderGroup
                   configs={(() => {
                     if (!sliderConfigs.tier2) return undefined;

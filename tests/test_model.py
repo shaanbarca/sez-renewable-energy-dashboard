@@ -721,34 +721,116 @@ class TestGridIntegrationCategory:
 
         # Without override: would be invest_substation (KEK near, solar far)
         assert grid_integration_category(False, 15.0, 10.0) == "invest_substation"
-        # With 136% coverage: overrides to within_boundary
-        result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=1.36)
+        # With 136% coverage on a KEK: overrides to within_boundary (legacy default
+        # threshold is meaningful_share_pct=1.0, matching the prior >= 1.0 rule).
+        result = grid_integration_category(
+            False,
+            15.0,
+            10.0,
+            within_boundary_coverage_pct=1.36,
+            site_type="kek",
+        )
         assert result == "within_boundary"
 
     def test_within_boundary_coverage_partial_kek_near(self):
         """KEK with partial within-boundary solar + near substation → grid_ready."""
         from src.model.basic_model import grid_integration_category
 
-        # 90% coverage, KEK near substation (10 km ≤ 15 km): on-site solar
-        # can connect to the nearby substation → grid_ready
-        result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=0.90)
+        # 90% coverage, KEK near substation (10 km ≤ 15 km), default threshold 1.0:
+        # partial coverage isn't enough to flip to within_boundary, but on-site solar
+        # can connect to the nearby substation → grid_ready.
+        result = grid_integration_category(
+            False,
+            15.0,
+            10.0,
+            within_boundary_coverage_pct=0.90,
+            site_type="kek",
+        )
         assert result == "grid_ready"
 
     def test_within_boundary_coverage_partial_kek_far(self):
-        """KEK with partial within-boundary solar but far from substation → invest_substation."""
+        """KEK with partial within-boundary solar but far from substation → grid_first."""
         from src.model.basic_model import grid_integration_category
 
-        # 90% coverage but KEK far from substation (20 km > 15 km): falls through
-        # to distance-based checks (solar_near=False at 15 km, kek_near=False at 20 km)
-        result = grid_integration_category(False, 15.0, 20.0, within_boundary_coverage_pct=0.90)
+        # 90% coverage but KEK far from substation (20 km > 15 km), default threshold 1.0:
+        # partial coverage doesn't trip the gate at the default, and distance logic
+        # returns grid_first (solar_near=False at 15 km, kek_near=False at 20 km).
+        result = grid_integration_category(
+            False,
+            15.0,
+            20.0,
+            within_boundary_coverage_pct=0.90,
+            site_type="kek",
+        )
         assert result == "grid_first"
 
     def test_within_boundary_coverage_none(self):
         """None within_boundary_coverage_pct → no override (backwards compatible)."""
         from src.model.basic_model import grid_integration_category
 
-        result = grid_integration_category(False, 15.0, 10.0, within_boundary_coverage_pct=None)
+        result = grid_integration_category(
+            False,
+            15.0,
+            10.0,
+            within_boundary_coverage_pct=None,
+            site_type="kek",
+        )
         assert result == "invest_substation"
+
+    def test_within_boundary_partial_coverage_meets_share_threshold(self):
+        """V3.9: KEK where coverage >= meaningful_share_pct → within_boundary.
+
+        At the default slider of 30%, a KEK that can cover half its demand on-site
+        is treated as self-sufficient and skips substation upgrade costs.
+        """
+        from src.model.basic_model import grid_integration_category
+
+        # 50% coverage, 30% meaningful share, KEK far from sub → within_boundary
+        # (without the new rule this would be grid_first)
+        result = grid_integration_category(
+            has_internal_substation=False,
+            dist_solar_to_substation_km=15.0,
+            dist_kek_to_substation_km=20.0,
+            within_boundary_coverage_pct=0.50,
+            meaningful_share_pct=0.30,
+            site_type="kek",
+        )
+        assert result == "within_boundary"
+
+    def test_within_boundary_partial_coverage_below_share_threshold(self):
+        """V3.9: KEK where coverage < meaningful_share_pct → no override."""
+        from src.model.basic_model import grid_integration_category
+
+        # 20% coverage, 30% meaningful share → threshold not met
+        result = grid_integration_category(
+            has_internal_substation=False,
+            dist_solar_to_substation_km=15.0,
+            dist_kek_to_substation_km=20.0,
+            within_boundary_coverage_pct=0.20,
+            meaningful_share_pct=0.30,
+            site_type="kek",
+        )
+        assert result == "grid_first"
+
+    def test_within_boundary_non_kek_site_ignores_threshold(self):
+        """V3.9: Non-KEK sites skip the partial-coverage rule.
+
+        Standalone/cluster sites have point coordinates and a 50km-radius buffer
+        for buildability — their coverage % is a synthetic artifact, so applying
+        the within_boundary gate would zero out real grid costs based on made-up land.
+        """
+        from src.model.basic_model import grid_integration_category
+
+        # Same inputs as the KEK partial-coverage test, but site_type="standalone"
+        result = grid_integration_category(
+            has_internal_substation=False,
+            dist_solar_to_substation_km=15.0,
+            dist_kek_to_substation_km=20.0,
+            within_boundary_coverage_pct=0.50,
+            meaningful_share_pct=0.30,
+            site_type="standalone",
+        )
+        assert result == "grid_first"
 
 
 class TestNewTransmissionCostPerKw:
