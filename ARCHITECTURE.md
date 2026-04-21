@@ -1,5 +1,7 @@
 # Architecture — Indonesia Industrial Decarbonization
 
+**Related:** [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [TAXONOMY.md](docs/TAXONOMY.md) (cost-column names & tiers) | [DESIGN.md](DESIGN.md)
+
 ## Table of Contents
 
 - [System Overview](#system-overview)

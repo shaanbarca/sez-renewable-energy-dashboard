@@ -6,7 +6,7 @@ Six primary user personas. Each section covers: who they are, what unique insigh
 
 *Prior: Methodology V3.6 — grid-connected solar model, 14 action flags across 4 energy modes (Solar/Wind/Hybrid/Overall), BESS bridge-hours + RTE storage model, firm solar coverage metrics, three-point proximity with grid connectivity check, captive power context (coal/nickel/steel/cement), hybrid solar+wind optimization, panel degradation (0.5%/yr). See [METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) for the single authoritative reference. See [Layer 3 Spec](docs/layer3_green_industrial_products_spec.md) for CBAM feature design.*
 
-**Related:** [DESIGN.md](DESIGN.md) | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md)
+**Related:** [DESIGN.md](DESIGN.md) | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [TAXONOMY.md](docs/TAXONOMY.md) (cost-column names & tiers)
 
 ---
 

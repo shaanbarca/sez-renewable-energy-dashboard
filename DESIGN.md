@@ -1,7 +1,7 @@
 # Design — Indonesia KEK Power Competitiveness Dashboard
 
 **Status:** V3.6 design spec (2026-04-15). React + Vite + TypeScript SPA with FastAPI backend. Map-forward layout, 4 energy modes, 14 map layers, CBAM Layer 3.
-**Related:** [PERSONAS.md](PERSONAS.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [PLAN.md](PLAN.md) | [Layer 3 Spec](docs/layer3_green_industrial_products_spec.md)
+**Related:** [PERSONAS.md](PERSONAS.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [PLAN.md](PLAN.md) | [TAXONOMY.md](docs/TAXONOMY.md) (cost-column names & tiers) | [Layer 3 Spec](docs/layer3_green_industrial_products_spec.md)
 **Design mockups:** [docs/designs/2026-04-dashboard-refresh/](docs/designs/2026-04-dashboard-refresh/) (4 interaction states + 3 exploration variants)
 
 ---

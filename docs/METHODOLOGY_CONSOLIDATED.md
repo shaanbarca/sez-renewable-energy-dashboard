@@ -7,6 +7,8 @@
 
 This document is the single authoritative methodology reference for the Indonesia KEK Power Competitiveness tool. It consolidates all prior versions into one coherent specification that matches the current codebase (as of April 2026).
 
+**Cost-column taxonomy.** Every `$/MWh` field in the model is catalogued in [`docs/TAXONOMY.md`](TAXONOMY.md). Three stacked tiers (T1 generation → T2 firmed → T3 tenant-delivered) plus a grid benchmark (B) the stack gets compared against. Read that first if you are confused about which LCOE is which. Note: "blended" appears in two different meanings in this doc (§5.4 delivered cost = captive+grid blend; §6A.3 hybrid LCOE = solar+wind blend). TAXONOMY.md §4.1 flags the collision and proposes the rename.
+
 ---
 
 ## Table of Contents

@@ -8,6 +8,8 @@ Contract for the data pipeline. Three parts:
 
 **Status legend:** ✅ available | ⚠️ partial/needs cleaning | ❌ missing | 🔒 manual (human required)
 
+**Cost-column definitions.** For every `$/MWh` column (`lcoe_mid`, `lcoe_within_boundary`, `delivered_cost_blended`, `hybrid_allin`, `bpp`, etc.), read [docs/TAXONOMY.md](docs/TAXONOMY.md) first. It defines the three-tier cost stack (T1 generation → T2 firmed → T3 delivered) and the grid benchmark (B), names every cost column with its tier + siting + WACC band, and flags the two different meanings of "blended" (§5.4 tenant blend vs §6A.3 hybrid blend).
+
 **Scope:** 81 sites total — 25 KEKs (Special Economic Zones) + 56 industrial sites (32 cement, 7 steel, 2 aluminium, 5 fertilizer, 10 nickel IIA clusters). Industrial site selection is pipeline-driven and reproducible from public trackers (GEM Cement, GEM Iron & Steel, CGSP Nickel) with residual manual entries (2 aluminium + 5 fertilizer = 7 rows) provenance-enforced via required `source_url`. Fertilizer set covers all 5 operating Pupuk Indonesia subsidiaries after a 4-source universe-discovery pass captured in `data/industrial_sites/fertilizer_universe_v1.csv`. Ammonia + petrochemical sector scaffolding is in place (enum, intensity, CBAM constants) pending top-down universe discovery (TODOS M28/M29). The unified dimension table is `dim_sites` keyed on `site_id`; `site_type` discriminates KEK vs KI vs standalone vs cluster behavior across the pipeline.
 
 ---
