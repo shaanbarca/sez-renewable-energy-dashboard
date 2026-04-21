@@ -98,6 +98,51 @@ def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str
     return dict(ctx.grid_out)
 
 
+def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
+    """V3.10: blended delivered cost of electricity (tenant view) — METHODOLOGY §5.4.
+
+    Models the tenant's actual bill when on-site solar partially covers demand:
+    captive_fraction served at the within-boundary LCOE (no grid infra costs),
+    grid_fraction served at the regional grid rate. `captive_fraction` uses the
+    haircut-adjusted within-boundary coverage (same figure the `within_boundary`
+    gate checks in §8.2), so the metric is consistent across the gate boundary.
+
+    Degenerates cleanly: full captive -> delivered == wb_LCOE; zero captive ->
+    delivered == grid_rate. Additive column — `lcoe_mid_usd_mwh` is unchanged.
+    """
+    wb_lcoe = ctx.wb_row.get("lcoe_mid_usd_mwh") if ctx.wb_row is not None else None
+    grid_rate = ctx.grid_cost if ctx.grid_cost and ctx.grid_cost > 0 else None
+
+    if wb_lcoe is None or pd.isna(wb_lcoe) or grid_rate is None:
+        return {
+            "delivered_cost_blended_usd_mwh": None,
+            "captive_fraction": None,
+            "grid_fraction": None,
+            "delivered_cost_grid_rate_used_usd_mwh": None,
+            "delivered_cost_wb_lcoe_used_usd_mwh": None,
+            "delivered_cost_gap_vs_grid_pct": None,
+        }
+
+    eff_cov = ctx.grid_out.get("within_boundary_coverage_effective_pct")
+    if eff_cov is None or pd.isna(eff_cov) or eff_cov < 0:
+        eff_cov = 0.0
+
+    f_captive = min(float(eff_cov), 1.0)
+    f_grid = 1.0 - f_captive
+    delivered = f_captive * float(wb_lcoe) + f_grid * float(grid_rate)
+
+    return {
+        "delivered_cost_blended_usd_mwh": _round(delivered),
+        "captive_fraction": round(f_captive, 4),
+        "grid_fraction": round(f_grid, 4),
+        "delivered_cost_grid_rate_used_usd_mwh": _round(float(grid_rate)),
+        "delivered_cost_wb_lcoe_used_usd_mwh": _round(float(wb_lcoe)),
+        "delivered_cost_gap_vs_grid_pct": _round(
+            solar_competitive_gap(delivered, float(grid_rate))
+        ),
+    }
+
+
 def enrich_anchor_and_regime(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
     """V3.7: substation-anchored search diagnostics + solar_regime classification.
 
@@ -602,6 +647,7 @@ def enrich_cross_domain(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]
 STAGES: list[Enricher] = [
     enrich_lcoe_and_gaps,
     enrich_grid_passthroughs,
+    enrich_delivered_cost,
     enrich_anchor_and_regime,
     enrich_action_flags,
     enrich_carbon_and_viability,

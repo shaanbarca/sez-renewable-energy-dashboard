@@ -7,6 +7,8 @@
 
 This document is the single authoritative methodology reference for the Indonesia KEK Power Competitiveness tool. It consolidates all prior versions into one coherent specification that matches the current codebase (as of April 2026).
 
+**Cost-column taxonomy.** Every `$/MWh` field in the model is catalogued in [`docs/TAXONOMY.md`](TAXONOMY.md). Three stacked tiers (T1 generation → T2 firmed → T3 tenant-delivered) plus a grid benchmark (B) the stack gets compared against. Read that first if you are confused about which LCOE is which. Note: "blended" appears in two different meanings in this doc (§5.4 delivered cost = captive+grid blend; §6A.3 hybrid LCOE = solar+wind blend). TAXONOMY.md §4.1 flags the collision and proposes the rename.
+
 ---
 
 ## Table of Contents
@@ -23,6 +25,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [5.1 Within-boundary (captive)](#51-within-boundary-captive)
   - [5.2 Grid-connected solar](#52-grid-connected-solar)
   - [5.3 Why remote captive was removed](#53-why-remote-captive-was-removed)
+  - [5.4 Blended delivered cost (partial within-boundary coverage)](#54-blended-delivered-cost-partial-within-boundary-coverage)
 - [6. LCOE Formula](#6-lcoe-formula)
   - [6.1 Base LCOE](#61-base-lcoe)
   - [6.2 Grid-connected LCOE](#62-grid-connected-lcoe)
@@ -325,6 +328,53 @@ The V1 methodology assumed KEKs could build remote captive solar connected by a 
 - **Indonesia-specific:** IMIP Morowali (5+ GW captive coal) builds power inside the park. PLN has rejected all wheeling requests in practice despite legal authorization.
 
 The realistic model for delivering cheap solar to KEKs is through PLN's grid, not through private infrastructure.
+
+### 5.4 Blended delivered cost (partial within-boundary coverage)
+
+**Version:** V3.10
+
+The `within_boundary` gate (§8.2) is binary: a KEK either clears the `meaningful_share_pct` threshold (after the V3.9.1 buildout-footprint haircut) and is treated as fully self-sufficient on captive solar, or it doesn't — in which case the scorecard's primary `lcoe_mid_usd_mwh` reports the full grid-connected LCOE, with transmission/substation/connection costs loaded onto 100% of effective capacity. Neither picture matches what an industrial tenant actually pays when on-site solar can supply, say, 40% of demand and PLN supplies the balance.
+
+**Blended delivered cost** fills this gap. It is a tenant-view metric — what the load's effective $/MWh bill looks like when part of supply is captive and part is grid-delivered.
+
+**Formula:**
+
+```
+f_captive = min(within_boundary_coverage_effective_pct, 1.0)
+f_grid    = 1 - f_captive
+delivered_cost_blended_usd_mwh = f_captive × LCOE_wb + f_grid × grid_rate
+```
+
+**Glossary:**
+
+- `within_boundary_coverage_effective_pct` — haircut-adjusted on-site coverage: `wb_coverage × wb_buildout_footprint_ratio`. Same figure the `within_boundary` gate in §8.2 checks. Clamped to 1.0 because the tenant can't consume more on-site solar than their load.
+- `LCOE_wb` — within-boundary scenario LCOE (§5.1 / §6.1): centroid PVOUT, no connection cost, no transmission build, no substation upgrade. Already computed per site in `wb_row.lcoe_mid_usd_mwh`.
+- `grid_rate` — the regional grid reference cost the `SiteContext` resolves. Defaults to the PLN I-4/TT industrial tariff (§7.1); resolves to regional BPP (§7.2) when BPP benchmark mode is active. This is the same rate that feeds `solar_competitive_gap_pct`, so the blended delivered gap (`delivered_cost_gap_vs_grid_pct`) inherits the user's current tariff/BPP toggle without a new switch.
+
+**Degeneracy — the metric is consistent across the `within_boundary` gate boundary:**
+
+- **Full captive** (site fully above gate, `f_captive = 1.0`): delivered equals `LCOE_wb`. Matches what the binary switch already shows.
+- **Zero captive** (no on-site solar, `f_captive = 0`): delivered equals `grid_rate`. Correct — the tenant pays pure PLN with no RE offset.
+- **Partial coverage** (site below gate but with some on-site buildable land): delivered sits between `LCOE_wb` and `grid_rate`, proportional to captive share. This is precisely the case the binary switch mishandles.
+
+**Additive, not a replacement.** The gate-driven `lcoe_mid_usd_mwh`, `solar_competitive_gap_pct`, action flags, economic tier, carbon breakeven, and all downstream flag mechanics are unchanged. Blended delivered cost is a decision-support column for the tenant view. Whether to repoint action flags / economic tier / competitive gap at the blended number is a separate methodology decision (deferred — see TODOS).
+
+**Worked example.** A KEK with raw 78% within-boundary coverage × 0.20 footprint ratio = 15.6% effective. Below the default 30% `meaningful_share_pct` threshold, so the gate fails and `lcoe_mid_usd_mwh` reports the full grid-connected number (say $72/MWh). But with `LCOE_wb = $48/MWh` and `grid_rate = $63/MWh` (I-4 tariff):
+
+```
+delivered_cost_blended = 0.156 × 48 + 0.844 × 63
+                       = 7.49 + 53.17
+                       = $60.7/MWh
+```
+
+The tenant's actual bill is 4% below the grid-reference rate, not the 14% above-grid that `lcoe_mid_usd_mwh` alone suggests.
+
+**Cross-references.**
+- Haircut + gate mechanics: §8.2 (Grid integration categories, V3.9 override + V3.9.1 buildout-footprint haircut).
+- `LCOE_wb` derivation: §6.1 (Base LCOE, with centroid PVOUT and no grid-infra cost stack).
+- Grid rate resolution (tariff vs BPP): §7.1, §7.2, §7.3.
+
+**Implementation.** `enrich_delivered_cost()` in `src/dash/logic/scorecard.py` (appended to `STAGES` after `enrich_grid_passthroughs`). Reads `ctx.wb_row.lcoe_mid_usd_mwh`, `ctx.grid_cost`, and `ctx.grid_out["within_boundary_coverage_effective_pct"]`. Emits six columns: `delivered_cost_blended_usd_mwh`, `captive_fraction`, `grid_fraction`, `delivered_cost_grid_rate_used_usd_mwh`, `delivered_cost_wb_lcoe_used_usd_mwh`, `delivered_cost_gap_vs_grid_pct`. Null when either `wb_row` or `grid_cost` is missing.
 
 ---
 

@@ -62,6 +62,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'Nearby industry within 50km: captive coal (GEM GCPT), nickel smelters (CGSP), steel plants (GEM GISPT), cement plants (GEM GCPT). CBAM-exposed sectors face EU carbon border pricing from 2026.',
   cbam_2030:
     'EU CBAM cost per tonne of product at 2030 rates (51.5% free allocation remaining). By 2034 free allocation reaches 0% and full EU ETS price applies (~€80/tCO₂). Sortable to find highest-exposure KEKs.',
+  delivered_cost_blended_usd_mwh:
+    'Blended delivered cost of electricity for the tenant: captive_fraction × within-boundary solar LCOE + grid_fraction × grid rate. Captures how much of demand is met by on-site solar vs imported grid power. Hidden when site has no captive coverage.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -442,6 +444,26 @@ export const columns = [
     cell: (info) => {
       const v = info.getValue();
       return v != null ? v.toFixed(1) : '—';
+    },
+  }),
+  col.accessor('delivered_cost_blended_usd_mwh', {
+    header: () => (
+      <HeaderWithTooltip label="Delivered Cost" columnId="delivered_cost_blended_usd_mwh" />
+    ),
+    filterFn: 'inRange',
+    cell: (info) => {
+      const val = info.getValue();
+      const captive = info.row.original.captive_fraction;
+      if (val == null || captive == null || captive === 0) {
+        return <span style={{ color: '#666' }}>—</span>;
+      }
+      return (
+        <span
+          title={`${Math.round(captive * 100)}% captive / ${Math.round((1 - captive) * 100)}% grid`}
+        >
+          {val.toFixed(1)}
+        </span>
+      );
     },
   }),
   col.accessor('solar_competitive_gap_pct', {

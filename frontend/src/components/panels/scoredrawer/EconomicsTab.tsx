@@ -151,6 +151,43 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
         />
       </StatCard>
 
+      {energyMode === 'solar' &&
+        row.delivered_cost_blended_usd_mwh != null &&
+        row.captive_fraction != null &&
+        row.captive_fraction > 0 && (
+          <StatCard>
+            <SectionHeader
+              title="Delivered Cost (Blended)"
+              subtitle="What the tenant actually pays across on-site solar + grid imports"
+              tip="Blended cost of electricity the tenant experiences: a fraction comes from within-boundary solar (cheap), the rest from PLN grid at BPP/tariff. Weighted by buildout-adjusted coverage."
+            />
+            <StatRowWithTip
+              label="Blended Cost"
+              value={row.delivered_cost_blended_usd_mwh.toFixed(1)}
+              unit="$/MWh"
+              tip="captive_fraction × within-boundary solar LCOE + grid_fraction × grid rate."
+            />
+            <StatRowWithTip
+              label="Captive Share"
+              value={`${Math.round(row.captive_fraction * 100)}%`}
+              tip="Fraction of tenant demand met by on-site solar (buildout-footprint-haircut coverage, capped at 100%)."
+            />
+            <StatRowWithTip
+              label="Grid Share"
+              value={row.grid_fraction != null ? `${Math.round(row.grid_fraction * 100)}%` : null}
+              tip="Fraction of tenant demand imported from PLN grid at the active benchmark rate."
+            />
+            {row.delivered_cost_gap_vs_grid_pct != null && (
+              <ColoredStatRow
+                label="Gap vs Grid"
+                value={formatGap(row.delivered_cost_gap_vs_grid_pct)}
+                color={gapColor(row.delivered_cost_gap_vs_grid_pct)}
+                tip="How much cheaper (negative) or more expensive (positive) the blended delivered cost is versus pure grid import."
+              />
+            )}
+          </StatCard>
+        )}
+
       {energyMode !== 'wind' &&
         row.battery_adder_usd_mwh != null &&
         row.battery_adder_usd_mwh > 0 && (
