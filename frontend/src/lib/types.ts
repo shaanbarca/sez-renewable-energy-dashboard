@@ -237,6 +237,14 @@ export interface ScorecardRow {
   cbam_savings_per_mwh?: number | null;
   cbam_adjusted_gap_pct?: number | null;
   cbam_urgent?: boolean;
+
+  // V3.10: blended delivered cost of electricity (tenant view)
+  delivered_cost_blended_usd_mwh?: number | null;
+  captive_fraction?: number | null;
+  grid_fraction?: number | null;
+  delivered_cost_grid_rate_used_usd_mwh?: number | null;
+  delivered_cost_wb_lcoe_used_usd_mwh?: number | null;
+  delivered_cost_gap_vs_grid_pct?: number | null;
   bess_sizing_hours?: number | null;
 
   // V3.3: Firm solar metrics (temporal mismatch)
