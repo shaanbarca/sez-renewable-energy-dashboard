@@ -1,6 +1,6 @@
-# Design — Indonesia KEK Power Competitiveness Dashboard
+# Design — Indonesia Industrial Decarbonization Dashboard
 
-**Status:** V3.6 design spec (2026-04-15). React + Vite + TypeScript SPA with FastAPI backend. Map-forward layout, 4 energy modes, 14 map layers, CBAM Layer 3.
+**Status:** V3.7 design spec (2026-04-21). React + Vite + TypeScript SPA with FastAPI backend. 81 sites (25 KEK + 46 standalone + 10 cluster), 2D classification, 4 energy modes, 14 map layers, CBAM Layer 3, Scenario Compare.
 **Related:** [PERSONAS.md](PERSONAS.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [PLAN.md](PLAN.md) | [TAXONOMY.md](docs/TAXONOMY.md) (cost-column names & tiers) | [Layer 3 Spec](docs/layer3_green_industrial_products_spec.md)
 **Design mockups:** [docs/designs/2026-04-dashboard-refresh/](docs/designs/2026-04-dashboard-refresh/) (4 interaction states + 3 exploration variants)
 
@@ -22,7 +22,7 @@
   - [What is precomputed vs. computed live](#what-is-precomputed-vs-computed-live)
   - [WACC slider behaviour](#wacc-slider-behaviour)
   - [Demand override hook](#demand-override-hook)
-- [§6 Open Design Questions (all resolved)](#6-open-design-questions-all-resolved)
+- [§6 Resolved Design Questions (Phase 3)](#6-resolved-design-questions-phase-3)
 - [§7 CBAM / Green Industrial Products (Layer 3)](#7-cbam--green-industrial-products-layer-3)
 - [§8 Architecture Notes](#8-architecture-notes)
 - [§9 Changelog](#9-changelog)
@@ -31,7 +31,7 @@
 
 ## §1 Problem Statement
 
-Indonesia's 25 Special Economic Zones (KEKs) face a fragmented energy landscape: captive solar may already be cheaper than grid power at some sites, but no single tool shows which KEKs are competitive today, which are one policy lever away, and which are genuinely grid-dependent. This dashboard answers that question for the four audiences who most need it — development bank analysts, infrastructure investors, Indonesian policymakers, and IPP developers — using precomputed LCOE bands, buildable solar resource estimates, and RUPTL pipeline data joined at KEK level for the first time.
+Indonesia's industrial sector faces a fragmented energy market: captive solar and wind may already be cheaper than grid power at many sites, but no single tool shows which locations are competitive today, which are one policy lever away, and which are genuinely grid-dependent — or which are exposed to EU CBAM carbon costs. This dashboard answers that question across **81 industrial sites** (25 KEKs + 32 cement plants + 7 steel plants + 10 nickel IIA clusters + 2 aluminium + 5 fertilizer) for the five audiences who most need it — energy economists, DFI investors, Indonesian policymakers, IPP developers, and CBAM-exposed industrial investors — using precomputed LCOE bands, buildable solar/wind resource estimates, RUPTL pipeline data, and EU CBAM exposure joined at site level for the first time.
 
 ---
 
@@ -41,17 +41,17 @@ Five named views arranged in a **map-forward layout**. The map is always visible
 
 | # | View | Container | Purpose | Primary data source | Key interaction |
 |---|------|-----------|---------|-------------------|----------------|
-| 1 | **Overview Map** | Full-screen (always visible) | Spatial distribution of clean power competitiveness across all 25 KEKs. 14 toggle-able overlay layers. | `scorecard[].action_flag`, 4 energy modes | Click marker → zoom to KEK + show ScoreDrawer |
-| 2 | **Ranked Table** | Bottom drawer (tab 1) | Sortable, filterable comparison of all 25 KEKs. 19 columns, dropdown + range filters, CBAM toggle, CSV export. | `POST /api/scorecard` response | Column sort; global search; CBAM filter; CSV export |
+| 1 | **Overview Map** | Full-screen (always visible) | Spatial distribution of clean power competitiveness across all 81 sites. 14 toggle-able overlay layers. | `scorecard[].action_flag`, 4 energy modes | Click marker → zoom to site + show ScoreDrawer |
+| 2 | **Ranked Table** | Bottom drawer (tab 1) | Sortable, filterable comparison of all 81 sites. 20 columns (delivered cost hidden when `captive_fraction == 0`), dropdown + range filters, CBAM toggle, CSV export. | `POST /api/scorecard` response | Column sort; global search; CBAM filter; CSV export |
 | 3 | **Quadrant Chart** | Bottom drawer (tab 2) | LCOE vs. grid cost proxy scatter with competitive zone shading | Scorecard LCOE + grid cost | Benchmark toggle (BPP / Tariff) |
-| 4 | **KEK ScoreDrawer** | Right side panel (slides in on KEK click) | Single-zone deep-dive: 6 tabs with embedded charts (EnergyBalance, LcoeCurve, CbamTrajectory, SubstationComparison) | All scorecard fields for selected KEK | Tab between Overview / Resource / Grid / Economics / Industry / Action |
-| 5 | **RUPTL Context** | Bottom drawer (tab 3) | Regional grid pipeline timing — when does PLN's solar come online near each KEK? | `GET /api/ruptl-metrics` | Region filter; scenario toggle (RE Base / ARED) |
+| 4 | **Site ScoreDrawer** | Right side panel (slides in on site click) | Single-site deep-dive: 7 tabs with embedded charts (EnergyBalance, LcoeCurve, CbamTrajectory, SubstationComparison) | All scorecard fields for selected site | Tab between Overview / Resource / Grid / Economics / Industry / Action / Flip |
+| 5 | **RUPTL Context** | Bottom drawer (tab 3) | Regional grid pipeline timing — when does PLN's solar come online near each site? | `GET /api/ruptl-metrics` | Region filter; scenario toggle (RE Base / ARED) |
 
 ### Layout containers
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Indonesia KEK Power Competitiveness  [Solar|Wind|Hybrid|All]   │  ← liquid glass header
+│  Indonesia Industrial Decarbonization [Solar|Wind|Hybrid|All]   │  ← liquid glass header
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
 │  │ Assumptions  │  │ Layer Control│  │ ACTION FLAG LEGEND    │  │
@@ -64,10 +64,10 @@ Five named views arranged in a **map-forward layout**. The map is always visible
 │                FULL-SCREEN MAP (MapLibre GL JS)                │
 │                      ┌─────────────────────┐                   │
 │                      │ ScoreDrawer         │ ← slides in       │
-│                      │ 6 tabs: Overview,   │   on KEK click    │
+│                      │ 7 tabs: Overview,   │   on site click   │
 │                      │ Resource, Grid,     │                   │
 │                      │ Economics, Industry,│                   │
-│                      │ Action              │                   │
+│                      │ Action, Flip        │                   │
 │                      └─────────────────────┘                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  ═══ grab handle ═══                                            │
@@ -79,7 +79,7 @@ Five named views arranged in a **map-forward layout**. The map is always visible
 
 All floating panels (Assumptions, Layer Control, Raster Legends) are draggable to avoid overlapping map features.
 
-### Interaction states (2 states + persistent elements)
+### Interaction states (3 states + persistent elements)
 
 See mockups in [docs/designs/2026-04-dashboard-refresh/](docs/designs/2026-04-dashboard-refresh/).
 
@@ -89,40 +89,57 @@ See mockups in [docs/designs/2026-04-dashboard-refresh/](docs/designs/2026-04-da
 - **Layer control** (draggable): Toggle panel for 14 map overlay layers. Energy mode auto-shows/hides relevant layers (e.g. solar mode hides wind layers).
 - **Action flag legend** (top-right): Color-coded legend for all 14 action flags (see §4)
 - **Bottom drawer** (open by default, collapsible via grab handle): Translucent dark glass panel (~40vh). Contains 3 tabs:
-  1. Ranked Table — 19 columns, TanStack Table v8, dropdown + range filters, global search, CBAM-only toggle, CSV export
+  1. Ranked Table — 20 columns (delivered cost hidden when `captive_fraction == 0`), TanStack Table v8, dropdown + range filters, global search, CBAM-only toggle, CSV export
   2. Quadrant Chart — Recharts scatter, LCOE vs grid cost with competitive zone shading
   3. RUPTL Context — Recharts grouped bar chart of planned solar additions by region and year
 
 **State 1 — National view** (default) ([state-1-default-map.png](docs/designs/2026-04-dashboard-refresh/state-1-default-map.png)):
-Full-screen dark map (MapLibre GL JS via `react-map-gl`) with all 25 KEK markers color-coded by action flag. Markers pulse on first load (~5s breathing animation) to signal interactivity. No KEK selected. All persistent elements visible. Drawer open by default. 4 map style options: Dark, Light, Voyager, Satellite.
+Full-screen dark map (MapLibre GL JS via `react-map-gl`) with all 81 site markers color-coded by action flag (marker shape varies by `site_type`: circle/square/diamond/hexagon). Markers pulse on first load (~5s breathing animation) to signal interactivity. No site selected. All persistent elements visible. Drawer open by default. 4 map style options: Dark, Light, Voyager, Satellite.
 
-**State 2 — Zoomed KEK** ([state-2-kek-zoomed.png](docs/designs/2026-04-dashboard-refresh/state-2-kek-zoomed.png)):
-Triggered by clicking a KEK marker on map or a row in the ranked table.
-- Map flies to fit the selected KEK polygon (`flyTo` with bounding box padding)
-- KEK polygon boundary rendered (action-flag color outline, 0.15 opacity fill) via `GET /api/kek/{id}/polygon`
-- 50km radius circle renders around KEK centroid (visualizes captive solar siting radius)
+**State 2 — Zoomed Site** ([state-2-kek-zoomed.png](docs/designs/2026-04-dashboard-refresh/state-2-kek-zoomed.png)):
+Triggered by clicking a site marker on map or a row in the ranked table.
+- Map flies to fit the selected site boundary (`flyTo` with bounding box padding)
+- Site boundary rendered (action-flag color outline, 0.15 opacity fill) via `GET /api/site/{id}/polygon` (KEK polygon for `kek` site type, circular footprint for non-KEK types)
+- 50km radius circle renders around site centroid (visualizes captive solar siting radius)
 - Buildable area radiate animation: within-boundary (green) pulses first, then remote (teal) 1s later
-- Solar Buildable Areas layer auto-enables on KEK selection
-- PLN substations within radius: rank-coded markers (gold = rank 1, silver = rank 2, cyan = rank 3) from `GET /api/kek/{id}/substations`
-- Selected KEK marker enlarged with yellow halo (28px outer + 20px inner)
-- ScoreDrawer slides in from right (6 tabs: Overview / Resource / Grid / Economics / Industry / Action)
-  - Close (X) keeps spatial context (radius, polygon visible). Separate from KEK deselection.
-- Bottom drawer still available. RUPTL tab auto-filters to this KEK's grid region.
-- Click a different KEK in table → transitions directly (no return to State 1 first)
+- Solar Buildable Areas layer auto-enables on site selection
+- PLN substations within radius: rank-coded markers (gold = rank 1, silver = rank 2, cyan = rank 3) from `GET /api/site/{id}/substations`
+- Selected site marker enlarged with yellow halo (28px outer + 20px inner)
+- ScoreDrawer slides in from right (7 tabs: Overview / Resource / Grid / Economics / Industry / Action / Flip — Flip tab visible when Scenario Compare is active)
+  - Close (X) keeps spatial context (radius, polygon visible). Separate from site deselection.
+- Bottom drawer still available. RUPTL tab auto-filters to this site's grid region.
+- Click a different site in table → transitions directly (no return to State 1 first)
 - All slider changes update scorecard + map markers + polygon fill live in zoomed state
+
+**State 3 — LCOE Drilldown** (modal overlay on top of State 2):
+Triggered from the Economics tab by clicking the LCOE value (solar mode only, `activeLcoe != null`). Affordance: dashed blue underline on the LCOE stat + hover tint + tooltip "Click for LCOE cost breakdown".
+- Modal overlay (liquid glass) rendered by `LcoeWaterfallModal.tsx`
+- Header shows site name + infra-readiness badge (color-coded via `INFRA_READINESS_COLORS`)
+- Recharts stacked BarChart as a **waterfall**: each bar spans `[running_start, running_end]` so components visually stack from 0 → total
+- Components (in order): CAPEX annuity, FOM, land lease, grid connection, new transmission, substation upgrade, Total
+- Each component colored per `COMPONENT_COLORS` (capex=blue, fom=purple, land=amber, connection=cyan, transmission=teal, upgrade=orange, total=green)
+- Tooltip per bar: component label + `$/MWh` + description + share-of-total %
+- Close (X) or Escape returns to State 2 with site context intact
+- Map and drawer remain behind the modal (scrim darkens but does not hide them)
+- Only renders when `energyMode === 'solar'` and `lcoe_usd_mwh` is defined — hybrid/wind/overall modes don't expose this click path
 
 ### View flow (updated)
 
 ```
 National View (State 1)
-    │ click KEK marker or table row
+    │ click site marker or table row
     ▼
-Zoomed KEK (State 2)
+Zoomed Site (State 2)
     │ polygon + 50km radius + substations + ScoreDrawer side panel
-    │ close drawer (X) → keeps spatial context; deselect KEK → back to State 1
-    │ click different KEK in table → stay in State 2, switch KEK
+    │ close drawer (X) → keeps spatial context; deselect site → back to State 1
+    │ click different site in table → stay in State 2, switch site
     │
-    │ RUPTL tab auto-filters to KEK's region
+    │ Economics tab LCOE click (solar mode only)
+    │          ▼
+    │     LCOE Drilldown (State 3)
+    │     modal waterfall of LCOE components → Esc/X → State 2
+    │
+    │ RUPTL tab auto-filters to site's region
     │ slider changes → POST /api/scorecard → everything updates live
     │
 Bottom Drawer (persistent, open by default, toggle via grab handle)
@@ -137,7 +154,7 @@ Energy Toggle (persistent, header bar) → switches Solar/Wind/Hybrid/Overall co
   Overall mode: user controls all layers, flags show best RE technology
 ```
 
-*Changed 2026-04-08: Map-forward redesign. Changed 2026-04-15: Updated to reflect React/Vite/TypeScript SPA, 4 energy modes, 3 bottom tabs (Flip Scenario removed), 14 map layers.*
+*Changed 2026-04-08: Map-forward redesign. Changed 2026-04-15: Updated to reflect React/Vite/TypeScript SPA, 4 energy modes, 3 bottom tabs, 14 map layers. Changed 2026-04-17: 25 KEKs → 81 sites; routes renamed `/api/kek/` → `/api/site/`. Changed 2026-04-18: Added 7th `Flip` tab to ScoreDrawer for Scenario Compare (Phase 5). Changed 2026-04-21: Added State 3 (LCOE Drilldown modal) — previously undocumented.*
 
 ---
 
@@ -151,10 +168,17 @@ Single Zustand store (`frontend/src/store/dashboard.ts`):
 |-------|---------|--------|
 | `assumptions` | All user-adjustable model params (CAPEX, FOM, lifetime, WACC, BESS CAPEX, CBAM price, EUR/USD). Defaults from `GET /api/defaults`. | `POST /api/scorecard` recomputation |
 | `thresholds` | Flag thresholds (PVOUT, plan-late, GEAS, resilience gap, reliability) | Included in scorecard POST |
-| `scorecard` | Array of `ScorecardRow` (25 KEKs, ~80 fields each) from API response | Table, map markers, ScoreDrawer, charts |
-| `selectedKek` | Currently selected `kek_id` (nullable) | ScoreDrawer content, map highlight, polygon/radius |
+| `scorecard` | Array of `ScorecardRow` (81 sites, ~80 fields each) from API response | Table, map markers, ScoreDrawer, charts |
+| `selectedSite` | Currently selected `site_id` (nullable) | ScoreDrawer content, map highlight, polygon/radius |
+| `filteredSiteIds` | Array of site IDs passing active dropdown + range filters | Map marker visibility, table row visibility |
+| `flipAssumptions` / `flipPreset` / `flipScorecard` / `flipLoading` / `flipStale` | Scenario Compare (A/B flip) state: flip-scenario overrides + recomputed scorecard + loading/stale flags | Map flip rings (green/red halos on sites that change tier), ScoreDrawer Flip tab |
+| `activeTab` | Current bottom drawer tab (`table` / `quadrant` / `ruptl` / `compare`) | Bottom drawer content; `compare` tab enables Scenario Compare UI and gates flip-ring map layers |
+| `drawerOpen` / `bottomPanelCollapsed` / `assumptionsExpanded` | Panel open/close booleans | Layout visibility |
+| `walkthroughPersona` / `walkthroughStep` / `walkthroughDismissed` | Persona-based onboarding state | WalkthroughModal visibility + current step |
+| `flyToTarget` | `{ lat, lon, zoom? }` or null | One-shot map fly-to trigger; cleared after animation |
 | `energyMode` | `solar` / `wind` / `hybrid` / `overall` | Action flag display, layer visibility, ScoreDrawer fields |
-| `benchmarkMode` | `bpp` / `tariff` | Grid cost column in table, competitive gap calculation |
+| `benchmarkMode` | `bpp` / `tariff` (today); `bpp_cbam_adjusted` / `tariff_cbam_adjusted` deferred per [TAXONOMY.md](docs/TAXONOMY.md) §7.3 | Grid cost column in table, competitive gap calculation |
+| `costBasis` | `raw` / `firmed` / `delivered` — **deferred (PR3)**, see [TAXONOMY.md](docs/TAXONOMY.md) §7.3 | Resolves which cost column feeds `action_flag` / `economic_tier` / gap / `carbon_breakeven` at evaluation time. Default `firmed` for `overall`, `raw` otherwise. |
 | `layerVisibility` | Record of 14 layer toggle states | Map overlay rendering |
 | `mapStyle` | `dark` / `light` / `voyager` / `satellite` | Map tile source |
 | `savedScenarios` | Up to 3 named scenarios in localStorage | ScenarioManager load/save |
@@ -173,18 +197,18 @@ User adjusts sliders (Zustand store)
   (LCOE, action flags, CBAM, wind, hybrid, grid costs — all recomputed)
          │
          ▼
-  JSON response: ScorecardRow[] (25 rows × ~80 fields)
+  JSON response: ScorecardRow[] (81 rows × ~80 fields)
          │
-         ├──► Map marker colours (action_flag per KEK)
-         ├──► Ranked Table (19 columns, filters, sort)
+         ├──► Map marker colours (action_flag per site)
+         ├──► Ranked Table (20 columns, filters, sort)
          ├──► Quadrant Chart (LCOE vs grid cost scatter)
-         └──► ScoreDrawer (selected KEK detail + embedded charts)
+         └──► ScoreDrawer (selected site detail + embedded charts)
 
-User clicks KEK marker or table row
+User clicks site marker or table row
          │
-         ├──► GET /api/kek/{id}/polygon → boundary GeoJSON
-         ├──► GET /api/kek/{id}/substations → nearby substations with costs
-         └──► ScoreDrawer slides in with selected KEK data
+         ├──► GET /api/site/{id}/polygon → boundary GeoJSON
+         ├──► GET /api/site/{id}/substations → nearby substations with costs
+         └──► ScoreDrawer slides in with selected site data
 
 Layer toggle
          │
@@ -199,22 +223,24 @@ Layer toggle
 | Map layers (14) | Custom `LayerControl` panel (draggable) | Substations, KEK Boundaries, PVOUT, Wind Speed, Solar Buildable (vector polygons, clickable), Wind Buildable (vector polygons), Peatland, Protected Forest, Industrial Facilities, Grid Lines, Nickel Smelters, Captive Coal, Steel Plants, Cement Plants |
 | Raster overlays | `react-map-gl` raster sources | PVOUT + Wind heatmaps with gradient legend strips. Opacity 0.7. |
 | Quadrant chart | Recharts `ScatterChart` | Zone shading (green/red). Benchmark toggle (BPP/Tariff). Bottom drawer tab 2. |
-| Ranked table | TanStack Table v8 (`@tanstack/react-table`) | 19 columns. Dropdown filters (categorical), range filters (numeric), global search, CBAM-only toggle, CSV export. Bottom drawer tab 1. |
+| Ranked table | TanStack Table v8 (`@tanstack/react-table`) | 20 columns (delivered cost hidden when `captive_fraction == 0`). Dropdown filters (categorical), range filters (numeric), global search, CBAM-only toggle, CSV export. Bottom drawer tab 1. |
 | RUPTL chart | Recharts `BarChart` (grouped) | Region filter, scenario toggle. Bottom drawer tab 3. |
-| ScoreDrawer | React slide-in panel (right side) | 6 tabs: Overview / Resource / Grid / Economics / Industry / Action. Close (X) separate from KEK deselect. |
+| ScoreDrawer | React slide-in panel (right side) | 7 tabs: Overview / Resource / Grid / Economics / Industry / Action / Flip (Flip shown when Scenario Compare is active). Close (X) separate from site deselect. |
 | Bottom panel | `BottomPanel` with grab handle | Translucent dark glass (~40vh). 3 tabs. Toggle open/closed. |
 | Energy toggle | `EnergyToggle` (4 modes) | Solar / Wind / Hybrid / Overall. Changes action flags, layer visibility, ScoreDrawer fields. |
 | Embedded charts | 4 chart components in ScoreDrawer | `EnergyBalanceChart` (Overview), `LcoeCurveChart` (Economics), `CbamTrajectoryChart` (Industry), `SubstationComparison` (Grid) |
 | Scenario manager | `ScenarioManager` in AssumptionsPanel | Save/load up to 3 named scenarios. localStorage persistence. |
 | Methodology modal | `MethodologyModal` | Renders `METHODOLOGY_CONSOLIDATED.md` in-app with KaTeX math notation. |
-| KEK markers | MapLibre circle layers | Color-coded by action flag. Pulse animation on first load. Yellow halo on selection. |
+| Site markers (`SiteMarkers.tsx`) | MapLibre layers, shape by `site_type` (circle=KEK, square=KI, diamond=standalone, hexagon=cluster) | Color-coded by action flag. Pulse animation on first load. Yellow halo on selection. Amber CBAM ring + green/red flip ring layers overlaid when applicable. |
 | Buildable polygons | MapLibre fill+line layers | Clickable: popup shows area (ha), avg PVOUT, max capacity (MWp). Green = in-boundary, teal = remote. |
-| 50km radius | MapLibre circle layer | Renders on KEK selection. Visualizes captive solar siting radius. |
+| 50km radius | MapLibre circle layer | Renders on site selection. Visualizes captive solar siting radius. |
 | Substation markers | MapLibre layers (rank-coded) | Gold (rank 1), silver (rank 2), cyan (rank 3) in zoomed view. |
 
 ### Assumption sliders
 
 All sliders configured via `GET /api/defaults` (ranges, steps, defaults from `src/dash/constants.py`).
+
+**Slider-change contract** (`frontend/src/hooks/useScorecard.ts`): every change to `assumptions` / `thresholds` / `benchmarkMode` triggers a 300 ms debounce, then `POST /api/scorecard` via `AbortController`. A newer change aborts the in-flight request. Loading flag is consumed by `AssumptionsPanel` as a 1.5 px pulsing accent dot in the header — sliders stay interactive during recompute. No overlay, no disable. See "Scorecard recomputing" state in §3 Interaction States.
 
 | Slider | Tier | Range | Default | Impact |
 |--------|------|-------|---------|--------|
@@ -227,6 +253,9 @@ All sliders configured via `GET /api/defaults` (ranges, steps, defaults from `sr
 | Transmission cost | 2 | 0.5–3.0 $M/km, step 0.1 | 1.25 | New line cost |
 | BESS CAPEX | 2 | 100–500 $/kWh, step 10 | 250 | Battery storage adder |
 | BESS Sizing | 2 | 1–16h, step 1 | auto | Override auto-sizing (2h/4h/14h) |
+| Substation utilization | 2 | 0.3–0.95, step 0.05 | 0.65 | **V3.8.** Default applies per-site RUPTL tiers (uprate=85%, extension=75%, line_bay=70%, none=55%) via `substation_utilization_pct_effective`. Override applies globally. See Substation Utilization state rows in §3. |
+| WB buildout footprint ratio | 2 | 0.1–1.0, step 0.05 | 0.35 | **V3.9.1.** Haircut applied to raw within-boundary buildable area. Gates `within_boundary` grid_integration_category. Inline in GridTab coverage panel. |
+| Meaningful share threshold | 2 | 0.5–1.0, step 0.05 | 1.0 | **V3.9.1.** Effective coverage must exceed this to classify as `within_boundary`. Inline in GridTab Substation Capacity card. |
 | CBAM certificate price | 2 | €30–150, step 5 | 80 | CBAM cost trajectory |
 | EUR/USD rate | 2 | 1.00–1.30, step 0.01 | 1.10 | CBAM cost conversion |
 | IDR/USD rate | 2 | 14,000–18,000, step 100 | 15,800 | Grid cost conversion |
@@ -235,24 +264,37 @@ All sliders configured via `GET /api/defaults` (ranges, steps, defaults from `sr
 
 ### Interaction States
 
-| State | Trigger | Display |
-|-------|---------|---------|
-| Loading | App startup, `GET /api/defaults` + initial `POST /api/scorecard` | Loading overlay while data fetches |
-| National | Default after load | All 25 KEK markers, pulsing animation (~5s), drawer open |
-| Selected KEK | Click marker or table row | Yellow halo, flyTo polygon bbox, 50km radius, ScoreDrawer slides in |
-| Drawer Open | Default; toggle via grab handle | Translucent bottom drawer (~40vh) with 3 tabs |
-| Drawer Closed | Toggle grab handle | Only handle bar visible, map expands to full height |
-| Empty filter | Table filters produce zero rows | Empty state message in table area |
-| Partial data | Null cell values | Em-dash "—" per cell. Never hides rows with partial data. |
+See [PERSONAS.md](PERSONAS.md) for the full persona journeys referenced in the *Persona moment* column.
+
+| State | Trigger | Display | Persona moment | Emotional beat |
+|-------|---------|---------|----------------|----------------|
+| Loading | App startup, `GET /api/defaults` + initial `POST /api/scorecard` | Loading overlay while data fetches | Any first-time arrival | Anticipation. "Is this going to be heavy?" Sub-2s load keeps trust. |
+| National | Default after load | All 81 site markers, pulsing animation (~5s), drawer open | Energy Economist first landing | Scale hits first: "81 of these, and the red ones are where PLN is losing money today." |
+| Selected Site | Click marker or table row | Yellow halo, flyTo polygon bbox, 50km radius, ScoreDrawer slides in | IPP/RE Developer evaluating a specific site | Commitment. "Is this the site I pitch the client on?" Zoom + drawer is the focus moment. |
+| Drawer Open | Default; toggle via grab handle | Translucent bottom drawer (~40vh) with 3 tabs | DFI Investor ranking pipeline | Comfort. Ranked table is always one glance away. Never buried. |
+| Drawer Closed | Toggle grab handle | Only handle bar visible, map expands to full height | Policy Maker in a presentation | Clarity. Full-screen map for briefings. Noise off. |
+| Empty filter | Table filters produce zero rows | Empty state message in table area | Any filtering user | Mild confusion. "Did I over-filter?" Clear empty state prevents dead-end feeling. |
+| Partial data | Null cell values | Em-dash "—" per cell. Never hides rows with partial data. | All personas on edge-case sites | Honesty. We don't fake numbers. Em-dash signals "we don't know yet" not "zero." |
+| **Error (silent fail)** | `POST /api/scorecard` or any `GET /api/*` throws (5xx, timeout, network) | **Known gap.** Today: error is caught in `store/dashboard.ts` actions (`recomputeScorecard`, `computeFlipScorecard`, `initializeDashboard`), logged to `console.error`, and `loading` is flipped back to `false`. No toast, no banner, no error boundary, no retry affordance. Stale scorecard data remains visible to the user. See TODOS entry (to be filed) for shipping an error UX. | Any user after a network blip | Silent confusion — the worst emotion in a data tool. Slider moves, nothing changes, user wonders "did it register?" This is the gap. |
+| **Flip loading** | User toggles a flip-scenario assumption in Scenario Compare | `flipLoading: true` while `POST /api/scorecard` for flip scenario is pending; map flip rings and Flip tab values suppressed or show placeholder during compute | Energy Economist / DFI Investor stress-testing | Expectation. "About to see which sites flip tier under a carbon tax." Loading suppression prevents flicker during the compute. |
+| **Flip stale** | Base `assumptions` changed after flip scorecard was computed | `flipStale: true`; flip rings dim / Flip tab shows "Recompute" affordance; clears on next `computeFlipScorecard` | Same | Caution. "My base numbers changed — the flip comparison is now out of date." Dim rings signal "don't trust this yet." |
+| **LCOE Drilldown (modal)** | Economics tab LCOE click (solar mode, `activeLcoe != null`) | See §2 State 3. Modal overlay on top of State 2. Escape or X closes; State 2 intact. | IPP/RE Developer pressure-testing cost stack | Curiosity. "Why is this site's LCOE $X?" Waterfall answers it without leaving site context. |
+| **Substation Utilization — per-site (default)** | `assumptions.substation_utilization_pct === fleet_default` (0.65) | Green status text (`#81C784`): *"Per-site RUPTL tiers active (each site uses its own estimated utilization)"*. Slider value = fleet default but per-substation tiers (uprate=85%, extension=75%, line_bay=70%, none=55%) drive `substation_utilization_pct_effective`. No Reset button shown. | Energy Economist / IPP Developer | Trust. Green status means "we're using real RUPTL plans per substation, not a fleet average." |
+| **Substation Utilization — global override** | User drags slider away from fleet default | Amber status text (`#FFB74D`): *"Global override — applies to all sites at XX%"*. Per-site RUPTL tiers are bypassed; slider value applied fleet-wide. *"Reset to per-site"* button appears; clicking restores default and re-enables per-site tiers. | Power user running sensitivity | Deliberate tradeoff. Amber warning signals "you're overriding ground truth — use for what-if, reset for reality." |
+| **Grid tab — On-site coverage covered (V3.9.1)** | `grid_integration_category === 'within_boundary'` | Green panel at top of GridTab Grid Integration card. Background `rgba(76,175,80,0.08)`, border `rgba(76,175,80,0.25)`. Header `#66BB6A`: *"Covered on-site — no grid infrastructure required"*. Body narrates raw buildable coverage % → `wb_buildout_footprint_ratio` haircut → effective coverage % → meaningful-share threshold. Inline `wb_buildout_footprint_ratio` slider. Gen-tie / new transmission / substation-upgrade costs zero out. | IPP Developer surveying a self-sufficient site | Relief. Green panel = "you don't need to fight PLN for this one." |
+| **Grid tab — On-site coverage partial** | `!isWithinBoundary && hasWbCoverage` (raw coverage > 0 but effective coverage below meaningful-share threshold) | Neutral grey panel. Background `rgba(255,255,255,0.03)`, subtle border. Header muted: *"On-site solar below self-sufficiency threshold"*. Body narrates raw coverage → haircut → effective coverage → *"below threshold, so grid infrastructure still applies"*. Inline `wb_buildout_footprint_ratio` slider. | Energy Economist pressure-testing buildout assumptions | Informed tradeoff. "If I loosen the footprint ratio, does this site flip into self-sufficient?" |
+| **Grid tab — RUPTL substation upgrade (V3.8)** | `row.substation_utilization_pct_effective != null && row.ruptl_project_type != null` | Blue-tinted panel in Substation Capacity card. Background `rgba(33,150,243,0.08)`, border `rgba(33,150,243,0.25)`, header `#64B5F6`. Body: *"PLN RUPTL plans a {project_type} adding +{MVA} MVA by {target_year} ({status})"*. Explains why effective utilization defaults to tier-specific value (uprate=85%, extension=75%, line_bay=70%) vs 65% fleet. | Any user at a site with an upgrade in the pipeline | Confidence. "PLN is actively planning capacity here — this isn't speculative." |
+| **Grid tab — No RUPTL match** | `row.substation_utilization_pct_effective != null && !ruptl_project_type` | Same location, neutral styling. Body: *"No RUPTL upgrade plan matched this substation — using the fleet-average utilization (65%). Override via the global Substation utilization slider if you have local intel."* | Same | Honest. No invented signal. Slider escape hatch offered. |
+| **Scorecard recomputing** | Any slider / threshold / `benchmarkMode` change | 300 ms debounce in `useScorecard.ts` → `POST /api/scorecard` with `AbortController` (new change aborts in-flight request). Visible indicator: 1.5×1.5 px accent-colored dot with `animate-pulse` in AssumptionsPanel header (line 297). No overlay, no slider disable. | Any user dragging a slider | Reassurance. Dot flickers = "it heard you." No heavy overlay mid-drag. |
 
 ### ScoreDrawer Tab Fields
 
-Fields sourced from `POST /api/scorecard` response (~80 fields per KEK). See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for full column definitions.
+Fields sourced from `POST /api/scorecard` response (~80 fields per site). See [DATA_DICTIONARY.md](DATA_DICTIONARY.md) for full column definitions.
 
-**Overview tab** — "What's the story for this KEK?"
+**Overview tab** — "What's the story for this site?"
 | Field | Display label | Notes |
 |-------|--------------|-------|
-| `kek_name`, `province`, `kek_type`, `area_ha` | KEK identity | Header section |
+| `site_name`, `site_type`, `sector`, `province`, `area_ha` | Site identity | Header section (registry-driven per `SITE_TYPES[site_type].identityFields` in `frontend/src/lib/siteTypes.ts` — field list varies by site type) |
 | `demand_mwh_2030` | Estimated 2030 demand | MWh |
 | LCOE (mode-aware) | Solar / Wind / Hybrid LCOE | Changes with energy mode toggle |
 | `dashboard_rate_usd_mwh` | Grid cost (BPP or Tariff) | Benchmark-mode-aware |
@@ -272,24 +314,34 @@ Fields sourced from `POST /api/scorecard` response (~80 fields per KEK). See [DA
 | `best_re_technology` | Best RE technology | solar / wind / hybrid |
 | Technology comparison | Solar vs Wind vs Hybrid | Side-by-side LCOE + coverage |
 
-**Grid tab** — "How does this KEK connect to the grid?"
+**Grid tab** — "How does this site connect to the grid?"
 | Field | Display label | Notes |
 |-------|--------------|-------|
 | `grid_integration_category` | Integration category | within_boundary / grid_ready / invest_transmission / invest_substation / grid_first |
-| 3 distances | Solar→Sub, Sub→KEK, Solar→KEK | km |
+| **On-site coverage panel (V3.9.1)** | Green or neutral conditional panel | Renders at top of Grid Integration card. Two modes: green "Covered on-site" when `within_boundary`, neutral "below self-sufficiency threshold" when raw coverage > 0 but effective < meaningful_share. See §3 state table for exact styling. |
+| `within_boundary_coverage_pct`, `within_boundary_coverage_effective_pct` | Raw & effective coverage | Used inside the coverage panel narrative |
+| `wb_buildout_footprint_ratio` slider | Inline in coverage panel | Tier 2 slider embedded in both coverage-panel modes. Changes buildout haircut; flips sites between self-sufficient and partial coverage live |
+| 3 distances | Solar→Sub, Sub→Site, Solar→Site | km |
 | `line_connected`, `inter_substation_connected` | Grid line connectivity | Boolean (geometric check against `pln_grid_lines.geojson`) |
 | `capacity_assessment` | Substation capacity | Green/yellow/red traffic light |
+| **RUPTL upgrade plan panel (V3.8)** | Blue-tinted conditional panel | Renders in Substation Capacity card when `ruptl_project_type` is non-null. Describes the specific PLN plan (type, added MVA, target year, status). Explains per-site utilization tier (vs 65% fleet default). |
+| `substation_utilization_pct_effective`, `ruptl_project_type`, `ruptl_mva_added_total`, `ruptl_earliest_target_year`, `ruptl_strongest_status` | Per-substation RUPTL fields | V3.8 fields. Drive the RUPTL upgrade plan panel. |
+| `meaningful_share_pct` slider | Inline in Substation Capacity card | Tier 2 slider controlling the "meaningful share" threshold that gates `within_boundary` classification |
 | **SubstationComparison** | Top 3 substations | Per-substation costs (connection, upgrade, transmission, all-in LCOE). Rank-coded map markers. |
 
 **Economics tab** — "What does the energy cost?"
-| Field | Display label | Notes |
-|-------|--------------|-------|
-| `lcoe_low/mid/high_usd_mwh` | LCOE variance | 3 WACC scenarios |
-| Battery storage | BESS CAPEX slider (100-500 $/kWh), sizing slider (1-16h) | Live recomputation of `battery_adder_usd_mwh`. "Reset to auto" restores per-KEK sizing. |
-| `hybrid_lcoe_usd_mwh`, `hybrid_bess_hours` | Hybrid BESS reduction | % reduction from wind nighttime coverage |
-| `carbon_breakeven_usd_tco2` | Carbon breakeven price | USD/tCO2 |
-| `green_share_geas` | GEAS green share | % of 2030 demand met by allocated RE |
-| **LcoeCurveChart** | LCOE vs project scale | Shows how LCOE drops as capacity increases (transmission cost spreading) |
+
+Tier tags (T1 / T2 / T3 / B) reference [TAXONOMY.md §1](docs/TAXONOMY.md#1-three-tiers--a-benchmark). Once the CostBasis toggle ships (TAXONOMY §7.3), rows tagged T1 / T2 / T3 are what the toggle picks between.
+
+| Field | Display label | Tier | Notes |
+|-------|--------------|------|-------|
+| `lcoe_low/mid/high_usd_mwh` | LCOE variance | T1 | 3 WACC scenarios (grid-connected, best-50km PVOUT) |
+| Battery storage | BESS CAPEX slider (100-500 $/kWh), sizing slider (1-16h) | T2 (component) | Live recomputation of `battery_adder_usd_mwh`. "Reset to auto" restores per-site sizing. |
+| `hybrid_lcoe_usd_mwh`, `hybrid_bess_hours` | Hybrid BESS reduction | T1 (hybrid gen) / T2 (allin) | % reduction from wind nighttime coverage |
+| `delivered_cost_blended_usd_mwh` | Delivered Cost (Blended) | T3 | Shown when within-boundary captive > 0. `f_captive × LCOE_wb + f_grid × grid_rate`. See [TAXONOMY §2.T3](docs/TAXONOMY.md#t3-delivered-cost-tenant-view--54). |
+| `carbon_breakeven_usd_tco2` | Carbon breakeven price | T1-derived | USD/tCO2 |
+| `green_share_geas` | GEAS green share | — | % of 2030 demand met by allocated RE |
+| **LcoeCurveChart** | LCOE vs project scale | T1 | Shows how LCOE drops as capacity increases (transmission cost spreading) |
 
 **Industry tab** — "What industry is here and what's the CBAM exposure?"
 | Field | Display label | Notes |
@@ -300,7 +352,7 @@ Fields sourced from `POST /api/scorecard` response (~80 fields per KEK). See [DA
 | `nickel_smelter_count`, `dominant_process_type` | Nickel smelters | CGSP tracker |
 | `steel_plant_count`, `steel_total_tpa` | Steel plants | GEM tracker |
 | `cement_plant_count`, `cement_total_mtpa` | Cement plants | GEM tracker |
-| `cbam_exposed`, `cbam_product_type` | CBAM exposure | 3-signal detection: process type + plant counts + KEK sectors |
+| `cbam_exposed`, `cbam_product_type` | CBAM exposure | **Dual-mode dispatch** via `SITE_TYPES[site_type].cbam_method`: KEKs use 3-signal inference (process type + plant counts + business sectors); standalone/cluster/KI sites read `cbam_product_type` directly from `dim_sites`. 68/81 sites exposed (12 KEK + 56 industrial). |
 | `cbam_cost_2026/2030/2034_usd_per_tonne` | CBAM cost trajectory | Free allocation phase-out schedule (97.5% → 0%) |
 | `cbam_savings_2026/2030/2034_usd_per_tonne` | CBAM savings from RE | Avoided border tax |
 | **CbamTrajectoryChart** | CBAM cost trajectory 2026-2034 | Per-product breakdown (nickel_rkef, steel_eaf, steel_bfbof, cement, aluminium, fertilizer). 2030 crossover year marker ("50% exposed"). User-adjustable certificate price + EUR/USD rate. |
@@ -313,7 +365,19 @@ Fields sourced from `POST /api/scorecard` response (~80 fields per KEK). See [DA
 | `modifier_badges` | Modifier badges | Pill badges for cbam_urgent, plan_late, storage_info |
 | `action_flag` | Legacy action flag | Retained for backwards compatibility |
 | Implementation guidance | Explanation text | Per-tier and per-readiness actionable descriptions |
-| RUPTL context | Regional grid pipeline | Planned capacity additions for this KEK's grid region |
+| RUPTL context | Regional grid pipeline | Planned capacity additions for this site's grid region |
+
+**Flip tab** — "What changes under the flip scenario?" (visible only when Scenario Compare mode is active, i.e. `activeTab === 'compare' && flipScorecard != null`)
+| Field | Display label | Notes |
+|-------|--------------|-------|
+| Scenario banner | Active flip preset name | e.g. "WACC −2pp + CBAM €120" or "custom" |
+| Tier transition | Before → After pill | Economic tier change between base and flip scenarios (green = improved, red = worsened) |
+| `Δ lcoe_mid_usd_mwh` | Delta LCOE | Signed USD/MWh |
+| `Δ solar_competitive_gap_pct` | Delta Gap-to-Grid | Signed % |
+| CBAM urgency chips | NEW / CLEARED | `cbam_urgent` status change between base and flip scenarios |
+| Source | `useFlipDiff()` / `computeFlipDiff()` | Store selector returns per-site diff payload from `scorecard` vs `flipScorecard` |
+
+See 2026-04-18 changelog (Scenario Compare Phase 5) for the full flip-scenario mechanics (map flip rings, `FlipTab.tsx`, gated on `activeTab === 'compare'`).
 
 ---
 
@@ -321,11 +385,13 @@ Fields sourced from `POST /api/scorecard` response (~80 fields per KEK). See [DA
 
 ### 2D Classification Visual System (V3.7)
 
-KEKs are now classified on two independent axes plus overlay modifier badges. The map encodes all three dimensions on a single circle marker:
+Sites are now classified on two independent axes plus overlay modifier badges. The map encodes all three dimensions on a single marker (shape varies by `site_type`):
 
-- **Circle fill** = Economic Tier (how viable is RE?)
-- **Circle stroke** = Infrastructure Readiness (what infrastructure exists?)
+- **Marker fill** = Economic Tier (how viable is RE?)
+- **Marker stroke** = Infrastructure Readiness (what infrastructure exists?)
 - **Outer ring** = Modifier Badge (CBAM urgency, plan-late, storage)
+- **Marker shape** (added V4.0) = Site Type (circle=KEK, square=KI, diamond=standalone plant, hexagon=cluster)
+- **Flip halo** (added Phase 5, Scenario Compare mode only) = Tier-change direction (green = improved, red = worsened)
 
 #### Economic Tier colours (circle fill)
 
@@ -343,9 +409,9 @@ Mode-aware labels: Solar mode shows "Full Solar"/"Partial Solar", Wind mode show
 
 | Readiness | Colour | Hex | Meaning |
 |-----------|--------|-----|---------|
-| `within_boundary` | Green | `#4CAF50` | Solar buildable inside KEK boundary |
+| `within_boundary` | Green | `#4CAF50` | Solar buildable inside site boundary |
 | `grid_ready` | Blue | `#42A5F5` | Existing grid infrastructure sufficient |
-| `invest_transmission` | Orange | `#FF9800` | Build transmission line to KEK |
+| `invest_transmission` | Orange | `#FF9800` | Build transmission line to site |
 | `invest_substation` | Deep Orange | `#FF5722` | Build/upgrade substation near solar site |
 | `grid_first` | Red | `#F44336` | Grid infrastructure must come first |
 
@@ -363,6 +429,8 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 
 14 flags still defined in `frontend/src/lib/constants.ts` for backwards compatibility with `action_flag` column. Energy mode determines which flags are shown (e.g. solar mode shows `solar_now`, wind mode shows `wind_now`, overall mode shows `best_re_technology`-aware flags).
 
+Flags are currently T1-driven (raw `lcoe_mid` vs `grid_cost`). Once the CostBasis toggle ships ([TAXONOMY §7.3](docs/TAXONOMY.md#7-deferred-decisions)), the legend will append "Flags computed on: {basis} × {energy_mode}" so the active cost basis is visible.
+
 | Flag | Colour | Hex | Meaning |
 |------|--------|-----|---------|
 | `solar_now` | Green | `#2E7D32` | Solar LCOE < grid cost. Act now. |
@@ -371,8 +439,8 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 | `hybrid_now` | Green | `#2E7D32` | Hybrid solar+wind all-in LCOE < grid cost. |
 | `invest_resilience` | Orange | `#F57C00` | Within 20% of parity + high reliability requirement. |
 | `invest_battery` | Light Orange | `#FFA726` | Competitive with battery storage investment. |
-| `invest_transmission` | Blue | `#0277BD` | Solar near substation but KEK far. Build transmission. |
-| `invest_substation` | Teal | `#00838F` | KEK near substation but solar far. Upgrade substation. |
+| `invest_transmission` | Blue | `#0277BD` | Solar near substation but site far. Build transmission. |
+| `invest_substation` | Teal | `#00838F` | Site near substation but solar far. Upgrade substation. |
 | `grid_first` | Blue | `#1565C0` | Grid upgrade needed before RE is viable. |
 | `plan_late` | Purple | `#7B1FA2` | RUPTL solar planned but after 2030. |
 | `not_competitive` | Red | `#C62828` | RE not competitive; no near-term trigger. |
@@ -386,7 +454,7 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 |-----------|---------|-----------|
 | Provisional value | Dagger suffix (†) + italic | `is_capex_provisional`, `bpp_provisional` |
 | Upper bound resource | "(upper bound)" label | `resource_quality = "upper_bound"` |
-| Filtered resource | "(filtered)" label | `resource_quality = "filtered"` — all 25 KEKs currently |
+| Filtered resource | "(filtered)" label | `resource_quality = "filtered"` — all 81 sites currently |
 | Missing data | "—" (em dash) | Any null column |
 
 ### Quadrant zones
@@ -402,6 +470,8 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
            Low LCOE              High LCOE
 ```
 
+**Naming:** `grid_cost_usd_mwh` / `bpp_usd_mwh` / `dashboard_rate_usd_mwh` / "grid cost proxy" all refer to the same B-category benchmark. See [TAXONOMY §2.B](docs/TAXONOMY.md#b-grid-benchmark).
+
 ---
 
 ## §5 Data Decisions for the UI
@@ -411,14 +481,14 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 | Data | Approach | Why |
 |------|----------|-----|
 | **Precomputed (pipeline)** | | |
-| Solar resource (PVOUT, CF) | `fct_kek_resource.csv` loaded at startup | Requires GeoTIFF processing; cannot be live |
+| Solar resource (PVOUT, CF) | `fct_site_resource.csv` loaded at startup | Requires GeoTIFF processing; cannot be live |
 | Substation distances | `fct_substation_proximity.csv` loaded at startup | Requires geospatial computation |
 | RUPTL pipeline | `fct_ruptl_pipeline.csv` loaded at startup | Static government data |
 | Grid cost proxy | `fct_grid_cost_proxy.csv` loaded at startup | Static regulatory data |
-| Demand estimates | `fct_kek_demand.csv` loaded at startup | User can override via `resolve_demand()` |
-| `fct_lcoe.csv` (450 rows) | Still produced by pipeline for reproducibility/export | Default-assumption reference; dashboard computes live instead |
+| Demand estimates | `fct_site_demand.csv` loaded at startup | User can override via `resolve_demand()` |
+| `fct_lcoe.csv` (1,458 rows = 81 sites × 9 WACCs × 2 siting scenarios) | Still produced by pipeline for reproducibility/export | Default-assumption reference; dashboard computes live instead |
 | **Live (dashboard callback)** | | |
-| LCOE bands (all scenarios) | `compute_lcoe_live()` in `src/dash/logic/lcoe.py` | User adjusts CAPEX, FOM, lifetime, WACC, gen-tie, lease via sliders. ~5ms for 25 KEKs × 2 scenarios |
+| LCOE bands (all scenarios) | `compute_lcoe_live()` in `src/dash/logic/lcoe.py` | User adjusts CAPEX, FOM, lifetime, WACC, gen-tie, lease via sliders. ~5ms for 81 sites × 2 scenarios |
 | Competitive gap | `solar_competitive_gap()` from `basic_model.py` | Recalculated when LCOE or grid benchmark changes |
 | Action flags | `action_flags()` + `invest_resilience()` from `basic_model.py` | Recalculated when LCOE or thresholds change |
 | Carbon breakeven | `carbon_breakeven_price()` from `basic_model.py` | Recalculated when LCOE or grid cost changes |
@@ -427,15 +497,15 @@ Context-aware labels: `invest_substation` shows "Upgrade Substation" when capaci
 
 ### WACC slider behaviour
 
-The dashboard ships with nine precomputed WACC values (4 / 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20%). The WACC selector is a `dcc.Slider` with snap marks at each value, default = 10%. This covers the full range from DFI concessional financing (4–6%) through SE Asia equity ceiling (20%). No continuous interpolation is needed. See [METHODOLOGY_CONSOLIDATED.md §6](docs/METHODOLOGY_CONSOLIDATED.md) for the full WACC methodology.
+The dashboard ships with nine precomputed WACC values (4 / 6 / 8 / 10 / 12 / 14 / 16 / 18 / 20%). The WACC selector is a React range slider with snap marks at each value, default = 10%. This covers the full range from DFI concessional financing (4–6%) through SE Asia equity ceiling (20%). No continuous interpolation is needed. See [METHODOLOGY_CONSOLIDATED.md §6](docs/METHODOLOGY_CONSOLIDATED.md) for the full WACC methodology.
 
 ### Demand override hook
 
-The `demand_mwh_user` column in `fct_kek_demand` is nullable (`Float64`). If a user enters a custom demand value in the Scorecard panel, the app calls `resolve_demand(demand_mwh_modelled, demand_mwh_user)` from `src/model/basic_model.py` to get the effective demand, then recalculates `green_share_geas` server-side and updates the scorecard display only (does not write back to CSV).
+The `demand_mwh_user` column in `fct_site_demand` is nullable (`Float64`). If a user enters a custom demand value in the Scorecard panel, the app calls `resolve_demand(demand_mwh_modelled, demand_mwh_user)` from `src/model/basic_model.py` to get the effective demand, then recalculates `green_share_geas` server-side and updates the scorecard display only (does not write back to CSV).
 
 ---
 
-## §6 Open Design Questions (all resolved)
+## §6 Resolved Design Questions (Phase 3)
 
 All resolved during Phase 3 autoplan review (2026-04-07):
 
@@ -446,6 +516,28 @@ All resolved during Phase 3 autoplan review (2026-04-07):
 | 3 | **Mobile layout** | ✅ **Desktop-only for MVP**. Primary users are analysts with laptops. Responsive deferred to v2 (see [TODOS.md](TODOS.md) L7). | — |
 | 4 | **Provisional data warning** | ✅ **Dagger (†) per cell**. Cell-level precision; no banner noise. | — |
 | 5 | **Export format** | ✅ **CSV + GeoJSON**. DFI investors need GeoJSON for site team handoff (see [PERSONAS.md §DFI Investor](PERSONAS.md)). | — |
+
+**Active open items:** Cost-column renames + CostBasis toggle are tracked in [TAXONOMY.md §7](docs/TAXONOMY.md#7-deferred-decisions).
+
+---
+
+## §6.5 Accessibility Floor (MVP)
+
+Desktop-only doesn't excuse skipping keyboard users. The floor spec — verified today, enforced in review:
+
+| Surface | Keyboard contract | Status |
+|---------|-------------------|--------|
+| `LcoeWaterfallModal` (State 3) | Esc closes; focus returns to the LCOE button that opened it; focus trapped inside modal while open | Spec — verify in `/qa` |
+| `ScoreDrawer` (State 2) | Esc closes the drawer; Tab cycles across the 7 tabs in left-to-right order; close (X) reachable via Tab | Spec — verify in `/qa` |
+| `BottomPanel` (drawer) | Tab cycles tab pills (Table / Quadrant / RUPTL); grab handle reachable via Tab | Spec — verify in `/qa` |
+| All sliders (~17) | Arrow keys adjust by slider step; Home/End snap to min/max; visible focus ring matches `--focus-ring` token | Spec — verify in `/qa` |
+| Filter dropdowns + CBAM toggle | Space/Enter activate; Arrow keys move within menus | Spec — verify in `/qa` |
+| Map markers | MapLibre default keyboard pan/zoom supported (+/-/arrows); marker click reachable via keyboard is **deferred** to v2 (documented limitation) | Known gap |
+| Focus rings | Visible on all interactive elements; never `outline: none` without a replacement | Spec |
+
+**ARIA polish deferred to v2**: `aria-label` on icon-only buttons, `role="dialog"` + `aria-modal` on modal, live-region announcements on scorecard recompute. Track in TODOS.md.
+
+*Changed 2026-04-21: added §6.5 to establish a11y floor (previously unspecified).*
 
 ---
 
@@ -459,20 +551,20 @@ EU CBAM entered its definitive phase January 2026. Indonesian exporters of iron,
 
 | Feature | Location | Status |
 |---------|----------|--------|
-| CBAM exposure flag per KEK | Scorecard + table column | ✅ 12/25 KEKs exposed. 3-signal detection: (1) nickel process types (RKEF/FeNi → iron_steel), (2) plant counts (steel_plant_count > 0, cement_plant_count > 0), (3) KEK business sectors. |
+| CBAM exposure flag per site | Scorecard + table column | ✅ 68/81 sites exposed via **dual-mode dispatch** (see `SITE_TYPES[site_type].cbam_method`): (A) 12 KEKs via `3_signal` inference — nickel process types, plant counts, KEK business sectors; (B) 56 industrial sites (32 cement + 17 iron_steel + 5 fertilizer + 2 aluminium) via `direct` — reads `cbam_product_type` straight from `dim_sites`. |
 | CBAM cost trajectory 2026-2034 | `CbamTrajectoryChart` in ScoreDrawer Industry tab | ✅ Per-product breakdown (nickel_rkef, steel_eaf, steel_bfbof, cement, aluminium, fertilizer). Free allocation phase-out: 97.5% (2026) → 0% (2034). |
 | 2030 crossover year marker | ReferenceLine on trajectory chart | ✅ Dashed line at 2030 with "50% exposed" label. 2030 = inflection point (51.5% free allocation remaining). |
 | CBAM-adjusted competitive gap | `cbam_adjusted_gap_pct` column in table | ✅ `(LCOE - grid_cost - cbam_savings_per_mwh) / grid_cost × 100`. Negative = RE + avoided border tax beats grid. |
 | CBAM cost per tonne at 2030 | `cbam_cost_2030_usd_per_tonne` column in table | ✅ Amber-colored $/t values. Range-filterable. |
 | `cbam_urgent` action flag | Action flag system | ✅ Fires when CBAM-adjusted gap < 0. Overrides `not_competitive` and `invest_resilience`. |
 | CBAM assumption sliders | AssumptionsPanel (Tier 2) | ✅ Certificate price (€30-150), EUR/USD rate (1.00-1.30). |
-| CBAM-only table filter | DataTable toolbar | ✅ Amber toggle filters to 12 exposed KEKs. |
-| CBAM visual indicators | Map + Table + Legend | ✅ Map: amber ring (`#FF6F00`) around CBAM-exposed marker dots + "CBAM" label in hover tooltip. Table: amber outer ring around action flag dot for exposed KEKs. Legend: `cbam_urgent` shown as ring (not solid dot) with hover description. |
+| CBAM-only table filter | DataTable toolbar | ✅ Amber toggle filters to 68 exposed sites. |
+| CBAM visual indicators | Map + Table + Legend | ✅ Map: amber ring (`#FF6F00`) around CBAM-exposed marker + "CBAM" label in hover tooltip. Table: amber outer ring around action flag dot for exposed sites. Legend: `cbam_urgent` shown as ring (not solid dot) with hover description. |
 
 ### Connection to existing features
 
-- **Action flags:** `cbam_urgent` is ranked above `not_competitive` in all 4 energy mode hierarchies. A KEK that would be `not_competitive` on energy alone becomes `cbam_urgent` if CBAM savings make RE cheaper.
-- **Competitive gap:** CBAM savings (~$33-34/MWh for exposed KEKs) are subtracted from the gap calculation. Converts energy cost comparisons into trade cost comparisons.
+- **Action flags:** `cbam_urgent` is ranked above `not_competitive` in all 4 energy mode hierarchies. A site that would be `not_competitive` on energy alone becomes `cbam_urgent` if CBAM savings make RE cheaper.
+- **Competitive gap:** CBAM savings (~$33-34/MWh for exposed sites) are subtracted from the gap calculation. Converts energy cost comparisons into trade cost comparisons.
 - **Perpres 112/2022:** Creates a domestic-international pincer: Perpres = domestic regulatory stick, CBAM = international financial stick.
 
 ---
@@ -497,10 +589,10 @@ The dashboard is a Vite + React 18 + TypeScript SPA with Tailwind CSS. See [ARCH
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/defaults` | GET | Default assumptions, thresholds, slider configs |
-| `/api/scorecard` | POST | Recompute all 25 KEKs with user assumptions |
+| `/api/scorecard` | POST | Recompute all 81 sites with user assumptions |
 | `/api/layers/{name}` | GET | Lazy-load GeoJSON layers (14 available) |
-| `/api/kek/{id}/polygon` | GET | KEK boundary polygon |
-| `/api/kek/{id}/substations` | GET | Substations within radius with per-substation costs |
+| `/api/site/{id}/polygon` | GET | Site boundary polygon (KEK polygon, or circular marker for non-KEK sites) |
+| `/api/site/{id}/substations` | GET | Substations within radius with per-substation costs |
 | `/api/ruptl-metrics` | GET | RUPTL pipeline metrics by region |
 | `/api/methodology` | GET | Raw METHODOLOGY_CONSOLIDATED.md for in-app rendering |
 
@@ -601,3 +693,6 @@ All design changes tracked with date, autoplan decision number, and rationale.
 | 2026-04-18 | — | **Fertilizer universe closure (M26).** 4-source intersection gate (state holdings + APPI + ESDM gas allocations + BPS/Comtrade) recorded in `data/industrial_sites/fertilizer_universe_v1.csv`. Added 2 missing Pupuk sites to `priority1_sites.csv`: **Pupuk Kujang (Cikampek, West Java)** and **Pupuk Iskandar Muda (Lhokseumawe, Aceh)**. Site count 79 → 81 (25 KEK + 46 standalone + 10 cluster). Fertilizer rows 3 → 5 (full Pupuk Indonesia operating fleet). `fct_lcoe` 1,422 → 1,458 rows. CBAM exposed 66/79 → 68/81. | Hand-picking missed 2 of 5 Pupuk subsidiaries. Documenting the discovery gate in a versioned CSV makes the universe auditable, not just the rows we happened to include. |
 | 2026-04-18 | — | **CBAM `CBAM_RE_ADDRESSABLE_FRACTION` fix (M30).** `src/assumptions.py` gets a new dict (cement 0.12, fertilizer/ammonia 0.10, steel_bfbof 0.80, else 1.0). `src/dash/logic/cbam.py::compute_cbam_trajectory` multiplies Scope 2 savings by the sector's fraction before rate × FX conversion. Scope 1 path unchanged. 4 new tests in `tests/test_logic_cbam.py`. Golden-master fixture `tests/fixtures/scorecard_golden.pkl` regenerated (intentional behaviour change for cement/fertilizer/ammonia savings; nickel/steel/aluminium savings unchanged). Test count 537 → 541. | `CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE` is thermal-inclusive for cement and ammonia/fertilizer. Treating the full Scope 2 drop as "avoided by solar" would implicitly promise thermal electrification + RE, a larger claim than the model supports. Bounding savings to the electric share keeps the CBAM number honest. |
 | 2026-04-18 | — | **Scenario Compare — Phase 5: map flip rings + ScoreDrawer Flip tab.** Sites that change economic tier under the flip scenario wear a coloured halo on the map (green = improved, red = worsened) sized just outside the CBAM amber ring, plus a second `kek-flip-pulse` layer that expands 14→26 px and fades 0.85→0 over a 2 s `requestAnimationFrame` loop. Both layers are gated on `activeTab === 'compare' && flipScorecard != null`. New 7th `Flip` tab in `ScoreDrawer` (`scoredrawer/FlipTab.tsx`) shows per-site scenario banner, tier transition, delta LCOE, gap-to-grid delta, and CBAM-urgency NEW / CLEARED chips. `ScoreDrawer` tab list tightened (`px-4 gap-0.5` → `px-3 gap-0`; per-tab `px-2.5` → `px-1.5`) with `overflow-x-auto` safety net so 7 tabs fit the 420 px drawer. | Summary-level diff in the bottom drawer didn't make it obvious *which* sites moved. Map-level visual anchoring + per-site drawer detail closes the loop from "summary says 12 sites improved" to "I can see them and drill into one." The pulse animation tested better than the static ring — it signals liveness and interactivity without being loud. |
+| 2026-04-21 | — | **DESIGN.md / TAXONOMY.md cohesion pass (docs-only).** TAXONOMY: swept residual "T4" references (§0, §3, §4.5) to "B" / "B-category" per §1 rename; added `cbam_adjusted_gap_pct` row to §3 derived-metrics table. DESIGN: updated site/column counts (25 KEK / 19 cols → 81 sites / 20 cols with delivered-cost hide rule) in §2 table, bottom-drawer description, and component-choices table; extended `benchmarkMode` row in §3 state slice to flag `bpp_cbam_adjusted` / `tariff_cbam_adjusted` as deferred; added new `costBasis` slice row (deferred PR3); rewrote Economics tab field table to include Tier column (T1/T2/T3/B) and `delivered_cost_blended_usd_mwh` row; retitled §6 "Open Design Questions (all resolved)" → "Resolved Design Questions (Phase 3)" and added pointer to TAXONOMY §7 for live items; added T1-driven caveat to legacy action-flag legend; added naming-convergence note at end of §4 pointing grid-cost column variants at TAXONOMY §2.B. | DESIGN and TAXONOMY drifted: DESIGN had zero mention of "delivered" / CostBasis / T1-T3 vocabulary despite TAXONOMY being the new canonical cost-metric spec and PR2 having shipped delivered cost. TAXONOMY itself carried 6 stale "T4" references from the §1 rename. Closing the loop so the two docs read as one story. |
+| 2026-04-21 | — | **DESIGN.md plan-design-review 7-pass sweep (docs-only).** Pass 1 (IA): added §2 State 3 "LCOE Drilldown" for `LcoeWaterfallModal` — previously undocumented modal layer; updated view-flow diagram to show modal path from Economics tab. Pass 2 (states): expanded §3 Interaction States table with Error (known gap, silent `console.error` today), Flip loading, Flip stale, LCOE Drilldown, Substation Utilization per-site (default, V3.8), Substation Utilization global override, Scorecard recomputing (300 ms debounce + AbortController + pulsing header dot). Pass 3 (journey): added Persona moment + Emotional beat columns to the state table so every state carries its user-outcome "why." Pass 4 (AI slop): §1 "fragmented energy landscape" → "fragmented energy market." Pass 5 (design-system alignment): added Grid tab state rows for Covered-on-site (green panel, V3.9.1), On-site coverage partial (neutral panel), RUPTL substation upgrade (blue-tinted, V3.8), No RUPTL match; expanded §3 Grid tab field table with new conditional panels, `within_boundary_coverage_pct/effective_pct`, inline `wb_buildout_footprint_ratio` slider, RUPTL upgrade plan panel, `substation_utilization_pct_effective` + full RUPTL field family, `meaningful_share_pct` slider; added Substation utilization / WB buildout footprint ratio / Meaningful share threshold rows to the §3 Assumption Sliders table. Pass 6 (a11y): added new §6.5 "Accessibility Floor (MVP)" — Esc on modal + drawer, Tab order across 7 ScoreDrawer tabs, slider arrow/Home/End support, visible focus rings; ARIA polish + map marker keyboard click flagged as deferred to v2. Pass 7 (decisions): added slider-change contract note under §3 Assumption Sliders documenting 300 ms debounce + AbortController cancellation + pulsing-dot loading indicator. | Post full-staleness audit, DESIGN.md matched live terminology but still omitted 5 shipped V3.8/V3.9.1 UI features (`LcoeWaterfallModal`, Substation Utilization dual-mode slider, Grid tab coverage panels, `wb_buildout_footprint_ratio` slider, RUPTL per-substation upgrade panel). 7-pass review surfaced them plus three new doc gaps (error UX, a11y floor, recompute contract). All closed so this branch ships with DESIGN.md at 10/10 on every pass. |
+| 2026-04-21 | — | **DESIGN.md full staleness audit sweep (docs-only).** Title + status line: "Indonesia KEK Power Competitiveness" → "Indonesia Industrial Decarbonization"; V3.6/2026-04-15 → V3.7/2026-04-21; added 81-site + 2D-classification + Scenario-Compare scope. §1 Problem Statement rewritten (25 KEKs → 81 industrial sites; 4 → 5 audiences with CBAM-exposed industrial investors added). §2: "25 KEKs" → "81 sites" everywhere; "6 tabs" → "7 tabs"; "KEK click" → "site click"; layout ASCII + view-flow diagram swept. §3 state slice table expanded with `selectedSite`, `filteredSiteIds`, `flipAssumptions`, `flipPreset`, `flipScorecard`, `flipLoading`, `flipStale`, `activeTab`, `drawerOpen`, `walkthroughPersona`, `flyToTarget`. Data-flow block "25 rows × ~80 fields" → "81 rows × ~80 fields"; "19 columns" → "20 columns". Component choices: ScoreDrawer 7 tabs; marker shapes by `site_type` (circle/square/diamond/hexagon); amber CBAM + flip halo layers; 50 km radius on site selection. Interaction states: "All 25 KEK markers" → "All 81 site markers"; KEK routes → site routes (`/api/kek/*` → `/api/site/*`); Flip tab visible when Scenario Compare active. ScoreDrawer tab-fields section: Overview/Grid/Industry/Action tabs all swept from "KEK" → "site" wording; new Flip tab section added (scenario banner, tier transition, delta LCOE, delta gap-to-grid, CBAM chips, `useFlipDiff`/`computeFlipDiff`). §4 2D classification: "KEKs are now classified" → "Sites are now classified"; added marker-shape + flip-halo bullets; infrastructure-readiness + legacy-action-flag rows swept. §4.5 data-quality table: "all 25 KEKs" → "all 81 sites". §5 precomputed table: `fct_kek_resource.csv` → `fct_site_resource.csv`; `fct_kek_demand.csv` → `fct_site_demand.csv`; "450 rows" → "1,458 rows (81 × 9 × 2)"; "~5ms for 25 KEKs × 2 scenarios" → "~5ms for 81 sites × 2 scenarios". §5 WACC subsection: `dcc.Slider` → "React range slider". §5 demand-override hook: `fct_kek_demand` → `fct_site_demand`. §7 CBAM table: "12/25 KEKs exposed" → "68/81 sites exposed" with dual-mode dispatch explanation (12 KEK 3-signal + 56 industrial direct); "Amber toggle filters to 12 exposed KEKs" → "68 exposed sites"; "exposed KEKs" → "exposed sites" in visual-indicators row and connection-to-existing-features bullets. §8 endpoints table: "Recompute all 25 KEKs" → "Recompute all 81 sites"; `/api/kek/{id}/polygon` → `/api/site/{id}/polygon`; `/api/kek/{id}/substations` → `/api/site/{id}/substations`; boundary-polygon description notes KEK polygon vs circular marker for non-KEK. | Layered on top of the morning cohesion pass: DESIGN still carried KEK-era terminology, 25-site counts, Dash `dcc.Slider` references, pre-V4.0 view-flow diagrams, and 6-tab ScoreDrawer descriptions despite the 2026-04-17 industrial expansion (V4.0/V4.1), 2026-04-18 Scenario Compare Phase 5 (7th Flip tab), and 2026-04-19 API route renames having all shipped. Audit of the file against the live codebase (`frontend/src/store/dashboard.ts`, `src/api/main.py`, `SITE_TYPES` registry) surfaced 15 findings; this row closes the 6 HIGH ones plus the MED string swaps that fell out naturally. |

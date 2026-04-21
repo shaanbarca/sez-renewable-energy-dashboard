@@ -57,7 +57,7 @@ Read this section first. The rest of the doc assumes these definitions.
 
 **Capacity factor (CF).** Average output as a fraction of nameplate. Solar CF in Indonesia is ~17–19%. Wind CF varies 10–35% depending on wind speed.
 
-**BPP (Biaya Pokok Penyediaan).** PLN's cost of supply per region. What it costs PLN to deliver a MWh, not what the tenant pays. Tier T4 benchmark. Varies by grid region.
+**BPP (Biaya Pokok Penyediaan).** PLN's cost of supply per region. What it costs PLN to deliver a MWh, not what the tenant pays. Category B benchmark. Varies by grid region.
 
 **Tariff.** What industrial tenants actually pay PLN. Often subsidized below BPP. Not the same as BPP. The UI lets the user compare RE cost against either benchmark via `BenchmarkMode`.
 
@@ -159,17 +159,18 @@ These aren't $/MWh themselves but they reference the columns above. Listing here
 
 | Column | References | Note |
 |--------|------------|------|
-| `solar_competitive_gap_pct` | `lcoe_mid_usd_mwh` vs `dashboard_rate_usd_mwh` | T1 vs T4. Answers "is raw solar cheaper than grid?" |
-| `gap_vs_bpp_pct` | `lcoe_mid_usd_mwh` vs `bpp_usd_mwh` | T1 vs T4 (BPP-only). |
-| `wind_competitive_gap_pct` | `lcoe_wind_mid_usd_mwh` vs `bpp_usd_mwh` | T1 vs T4. |
-| `delivered_cost_gap_vs_grid_pct` | `delivered_cost_blended` vs `grid_rate_used` | **T3 vs T4.** The tenant-view equivalent of `solar_competitive_gap_pct`. |
+| `solar_competitive_gap_pct` | `lcoe_mid_usd_mwh` vs `dashboard_rate_usd_mwh` | T1 vs B. Answers "is raw solar cheaper than grid?" |
+| `gap_vs_bpp_pct` | `lcoe_mid_usd_mwh` vs `bpp_usd_mwh` | T1 vs B (BPP-only). |
+| `wind_competitive_gap_pct` | `lcoe_wind_mid_usd_mwh` vs `bpp_usd_mwh` | T1 vs B. |
+| `delivered_cost_gap_vs_grid_pct` | `delivered_cost_blended` vs `grid_rate_used` | **T3 vs B.** The tenant-view equivalent of `solar_competitive_gap_pct`. |
+| `cbam_adjusted_gap_pct` | `(lcoe_mid − grid_cost − cbam_savings_per_mwh) / grid_cost` | T1 vs B (CBAM-adjusted). Currently T1-driven; see §7.3. |
 | `carbon_breakeven_usd_tco2` | `lcoe_mid` gap ÷ `grid_emission_factor` | T1-based carbon breakeven. |
 | `wind_carbon_breakeven_usd_tco2` | wind LCOE gap ÷ emission factor | T1-based. |
 | `hybrid_carbon_breakeven_usd_tco2` | `hybrid_allin` gap ÷ emission factor | T2-based. |
 | `economic_tier` | `lcoe_mid` + `hybrid_allin` + `grid_cost` | Classifies into `full_re / partial_re / near_parity / not_competitive / no_resource`. |
 | action flags (`solar_now`, `not_competitive`, etc.) | `lcoe_mid` vs `grid_cost` | T1-driven. |
 
-**All of the above use T1 (`lcoe_mid`) or T2 (`hybrid_allin`) as the cost input compared against B (grid), never T3 (`delivered_cost`).** Whether to repoint any of them at T3 is an open methodology question — see §7 "Deferred decisions" (PR3, TODOS M31).
+**All of the above (except `delivered_cost_gap_vs_grid_pct`) use T1 (`lcoe_mid`) or T2 (`hybrid_allin`) as the cost input compared against B (grid), never T3 (`delivered_cost`).** Whether to let the user pick which basis feeds each derived metric is the open question — see §7.3 `CostBasis` toggle (PR3, TODOS M31).
 
 ---
 
@@ -217,7 +218,7 @@ Four patterns for the same concept (LCOE + firming). **Proposed fix:** unify on 
 
 ### 4.5 `grid_cost` vs `dashboard_rate` vs `bpp`
 
-Three overlapping T4 names. Not broken, but confusing. `grid_cost` and `dashboard_rate` are the same value, echoed under two names. Worth documenting (done above §2.T4) and eventually consolidating to one canonical field in the row.
+Three overlapping B-category names. Not broken, but confusing. `grid_cost` and `dashboard_rate` are the same value, echoed under two names. Worth documenting (done above §2.B) and eventually consolidating to one canonical field in the row.
 
 ---
 
@@ -391,3 +392,4 @@ Today they all share one answer (T1 vs BPP). Post-toggle, they see the right ans
 |------|--------|
 | 2026-04-21 | Initial taxonomy doc. Captures state after PR1 (`enrich_delivered_cost`) and during PR2 (UI surfacing). No code renames yet. |
 | 2026-04-21 | §7.3 reframed from "one-way repoint T1 → T3" to **`CostBasis` user toggle** (raw / firmed / delivered). Matches existing `BenchmarkMode` + `EnergyMode` toggle pattern. Added `CostBasis` StrEnum to §6.5. Added `(EnergyMode × CostBasis)` resolver matrix and per-persona default mapping. CBAM framed as a `BenchmarkMode` extension, not a fourth basis. |
+| 2026-04-21 | DESIGN.md / TAXONOMY.md cohesion pass. Cleaned up stale "T4" refs in §0, §3, §4.5 (now consistently "B" / "B-category" per §1 rename). Added `cbam_adjusted_gap_pct` row to §3. DESIGN.md updated in parallel to acknowledge T1/T2/T3/B vocabulary, CostBasis toggle, and delivered cost. |

@@ -152,7 +152,7 @@ export function GridTab({
         <StatRowWithTip
           label="Category"
           value={formatSnakeLabel(row.grid_integration_category) ?? 'N/A'}
-          tip="within_boundary = on-site solar covers demand. grid_ready = substation nearby. invest_transmission = build line from sub to KEK. invest_substation = build sub near solar. grid_first = major grid expansion needed."
+          tip="within_boundary = on-site solar covers demand. grid_ready = substation nearby. invest_transmission = build line from sub to site. invest_substation = build sub near solar. grid_first = major grid expansion needed."
         />
         <StatRowWithTip
           label="Grid Upgrade Planned"
