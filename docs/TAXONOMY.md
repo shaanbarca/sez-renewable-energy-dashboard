@@ -288,12 +288,24 @@ class Technology(StrEnum):
     BEST_RE = "best_re"    # min of the above firmed
 ```
 
-**Usage idea.** A `CostMetric` registry (dict keyed on column name) maps every `*_usd_mwh` field to its `(tier, tech, siting, band)` tuple. Then:
+### 6.5 `CostBasis` (user-facing toggle — see §7.3)
+
+```python
+class CostBasis(StrEnum):
+    RAW = "raw"             # T1: generation LCOE, no firming
+    FIRMED = "firmed"       # T2: +BESS adder
+    DELIVERED = "delivered" # T3: captive + grid-import blend (tenant view)
+```
+
+Unlike the other enums (which are column-level metadata), `CostBasis` is a **user-selectable UI state** parallel to `BenchmarkMode` and `EnergyMode`. It controls which cost column feeds `action_flag` / `economic_tier` / `solar_competitive_gap_pct` / `carbon_breakeven_usd_tco2`. Resolution table in §7.3.
+
+**Usage idea.** A `CostMetric` registry (dict keyed on column name) maps every `*_usd_mwh` field to its `(category, tech, siting, band)` tuple. Then:
 - API responses self-describe.
 - Frontend `columns.tsx` can derive display labels from the registry instead of hardcoding them.
 - Methodology doc can generate its cost-column table from the registry.
+- The `(EnergyMode, CostBasis)` → column resolver (§7.3) becomes a one-line registry lookup.
 
-Not needed for PR2. Valuable for PR3+.
+Not needed for PR2. Valuable once §7.3 ships.
 
 ---
 
@@ -313,11 +325,58 @@ These are real, open questions. This doc's job is to name them, not answer them.
 **Effort:** ~4–6 hr with a careful search/replace.
 **Blocking:** PR2 stability. Do after PR1+PR2 merge.
 
-### 7.3 Repoint action flags / economic tier / competitive gap / carbon breakeven from T1 (`lcoe_mid`) to T3 (`delivered_cost`)?
-**Status:** TODOS M31. This is PR3.
-**Why it matters:** currently `solar_competitive_gap_pct` answers "is raw solar cheaper than grid?" (T1 vs T4). If we repoint at `delivered_cost`, it answers "does the tenant pay less than pure grid after mixing in captive?" (T3 vs T4) — which is closer to what most personas actually want to know. But it changes outputs every persona has been looking at for weeks.
-**Scope:** methodology §5 + §7 rewrite, flag-logic in `basic_model.py::action_flags`, golden fixture, new persona validation pass.
-**Blocking:** this taxonomy doc (so the rename is stable before flag logic depends on it).
+### 7.3 `CostBasis` toggle — let the user pick which layer of the stack feeds the action flags
+
+**Status:** TODOS M31 (revised 2026-04-21). This is PR3.
+
+**Framing change.** An earlier version of this item asked "should we repoint action flags from `lcoe_mid` to `delivered_cost`?" — a one-way methodology swap. Better framing: **don't pick, let the user pick.** The dashboard already has two cost-related user toggles (`BenchmarkMode`, `EnergyMode`). Adding a third, `CostBasis`, completes the matrix.
+
+**The matrix.** `action_flag` / `economic_tier` / `solar_competitive_gap_pct` / `carbon_breakeven_usd_tco2` resolve to a specific cost column at evaluation time, looked up from `(EnergyMode, CostBasis)`:
+
+| | `raw` (T1) | `firmed` (T2) | `delivered` (T3) |
+|---|---|---|---|
+| **solar** | `lcoe_mid_usd_mwh` | `lcoe_with_battery_usd_mwh` | `delivered_cost_blended_usd_mwh` |
+| **wind** | `lcoe_wind_mid_usd_mwh` | `lcoe_wind_allin_mid_usd_mwh` | *(empty today — delivered-cost blend not defined for wind)* |
+| **hybrid** | `hybrid_lcoe_usd_mwh` | `hybrid_allin_usd_mwh` | *(empty today)* |
+| **overall** | — (no single raw) | `best_re_lcoe_mid_usd_mwh` | *(empty today)* |
+
+Empty cells today → **grey out the toggle option** when the user picks an unsupported combo. Do not fall back silently; silent fallback is the "why is my gap chart showing a different number than my column" bug waiting to happen.
+
+**Default.** `CostBasis = firmed` for `EnergyMode = overall`, `CostBasis = raw` otherwise. This preserves today's behaviour (flags currently driven by `lcoe_mid` for solar-only mode) and gives the best-RE mode the firmed answer it was already computing for `best_re_lcoe_mid`.
+
+**CBAM as a third axis, not a fourth basis.** "CBAM-adjusted" is not a new CostBasis cell. It's a modifier on the **benchmark side** (`BenchmarkMode`): effective_grid_cost = `grid_cost` − `cbam_savings_per_mwh`. Treat it as a new `BenchmarkMode` value (`bpp`, `tariff`, `bpp_cbam_adjusted`, `tariff_cbam_adjusted`) rather than polluting `CostBasis`. Keeps the two axes orthogonal.
+
+**Why this matters (per persona).**
+- **Energy economist** picks `(solar, raw)` — "can the cheapest MWh of solar beat BPP somewhere?"
+- **Industrial investor / tenant** picks `(solar, delivered)` — "what will the tenant actually pay vs I-4 tariff?"
+- **DFI / 24/7 operator** picks `(solar, firmed)` or `(hybrid, firmed)` — "what's the firm-power price per MWh?"
+- **ESG / CBAM-exposed exporter** picks any basis + `bpp_cbam_adjusted` benchmark — "does cleanup pay for itself once CBAM is priced in?"
+
+Today they all share one answer (T1 vs BPP). Post-toggle, they see the right answer for their question.
+
+**UI changes.**
+- New toggle in AssumptionsPanel (or top bar) — three-way segmented: Raw / Firmed / Delivered. Disabled states for empty cells.
+- Zustand store: add `costBasis: CostBasis` to `dashboard.ts`, default per rule above.
+- Map / table action-flag legend: always shows "Flags computed on: {basis} × {energy_mode}" so the user knows what they're looking at. No exceptions — one of the most common usability bugs in multi-mode dashboards is the user forgetting what mode they're in.
+- Economic tier tooltip: include the active basis in its explanation.
+
+**Backend changes.**
+- `src/model/basic_model.py::action_flags` — accept a `cost_basis: CostBasis` arg (default preserves current behaviour). Internally, the cost input to the gate becomes `resolve_cost_column(energy_mode, cost_basis, row)`.
+- `src/model/basic_model.py::economic_tier` — same signature change.
+- `src/dash/logic/scorecard.py` — compute the flag/tier for *every* valid (EnergyMode, CostBasis) combo and return as a nested dict (e.g. `action_flags_by_basis: {raw: ..., firmed: ..., delivered: ...}`). Frontend picks the active one. Keeps precomputation flat and makes toggle changes instant (no API roundtrip).
+- `carbon_breakeven_usd_tco2` — same fan-out.
+
+**Scope estimate.** 3–4 engineering days. Touches: basic_model, scorecard enricher, types.ts, zustand store, AssumptionsPanel, map legend, ScoreDrawer, methodology §5+§7, golden fixture, new tests for the resolver table.
+
+**Blocking:**
+- §7.1 (delivered_cost rename) should land first so the resolver doesn't bake in a name that changes.
+- §7.2 (lcoe_mid → lcoe_grid_connected rename) optional but clean — the resolver can still use the old name, just read worse.
+- §6.5 `CostBasis` enum should ship with this PR, not before.
+
+**Rejected alternatives.**
+- *One-way repoint from T1 to T3.* Changes outputs every persona has been staring at for weeks without warning, forces a methodology debate that doesn't have a single right answer.
+- *Four bases including `cbam_adjusted`.* Conflates the cost side with the benchmark side — CBAM adjustment is about what the tenant *saves* by decarbonizing (benchmark-side), not about what it *costs* to produce (cost-side).
+- *User-editable formulas.* Overbuilt. Three basis options covers ~95% of the persona slicing.
 
 ### 7.4 Introduce `CostMetric` registry + enums (§6)?
 **Status:** proposed, not done.
@@ -331,3 +390,4 @@ These are real, open questions. This doc's job is to name them, not answer them.
 | Date | Change |
 |------|--------|
 | 2026-04-21 | Initial taxonomy doc. Captures state after PR1 (`enrich_delivered_cost`) and during PR2 (UI surfacing). No code renames yet. |
+| 2026-04-21 | §7.3 reframed from "one-way repoint T1 → T3" to **`CostBasis` user toggle** (raw / firmed / delivered). Matches existing `BenchmarkMode` + `EnergyMode` toggle pattern. Added `CostBasis` StrEnum to §6.5. Added `(EnergyMode × CostBasis)` resolver matrix and per-persona default mapping. CBAM framed as a `BenchmarkMode` extension, not a fourth basis. |
