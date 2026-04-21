@@ -89,7 +89,7 @@ Every cost number in the system falls into one of four categories. Three of them
 |------|--------------------|-----------|----------|
 | **T1. Generation LCOE** | Levelized cost to produce 1 MWh at the plant gate. No firming, no delivery, no tenant mixing. | — (base layer) | Solar, wind, hybrid (solar+wind) generation LCOEs, in WACC bands (low/mid/high) and siting scenarios (within-boundary / grid-connected). |
 | **T2. Firmed LCOE** | T1 + BESS or firming adder. "What it costs per MWh to deliver *firm* power at the plant gate." | T1 + firming adder | `lcoe_with_battery`, `hybrid_allin`, `lcoe_wind_allin`, `best_re_lcoe`. |
-| **T3. Delivered cost (tenant view)** | What the tenant actually pays per MWh when captive + grid are mixed. This is §5.4. | T1 (within-boundary) × captive_fraction + grid_rate × grid_fraction | `delivered_cost_blended` + its input/diagnostic companions. |
+| **T3. Delivered cost (tenant view)** | What the tenant actually pays per MWh when captive + grid are mixed. This is §5.4. | T1 (within-boundary) × captive_fraction + grid_rate × grid_fraction | `delivered_cost` + its input/diagnostic companions. |
 
 ### The benchmark (B): prices we compare *against*
 
@@ -134,7 +134,7 @@ Every cost number in the system falls into one of four categories. Three of them
 
 | Column | Tier | Meaning | Produced by | Status |
 |--------|------|---------|-------------|--------|
-| `delivered_cost_blended_usd_mwh` | T3 | **§5.4 "blended delivered cost"**: `f_captive × LCOE_wb + f_grid × grid_rate`. What the tenant pays. | `scorecard.py::enrich_delivered_cost` | ✅ live (PR1) |
+| `delivered_cost_usd_mwh` | T3 | **§5.4 "blended delivered cost"**: `f_captive × LCOE_wb + f_grid × grid_rate`. What the tenant pays. | `scorecard.py::enrich_delivered_cost` | ✅ live (PR1) |
 | `captive_fraction` | T3 (weight) | Share of demand covered by within-boundary solar after buildout-footprint haircut. Same as `within_boundary_coverage_effective_pct`, exposed here for clarity. | same | ✅ live |
 | `grid_fraction` | T3 (weight) | `1 - captive_fraction`. | same | ✅ live |
 | `delivered_cost_wb_lcoe_used_usd_mwh` | T3 (diagnostic) | The within-boundary LCOE that went into the blend. Echoes `lcoe_within_boundary_usd_mwh`. | same | ✅ live |
@@ -162,7 +162,7 @@ These aren't $/MWh themselves but they reference the columns above. Listing here
 | `solar_competitive_gap_pct` | `lcoe_mid_usd_mwh` vs `dashboard_rate_usd_mwh` | T1 vs B. Answers "is raw solar cheaper than grid?" |
 | `gap_vs_bpp_pct` | `lcoe_mid_usd_mwh` vs `bpp_usd_mwh` | T1 vs B (BPP-only). |
 | `wind_competitive_gap_pct` | `lcoe_wind_mid_usd_mwh` vs `bpp_usd_mwh` | T1 vs B. |
-| `delivered_cost_gap_vs_grid_pct` | `delivered_cost_blended` vs `grid_rate_used` | **T3 vs B.** The tenant-view equivalent of `solar_competitive_gap_pct`. |
+| `delivered_cost_gap_vs_grid_pct` | `delivered_cost` vs `grid_rate_used` | **T3 vs B.** The tenant-view equivalent of `solar_competitive_gap_pct`. |
 | `cbam_adjusted_gap_pct` | `(lcoe_mid − grid_cost − cbam_savings_per_mwh) / grid_cost` | T1 vs B (CBAM-adjusted). Currently T1-driven; see §7.3. |
 | `carbon_breakeven_usd_tco2` | `lcoe_mid` gap ÷ `grid_emission_factor` | T1-based carbon breakeven. |
 | `wind_carbon_breakeven_usd_tco2` | wind LCOE gap ÷ emission factor | T1-based. |
@@ -182,14 +182,14 @@ These are the sharp edges this taxonomy exists to kill. **None are fixed in code
 
 | Where | What "blended" means | Formula |
 |-------|---------------------|---------|
-| §5.4 `delivered_cost_blended_usd_mwh` | Captive + grid mix (T3) | `f_captive × LCOE_wb + f_grid × grid_rate` |
+| §5.4 `delivered_cost_usd_mwh` | Captive + grid mix (T3) | `f_captive × LCOE_wb + f_grid × grid_rate` |
 | §6A.3 `hybrid_lcoe_usd_mwh` ("Blended LCOE") | Solar + wind mix (T1) | `solar_share × LCOE_solar + wind_share × LCOE_wind` |
 
 A reader of the methodology doc sees "Blended" as a section title in two places and has no way to know which blending is meant without reading the formula. Same problem for a new engineer grepping the codebase.
 
-**Proposed fix (defer to rename PR):**
-- `delivered_cost_blended_usd_mwh` → `delivered_cost_usd_mwh` (delivered cost *is* the blend; "blended" is redundant).
-- Keep `hybrid_lcoe_usd_mwh` as-is. Rename §6A.3 section title from "Blended LCOE" → "Hybrid generation LCOE".
+**Fix applied:**
+- `delivered_cost_blended_usd_mwh` → `delivered_cost_usd_mwh` ✅ done (see §8 changelog).
+- `hybrid_lcoe_usd_mwh` unchanged. §6A.3 section title "Blended LCOE" → "Hybrid generation LCOE" pending.
 
 ### 4.2 `lcoe_mid` hides its siting scenario
 
@@ -315,10 +315,7 @@ Not needed for PR2. Valuable once §7.3 ships.
 These are real, open questions. This doc's job is to name them, not answer them.
 
 ### 7.1 Rename `delivered_cost_blended` → `delivered_cost`?
-**Status:** proposed, not done.
-**Scope:** types.ts, columns.tsx, EconomicsTab.tsx, scorecard.py column name, golden fixture, §5.4 methodology.
-**Effort:** ~30 min.
-**Blocking:** nothing. Can go in PR2 or a tiny follow-up PR.
+**Status:** ✅ done (2026-04-21). Renamed in scorecard.py, test fixture, types.ts, columns.tsx, EconomicsTab.tsx, METHODOLOGY §5.4, DATA_DICTIONARY. Golden fixture regenerated. M31 `CostBasis` PR can now reference the stable name.
 
 ### 7.2 Rename `lcoe_mid` → `lcoe_grid_connected`?
 **Status:** proposed, not done.
@@ -336,7 +333,7 @@ These are real, open questions. This doc's job is to name them, not answer them.
 
 | | `raw` (T1) | `firmed` (T2) | `delivered` (T3) |
 |---|---|---|---|
-| **solar** | `lcoe_mid_usd_mwh` | `lcoe_with_battery_usd_mwh` | `delivered_cost_blended_usd_mwh` |
+| **solar** | `lcoe_mid_usd_mwh` | `lcoe_with_battery_usd_mwh` | `delivered_cost_usd_mwh` |
 | **wind** | `lcoe_wind_mid_usd_mwh` | `lcoe_wind_allin_mid_usd_mwh` | *(empty today — delivered-cost blend not defined for wind)* |
 | **hybrid** | `hybrid_lcoe_usd_mwh` | `hybrid_allin_usd_mwh` | *(empty today)* |
 | **overall** | — (no single raw) | `best_re_lcoe_mid_usd_mwh` | *(empty today)* |
@@ -393,3 +390,4 @@ Today they all share one answer (T1 vs BPP). Post-toggle, they see the right ans
 | 2026-04-21 | Initial taxonomy doc. Captures state after PR1 (`enrich_delivered_cost`) and during PR2 (UI surfacing). No code renames yet. |
 | 2026-04-21 | §7.3 reframed from "one-way repoint T1 → T3" to **`CostBasis` user toggle** (raw / firmed / delivered). Matches existing `BenchmarkMode` + `EnergyMode` toggle pattern. Added `CostBasis` StrEnum to §6.5. Added `(EnergyMode × CostBasis)` resolver matrix and per-persona default mapping. CBAM framed as a `BenchmarkMode` extension, not a fourth basis. |
 | 2026-04-21 | DESIGN.md / TAXONOMY.md cohesion pass. Cleaned up stale "T4" refs in §0, §3, §4.5 (now consistently "B" / "B-category" per §1 rename). Added `cbam_adjusted_gap_pct` row to §3. DESIGN.md updated in parallel to acknowledge T1/T2/T3/B vocabulary, CostBasis toggle, and delivered cost. |
+| 2026-04-21 | §7.1 executed: `delivered_cost_blended_usd_mwh` → `delivered_cost_usd_mwh` across scorecard.py, test fixture, types.ts, columns.tsx, EconomicsTab.tsx, METHODOLOGY §5.4, DATA_DICTIONARY, TAXONOMY tables. Historical CHANGELOG + DESIGN §9 entries left frozen. Unblocks M31 `CostBasis` resolver (§7.3). |
