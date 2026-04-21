@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { fetchDefaults, fetchScorecard } from '../lib/api';
+import { defaultCostBasis, isBasisSupported } from '../lib/costBasis';
 import { computeFlipDiff, type FlipDiffRow, type FlipSummary } from '../lib/flipDiff';
 import { applyFlipPreset, type FlipPreset } from '../lib/flipPresets';
 import type {
   BenchmarkMode,
   BottomTab,
+  CostBasis,
   DefaultsResponse,
   EnergyMode,
   MapStyleKey,
@@ -32,6 +34,7 @@ interface DashboardStore {
   layerVisibility: Record<string, boolean>;
   benchmarkMode: BenchmarkMode;
   energyMode: EnergyMode;
+  costBasis: CostBasis;
   mapStyle: MapStyleKey;
   loading: boolean;
   walkthroughPersona: string | null;
@@ -61,6 +64,7 @@ interface DashboardStore {
   setActiveTab: (tab: BottomTab) => void;
   setEnergyMode: (mode: EnergyMode) => void;
   setBenchmarkMode: (mode: BenchmarkMode) => void;
+  setCostBasis: (basis: CostBasis) => void;
   setMapStyle: (style: MapStyleKey) => void;
   toggleLayer: (name: string) => void;
   recomputeScorecard: () => Promise<void>;
@@ -107,6 +111,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   layerVisibility: {},
   benchmarkMode: 'bpp',
   energyMode: 'solar',
+  costBasis: defaultCostBasis('solar'),
   mapStyle: 'dark',
   loading: true,
   walkthroughPersona: null,
@@ -190,10 +195,17 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         lv.wind_buildable_polygons = true;
       }
       // 'overall' — leave layers as-is, user controls via LayerControl
-      return { energyMode: mode, layerVisibility: lv };
+      // Auto-flip costBasis only when the current choice is invalid for the new mode.
+      // Preserves user intent (e.g. firmed on solar stays firmed when switching to wind).
+      const nextBasis = isBasisSupported(mode, state.costBasis)
+        ? state.costBasis
+        : defaultCostBasis(mode);
+      return { energyMode: mode, costBasis: nextBasis, layerVisibility: lv };
     }),
 
   setBenchmarkMode: (mode) => set({ benchmarkMode: mode }),
+
+  setCostBasis: (basis) => set({ costBasis: basis }),
 
   setMapStyle: (style) => set({ mapStyle: style }),
 

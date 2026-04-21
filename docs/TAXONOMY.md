@@ -325,7 +325,7 @@ These are real, open questions. This doc's job is to name them, not answer them.
 
 ### 7.3 `CostBasis` toggle — let the user pick which layer of the stack feeds the action flags
 
-**Status:** TODOS M31 (revised 2026-04-21). This is PR3.
+**Status:** ✅ done (2026-04-21). Three-way Raw / Firmed / Delivered toggle in the header (`frontend/src/components/ui/CostBasisToggle.tsx`). Frontend-derivation via `resolveCost(row, mode, basis)` — flags/tiers/gap/carbon re-compute at render time per the matrix below. Unsupported cells disabled with "Not modelled for {mode}" tooltip. See METHODOLOGY §10.5 for the implementation detail and the one deviation from the original spec (frontend derivation instead of backend fan-out).
 
 **Framing change.** An earlier version of this item asked "should we repoint action flags from `lcoe_mid` to `delivered_cost`?" — a one-way methodology swap. Better framing: **don't pick, let the user pick.** The dashboard already has two cost-related user toggles (`BenchmarkMode`, `EnergyMode`). Adding a third, `CostBasis`, completes the matrix.
 
@@ -366,6 +366,8 @@ Today they all share one answer (T1 vs BPP). Post-toggle, they see the right ans
 
 **Scope estimate.** 3–4 engineering days. Touches: basic_model, scorecard enricher, types.ts, zustand store, AssumptionsPanel, map legend, ScoreDrawer, methodology §5+§7, golden fixture, new tests for the resolver table.
 
+**Actual scope (shipped).** 1 day. Backend: `CostBasis` StrEnum + resolver unit tests, one extra line in `enrich_grid_passthroughs` to surface `grid_emission_factor_t_co2_mwh` (also fixed a latent CBAM EF bug where the enricher read a field that was never written). Frontend: `costBasis.ts` resolver, `getEffective*` helpers accept `(row, mode, basis)`, Zustand slice + auto-flip (no persist middleware), Radix-based `CostBasisToggle` in the header, `resolveCost` threaded through map markers, table cells + facet filter + CSV export, ScoreDrawer header, ActionTab, QuadrantChart. Golden fixture regenerated (81 × 142 → 81 × 143 cols).
+
 **Blocking:**
 - §7.1 (delivered_cost rename) should land first so the resolver doesn't bake in a name that changes.
 - §7.2 (lcoe_mid → lcoe_grid_connected rename) optional but clean — the resolver can still use the old name, just read worse.
@@ -391,3 +393,4 @@ Today they all share one answer (T1 vs BPP). Post-toggle, they see the right ans
 | 2026-04-21 | §7.3 reframed from "one-way repoint T1 → T3" to **`CostBasis` user toggle** (raw / firmed / delivered). Matches existing `BenchmarkMode` + `EnergyMode` toggle pattern. Added `CostBasis` StrEnum to §6.5. Added `(EnergyMode × CostBasis)` resolver matrix and per-persona default mapping. CBAM framed as a `BenchmarkMode` extension, not a fourth basis. |
 | 2026-04-21 | DESIGN.md / TAXONOMY.md cohesion pass. Cleaned up stale "T4" refs in §0, §3, §4.5 (now consistently "B" / "B-category" per §1 rename). Added `cbam_adjusted_gap_pct` row to §3. DESIGN.md updated in parallel to acknowledge T1/T2/T3/B vocabulary, CostBasis toggle, and delivered cost. |
 | 2026-04-21 | §7.1 executed: `delivered_cost_blended_usd_mwh` → `delivered_cost_usd_mwh` across scorecard.py, test fixture, types.ts, columns.tsx, EconomicsTab.tsx, METHODOLOGY §5.4, DATA_DICTIONARY, TAXONOMY tables. Historical CHANGELOG + DESIGN §9 entries left frozen. Unblocks M31 `CostBasis` resolver (§7.3). |
+| 2026-04-21 | §7.3 shipped (M31). `CostBasis` enum + resolver + three-way header toggle (Raw / Firmed / Delivered) wired through map / table / ScoreDrawer / QuadrantChart / CSV export. Frontend-derivation (not backend fan-out) — see METHODOLOGY §10.5. Surfaced `grid_emission_factor_t_co2_mwh` on the scorecard so carbon breakeven re-derives against the real EF per basis. Golden fixture regenerated to 81 × 143 cols. |

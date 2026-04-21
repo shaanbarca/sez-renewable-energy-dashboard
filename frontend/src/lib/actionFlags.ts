@@ -3,8 +3,10 @@ import {
   ECONOMIC_TIER_LABELS,
   INFRA_READINESS_LABELS,
 } from './constants';
+import { defaultCostBasis, isBasisSupported, resolveCost } from './costBasis';
 import type {
   ActionFlag,
+  CostBasis,
   EconomicTier,
   EnergyMode,
   InfrastructureReadiness,
@@ -69,33 +71,43 @@ export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
 };
 
 /**
- * Compute the effective action flag for a row based on the active energy mode.
- * Solar mode returns the backend-computed flag directly. Other modes derive
- * the flag from mode-specific LCOE, resource availability, and grid readiness.
+ * Compute the effective action flag for a row based on the active energy mode and
+ * cost basis. The cost basis picks which tier of the cost stack (T1 raw / T2
+ * firmed / T3 delivered) is compared against the grid benchmark — see TAXONOMY §7.3.
+ *
+ * When costBasis is omitted, defaults to `defaultCostBasis(energyMode)` which
+ * preserves pre-M31 behaviour exactly (solar mode → raw/T1; overall → firmed/T2).
  */
-export function getEffectiveActionFlag(row: ScorecardRow, energyMode: EnergyMode): ActionFlag {
-  if (energyMode === 'solar') return row.action_flag;
+export function getEffectiveActionFlag(
+  row: ScorecardRow,
+  energyMode: EnergyMode,
+  costBasis: CostBasis = defaultCostBasis(energyMode),
+): ActionFlag {
+  // Solar + default (raw) basis: pass through the backend's precomputed flag —
+  // identical to pre-M31 behaviour including CBAM override and storage checks.
+  if (energyMode === 'solar' && costBasis === 'raw') return row.action_flag;
 
-  let lcoe: number | null;
   let hasResource: boolean;
   let deployFlag: ActionFlag;
   let noResourceFlag: ActionFlag;
 
   switch (energyMode) {
     case 'wind':
-      lcoe = row.lcoe_wind_mid_usd_mwh ?? null;
       hasResource = (row.wind_buildable_area_ha ?? 0) > 0;
       deployFlag = 'wind_now';
       noResourceFlag = 'no_wind_resource';
       break;
     case 'hybrid':
-      lcoe = row.hybrid_allin_usd_mwh ?? null;
       hasResource = row.buildable_area_ha > 0 || (row.wind_buildable_area_ha ?? 0) > 0;
       deployFlag = 'hybrid_now';
       noResourceFlag = 'no_re_resource';
       break;
+    case 'solar':
+      hasResource = row.buildable_area_ha > 0;
+      deployFlag = 'solar_now';
+      noResourceFlag = 'no_solar_resource';
+      break;
     default:
-      lcoe = row.best_re_lcoe_mid_usd_mwh ?? null;
       hasResource = row.buildable_area_ha > 0 || (row.wind_buildable_area_ha ?? 0) > 0;
       deployFlag =
         row.best_re_technology === 'hybrid'
@@ -108,6 +120,12 @@ export function getEffectiveActionFlag(row: ScorecardRow, energyMode: EnergyMode
   }
 
   if (!hasResource) return noResourceFlag;
+
+  // Resolve cost from the (mode, basis) matrix. Null = empty cell — the UI
+  // should have disabled the toggle option, but fall through safely anyway.
+  const lcoe = isBasisSupported(energyMode, costBasis)
+    ? resolveCost(row, energyMode, costBasis)
+    : null;
   if (lcoe == null) return 'not_competitive';
 
   const gridCost = row.grid_cost_usd_mwh;
@@ -263,10 +281,25 @@ export function getActionSectionTitle(energyMode: EnergyMode): string {
 
 // ── 2D Classification System (Option C) ──────────────────────────────────
 
-/** Resolve economic tier per energy mode using mode-specific LCOE/all-in fields. */
-export function getEffectiveEconomicTier(row: ScorecardRow, energyMode: EnergyMode): EconomicTier {
-  // Overall mode uses backend's precomputed tier (best across all technologies)
-  if (energyMode === 'overall') {
+/** Resolve economic tier per (energy mode, cost basis).
+ *
+ * Semantics:
+ *   - basis=raw (T1)      → cost beats grid ⇒ PARTIAL_RE (bare LCOE wins; storage not priced in)
+ *   - basis=firmed (T2)   → cost beats grid ⇒ FULL_RE (24/7 firmed price wins)
+ *   - basis=delivered (T3)→ cost beats grid ⇒ FULL_RE (tenant blend already firmed)
+ *
+ * When costBasis is omitted, defaults to `defaultCostBasis(energyMode)`. Overall
+ * mode + default (firmed) basis passes through the backend's precomputed tier
+ * so pre-M31 behaviour is unchanged.
+ */
+export function getEffectiveEconomicTier(
+  row: ScorecardRow,
+  energyMode: EnergyMode,
+  costBasis: CostBasis = defaultCostBasis(energyMode),
+): EconomicTier {
+  // Overall mode + firmed (default) basis: backend's best-across-techs tier —
+  // identical to pre-M31 behaviour.
+  if (energyMode === 'overall' && costBasis === 'firmed') {
     return row.economic_tier || 'not_competitive';
   }
 
@@ -274,36 +307,72 @@ export function getEffectiveEconomicTier(row: ScorecardRow, energyMode: EnergyMo
   if (!gridCost || gridCost <= 0) return 'not_competitive';
 
   let hasResource: boolean;
-  let lcoeRe: number | null;
-  let allin247: number | null;
-
   switch (energyMode) {
     case 'solar':
       hasResource = row.buildable_area_ha > 0;
-      lcoeRe = row.lcoe_mid_usd_mwh ?? null;
-      allin247 = row.lcoe_with_battery_usd_mwh ?? null;
       break;
     case 'wind':
       hasResource = (row.wind_buildable_area_ha ?? 0) > 0;
-      lcoeRe = row.lcoe_wind_mid_usd_mwh ?? null;
-      allin247 = row.lcoe_wind_allin_mid_usd_mwh ?? null;
-      break;
-    case 'hybrid':
-      hasResource = row.buildable_area_ha > 0 || (row.wind_buildable_area_ha ?? 0) > 0;
-      lcoeRe = row.hybrid_lcoe_usd_mwh ?? null;
-      allin247 = row.hybrid_allin_usd_mwh ?? null;
       break;
     default:
-      return row.economic_tier || 'not_competitive';
+      hasResource = row.buildable_area_ha > 0 || (row.wind_buildable_area_ha ?? 0) > 0;
+      break;
   }
-
   if (!hasResource) return 'no_resource';
-  if (lcoeRe == null) return 'not_competitive';
-  if (allin247 != null && allin247 <= gridCost) return 'full_re';
-  if (lcoeRe <= gridCost) return 'partial_re';
-  const gapPct = ((lcoeRe - gridCost) / gridCost) * 100;
+
+  const cost = isBasisSupported(energyMode, costBasis)
+    ? resolveCost(row, energyMode, costBasis)
+    : null;
+  if (cost == null) return 'not_competitive';
+
+  if (cost <= gridCost) {
+    // T1 wins ⇒ only bare-RE parity (storage still a question mark).
+    // T2/T3 wins ⇒ firmed or delivered price beats grid outright.
+    return costBasis === 'raw' ? 'partial_re' : 'full_re';
+  }
+  const gapPct = ((cost - gridCost) / gridCost) * 100;
   if (gapPct <= 20) return 'near_parity';
   return 'not_competitive';
+}
+
+/** Competitive gap (percent above grid) for the active (mode, basis). Null when
+ *  the resolved cost is empty (empty matrix cell or missing upstream data). */
+export function getEffectiveGapPct(
+  row: ScorecardRow,
+  energyMode: EnergyMode,
+  costBasis: CostBasis = defaultCostBasis(energyMode),
+): number | null {
+  const cost = isBasisSupported(energyMode, costBasis)
+    ? resolveCost(row, energyMode, costBasis)
+    : null;
+  const grid = row.grid_cost_usd_mwh;
+  if (cost == null || !grid || grid <= 0) return null;
+  return ((cost - grid) / grid) * 100;
+}
+
+/** Carbon breakeven price (USD/tCO2) for the active (mode, basis).
+ *
+ * Formula: `breakeven = max(0, cost - grid) / EF_grid`. A breakeven of 0 means
+ * the resolved cost already beats grid (no carbon price needed). Null when the
+ * cell is empty or the grid EF is unavailable. */
+export function getEffectiveCarbonBreakeven(
+  row: ScorecardRow,
+  energyMode: EnergyMode,
+  costBasis: CostBasis = defaultCostBasis(energyMode),
+): number | null {
+  // Solar + default (raw) basis: pass through backend's precomputed breakeven
+  // so pre-M31 behaviour is identical (same rounding, same zero semantics).
+  if (energyMode === 'solar' && costBasis === 'raw') {
+    return row.carbon_breakeven_usd_tco2;
+  }
+  const cost = isBasisSupported(energyMode, costBasis)
+    ? resolveCost(row, energyMode, costBasis)
+    : null;
+  const grid = row.grid_cost_usd_mwh;
+  const ef = row.grid_emission_factor_t_co2_mwh;
+  if (cost == null || !grid || grid <= 0 || !ef || ef <= 0) return null;
+  if (cost <= grid) return 0;
+  return Math.round(((cost - grid) / ef) * 10) / 10;
 }
 
 /** Mode-specific label for an economic tier. */

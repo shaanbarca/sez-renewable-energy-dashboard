@@ -55,6 +55,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [10.2 Priority ordering](#102-priority-ordering)
   - [10.3 solar_attractive definition](#103-solar_attractive-definition)
   - [10.4 invest_resilience rationale](#104-invest_resilience-rationale)
+  - [10.5 CostBasis resolver (M31)](#105-costbasis-resolver-m31)
 - [11. GEAS Green Share](#11-geas-green-share)
 - [12. DFI Grid Infrastructure Investment Model](#12-dfi-grid-infrastructure-investment-model)
 - [13. Captive Power Context](#13-captive-power-context)
@@ -1103,6 +1104,34 @@ The `not_competitive` label only captures tariff economics. For manufacturing KE
 **Current results (WACC=10%):** 4 KEKs fire: Kendal (13.0%), Gresik (14.2%), Batang (14.6%), Bitung (17.4%). Carbon breakeven: \$10-17/tCO2.
 
 **Implementation note:** `invest_resilience()` is a separate function in `basic_model.py`, not part of the `action_flags()` return dict. The scorecard builder (`build_fct_kek_scorecard.py`) and dashboard logic (`logic/scorecard.py`) compute it separately and merge it into the flag priority chain.
+
+### 10.5 CostBasis resolver (M31)
+
+`action_flag`, `economic_tier`, `solar_competitive_gap_pct`, and `carbon_breakeven_usd_tco2` all need a cost number to compare against the grid benchmark. Which cost — raw generation LCOE, firmed LCOE, or delivered blended cost — depends on the persona, not on the model. M31 adds a user-selectable `CostBasis` toggle (`raw` / `firmed` / `delivered`) that picks the cost column at render time. See [TAXONOMY §7.3](TAXONOMY.md#73-costbasis-toggle--let-the-user-pick-which-layer-of-the-stack-feeds-the-action-flags) for the framing and per-persona defaults.
+
+**Resolver matrix.** `(EnergyMode × CostBasis)` → scorecard column:
+
+| | `raw` (T1) | `firmed` (T2) | `delivered` (T3) |
+|---|---|---|---|
+| **solar** | `lcoe_mid_usd_mwh` | `lcoe_with_battery_usd_mwh` | `delivered_cost_usd_mwh` |
+| **wind** | `lcoe_wind_mid_usd_mwh` | `lcoe_wind_allin_mid_usd_mwh` | — *not modelled* |
+| **hybrid** | `hybrid_lcoe_usd_mwh` | `hybrid_allin_usd_mwh` | — *not modelled* |
+| **overall** | — *no single raw* | `best_re_lcoe_mid_usd_mwh` | — *not modelled* |
+
+Empty cells render the toggle option disabled in the UI with a "Not modelled for {mode}" tooltip. No silent fallback.
+
+**Default basis.** `firmed` when `EnergyMode = overall`, `raw` otherwise. Preserves pre-M31 behaviour: solar/wind/hybrid flags were already computed against T1 LCOE; overall mode used the firmed best-RE LCOE.
+
+**Implementation (frontend-derivation).** The backend does **not** precompute flags/tiers for every (mode × basis) combo and fan them out on the scorecard row. Instead:
+- `frontend/src/lib/costBasis.ts::resolveCost(row, mode, basis)` picks the cost column per the matrix above.
+- `frontend/src/lib/actionFlags.ts::getEffectiveActionFlag / getEffectiveEconomicTier / getEffectiveCarbonBreakeven` take `(row, mode, basis)` and re-derive the flag/tier/breakeven at render time using the resolved cost.
+- Carbon breakeven uses `row.grid_emission_factor_t_co2_mwh` directly (newly surfaced by `enrich_grid_passthroughs` in `src/dash/logic/scorecard.py`) — same EF the backend uses, no reverse-derivation.
+
+Deviation from the original spec in TAXONOMY §7.3: the spec proposed a nested `action_flags_by_basis` dict on the backend, frontend picks the active one. Frontend-derivation is simpler (no API schema growth, no serialization of 9 flag/tier tuples per row) and equally instant. If a future consumer needs the resolver without touching frontend code, we can lift `resolveCost` into a Python helper and fan out on the scorecard.
+
+**Callsites respecting `costBasis`.** Map markers (flag color + shape), table cells (`EconomicTierCell`, `ReAssessmentCell`), table filters (economic tier facet), CSV export metadata, ScoreDrawer header + Action tab, QuadrantChart x-axis. All subscribe to the `costBasis` Zustand selector.
+
+**Tests.** `tests/test_cost_basis_enum.py` (5 tests): CostBasis enum invariants + supported-cell table for every (mode, basis) combo. Scorecard golden fixture regenerated (81 × 143 cols; new col: `grid_emission_factor_t_co2_mwh`).
 
 ---
 

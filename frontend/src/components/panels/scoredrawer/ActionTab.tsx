@@ -20,7 +20,8 @@ import { FlagStep, SectionHeader, StatCard, StatRowWithTip } from './StatCompone
 
 export function ActionTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
-  const activeTier = getEffectiveEconomicTier(row, energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
+  const activeTier = getEffectiveEconomicTier(row, energyMode, costBasis);
   const activeInfra = getEffectiveInfraReadiness(row, energyMode);
   const modifiers = getEffectiveModifiers(row);
   const activeTierIdx = ECONOMIC_TIER_HIERARCHY.indexOf(activeTier);

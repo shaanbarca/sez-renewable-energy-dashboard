@@ -109,6 +109,7 @@ function getCaptivePowerType(row: ScorecardRow): string {
 function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: ScorecardRow[] }) {
   const filterValue = (column.getFilterValue() as string) ?? '';
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
   const options = useMemo(() => {
     const vals = new Set<string>();
     for (const row of data) {
@@ -128,7 +129,7 @@ function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: 
         vals.add('Yes');
         vals.add('No');
       } else if (column.id === 'economic_tier') {
-        vals.add(getEffectiveEconomicTier(row, energyMode));
+        vals.add(getEffectiveEconomicTier(row, energyMode, costBasis));
       } else if (column.id === 'infrastructure_readiness') {
         vals.add(getEffectiveInfraReadiness(row, energyMode));
       } else {
@@ -137,7 +138,7 @@ function DropdownFilter({ column, data }: { column: Column<ScorecardRow>; data: 
       }
     }
     return Array.from(vals).sort();
-  }, [data, column.id, energyMode]);
+  }, [data, column.id, energyMode, costBasis]);
 
   return (
     <select
@@ -212,6 +213,7 @@ export default function DataTable() {
   const assumptions = useDashboardStore((s) => s.assumptions);
   const thresholds = useDashboardStore((s) => s.thresholds);
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
   const selectedSite = useDashboardStore((s) => s.selectedSite);
   const selectSite = useDashboardStore((s) => s.selectSite);
@@ -266,6 +268,17 @@ export default function DataTable() {
     return () => setFilteredSiteIds(null);
   }, [filteredRows, setFilteredSiteIds]);
 
+  // Columns whose sort/filter depend on (energyMode × costBasis) — economic_tier
+  // and solar_competitive_gap_pct — cache row order via TanStack. Bump the state
+  // references when the active mode/basis changes so TanStack invalidates the
+  // sorted/filtered row models. Without this, cell displays update but column
+  // sort order and range filters stay stale until the user re-interacts.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps are the intentional trigger, not captured values
+  useEffect(() => {
+    setSorting((prev) => [...prev]);
+    setColumnFilters((prev) => [...prev]);
+  }, [energyMode, costBasis]);
+
   const handleExport = useCallback(() => {
     if (!scorecard) return;
     const headers = [
@@ -310,11 +323,12 @@ export default function DataTable() {
     meta.push('');
     meta.push('--- Export Metadata ---');
     meta.push(`Energy Mode,${energyMode}`);
+    meta.push(`Cost Basis,${costBasis}`);
     meta.push(`Benchmark Mode,${benchmarkMode}`);
     meta.push(`Export Date,${new Date().toISOString().slice(0, 10)}`);
 
     exportCsv(scorecard as unknown as Record<string, unknown>[], headers, meta.join('\n'));
-  }, [scorecard, assumptions, thresholds, energyMode, benchmarkMode]);
+  }, [scorecard, assumptions, thresholds, energyMode, costBasis, benchmarkMode]);
 
   if (!scorecard) {
     return (

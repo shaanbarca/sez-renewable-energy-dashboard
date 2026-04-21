@@ -88,6 +88,7 @@ export interface ScorecardRow {
   gap_vs_tariff_pct?: number;
   gap_vs_bpp_pct?: number;
   dashboard_rate_usd_mwh: number;
+  grid_emission_factor_t_co2_mwh?: number | null;
   carbon_breakeven_usd_tco2: number | null;
   buildable_area_ha: number;
   max_captive_capacity_mwp: number;
@@ -336,6 +337,10 @@ export interface ScorecardResponse {
 
 export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
+/** Which layer of the cost stack feeds action_flag / economic_tier / gap / carbon_breakeven.
+ *  Mirrors `src/model/basic_model.py::CostBasis`. See TAXONOMY §7.3 for the
+ *  `(EnergyMode × CostBasis)` resolution matrix. */
+export type CostBasis = 'raw' | 'firmed' | 'delivered';
 export type BottomTab = 'table' | 'ruptl' | 'sector' | 'compare';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 

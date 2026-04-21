@@ -143,6 +143,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
   }, [scorecard, mapInstance]);
 
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
   const filteredSiteIds = useDashboardStore((s) => s.filteredSiteIds);
   const activeTab = useDashboardStore((s) => s.activeTab);
   const flipScorecard = useDashboardStore((s) => s.flipScorecard);
@@ -218,8 +219,8 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
         properties: {
           site_id: row.site_id,
           site_name: row.site_name,
-          action_flag: getEffectiveActionFlag(row, energyMode),
-          economic_tier: getEffectiveEconomicTier(row, energyMode),
+          action_flag: getEffectiveActionFlag(row, energyMode, costBasis),
+          economic_tier: getEffectiveEconomicTier(row, energyMode, costBasis),
           province: row.province,
           site_type: row.site_type ?? '',
           sector: (row.sector as Sector) ?? 'mixed',
@@ -232,7 +233,7 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
         },
       })),
     };
-  }, [scorecard, energyMode, filteredSiteIds, flipDirections]);
+  }, [scorecard, energyMode, costBasis, filteredSiteIds, flipDirections]);
 
   // Build the match expression for circle-color from economic tier
   const colorMatch = useMemo(() => {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDashboardStore } from '../../store/dashboard';
 import LayerControl from '../map/LayerControl';
 import ActionFlagLegend from './ActionFlagLegend';
+import CostBasisToggle from './CostBasisToggle';
 import EnergyToggle from './EnergyToggle';
 import MethodologyModal from './MethodologyModal';
 
@@ -50,6 +51,7 @@ export default function Header() {
           <ActionFlagLegend />
           <LayerControl />
           <EnergyToggle />
+          <CostBasisToggle />
         </div>
 
         <div className="flex items-center gap-4">
@@ -90,9 +92,9 @@ export default function Header() {
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
-              title="Cite this dashboard via Zenodo DOI"
+              title="Cite this dashboard · DOI: 10.5281/zenodo.19570542"
             >
-              DOI: 10.5281/zenodo.19570542
+              DOI ↗
             </a>
           </div>
           <span

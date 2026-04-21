@@ -1,25 +1,19 @@
+import { getEffectiveGapPct } from '../../../lib/actionFlags';
+import { resolveCost } from '../../../lib/costBasis';
 import { capitalize, formatGridRegion } from '../../../lib/format';
 import type { ScorecardRow } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import EnergyBalanceChart from '../../charts/EnergyBalanceChart';
-import { computeGapPct, formatGap } from './formatting';
+import { formatGap } from './formatting';
 import { IdentityCard } from './IdentityCard';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 export function OverviewTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
 
-  const activeLcoe =
-    energyMode === 'wind'
-      ? row.lcoe_wind_mid_usd_mwh
-      : energyMode === 'hybrid'
-        ? row.hybrid_allin_usd_mwh
-        : energyMode === 'overall'
-          ? row.best_re_lcoe_mid_usd_mwh
-          : row.lcoe_mid_usd_mwh;
-
-  const activeGap = computeGapPct(activeLcoe, row.grid_cost_usd_mwh);
-  const gapPct = energyMode === 'solar' ? row.solar_competitive_gap_pct : activeGap;
+  const activeLcoe = resolveCost(row, energyMode, costBasis);
+  const gapPct = getEffectiveGapPct(row, energyMode, costBasis);
   const gapColorVal =
     gapPct != null ? (gapPct < 0 ? '#4CAF50' : gapPct > 0 ? '#EF5350' : '#e0e0e0') : '#e0e0e0';
 
