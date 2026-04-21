@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { getEffectiveEconomicTier } from '../../lib/actionFlags';
 import { ECONOMIC_TIER_COLORS } from '../../lib/constants';
+import { resolveCost } from '../../lib/costBasis';
 import type { EnergyMode, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
@@ -18,13 +19,6 @@ interface ChartRow extends ScorecardRow {
   activeLcoe: number | null;
   gridCost: number;
   economicTierColor: string;
-}
-
-function getLcoeForMode(row: ScorecardRow, mode: EnergyMode): number | null | undefined {
-  if (mode === 'wind') return row.lcoe_wind_mid_usd_mwh;
-  if (mode === 'hybrid') return row.hybrid_allin_usd_mwh;
-  if (mode === 'overall') return row.best_re_lcoe_mid_usd_mwh;
-  return row.lcoe_mid_usd_mwh;
 }
 
 function getModeLabel(mode: EnergyMode): string {
@@ -168,17 +162,18 @@ export default function QuadrantChart() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
 
   const chartData = useMemo(() => {
     if (!scorecard) return [];
     return scorecard
       .map((row) => {
-        const lcoe = getLcoeForMode(row, energyMode);
+        const lcoe = resolveCost(row, energyMode, costBasis);
         const gridCost =
           benchmarkMode === 'bpp' && row.bpp_usd_mwh != null
             ? row.bpp_usd_mwh
             : row.dashboard_rate_usd_mwh;
-        const tier = getEffectiveEconomicTier(row, energyMode);
+        const tier = getEffectiveEconomicTier(row, energyMode, costBasis);
         return {
           ...row,
           activeLcoe: lcoe ?? null,
@@ -187,7 +182,7 @@ export default function QuadrantChart() {
         };
       })
       .filter((d) => d.activeLcoe != null && Number.isFinite(d.activeLcoe));
-  }, [scorecard, benchmarkMode, energyMode]);
+  }, [scorecard, benchmarkMode, energyMode, costBasis]);
 
   const modeLabel = getModeLabel(energyMode);
 

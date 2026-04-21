@@ -94,8 +94,16 @@ def enrich_lcoe_and_gaps(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, An
 
 
 def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
-    """Grid integration fields (category, infra cost, connectivity, capacity)."""
-    return dict(ctx.grid_out)
+    """Grid integration fields (category, infra cost, connectivity, capacity).
+
+    Also surfaces `grid_emission_factor_t_co2_mwh` so downstream enrichers
+    (`enrich_cbam`) and the frontend (carbon-breakeven per cost basis) can
+    compute against the same EF the backend uses.
+    """
+    out = dict(ctx.grid_out)
+    ef = ctx.emission_factor
+    out["grid_emission_factor_t_co2_mwh"] = float(ef) if ef and ef > 0 else None
+    return out
 
 
 def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:

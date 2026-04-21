@@ -16,6 +16,9 @@ from src.model.basic_model import (
     PVOUT_ANNUAL_MIN,
     # Action flags
     ActionFlag,
+    # 2D classification
+    CostBasis,
+    EconomicTier,
     action_flags,
     # End-to-end pipeline
     build_scorecard,
@@ -53,6 +56,8 @@ __all__ = [
     "solar_competitive_gap",
     "is_solar_attractive",
     "ActionFlag",
+    "CostBasis",
+    "EconomicTier",
     "action_flags",
     "geas_baseline_allocation",
     "geas_policy_allocation",

@@ -38,6 +38,7 @@ export default function ScoreDrawer() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const closeDrawer = useDashboardStore((s) => s.closeDrawer);
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
 
   const [substations, setSubstations] = useState<SubstationWithCosts[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
@@ -88,7 +89,7 @@ export default function ScoreDrawer() {
     return () => document.removeEventListener('keydown', handler);
   }, [drawerOpen, handleClose]);
 
-  const effectiveTier = row ? getEffectiveEconomicTier(row, energyMode) : null;
+  const effectiveTier = row ? getEffectiveEconomicTier(row, energyMode, costBasis) : null;
   const tierColor = effectiveTier ? (ECONOMIC_TIER_COLORS[effectiveTier] ?? '#666') : '#666';
   const tierLabel = effectiveTier ? getEconomicTierLabel(effectiveTier, energyMode) : '';
   const tierDescription = effectiveTier

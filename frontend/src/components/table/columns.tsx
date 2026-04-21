@@ -3,6 +3,7 @@ import {
   getEconomicTierDescription,
   getEconomicTierLabel,
   getEffectiveEconomicTier,
+  getEffectiveGapPct,
   getEffectiveInfraReadiness,
 } from '../../lib/actionFlags';
 import {
@@ -109,8 +110,9 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 
 function ReAssessmentCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
   const row = info.row.original;
-  const tier = getEffectiveEconomicTier(row, energyMode);
+  const tier = getEffectiveEconomicTier(row, energyMode, costBasis);
   const infra = getEffectiveInfraReadiness(row, energyMode);
   const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
   const tierLabel = getEconomicTierLabel(tier, energyMode);
@@ -197,7 +199,8 @@ function GridIntegrationCell({
 
 function EconomicTierCell({ info }: { info: CellContext<ScorecardRow, unknown> }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
-  const tier = getEffectiveEconomicTier(info.row.original, energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
+  const tier = getEffectiveEconomicTier(info.row.original, energyMode, costBasis);
   const color = ECONOMIC_TIER_COLORS[tier] ?? '#666';
   const label = getEconomicTierLabel(tier, energyMode);
   return (
@@ -207,6 +210,42 @@ function EconomicTierCell({ info }: { info: CellContext<ScorecardRow, unknown> }
         style={{ background: color }}
       />
       <span style={{ color, fontSize: 11 }}>{label}</span>
+    </span>
+  );
+}
+
+function LcoeGapCell({ info }: { info: CellContext<ScorecardRow, number> }) {
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
+  const gap = getEffectiveGapPct(info.row.original, energyMode, costBasis);
+  if (gap == null) return <span style={{ color: '#666' }}>—</span>;
+  const sign = gap > 0 ? '+' : '';
+  const color = gap < 0 ? '#4CAF50' : gap > 0 ? '#EF5350' : '#e0e0e0';
+  return (
+    <span style={{ color }}>
+      {sign}
+      {gap.toFixed(1)}%
+    </span>
+  );
+}
+
+function DeliveredCostCell({
+  info,
+}: {
+  info: CellContext<ScorecardRow, number | null | undefined>;
+}) {
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  if (energyMode !== 'solar') return <span style={{ color: '#666' }}>—</span>;
+  const val = info.getValue();
+  const captive = info.row.original.captive_fraction;
+  if (val == null || captive == null || captive === 0) {
+    return <span style={{ color: '#666' }}>—</span>;
+  }
+  return (
+    <span
+      title={`${Math.round(captive * 100)}% captive / ${Math.round((1 - captive) * 100)}% grid`}
+    >
+      {val.toFixed(1)}
     </span>
   );
 }
@@ -296,7 +335,8 @@ export const columns = [
     header: () => <HeaderWithTooltip label="Econ. Tier" columnId="economic_tier" />,
     enableColumnFilter: true,
     filterFn: (row, _columnId, filterValue: string) => {
-      const tier = getEffectiveEconomicTier(row.original, useDashboardStore.getState().energyMode);
+      const { energyMode, costBasis } = useDashboardStore.getState();
+      const tier = getEffectiveEconomicTier(row.original, energyMode, costBasis);
       return tier === filterValue;
     },
     cell: (info) => <EconomicTierCell info={info} />,
@@ -447,39 +487,35 @@ export const columns = [
     },
   }),
   col.accessor('delivered_cost_usd_mwh', {
-    header: () => (
-      <HeaderWithTooltip label="Delivered Cost" columnId="delivered_cost_usd_mwh" />
-    ),
+    header: () => <HeaderWithTooltip label="Delivered Cost" columnId="delivered_cost_usd_mwh" />,
     filterFn: 'inRange',
-    cell: (info) => {
-      const val = info.getValue();
-      const captive = info.row.original.captive_fraction;
-      if (val == null || captive == null || captive === 0) {
-        return <span style={{ color: '#666' }}>—</span>;
-      }
-      return (
-        <span
-          title={`${Math.round(captive * 100)}% captive / ${Math.round((1 - captive) * 100)}% grid`}
-        >
-          {val.toFixed(1)}
-        </span>
-      );
-    },
+    cell: (info) => <DeliveredCostCell info={info} />,
   }),
   col.accessor('solar_competitive_gap_pct', {
     header: () => <HeaderWithTooltip label="LCOE Gap (%)" columnId="solar_competitive_gap_pct" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const val = info.getValue();
-      const sign = val > 0 ? '+' : '';
-      const color = val < 0 ? '#4CAF50' : val > 0 ? '#EF5350' : '#e0e0e0';
-      return (
-        <span style={{ color }}>
-          {sign}
-          {val.toFixed(1)}%
-        </span>
-      );
+    // Sort + filter route through the active (mode × basis) gap so the column
+    // stays self-consistent with its cell rendering (TAXONOMY §7.3). Without
+    // this, sorting keys the raw solar T1 gap even when displayed values are
+    // wind / hybrid / delivered.
+    sortingFn: (rowA, rowB) => {
+      const { energyMode, costBasis } = useDashboardStore.getState();
+      const a = getEffectiveGapPct(rowA.original, energyMode, costBasis);
+      const b = getEffectiveGapPct(rowB.original, energyMode, costBasis);
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      return a - b;
     },
+    filterFn: (row, _columnId, value: [number | '', number | '']) => {
+      const { energyMode, costBasis } = useDashboardStore.getState();
+      const v = getEffectiveGapPct(row.original, energyMode, costBasis);
+      if (v == null) return true;
+      const [lo, hi] = value;
+      if (lo !== '' && v < lo) return false;
+      if (hi !== '' && v > hi) return false;
+      return true;
+    },
+    cell: (info) => <LcoeGapCell info={info} />,
   }),
   col.accessor('solar_supply_coverage_pct', {
     header: () => <HeaderWithTooltip label="RE Coverage" columnId="solar_supply_coverage_pct" />,

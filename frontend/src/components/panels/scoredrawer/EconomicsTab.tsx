@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { getEffectiveCarbonBreakeven } from '../../../lib/actionFlags';
+import { resolveCost } from '../../../lib/costBasis';
 import { capitalize } from '../../../lib/format';
 import type { ScorecardRow, UserAssumptions } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
@@ -13,28 +15,22 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const sliderConfigs = useDashboardStore((s) => s.sliderConfigs);
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
   const bessCapexConfig = sliderConfigs?.tier2?.bess_capex_usd_per_kwh;
   const bessSizingConfig = sliderConfigs?.tier2?.bess_sizing_hours_override;
 
   const sizingHrs = row.bess_sizing_hours ?? 2;
   const bessCompetitive = row.bess_competitive ?? null;
 
-  const activeLcoe =
-    energyMode === 'wind'
-      ? row.lcoe_wind_mid_usd_mwh
-      : energyMode === 'hybrid'
-        ? row.hybrid_allin_usd_mwh
-        : energyMode === 'overall'
-          ? row.best_re_lcoe_mid_usd_mwh
-          : row.lcoe_mid_usd_mwh;
+  const activeLcoe = resolveCost(row, energyMode, costBasis);
 
-  const activeGapBpp =
-    energyMode === 'solar' ? row.gap_vs_bpp_pct : computeGapPct(activeLcoe, row.bpp_usd_mwh);
+  const activeGapBpp = computeGapPct(activeLcoe, row.bpp_usd_mwh);
 
-  const activeGapTariff =
-    energyMode === 'solar'
-      ? row.gap_vs_tariff_pct
-      : computeGapPct(activeLcoe, row.dashboard_rate_usd_mwh);
+  const activeGapTariff = computeGapPct(activeLcoe, row.dashboard_rate_usd_mwh);
+
+  const solarBreakeven = getEffectiveCarbonBreakeven(row, 'solar', costBasis);
+  const windBreakeven = getEffectiveCarbonBreakeven(row, 'wind', costBasis);
+  const hybridBreakeven = getEffectiveCarbonBreakeven(row, 'hybrid', costBasis);
 
   const techLabel =
     energyMode === 'wind'
@@ -384,11 +380,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
         {(energyMode === 'solar' || energyMode === 'overall') && (
           <StatRowWithTip
             label={energyMode === 'overall' ? 'Carbon Breakeven (Solar)' : 'Carbon Breakeven'}
-            value={
-              row.carbon_breakeven_usd_tco2 != null
-                ? row.carbon_breakeven_usd_tco2.toFixed(1)
-                : null
-            }
+            value={solarBreakeven != null ? solarBreakeven.toFixed(1) : null}
             unit="$/tCO2"
             tip="Carbon price that makes solar cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
           />
@@ -396,11 +388,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
         {(energyMode === 'wind' || energyMode === 'overall') && (
           <StatRowWithTip
             label={energyMode === 'overall' ? 'Carbon Breakeven (Wind)' : 'Carbon Breakeven'}
-            value={
-              row.wind_carbon_breakeven_usd_tco2 != null
-                ? row.wind_carbon_breakeven_usd_tco2.toFixed(1)
-                : null
-            }
+            value={windBreakeven != null ? windBreakeven.toFixed(1) : null}
             unit="$/tCO2"
             tip="Carbon price that makes wind cheaper than grid. Below $5 = strong case even without carbon markets. Above $50 = hard to justify on carbon alone."
           />
@@ -408,11 +396,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
         {energyMode === 'hybrid' && (
           <StatRowWithTip
             label="Carbon Breakeven (Hybrid)"
-            value={
-              row.hybrid_carbon_breakeven_usd_tco2 != null
-                ? row.hybrid_carbon_breakeven_usd_tco2.toFixed(1)
-                : null
-            }
+            value={hybridBreakeven != null ? hybridBreakeven.toFixed(1) : null}
             unit="$/tCO2"
             tip="Carbon price that makes the hybrid solar+wind+battery system cheaper than grid."
           />

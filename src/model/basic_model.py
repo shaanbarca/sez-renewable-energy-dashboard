@@ -986,6 +986,27 @@ class EconomicTier(StrEnum):
     NO_RESOURCE = "no_resource"  # no buildable area or insufficient resource
 
 
+class CostBasis(StrEnum):
+    """Which layer of the cost stack feeds action_flag / economic_tier / gap / carbon_breakeven.
+
+    User-selectable toggle (TAXONOMY §6.5, §7.3). Parallel to EnergyMode and
+    BenchmarkMode on the frontend. Resolution matrix:
+
+        | EnergyMode | raw (T1)                   | firmed (T2)                    | delivered (T3)              |
+        | solar      | lcoe_mid_usd_mwh           | lcoe_with_battery_usd_mwh      | delivered_cost_usd_mwh      |
+        | wind       | lcoe_wind_mid_usd_mwh      | lcoe_wind_allin_mid_usd_mwh    | (empty)                     |
+        | hybrid     | hybrid_lcoe_usd_mwh        | hybrid_allin_usd_mwh           | (empty)                     |
+        | overall    | (empty)                    | best_re_lcoe_mid_usd_mwh       | (empty)                     |
+
+    Empty cells → toggle option disabled on the UI. Default CostBasis:
+    firmed for overall, raw otherwise.
+    """
+
+    RAW = "raw"  # T1: generation LCOE, no firming
+    FIRMED = "firmed"  # T2: + BESS / storage adder
+    DELIVERED = "delivered"  # T3: captive + grid-import blend (tenant view)
+
+
 def economic_tier(
     lcoe_re: float | None,
     allin_24_7: float | None,
