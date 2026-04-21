@@ -130,7 +130,7 @@ flowchart TD
 | Numerical | numpy, scipy | — | Raster array ops, connected-component labeling |
 | Data | pandas | 2.x | All tabular transforms |
 | PDF extraction | pdfplumber | — | RUPTL + ESDM Tech Catalogue tables |
-| Testing | pytest | — | 541 tests, all pure-function |
+| Testing | pytest | — | 610 tests, all pure-function |
 | Linting | ruff | — | Format + lint (configured in pyproject.toml) |
 
 ---
@@ -297,7 +297,7 @@ tests/
   test_logic_technology.py      — module-boundary tests for logic/technology.py (BESS/firm/hybrid)
   test_scorecard_golden.py      — bit-identical parity against pickle fixture (pre-refactor snapshot)
 
-541 tests total (all pure-function).
+610 tests total (all pure-function).
 
 frontend/src/
   lib/
