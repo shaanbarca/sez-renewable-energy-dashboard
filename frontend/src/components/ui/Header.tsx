@@ -41,12 +41,12 @@ export default function Header() {
           boxShadow: 'var(--header-shadow)',
         }}
       >
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3">
           <h1
-            className="text-sm font-semibold tracking-wide"
+            className="text-sm font-semibold tracking-wide whitespace-nowrap"
             style={{ color: 'var(--text-primary)' }}
           >
-            SEZ Renewable Energy Dashboard
+            SEZ Renewable Energy
           </h1>
           <ActionFlagLegend />
           <LayerControl />
@@ -54,7 +54,7 @@ export default function Header() {
           <CostBasisToggle />
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <GuideButton />
           <button
             type="button"
@@ -71,7 +71,7 @@ export default function Header() {
               href="https://github.com/shaanbarca/sez-renewable-energy-dashboard"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs transition-colors"
+              className="flex items-center gap-1.5 text-xs transition-colors whitespace-nowrap"
               style={{ color: 'var(--text-secondary)' }}
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
@@ -98,7 +98,7 @@ export default function Header() {
             </a>
           </div>
           <span
-            className="px-2.5 py-1 rounded-full text-xs font-medium border"
+            className="px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap"
             style={{
               color: 'var(--text-secondary)',
               background: 'var(--glass)',

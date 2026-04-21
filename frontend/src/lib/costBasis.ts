@@ -81,23 +81,28 @@ export function defaultCostBasis(energyMode: EnergyMode): CostBasis {
   return energyMode === 'overall' ? 'firmed' : 'raw';
 }
 
-/** Human label shown in the toggle and legend. */
+/** Human label shown in the toggle. Names each view by what's in the number. */
 export const COST_BASIS_LABELS: Record<CostBasis, string> = {
-  raw: 'Raw',
-  firmed: 'Firmed',
-  delivered: 'Delivered',
+  raw: 'Solar LCOE',
+  firmed: 'Solar 24/7',
+  delivered: 'Supply Blend',
 };
 
-/** Tier tag shown as a chip on each toggle option (matches TAXONOMY §1). */
-export const COST_BASIS_TIER: Record<CostBasis, 'T1' | 'T2' | 'T3'> = {
-  raw: 'T1',
-  firmed: 'T2',
-  delivered: 'T3',
-};
-
-/** One-line description used in tooltips and the legend. */
-export const COST_BASIS_DESCRIPTIONS: Record<CostBasis, string> = {
-  raw: 'Bare LCOE, no storage. "Cheapest MWh of RE."',
-  firmed: '+ BESS/firming. "Price of 24/7 RE."',
-  delivered: 'Captive + grid blend. "Tenant bill."',
+/**
+ * Hover-tooltip copy: a short title plus a body that spells out which costs
+ * are inside the number. Keep the body to 1–2 short sentences.
+ */
+export const COST_BASIS_DESCRIPTIONS: Record<CostBasis, { title: string; body: string }> = {
+  raw: {
+    title: 'Bare solar, no battery',
+    body: 'Cheapest solar MWh. Daytime only — tenants still need a grid connection for nights.',
+  },
+  firmed: {
+    title: 'Solar + battery = always on',
+    body: 'Adds BESS firming so solar covers overnight demand. The price of a fully renewable site.',
+  },
+  delivered: {
+    title: 'What the tenant actually pays',
+    body: 'On-site solar first, then a remote IPP for the daytime gap (up to the ~42% daylight ceiling), then grid overnight.',
+  },
 };

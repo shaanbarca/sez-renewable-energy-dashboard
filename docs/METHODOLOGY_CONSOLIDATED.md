@@ -25,7 +25,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [5.1 Within-boundary (captive)](#51-within-boundary-captive)
   - [5.2 Grid-connected solar](#52-grid-connected-solar)
   - [5.3 Why remote captive was removed](#53-why-remote-captive-was-removed)
-  - [5.4 Blended delivered cost (partial within-boundary coverage)](#54-blended-delivered-cost-partial-within-boundary-coverage)
+  - [5.4 Supply Blend (cascaded delivered cost)](#54-supply-blend-cascaded-delivered-cost)
 - [6. LCOE Formula](#6-lcoe-formula)
   - [6.1 Base LCOE](#61-base-lcoe)
   - [6.2 Grid-connected LCOE](#62-grid-connected-lcoe)
@@ -330,52 +330,81 @@ The V1 methodology assumed KEKs could build remote captive solar connected by a 
 
 The realistic model for delivering cheap solar to KEKs is through PLN's grid, not through private infrastructure.
 
-### 5.4 Blended delivered cost (partial within-boundary coverage)
+### 5.4 Supply Blend (cascaded delivered cost)
 
-**Version:** V3.10
+**Version:** V3.11 (cascade). Replaces the V3.10 two-layer blend (captive + grid).
 
-The `within_boundary` gate (§8.2) is binary: a KEK either clears the `meaningful_share_pct` threshold (after the V3.9.1 buildout-footprint haircut) and is treated as fully self-sufficient on captive solar, or it doesn't — in which case the scorecard's primary `lcoe_mid_usd_mwh` reports the full grid-connected LCOE, with transmission/substation/connection costs loaded onto 100% of effective capacity. Neither picture matches what an industrial tenant actually pays when on-site solar can supply, say, 40% of demand and PLN supplies the balance.
+The `within_boundary` gate (§8.2) is binary: a site either clears the `meaningful_share_pct` threshold (after the V3.9.1 buildout-footprint haircut) and is treated as fully self-sufficient on captive solar, or it doesn't — in which case `lcoe_mid_usd_mwh` reports the grid-connected LCOE with transmission/substation/connection costs loaded onto 100% of effective capacity. Neither picture matches what an industrial tenant actually pays when on-site solar can supply, say, 16% of demand, a remote IPP with a gentie can fill another 26%, and PLN covers the rest.
 
-**Blended delivered cost** fills this gap. It is a tenant-view metric — what the load's effective $/MWh bill looks like when part of supply is captive and part is grid-delivered.
+**Supply Blend** fills this gap. It is a tenant-view cascade — what the load's effective $/MWh bill looks like when supply stacks across three layers in order of economic preference: within-boundary captive first, then remote captive IPP, then grid.
 
 **Formula:**
 
 ```
-f_captive = min(within_boundary_coverage_effective_pct, 1.0)
-f_grid    = 1 - f_captive
-delivered_cost_usd_mwh = f_captive × LCOE_wb + f_grid × grid_rate
+daytime_cap = SOLAR_PRODUCTION_HOURS / 24         (default 10h / 24h ≈ 0.417)
+
+f_wb        = min(within_boundary_coverage_effective_pct, daytime_cap)
+headroom    = daytime_cap − f_wb
+f_remote    = headroom  if gc_row exists else 0
+f_grid      = 1 − f_wb − f_remote
+
+delivered_cost_usd_mwh = f_wb × LCOE_wb + f_remote × LCOE_gc + f_grid × grid_rate
 ```
+
+**Physical cap rationale.** Without BESS, solar can only serve load during daylight hours. For a flat 24/7 industrial load that caps real-time *total* solar share (on-site plus remote) at `SOLAR_PRODUCTION_HOURS / 24` ≈ 42% (10h/24h). Oversizing solar beyond daytime demand curtails the excess — it cannot roll over to overnight consumption. The remaining ~58% of annual demand is served by the grid regardless of how much solar is built. Supply Blend is *inherently* a partial blend with no storage. Full 24/7 RE coverage is the job of the Solar 24/7 basis (T2 — see §7.3 and TAXONOMY.md), which adds a BESS storage adder to bridge the overnight gap.
+
+The ceiling matches the temporal model in §8.2 (`firm_solar_metrics`): `daytime_fraction = SOLAR_PRODUCTION_HOURS / 24`, and real-time solar share = `min(solar_gen, daytime_demand) / annual_demand`.
+
+**Remote captive layer (directional, not optimized).** There is no pre-computed "remote captive coverage" metric in the pipeline today. We treat remote captive as *available up to the daytime ceiling* whenever the site has a grid-connected siting scenario (`gc_row` exists) — i.e., an IPP within the 50 km buffer could fill the daytime headroom. This is the directional upper bound: it tells the viewer "even maxing out solar at this site, your tenant bill looks like this." Economic optimization (would the tenant actually build remote at gc_LCOE if it exceeds grid_rate?) is deferred to a future PSA-driven pass. See TODOS.
 
 **Glossary:**
 
-- `within_boundary_coverage_effective_pct` — haircut-adjusted on-site coverage: `wb_coverage × wb_buildout_footprint_ratio`. Same figure the `within_boundary` gate in §8.2 checks. Clamped to 1.0 because the tenant can't consume more on-site solar than their load.
-- `LCOE_wb` — within-boundary scenario LCOE (§5.1 / §6.1): centroid PVOUT, no connection cost, no transmission build, no substation upgrade. Already computed per site in `wb_row.lcoe_mid_usd_mwh`.
-- `grid_rate` — the regional grid reference cost the `SiteContext` resolves. Defaults to the PLN I-4/TT industrial tariff (§7.1); resolves to regional BPP (§7.2) when BPP benchmark mode is active. This is the same rate that feeds `solar_competitive_gap_pct`, so the blended delivered gap (`delivered_cost_gap_vs_grid_pct`) inherits the user's current tariff/BPP toggle without a new switch.
+- `within_boundary_coverage_effective_pct` — haircut-adjusted on-site coverage: `wb_coverage × wb_buildout_footprint_ratio`. Same figure the `within_boundary` gate in §8.2 checks.
+- `daytime_cap` — `SOLAR_PRODUCTION_HOURS / 24` (physical ceiling on real-time solar share for a flat 24/7 industrial load).
+- `LCOE_wb` — within-boundary scenario LCOE (§5.1 / §6.1): centroid PVOUT, no connection cost, no transmission build, no substation upgrade. Read from `wb_row.lcoe_mid_usd_mwh`.
+- `LCOE_gc` — grid-connected scenario LCOE (§6.2): best PVOUT within 50 km, includes gen-tie + land + substation upgrade. Read from `gc_row.lcoe_mid_usd_mwh`. Represents the remote IPP's cost of delivering to the site with a dedicated transmission line.
+- `grid_rate` — the regional grid reference cost the `SiteContext` resolves. Defaults to the PLN I-4/TT industrial tariff (§7.1); resolves to regional BPP (§7.2) when BPP benchmark mode is active. Same rate that feeds `solar_competitive_gap_pct`, so `delivered_cost_gap_vs_grid_pct` inherits the user's tariff/BPP toggle without a new switch.
 
-**Degeneracy — the metric is consistent across the `within_boundary` gate boundary:**
+**Degeneracy:**
 
-- **Full captive** (site fully above gate, `f_captive = 1.0`): delivered equals `LCOE_wb`. Matches what the binary switch already shows.
-- **Zero captive** (no on-site solar, `f_captive = 0`): delivered equals `grid_rate`. Correct — the tenant pays pure PLN with no RE offset.
-- **Partial coverage** (site below gate but with some on-site buildable land): delivered sits between `LCOE_wb` and `grid_rate`, proportional to captive share. This is precisely the case the binary switch mishandles.
+- **No solar siting** (both `wb_row` and `gc_row` missing): all cascade columns null.
+- **No grid access** (`gc_row` missing, `wb_row` present): pre-V3.11 two-layer behavior — `f_remote = 0`, delivered = `f_wb × LCOE_wb + (1 − f_wb) × grid_rate`.
+- **No on-site siting** (`wb_row` missing, `gc_row` present): `f_wb = 0`, remote fills the cap — delivered = `daytime_cap × LCOE_gc + (1 − daytime_cap) × grid_rate`.
+- **Oversized WB** (`eff_cov ≥ daytime_cap`): `f_wb` saturates at the cap, no headroom for remote.
+- **Zero everywhere**: degenerates to `grid_rate` when `f_wb = 0` and no `gc_row`.
 
-**Additive, not a replacement.** The gate-driven `lcoe_mid_usd_mwh`, `solar_competitive_gap_pct`, action flags, economic tier, carbon breakeven, and all downstream flag mechanics are unchanged. Blended delivered cost is a decision-support column for the tenant view. Whether to repoint action flags / economic tier / competitive gap at the blended number is a separate methodology decision (deferred — see TODOS).
+**Additive, not a replacement.** The gate-driven `lcoe_mid_usd_mwh`, `solar_competitive_gap_pct`, action flags, economic tier, carbon breakeven, and all downstream flag mechanics are unchanged. Supply Blend is a decision-support column for the tenant view. Repointing action flags / economic tier / competitive gap at the blended number is a separate methodology decision (deferred — see TODOS).
 
-**Worked example.** A KEK with raw 78% within-boundary coverage × 0.20 footprint ratio = 15.6% effective. Below the default 30% `meaningful_share_pct` threshold, so the gate fails and `lcoe_mid_usd_mwh` reports the full grid-connected number (say $72/MWh). But with `LCOE_wb = $48/MWh` and `grid_rate = $63/MWh` (I-4 tariff):
+**Worked example (3-layer cascade).** Galang Batang: raw 78% within-boundary coverage × 0.20 footprint ratio = 15.68% effective. With `LCOE_wb = $81.13`, `LCOE_gc = $100.17`, and `grid_rate = $63.08` (I-4 tariff):
 
 ```
-delivered_cost = 0.156 × 48 + 0.844 × 63
-                       = 7.49 + 53.17
-                       = $60.7/MWh
+f_wb     = min(0.1568, 0.4167)       = 0.1568
+headroom = 0.4167 − 0.1568            = 0.2599
+f_remote = 0.2599                     (gc_row exists)
+f_grid   = 1 − 0.1568 − 0.2599        = 0.5833
+
+delivered = 0.1568 × 81.13 + 0.2599 × 100.17 + 0.5833 × 63.08
+          = 12.72 + 26.03 + 36.79
+          = $75.54/MWh
 ```
 
-The tenant's actual bill is 4% below the grid-reference rate, not the 14% above-grid that `lcoe_mid_usd_mwh` alone suggests.
+On-site solar covers 16% of the bill; a remote IPP covers another 26% (filling the daytime ceiling); grid covers 58% overnight.
+
+**Worked example (no WB, remote fills cap).** A cement plant with no within-boundary solar but grid access — `eff_cov = 0`, `LCOE_gc = $78`, `grid_rate = $63`:
+
+```
+f_wb     = 0
+f_remote = 0.4167
+delivered = 0.4167 × 78 + 0.5833 × 63 = 32.5 + 36.75 = $69.25/MWh
+```
 
 **Cross-references.**
 - Haircut + gate mechanics: §8.2 (Grid integration categories, V3.9 override + V3.9.1 buildout-footprint haircut).
-- `LCOE_wb` derivation: §6.1 (Base LCOE, with centroid PVOUT and no grid-infra cost stack).
+- `LCOE_wb` and `LCOE_gc` derivation: §5.1, §6.1, §6.2.
 - Grid rate resolution (tariff vs BPP): §7.1, §7.2, §7.3.
+- Taxonomy and naming: TAXONOMY.md §3 (T3 Supply Blend tier).
 
-**Implementation.** `enrich_delivered_cost()` in `src/dash/logic/scorecard.py` (appended to `STAGES` after `enrich_grid_passthroughs`). Reads `ctx.wb_row.lcoe_mid_usd_mwh`, `ctx.grid_cost`, and `ctx.grid_out["within_boundary_coverage_effective_pct"]`. Emits six columns: `delivered_cost_usd_mwh`, `captive_fraction`, `grid_fraction`, `delivered_cost_grid_rate_used_usd_mwh`, `delivered_cost_wb_lcoe_used_usd_mwh`, `delivered_cost_gap_vs_grid_pct`. Null when either `wb_row` or `grid_cost` is missing.
+**Implementation.** `enrich_delivered_cost()` in `src/dash/logic/scorecard.py` (appended to `STAGES` after `enrich_grid_passthroughs`). Reads `ctx.wb_row.lcoe_mid_usd_mwh`, `ctx.gc_row.lcoe_mid_usd_mwh`, `ctx.grid_cost`, and `ctx.grid_out["within_boundary_coverage_effective_pct"]`. Emits eight columns: `delivered_cost_usd_mwh`, `captive_fraction`, `delivered_cost_remote_fraction`, `grid_fraction`, `delivered_cost_grid_rate_used_usd_mwh`, `delivered_cost_wb_lcoe_used_usd_mwh`, `delivered_cost_gc_lcoe_used_usd_mwh`, `delivered_cost_gap_vs_grid_pct`. Null when both siting rows missing, or when `grid_cost ≤ 0`.
 
 ---
 

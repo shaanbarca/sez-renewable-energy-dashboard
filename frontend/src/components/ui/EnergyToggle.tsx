@@ -27,7 +27,7 @@ export default function EnergyToggle() {
         <ToggleGroup.Item
           key={opt.value}
           value={opt.value}
-          className="px-2.5 py-1.5 text-xs font-medium transition-colors"
+          className="px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap"
           style={{
             backgroundColor: energyMode === opt.value ? 'var(--toggle-on-bg)' : 'transparent',
             color: energyMode === opt.value ? 'var(--toggle-on-text)' : 'var(--toggle-off-text)',

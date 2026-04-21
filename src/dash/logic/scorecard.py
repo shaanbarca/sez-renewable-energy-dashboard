@@ -29,6 +29,7 @@ from src.assumptions import (
     CAPTIVE_REGIME_MAX_KM,
     CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
     PERPRES_112_CEILING_USD_MWH,
+    SOLAR_PRODUCTION_HOURS,
 )
 from src.dash.logic.assumptions import UserAssumptions, UserThresholds
 from src.dash.logic.cbam import _detect_cbam_types, compute_cbam_trajectory
@@ -107,44 +108,77 @@ def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str
 
 
 def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
-    """V3.10: blended delivered cost of electricity (tenant view) — METHODOLOGY §5.4.
+    """V3.11: cascaded delivered cost (tenant view) — METHODOLOGY §5.4.
 
-    Models the tenant's actual bill when on-site solar partially covers demand:
-    captive_fraction served at the within-boundary LCOE (no grid infra costs),
-    grid_fraction served at the regional grid rate. `captive_fraction` uses the
-    haircut-adjusted within-boundary coverage (same figure the `within_boundary`
-    gate checks in §8.2), so the metric is consistent across the gate boundary.
+    Three-layer cascade: within-boundary solar first, then remote captive
+    (grid-connected IPP with gentie) for the daytime headroom, grid for the rest.
 
-    Degenerates cleanly: full captive -> delivered == wb_LCOE; zero captive ->
-    delivered == grid_rate. Additive column — `lcoe_mid_usd_mwh` is unchanged.
+        f_wb      = min(wb_coverage_effective, daytime_cap)
+        headroom  = daytime_cap - f_wb
+        f_remote  = headroom if gc_row exists else 0
+        f_grid    = 1 - f_wb - f_remote
+        delivered = f_wb × wb_LCOE + f_remote × gc_LCOE + f_grid × grid_rate
+
+    Physical ceiling: without storage only daytime-produced solar can be consumed
+    in real time. For a flat 24/7 industrial load that caps combined solar share
+    at `SOLAR_PRODUCTION_HOURS / 24` (~42% for 10h). BESS-firmed 24/7 coverage is
+    what the Solar 24/7 basis is for; Supply Blend is inherently a partial blend.
+
+    Remote captive assumption: if the site has grid access (`gc_row` present), an
+    IPP within the 50 km buffer can fill the daytime headroom — no pre-computed
+    remote coverage metric today, so we fill to the cap as the directional upper
+    bound. Future refinement: PSA-driven economic sizing.
+
+    Degenerates cleanly: no solar siting → delivered == grid_rate. Both wb and gc
+    rows missing → null row. Additive — `lcoe_mid_usd_mwh` is unchanged.
     """
-    wb_lcoe = ctx.wb_row.get("lcoe_mid_usd_mwh") if ctx.wb_row is not None else None
     grid_rate = ctx.grid_cost if ctx.grid_cost and ctx.grid_cost > 0 else None
 
-    if wb_lcoe is None or pd.isna(wb_lcoe) or grid_rate is None:
-        return {
-            "delivered_cost_usd_mwh": None,
-            "captive_fraction": None,
-            "grid_fraction": None,
-            "delivered_cost_grid_rate_used_usd_mwh": None,
-            "delivered_cost_wb_lcoe_used_usd_mwh": None,
-            "delivered_cost_gap_vs_grid_pct": None,
-        }
+    wb_lcoe_raw = ctx.wb_row.get("lcoe_mid_usd_mwh") if ctx.wb_row is not None else None
+    gc_lcoe_raw = ctx.gc_row.get("lcoe_mid_usd_mwh") if ctx.gc_row is not None else None
+    wb_lcoe = float(wb_lcoe_raw) if wb_lcoe_raw is not None and not pd.isna(wb_lcoe_raw) else None
+    gc_lcoe = float(gc_lcoe_raw) if gc_lcoe_raw is not None and not pd.isna(gc_lcoe_raw) else None
+
+    null_out = {
+        "delivered_cost_usd_mwh": None,
+        "captive_fraction": None,
+        "delivered_cost_remote_fraction": None,
+        "grid_fraction": None,
+        "delivered_cost_grid_rate_used_usd_mwh": None,
+        "delivered_cost_wb_lcoe_used_usd_mwh": None,
+        "delivered_cost_gc_lcoe_used_usd_mwh": None,
+        "delivered_cost_gap_vs_grid_pct": None,
+    }
+
+    # Need grid rate and at least one solar siting option to compute anything.
+    if grid_rate is None or (wb_lcoe is None and gc_lcoe is None):
+        return null_out
 
     eff_cov = ctx.grid_out.get("within_boundary_coverage_effective_pct")
     if eff_cov is None or pd.isna(eff_cov) or eff_cov < 0:
         eff_cov = 0.0
 
-    f_captive = min(float(eff_cov), 1.0)
-    f_grid = 1.0 - f_captive
-    delivered = f_captive * float(wb_lcoe) + f_grid * float(grid_rate)
+    daytime_cap = SOLAR_PRODUCTION_HOURS / 24.0
+    # Layer 1: within-boundary — only if wb LCOE exists.
+    f_wb = min(float(eff_cov), daytime_cap) if wb_lcoe is not None else 0.0
+    # Layer 2: remote captive fills daytime headroom if a grid-connected siting exists.
+    headroom = max(daytime_cap - f_wb, 0.0)
+    f_remote = headroom if gc_lcoe is not None else 0.0
+    # Layer 3: grid covers the overnight + any un-siteable daytime share.
+    f_grid = max(1.0 - f_wb - f_remote, 0.0)
+
+    wb_contrib = f_wb * wb_lcoe if wb_lcoe is not None else 0.0
+    remote_contrib = f_remote * gc_lcoe if gc_lcoe is not None else 0.0
+    delivered = wb_contrib + remote_contrib + f_grid * float(grid_rate)
 
     return {
         "delivered_cost_usd_mwh": _round(delivered),
-        "captive_fraction": round(f_captive, 4),
+        "captive_fraction": round(f_wb, 4),
+        "delivered_cost_remote_fraction": round(f_remote, 4),
         "grid_fraction": round(f_grid, 4),
         "delivered_cost_grid_rate_used_usd_mwh": _round(float(grid_rate)),
-        "delivered_cost_wb_lcoe_used_usd_mwh": _round(float(wb_lcoe)),
+        "delivered_cost_wb_lcoe_used_usd_mwh": _round(wb_lcoe) if wb_lcoe is not None else None,
+        "delivered_cost_gc_lcoe_used_usd_mwh": _round(gc_lcoe) if gc_lcoe is not None else None,
         "delivered_cost_gap_vs_grid_pct": _round(
             solar_competitive_gap(delivered, float(grid_rate))
         ),

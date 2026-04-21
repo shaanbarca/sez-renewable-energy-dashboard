@@ -239,12 +239,14 @@ export interface ScorecardRow {
   cbam_adjusted_gap_pct?: number | null;
   cbam_urgent?: boolean;
 
-  // V3.10: blended delivered cost of electricity (tenant view)
+  // V3.11: cascaded delivered cost (tenant view) — WB → remote captive → grid
   delivered_cost_usd_mwh?: number | null;
   captive_fraction?: number | null;
+  delivered_cost_remote_fraction?: number | null;
   grid_fraction?: number | null;
   delivered_cost_grid_rate_used_usd_mwh?: number | null;
   delivered_cost_wb_lcoe_used_usd_mwh?: number | null;
+  delivered_cost_gc_lcoe_used_usd_mwh?: number | null;
   delivered_cost_gap_vs_grid_pct?: number | null;
   bess_sizing_hours?: number | null;
 

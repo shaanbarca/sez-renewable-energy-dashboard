@@ -18,7 +18,7 @@
 - [2. Column inventory](#2-column-inventory)
   - [T1. Generation LCOE](#t1-generation-lcoe)
   - [T2. Firmed LCOE](#t2-firmed-lcoe)
-  - [T3. Delivered cost (tenant view)](#t3-delivered-cost-tenant-view--54)
+  - [T3. Supply Blend (tenant view)](#t3-supply-blend-tenant-view--54)
   - [B. Grid benchmark](#b-grid-benchmark)
 - [3. Derived / comparison metrics](#3-derived--comparison-metrics) — gap %, carbon breakeven, economic tier, action flags
 - [4. Known collisions and misleading names](#4-known-collisions-and-misleading-names)
@@ -61,15 +61,17 @@ Read this section first. The rest of the doc assumes these definitions.
 
 **Tariff.** What industrial tenants actually pay PLN. Often subsidized below BPP. Not the same as BPP. The UI lets the user compare RE cost against either benchmark via `BenchmarkMode`.
 
-**Captive fraction / grid fraction.** If within-boundary solar can only cover 15% of the tenant's demand (because of rooftop/land limits or buildout ratio), `f_captive = 0.15` and `f_grid = 0.85` — the rest comes from the grid. Used in the §5.4 delivered-cost blend.
+**Captive / remote / grid fractions.** Three weights that sum to 1 in the §5.4 cascade. `captive_fraction` = within-boundary solar share (capped at the daytime ceiling). `delivered_cost_remote_fraction` = remote captive solar share (fills the headroom between WB and the daytime ceiling, when a grid-connected siting exists). `grid_fraction` = 1 − captive − remote. Formalised by V3.11 (previously just captive + grid — the remote layer was folded silently into grid).
 
-**Delivered cost (tenant view).** The blended $/MWh the tenant actually pays: `f_captive × LCOE_within_boundary + f_grid × grid_rate`. This is §5.4. **Do not confuse with "hybrid LCOE" or "blended LCOE" in §6A.3** — that's a different blend (solar + wind generation mix).
+**Daytime ceiling.** `SOLAR_PRODUCTION_HOURS / 24 ≈ 0.417`. The physical cap on how much of a 24-hour load any un-firmed solar mix can serve. The cascade never assigns more than this to solar (WB + remote combined). Night demand goes to grid by construction.
 
-**Blended.** Ambiguous term in this model. Used for two unrelated blends:
-1. **§5.4 "Blended delivered cost"** = captive + grid-import mix (T3, tenant view).
+**Supply Blend / Delivered cost (tenant view).** What the tenant actually pays per MWh under a three-layer cascade: `captive × wb_LCOE + remote × gc_LCOE + grid × grid_rate`. WB solar first, then remote captive (grid-connected IPP with gentie) up to the daytime ceiling, grid for the rest. This is §5.4. UI label is "Supply Blend". **Do not confuse with "hybrid LCOE" in §6A.3** — that's a different blend (solar + wind generation mix).
+
+**Blended.** Ambiguous term. Used for two unrelated blends in earlier drafts:
+1. **§5.4 "Supply Blend" (formerly "blended delivered cost")** = captive WB + remote captive + grid-import cascade (T3, tenant view).
 2. **§6A.3 "Blended LCOE"** = solar + wind generation mix (T1, hybrid RE tech).
 
-Every use of "blended" in code, UI, or docs should specify which. Proposed rename in §4.1 kills the ambiguity by calling the first one just "delivered cost."
+Column names already de-ambiguated: `delivered_cost_usd_mwh` (T3) and `hybrid_lcoe_usd_mwh` (T1 hybrid). UI label in the cost-view toggle is now "Supply Blend" rather than "Delivered".
 
 **Gate.** A threshold or cost level something is compared *against*. Grid cost is the gate raw-solar LCOE has to beat for the `solar_now` action flag to fire. Category B provides the gates.
 
@@ -89,7 +91,7 @@ Every cost number in the system falls into one of four categories. Three of them
 |------|--------------------|-----------|----------|
 | **T1. Generation LCOE** | Levelized cost to produce 1 MWh at the plant gate. No firming, no delivery, no tenant mixing. | — (base layer) | Solar, wind, hybrid (solar+wind) generation LCOEs, in WACC bands (low/mid/high) and siting scenarios (within-boundary / grid-connected). |
 | **T2. Firmed LCOE** | T1 + BESS or firming adder. "What it costs per MWh to deliver *firm* power at the plant gate." | T1 + firming adder | `lcoe_with_battery`, `hybrid_allin`, `lcoe_wind_allin`, `best_re_lcoe`. |
-| **T3. Delivered cost (tenant view)** | What the tenant actually pays per MWh when captive + grid are mixed. This is §5.4. | T1 (within-boundary) × captive_fraction + grid_rate × grid_fraction | `delivered_cost` + its input/diagnostic companions. |
+| **T3. Supply Blend (tenant view)** | What the tenant actually pays per MWh under a three-layer cascade: WB solar first, then remote captive (grid-connected IPP) up to the daytime ceiling (~42%), then grid. This is §5.4. | T1 (within-boundary) × captive + T1 (grid-connected) × remote + grid_rate × grid_fraction | `delivered_cost` + its input/diagnostic companions. |
 
 ### The benchmark (B): prices we compare *against*
 
@@ -130,14 +132,16 @@ Every cost number in the system falls into one of four categories. Three of them
 | `lcoe_wind_allin_mid_usd_mwh` | T2 | `lcoe_wind` + wind-specific BESS adder (CF-dependent firming hours). | `scorecard.py::enrich_best_re_technology` | ✅ live |
 | `best_re_lcoe_mid_usd_mwh` | **T2** (despite name) | min(`lcoe_with_battery`, `lcoe_wind_allin`, `hybrid_allin`) — the cheapest firmed RE option per site. **Name says `lcoe` but the value is firmed.** See §4 naming issues. | `scorecard.py::enrich_best_re_technology` | ⚠️ misleading name |
 
-### T3. Delivered cost (tenant view) — §5.4
+### T3. Supply Blend (tenant view) — §5.4
 
 | Column | Tier | Meaning | Produced by | Status |
 |--------|------|---------|-------------|--------|
-| `delivered_cost_usd_mwh` | T3 | **§5.4 "blended delivered cost"**: `f_captive × LCOE_wb + f_grid × grid_rate`. What the tenant pays. | `scorecard.py::enrich_delivered_cost` | ✅ live (PR1) |
-| `captive_fraction` | T3 (weight) | Share of demand covered by within-boundary solar after buildout-footprint haircut. Same as `within_boundary_coverage_effective_pct`, exposed here for clarity. | same | ✅ live |
-| `grid_fraction` | T3 (weight) | `1 - captive_fraction`. | same | ✅ live |
-| `delivered_cost_wb_lcoe_used_usd_mwh` | T3 (diagnostic) | The within-boundary LCOE that went into the blend. Echoes `lcoe_within_boundary_usd_mwh`. | same | ✅ live |
+| `delivered_cost_usd_mwh` | T3 | **§5.4 "Supply Blend" (cascade)**: `captive × wb_LCOE + remote × gc_LCOE + grid × grid_rate`. What the tenant pays. | `scorecard.py::enrich_delivered_cost` | ✅ live (V3.11) |
+| `captive_fraction` | T3 (weight) | Within-boundary solar share. `min(within_boundary_coverage_effective_pct, daytime_cap)` where `daytime_cap = SOLAR_PRODUCTION_HOURS/24`. | same | ✅ live |
+| `delivered_cost_remote_fraction` | T3 (weight) | Remote captive solar share. Fills `daytime_cap - captive_fraction` when a grid-connected siting exists (`gc_row` present); else 0. | same | ✅ live (V3.11) |
+| `grid_fraction` | T3 (weight) | `1 - captive_fraction - delivered_cost_remote_fraction`. By construction, ≥ `1 - daytime_cap ≈ 0.583` (night demand always goes to grid). | same | ✅ live |
+| `delivered_cost_wb_lcoe_used_usd_mwh` | T3 (diagnostic) | The within-boundary LCOE that went into the captive layer. Echoes `lcoe_within_boundary_usd_mwh`. Null if no WB row. | same | ✅ live |
+| `delivered_cost_gc_lcoe_used_usd_mwh` | T3 (diagnostic) | The grid-connected LCOE that went into the remote layer. Echoes `lcoe_mid_usd_mwh`. Null if no GC row. | same | ✅ live (V3.11) |
 | `delivered_cost_grid_rate_used_usd_mwh` | T3 (diagnostic) | The grid rate that went into the blend (user's dashboard benchmark). | same | ✅ live |
 | `delivered_cost_gap_vs_grid_pct` | T3 (derived) | `(grid_rate - delivered) / grid_rate`. Percent cheaper than pure grid. | same | ✅ live |
 
@@ -182,7 +186,7 @@ These are the sharp edges this taxonomy exists to kill. **None are fixed in code
 
 | Where | What "blended" means | Formula |
 |-------|---------------------|---------|
-| §5.4 `delivered_cost_usd_mwh` | Captive + grid mix (T3) | `f_captive × LCOE_wb + f_grid × grid_rate` |
+| §5.4 `delivered_cost_usd_mwh` ("Supply Blend") | WB + remote captive + grid cascade (T3) | `captive × wb_LCOE + remote × gc_LCOE + grid × grid_rate` |
 | §6A.3 `hybrid_lcoe_usd_mwh` ("Blended LCOE") | Solar + wind mix (T1) | `solar_share × LCOE_solar + wind_share × LCOE_wind` |
 
 A reader of the methodology doc sees "Blended" as a section title in two places and has no way to know which blending is meant without reading the formula. Same problem for a new engineer grepping the codebase.
@@ -293,10 +297,12 @@ class Technology(StrEnum):
 
 ```python
 class CostBasis(StrEnum):
-    RAW = "raw"             # T1: generation LCOE, no firming
-    FIRMED = "firmed"       # T2: +BESS adder
-    DELIVERED = "delivered" # T3: captive + grid-import blend (tenant view)
+    RAW = "raw"             # T1: generation LCOE, no firming — UI label "Solar LCOE"
+    FIRMED = "firmed"       # T2: +BESS adder — UI label "Solar 24/7"
+    DELIVERED = "delivered" # T3: WB + remote captive + grid cascade — UI label "Supply Blend"
 ```
+
+Enum keys stay `raw / firmed / delivered` (internal identifiers, stable across UI copy changes). User-facing labels live in `frontend/src/lib/costBasis.ts::COST_BASIS_LABELS`.
 
 Unlike the other enums (which are column-level metadata), `CostBasis` is a **user-selectable UI state** parallel to `BenchmarkMode` and `EnergyMode`. It controls which cost column feeds `action_flag` / `economic_tier` / `solar_competitive_gap_pct` / `carbon_breakeven_usd_tco2`. Resolution table in §7.3.
 
@@ -325,16 +331,16 @@ These are real, open questions. This doc's job is to name them, not answer them.
 
 ### 7.3 `CostBasis` toggle — let the user pick which layer of the stack feeds the action flags
 
-**Status:** ✅ done (2026-04-21). Three-way Raw / Firmed / Delivered toggle in the header (`frontend/src/components/ui/CostBasisToggle.tsx`). Frontend-derivation via `resolveCost(row, mode, basis)` — flags/tiers/gap/carbon re-compute at render time per the matrix below. Unsupported cells disabled with "Not modelled for {mode}" tooltip. See METHODOLOGY §10.5 for the implementation detail and the one deviation from the original spec (frontend derivation instead of backend fan-out).
+**Status:** ✅ done (2026-04-21). Three-way **Solar LCOE / Solar 24/7 / Supply Blend** toggle in the header (`frontend/src/components/ui/CostBasisToggle.tsx`). Frontend-derivation via `resolveCost(row, mode, basis)` — flags/tiers/gap/carbon re-compute at render time per the matrix below. Unsupported cells disabled with "Not modelled for {mode}" tooltip. Each option has a hover tooltip explaining what's inside the number. See METHODOLOGY §10.5 for the implementation detail and the one deviation from the original spec (frontend derivation instead of backend fan-out).
 
 **Framing change.** An earlier version of this item asked "should we repoint action flags from `lcoe_mid` to `delivered_cost`?" — a one-way methodology swap. Better framing: **don't pick, let the user pick.** The dashboard already has two cost-related user toggles (`BenchmarkMode`, `EnergyMode`). Adding a third, `CostBasis`, completes the matrix.
 
-**The matrix.** `action_flag` / `economic_tier` / `solar_competitive_gap_pct` / `carbon_breakeven_usd_tco2` resolve to a specific cost column at evaluation time, looked up from `(EnergyMode, CostBasis)`:
+**The matrix.** `action_flag` / `economic_tier` / `solar_competitive_gap_pct` / `carbon_breakeven_usd_tco2` resolve to a specific cost column at evaluation time, looked up from `(EnergyMode, CostBasis)`. UI labels in parentheses:
 
-| | `raw` (T1) | `firmed` (T2) | `delivered` (T3) |
+| | `raw` — "Solar LCOE" (T1) | `firmed` — "Solar 24/7" (T2) | `delivered` — "Supply Blend" (T3) |
 |---|---|---|---|
 | **solar** | `lcoe_mid_usd_mwh` | `lcoe_with_battery_usd_mwh` | `delivered_cost_usd_mwh` |
-| **wind** | `lcoe_wind_mid_usd_mwh` | `lcoe_wind_allin_mid_usd_mwh` | *(empty today — delivered-cost blend not defined for wind)* |
+| **wind** | `lcoe_wind_mid_usd_mwh` | `lcoe_wind_allin_mid_usd_mwh` | *(empty today — Supply Blend cascade not defined for wind)* |
 | **hybrid** | `hybrid_lcoe_usd_mwh` | `hybrid_allin_usd_mwh` | *(empty today)* |
 | **overall** | — (no single raw) | `best_re_lcoe_mid_usd_mwh` | *(empty today)* |
 
@@ -394,3 +400,4 @@ Today they all share one answer (T1 vs BPP). Post-toggle, they see the right ans
 | 2026-04-21 | DESIGN.md / TAXONOMY.md cohesion pass. Cleaned up stale "T4" refs in §0, §3, §4.5 (now consistently "B" / "B-category" per §1 rename). Added `cbam_adjusted_gap_pct` row to §3. DESIGN.md updated in parallel to acknowledge T1/T2/T3/B vocabulary, CostBasis toggle, and delivered cost. |
 | 2026-04-21 | §7.1 executed: `delivered_cost_blended_usd_mwh` → `delivered_cost_usd_mwh` across scorecard.py, test fixture, types.ts, columns.tsx, EconomicsTab.tsx, METHODOLOGY §5.4, DATA_DICTIONARY, TAXONOMY tables. Historical CHANGELOG + DESIGN §9 entries left frozen. Unblocks M31 `CostBasis` resolver (§7.3). |
 | 2026-04-21 | §7.3 shipped (M31). `CostBasis` enum + resolver + three-way header toggle (Raw / Firmed / Delivered) wired through map / table / ScoreDrawer / QuadrantChart / CSV export. Frontend-derivation (not backend fan-out) — see METHODOLOGY §10.5. Surfaced `grid_emission_factor_t_co2_mwh` on the scorecard so carbon breakeven re-derives against the real EF per basis. Golden fixture regenerated to 81 × 143 cols. |
+| 2026-04-21 | **V3.11: Supply Blend cascade.** T3 `delivered_cost` rebuilt from 2-way blend (`f_captive × wb_LCOE + f_grid × grid_rate`) to 3-layer cascade (`captive × wb_LCOE + remote × gc_LCOE + grid × grid_rate`) with physical daytime ceiling `SOLAR_PRODUCTION_HOURS/24 ≈ 0.417`. Added two T3 columns: `delivered_cost_remote_fraction`, `delivered_cost_gc_lcoe_used_usd_mwh`. UI: cost-view toggle relabeled Raw/Firmed/Delivered → **Solar LCOE / Solar 24/7 / Supply Blend** with hover tooltips; tier chips (T1/T2/T3) dropped from `CostBasisToggle`. Enum keys (`raw` / `firmed` / `delivered`) unchanged — labels live in `COST_BASIS_LABELS`. Golden fixture regenerated to 81 × 145 cols. |

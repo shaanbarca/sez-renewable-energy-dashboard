@@ -64,7 +64,7 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   cbam_2030:
     'EU CBAM cost per tonne of product at 2030 rates (51.5% free allocation remaining). By 2034 free allocation reaches 0% and full EU ETS price applies (~€80/tCO₂). Sortable to find highest-exposure KEKs.',
   delivered_cost_usd_mwh:
-    'Blended delivered cost of electricity for the tenant: captive_fraction × within-boundary solar LCOE + grid_fraction × grid rate. Captures how much of demand is met by on-site solar vs imported grid power. Hidden when site has no captive coverage.',
+    'Supply Blend: what the tenant actually pays. Cascaded as on-site (within-boundary) solar first, then a remote IPP with a gentie for the daytime headroom up to the ~42% daylight ceiling, then grid overnight. f_wb × on-site LCOE + f_remote × remote IPP LCOE + f_grid × grid rate.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -237,14 +237,14 @@ function DeliveredCostCell({
   const energyMode = useDashboardStore((s) => s.energyMode);
   if (energyMode !== 'solar') return <span style={{ color: '#666' }}>—</span>;
   const val = info.getValue();
-  const captive = info.row.original.captive_fraction;
-  if (val == null || captive == null || captive === 0) {
-    return <span style={{ color: '#666' }}>—</span>;
-  }
+  const wb = info.row.original.captive_fraction;
+  const remote = info.row.original.delivered_cost_remote_fraction;
+  if (val == null) return <span style={{ color: '#666' }}>—</span>;
+  const wbPct = Math.round((wb ?? 0) * 100);
+  const remotePct = Math.round((remote ?? 0) * 100);
+  const gridPct = Math.max(100 - wbPct - remotePct, 0);
   return (
-    <span
-      title={`${Math.round(captive * 100)}% captive / ${Math.round((1 - captive) * 100)}% grid`}
-    >
+    <span title={`${wbPct}% on-site solar / ${remotePct}% remote IPP / ${gridPct}% grid`}>
       {val.toFixed(1)}
     </span>
   );
@@ -487,7 +487,7 @@ export const columns = [
     },
   }),
   col.accessor('delivered_cost_usd_mwh', {
-    header: () => <HeaderWithTooltip label="Delivered Cost" columnId="delivered_cost_usd_mwh" />,
+    header: () => <HeaderWithTooltip label="Supply Blend" columnId="delivered_cost_usd_mwh" />,
     filterFn: 'inRange',
     cell: (info) => <DeliveredCostCell info={info} />,
   }),

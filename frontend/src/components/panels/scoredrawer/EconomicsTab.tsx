@@ -147,42 +147,50 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
         />
       </StatCard>
 
-      {energyMode === 'solar' &&
-        row.delivered_cost_usd_mwh != null &&
-        row.captive_fraction != null &&
-        row.captive_fraction > 0 && (
-          <StatCard>
-            <SectionHeader
-              title="Delivered Cost (Blended)"
-              subtitle="What the tenant actually pays across on-site solar + grid imports"
-              tip="Blended cost of electricity the tenant experiences: a fraction comes from within-boundary solar (cheap), the rest from PLN grid at BPP/tariff. Weighted by buildout-adjusted coverage."
+      {energyMode === 'solar' && row.delivered_cost_usd_mwh != null && (
+        <StatCard>
+          <SectionHeader
+            title="Supply Blend"
+            subtitle="What the tenant actually pays across on-site solar + remote IPP + grid"
+            tip="Cascaded delivered cost: on-site (within-boundary) solar first, then remote IPP solar with a gentie for the daytime headroom up to the ~42% daylight ceiling, then grid for the rest."
+          />
+          <StatRowWithTip
+            label="Blended Cost"
+            value={row.delivered_cost_usd_mwh.toFixed(1)}
+            unit="$/MWh"
+            tip="f_wb × on-site LCOE + f_remote × remote IPP LCOE + f_grid × grid rate."
+          />
+          <StatRowWithTip
+            label="On-site Solar Share"
+            value={
+              row.captive_fraction != null ? `${Math.round(row.captive_fraction * 100)}%` : null
+            }
+            tip="Share of demand met by on-site (within-boundary) solar. Buildout-adjusted coverage, capped at the ~42% daytime ceiling."
+          />
+          <StatRowWithTip
+            label="Remote IPP Share"
+            value={
+              row.delivered_cost_remote_fraction != null
+                ? `${Math.round(row.delivered_cost_remote_fraction * 100)}%`
+                : null
+            }
+            tip="Share of demand filled by a grid-connected remote solar IPP (with a dedicated transmission line). Fills the daytime headroom up to the ceiling when on-site solar alone can't."
+          />
+          <StatRowWithTip
+            label="Grid Share"
+            value={row.grid_fraction != null ? `${Math.round(row.grid_fraction * 100)}%` : null}
+            tip="Share imported from PLN grid at the active benchmark rate. Covers overnight + any un-siteable daytime share."
+          />
+          {row.delivered_cost_gap_vs_grid_pct != null && (
+            <ColoredStatRow
+              label="Gap vs Grid"
+              value={formatGap(row.delivered_cost_gap_vs_grid_pct)}
+              color={gapColor(row.delivered_cost_gap_vs_grid_pct)}
+              tip="How much cheaper (negative) or more expensive (positive) the blended delivered cost is versus pure grid import."
             />
-            <StatRowWithTip
-              label="Blended Cost"
-              value={row.delivered_cost_usd_mwh.toFixed(1)}
-              unit="$/MWh"
-              tip="captive_fraction × within-boundary solar LCOE + grid_fraction × grid rate."
-            />
-            <StatRowWithTip
-              label="Captive Share"
-              value={`${Math.round(row.captive_fraction * 100)}%`}
-              tip="Fraction of tenant demand met by on-site solar (buildout-footprint-haircut coverage, capped at 100%)."
-            />
-            <StatRowWithTip
-              label="Grid Share"
-              value={row.grid_fraction != null ? `${Math.round(row.grid_fraction * 100)}%` : null}
-              tip="Fraction of tenant demand imported from PLN grid at the active benchmark rate."
-            />
-            {row.delivered_cost_gap_vs_grid_pct != null && (
-              <ColoredStatRow
-                label="Gap vs Grid"
-                value={formatGap(row.delivered_cost_gap_vs_grid_pct)}
-                color={gapColor(row.delivered_cost_gap_vs_grid_pct)}
-                tip="How much cheaper (negative) or more expensive (positive) the blended delivered cost is versus pure grid import."
-              />
-            )}
-          </StatCard>
-        )}
+          )}
+        </StatCard>
+      )}
 
       {energyMode !== 'wind' &&
         row.battery_adder_usd_mwh != null &&
