@@ -239,7 +239,7 @@ export interface ScorecardRow {
   cbam_urgent?: boolean;
 
   // V3.10: blended delivered cost of electricity (tenant view)
-  delivered_cost_blended_usd_mwh?: number | null;
+  delivered_cost_usd_mwh?: number | null;
   captive_fraction?: number | null;
   grid_fraction?: number | null;
   delivered_cost_grid_rate_used_usd_mwh?: number | null;

@@ -115,7 +115,7 @@ def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, A
 
     if wb_lcoe is None or pd.isna(wb_lcoe) or grid_rate is None:
         return {
-            "delivered_cost_blended_usd_mwh": None,
+            "delivered_cost_usd_mwh": None,
             "captive_fraction": None,
             "grid_fraction": None,
             "delivered_cost_grid_rate_used_usd_mwh": None,
@@ -132,7 +132,7 @@ def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, A
     delivered = f_captive * float(wb_lcoe) + f_grid * float(grid_rate)
 
     return {
-        "delivered_cost_blended_usd_mwh": _round(delivered),
+        "delivered_cost_usd_mwh": _round(delivered),
         "captive_fraction": round(f_captive, 4),
         "grid_fraction": round(f_grid, 4),
         "delivered_cost_grid_rate_used_usd_mwh": _round(float(grid_rate)),

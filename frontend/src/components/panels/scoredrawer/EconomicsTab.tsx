@@ -152,7 +152,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
       </StatCard>
 
       {energyMode === 'solar' &&
-        row.delivered_cost_blended_usd_mwh != null &&
+        row.delivered_cost_usd_mwh != null &&
         row.captive_fraction != null &&
         row.captive_fraction > 0 && (
           <StatCard>
@@ -163,7 +163,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
             />
             <StatRowWithTip
               label="Blended Cost"
-              value={row.delivered_cost_blended_usd_mwh.toFixed(1)}
+              value={row.delivered_cost_usd_mwh.toFixed(1)}
               unit="$/MWh"
               tip="captive_fraction × within-boundary solar LCOE + grid_fraction × grid rate."
             />

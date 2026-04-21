@@ -342,7 +342,7 @@ The `within_boundary` gate (§8.2) is binary: a KEK either clears the `meaningfu
 ```
 f_captive = min(within_boundary_coverage_effective_pct, 1.0)
 f_grid    = 1 - f_captive
-delivered_cost_blended_usd_mwh = f_captive × LCOE_wb + f_grid × grid_rate
+delivered_cost_usd_mwh = f_captive × LCOE_wb + f_grid × grid_rate
 ```
 
 **Glossary:**
@@ -362,7 +362,7 @@ delivered_cost_blended_usd_mwh = f_captive × LCOE_wb + f_grid × grid_rate
 **Worked example.** A KEK with raw 78% within-boundary coverage × 0.20 footprint ratio = 15.6% effective. Below the default 30% `meaningful_share_pct` threshold, so the gate fails and `lcoe_mid_usd_mwh` reports the full grid-connected number (say $72/MWh). But with `LCOE_wb = $48/MWh` and `grid_rate = $63/MWh` (I-4 tariff):
 
 ```
-delivered_cost_blended = 0.156 × 48 + 0.844 × 63
+delivered_cost = 0.156 × 48 + 0.844 × 63
                        = 7.49 + 53.17
                        = $60.7/MWh
 ```
@@ -374,7 +374,7 @@ The tenant's actual bill is 4% below the grid-reference rate, not the 14% above-
 - `LCOE_wb` derivation: §6.1 (Base LCOE, with centroid PVOUT and no grid-infra cost stack).
 - Grid rate resolution (tariff vs BPP): §7.1, §7.2, §7.3.
 
-**Implementation.** `enrich_delivered_cost()` in `src/dash/logic/scorecard.py` (appended to `STAGES` after `enrich_grid_passthroughs`). Reads `ctx.wb_row.lcoe_mid_usd_mwh`, `ctx.grid_cost`, and `ctx.grid_out["within_boundary_coverage_effective_pct"]`. Emits six columns: `delivered_cost_blended_usd_mwh`, `captive_fraction`, `grid_fraction`, `delivered_cost_grid_rate_used_usd_mwh`, `delivered_cost_wb_lcoe_used_usd_mwh`, `delivered_cost_gap_vs_grid_pct`. Null when either `wb_row` or `grid_cost` is missing.
+**Implementation.** `enrich_delivered_cost()` in `src/dash/logic/scorecard.py` (appended to `STAGES` after `enrich_grid_passthroughs`). Reads `ctx.wb_row.lcoe_mid_usd_mwh`, `ctx.grid_cost`, and `ctx.grid_out["within_boundary_coverage_effective_pct"]`. Emits six columns: `delivered_cost_usd_mwh`, `captive_fraction`, `grid_fraction`, `delivered_cost_grid_rate_used_usd_mwh`, `delivered_cost_wb_lcoe_used_usd_mwh`, `delivered_cost_gap_vs_grid_pct`. Null when either `wb_row` or `grid_cost` is missing.
 
 ---
 

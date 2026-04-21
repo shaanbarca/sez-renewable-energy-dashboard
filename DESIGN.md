@@ -338,7 +338,7 @@ Tier tags (T1 / T2 / T3 / B) reference [TAXONOMY.md §1](docs/TAXONOMY.md#1-thre
 | `lcoe_low/mid/high_usd_mwh` | LCOE variance | T1 | 3 WACC scenarios (grid-connected, best-50km PVOUT) |
 | Battery storage | BESS CAPEX slider (100-500 $/kWh), sizing slider (1-16h) | T2 (component) | Live recomputation of `battery_adder_usd_mwh`. "Reset to auto" restores per-site sizing. |
 | `hybrid_lcoe_usd_mwh`, `hybrid_bess_hours` | Hybrid BESS reduction | T1 (hybrid gen) / T2 (allin) | % reduction from wind nighttime coverage |
-| `delivered_cost_blended_usd_mwh` | Delivered Cost (Blended) | T3 | Shown when within-boundary captive > 0. `f_captive × LCOE_wb + f_grid × grid_rate`. See [TAXONOMY §2.T3](docs/TAXONOMY.md#t3-delivered-cost-tenant-view--54). |
+| `delivered_cost_usd_mwh` | Delivered Cost (Blended) | T3 | Shown when within-boundary captive > 0. `f_captive × LCOE_wb + f_grid × grid_rate`. See [TAXONOMY §2.T3](docs/TAXONOMY.md#t3-delivered-cost-tenant-view--54). |
 | `carbon_breakeven_usd_tco2` | Carbon breakeven price | T1-derived | USD/tCO2 |
 | `green_share_geas` | GEAS green share | — | % of 2030 demand met by allocated RE |
 | **LcoeCurveChart** | LCOE vs project scale | T1 | Shows how LCOE drops as capacity increases (transmission cost spreading) |
