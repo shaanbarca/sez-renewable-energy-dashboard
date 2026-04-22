@@ -72,6 +72,8 @@ export function FlipTab({ row }: { row: ScorecardRow }) {
   const flipPreset = useDashboardStore((s) => s.flipPreset);
   const flipStale = useDashboardStore((s) => s.flipStale);
   const setActiveTab = useDashboardStore((s) => s.setActiveTab);
+  const energyMode = useDashboardStore((s) => s.energyMode);
+  const costBasis = useDashboardStore((s) => s.costBasis);
 
   if (!scorecard || !flipScorecard) {
     return (
@@ -94,7 +96,7 @@ export function FlipTab({ row }: { row: ScorecardRow }) {
     );
   }
 
-  const { rows } = computeFlipDiff(scorecard, flipScorecard);
+  const { rows } = computeFlipDiff(scorecard, flipScorecard, energyMode, costBasis);
   const diff = rows.find((r) => r.site_id === row.site_id);
 
   if (!diff) {

@@ -307,9 +307,9 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     }),
 
   flipDiff: () => {
-    const { scorecard, flipScorecard } = get();
+    const { scorecard, flipScorecard, energyMode, costBasis } = get();
     if (!scorecard || !flipScorecard) return null;
-    return computeFlipDiff(scorecard, flipScorecard);
+    return computeFlipDiff(scorecard, flipScorecard, energyMode, costBasis);
   },
 
   saveScenario: (name) => {

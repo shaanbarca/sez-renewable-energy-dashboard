@@ -198,10 +198,10 @@ export default function SiteMarkers({ hoverInfo }: SiteMarkersProps) {
   const flipDirections = useMemo(() => {
     if (activeTab !== 'compare' || !scorecard || !flipScorecard) return null;
     const map = new Map<string, FlipDirection>();
-    const { rows } = computeFlipDiff(scorecard, flipScorecard);
+    const { rows } = computeFlipDiff(scorecard, flipScorecard, energyMode, costBasis);
     for (const r of rows) map.set(r.site_id, r.flip_direction);
     return map;
-  }, [activeTab, scorecard, flipScorecard]);
+  }, [activeTab, scorecard, flipScorecard, energyMode, costBasis]);
 
   const geojson = useMemo(() => {
     if (!scorecard) return null;

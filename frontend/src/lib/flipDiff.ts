@@ -1,5 +1,12 @@
 import { ECONOMIC_TIER_HIERARCHY } from './constants';
-import type { EconomicTier, InfrastructureReadiness, ScorecardRow } from './types';
+import { resolveCost } from './costBasis';
+import type {
+  CostBasis,
+  EconomicTier,
+  EnergyMode,
+  InfrastructureReadiness,
+  ScorecardRow,
+} from './types';
 
 export type FlipDirection = 'improved' | 'worsened' | 'unchanged';
 
@@ -49,16 +56,25 @@ function infraOf(row: ScorecardRow | undefined): InfrastructureReadiness {
   return row?.infrastructure_readiness ?? 'no_resource';
 }
 
-function lcoeOf(row: ScorecardRow | undefined): number | null {
+function lcoeOf(
+  row: ScorecardRow | undefined,
+  energyMode: EnergyMode,
+  costBasis: CostBasis,
+): number | null {
   if (!row) return null;
-  const v = row.best_re_lcoe_mid_usd_mwh ?? row.lcoe_mid_usd_mwh;
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  return resolveCost(row, energyMode, costBasis);
 }
 
-function gapOf(row: ScorecardRow | undefined): number | null {
+function gapOf(
+  row: ScorecardRow | undefined,
+  energyMode: EnergyMode,
+  costBasis: CostBasis,
+): number | null {
   if (!row) return null;
-  const v = row.solar_competitive_gap_pct;
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  const cost = resolveCost(row, energyMode, costBasis);
+  const grid = row.grid_cost_usd_mwh;
+  if (cost == null || grid == null || !Number.isFinite(grid) || grid <= 0) return null;
+  return ((cost - grid) / grid) * 100;
 }
 
 function median(nums: number[]): number | null {
@@ -71,6 +87,8 @@ function median(nums: number[]): number | null {
 export function computeFlipDiff(
   baseline: ScorecardRow[],
   flip: ScorecardRow[],
+  energyMode: EnergyMode,
+  costBasis: CostBasis,
 ): { rows: FlipDiffRow[]; summary: FlipSummary } {
   const flipById = new Map(flip.map((r) => [r.site_id, r]));
   const rows: FlipDiffRow[] = [];
@@ -81,10 +99,10 @@ export function computeFlipDiff(
     const tierFlip = tierOf(f);
     const infraBase = infraOf(b);
     const infraFlip = infraOf(f);
-    const lcoeBase = lcoeOf(b);
-    const lcoeFlip = lcoeOf(f);
-    const gapBase = gapOf(b);
-    const gapFlip = gapOf(f);
+    const lcoeBase = lcoeOf(b, energyMode, costBasis);
+    const lcoeFlip = lcoeOf(f, energyMode, costBasis);
+    const gapBase = gapOf(b, energyMode, costBasis);
+    const gapFlip = gapOf(f, energyMode, costBasis);
     const cbamBase = !!b.cbam_urgent;
     const cbamFlip = !!f?.cbam_urgent;
 

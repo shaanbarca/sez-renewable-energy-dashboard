@@ -6,7 +6,9 @@ import {
   INFRA_READINESS_HIERARCHY,
   INFRA_READINESS_LABELS,
 } from '../../../lib/constants';
+import { COST_BASIS_LABELS } from '../../../lib/costBasis';
 import { type FlipDiffRow, flipDiffToCsv } from '../../../lib/flipDiff';
+import type { CostBasis } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 
 type SortKey =
@@ -16,6 +18,8 @@ type SortKey =
   | 'infra'
   | 'lcoe'
   | 'delta_lcoe'
+  | 'lcoe_secondary'
+  | 'delta_lcoe_secondary'
   | 'gap_delta'
   | 'direction';
 
@@ -69,10 +73,28 @@ function deltaColor(v: number | null, invert = false): string {
   return good ? '#4CAF50' : '#F44336';
 }
 
-export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
+export default function FlipDiffTable({
+  rows,
+  secondaryRows = null,
+  secondaryBasis = null,
+}: {
+  rows: FlipDiffRow[];
+  secondaryRows?: FlipDiffRow[] | null;
+  secondaryBasis?: CostBasis | null;
+}) {
   const [sortKey, setSortKey] = useState<SortKey>('direction');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const selectSite = useDashboardStore((s) => s.selectSite);
+  const costBasis = useDashboardStore((s) => s.costBasis);
+
+  const secondaryById = useMemo(() => {
+    if (!secondaryRows) return null;
+    const m = new Map<string, FlipDiffRow>();
+    for (const r of secondaryRows) m.set(r.site_id, r);
+    return m;
+  }, [secondaryRows]);
+
+  const hasSecondary = secondaryById != null && secondaryBasis != null;
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -103,6 +125,18 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
           cmp = av - bv;
           break;
         }
+        case 'lcoe_secondary': {
+          const av = secondaryById?.get(a.site_id)?.lcoe_flip ?? Number.POSITIVE_INFINITY;
+          const bv = secondaryById?.get(b.site_id)?.lcoe_flip ?? Number.POSITIVE_INFINITY;
+          cmp = av - bv;
+          break;
+        }
+        case 'delta_lcoe_secondary': {
+          const av = secondaryById?.get(a.site_id)?.delta_lcoe ?? Number.POSITIVE_INFINITY;
+          const bv = secondaryById?.get(b.site_id)?.delta_lcoe ?? Number.POSITIVE_INFINITY;
+          cmp = av - bv;
+          break;
+        }
         case 'gap_delta': {
           const av = gapDeltaOf(a) ?? Number.POSITIVE_INFINITY;
           const bv = gapDeltaOf(b) ?? Number.POSITIVE_INFINITY;
@@ -121,7 +155,7 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return copy;
-  }, [rows, sortKey, sortDir]);
+  }, [rows, sortKey, sortDir, secondaryById]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -169,6 +203,11 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
       >
         <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
           {rows.length} sites — click a row to inspect on map
+          {hasSecondary && secondaryBasis && (
+            <span className="ml-2" style={{ color: 'var(--text-secondary)' }}>
+              · comparing {COST_BASIS_LABELS[costBasis]} vs {COST_BASIS_LABELS[secondaryBasis]}
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -211,12 +250,37 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
                 <HeaderBtn label="Direction" k="direction" />
               </th>
               <th className="px-2 py-1.5 text-right">
-                <HeaderBtn label="LCOE flip" k="lcoe" />
+                <HeaderBtn label={`${COST_BASIS_LABELS[costBasis]} flip`} k="lcoe" />
               </th>
               <th className="px-2 py-1.5 text-right">
-                <HeaderBtn label="Δ LCOE" k="delta_lcoe" />
+                <HeaderBtn
+                  label={hasSecondary ? `Δ ${COST_BASIS_LABELS[costBasis]}` : 'Δ $/MWh'}
+                  k="delta_lcoe"
+                />
               </th>
-              <th className="px-2 py-1.5 text-right">
+              {hasSecondary && secondaryBasis && (
+                <>
+                  <th
+                    className="px-2 py-1.5 text-right"
+                    style={{ borderLeft: '1px solid var(--border-subtle)' }}
+                  >
+                    <HeaderBtn
+                      label={`${COST_BASIS_LABELS[secondaryBasis]} flip`}
+                      k="lcoe_secondary"
+                    />
+                  </th>
+                  <th className="px-2 py-1.5 text-right">
+                    <HeaderBtn
+                      label={`Δ ${COST_BASIS_LABELS[secondaryBasis]}`}
+                      k="delta_lcoe_secondary"
+                    />
+                  </th>
+                </>
+              )}
+              <th
+                className="px-2 py-1.5 text-right"
+                style={hasSecondary ? { borderLeft: '1px solid var(--border-subtle)' } : undefined}
+              >
                 <HeaderBtn label="Δ Gap %" k="gap_delta" />
               </th>
             </tr>
@@ -224,6 +288,7 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
           <tbody>
             {sorted.map((r) => {
               const gapDelta = gapDeltaOf(r);
+              const sec = secondaryById?.get(r.site_id) ?? null;
               return (
                 <tr
                   key={r.site_id}
@@ -292,7 +357,32 @@ export default function FlipDiffTable({ rows }: { rows: FlipDiffRow[] }) {
                   >
                     {fmtDelta(r.delta_lcoe, 1)}
                   </td>
-                  <td className="px-2 py-1.5 text-right" style={{ color: deltaColor(gapDelta) }}>
+                  {hasSecondary && (
+                    <>
+                      <td
+                        className="px-2 py-1.5 text-right"
+                        style={{
+                          color: 'var(--text-value)',
+                          borderLeft: '1px solid var(--border-subtle)',
+                        }}
+                      >
+                        {fmtNum(sec?.lcoe_flip ?? null, 1)}
+                      </td>
+                      <td
+                        className="px-2 py-1.5 text-right"
+                        style={{ color: deltaColor(sec?.delta_lcoe ?? null) }}
+                      >
+                        {fmtDelta(sec?.delta_lcoe ?? null, 1)}
+                      </td>
+                    </>
+                  )}
+                  <td
+                    className="px-2 py-1.5 text-right"
+                    style={{
+                      color: deltaColor(gapDelta),
+                      ...(hasSecondary ? { borderLeft: '1px solid var(--border-subtle)' } : {}),
+                    }}
+                  >
                     {fmtDelta(gapDelta, 1)}
                   </td>
                 </tr>
