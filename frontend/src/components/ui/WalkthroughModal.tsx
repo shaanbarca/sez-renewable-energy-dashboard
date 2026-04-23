@@ -5,6 +5,91 @@ import { useDashboardStore } from '../../store/dashboard';
 // Persona definitions
 // ---------------------------------------------------------------------------
 
+type PersonaIconProps = { className?: string };
+
+const PERSONA_ICONS = {
+  chart: ({ className }: PersonaIconProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 3v18h18" />
+      <path d="M7 14l4-5 3 3 5-7" />
+    </svg>
+  ),
+  coin: ({ className }: PersonaIconProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v10" />
+      <path d="M15 10c0-1.2-1.3-2-3-2s-3 .8-3 2 1.3 2 3 2 3 .8 3 2-1.3 2-3 2-3-.8-3-2" />
+    </svg>
+  ),
+  scales: ({ className }: PersonaIconProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3v18" />
+      <path d="M4 21h16" />
+      <path d="M4 8h16" />
+      <path d="M8 8l-4 7h8z" />
+      <path d="M16 8l-4 7h8z" />
+    </svg>
+  ),
+  bolt: ({ className }: PersonaIconProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+    </svg>
+  ),
+  factory: ({ className }: PersonaIconProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 21V10l6 4V10l6 4V7h4v14z" />
+      <path d="M7 21v-4" />
+      <path d="M13 21v-4" />
+      <path d="M18 21v-4" />
+    </svg>
+  ),
+} as const;
+
 const PERSONAS = [
   {
     id: 'economist',
@@ -12,7 +97,7 @@ const PERSONAS = [
     subtitle: 'Multilateral development bank analyst',
     description:
       'Compare solar and wind LCOE against grid cost, quantify carbon arbitrage, and model concessional finance impact.',
-    icon: '📊',
+    Icon: PERSONA_ICONS.chart,
   },
   {
     id: 'dfi',
@@ -20,7 +105,7 @@ const PERSONAS = [
     subtitle: 'Grid infrastructure fund analyst',
     description:
       'Identify where grid investment unlocks solar potential — ranked by capacity unlocked per infrastructure dollar.',
-    icon: '💰',
+    Icon: PERSONA_ICONS.coin,
   },
   {
     id: 'policymaker',
@@ -28,7 +113,7 @@ const PERSONAS = [
     subtitle: 'BKPM / KESDM official or energy adviser',
     description:
       'Map grid integration gaps, captive coal exposure, and RUPTL pipeline timing to prioritize policy interventions.',
-    icon: '🏛️',
+    Icon: PERSONA_ICONS.scales,
   },
   {
     id: 'ipp',
@@ -36,7 +121,7 @@ const PERSONAS = [
     subtitle: 'Solar or wind developer selling to PLN via PPA',
     description:
       'Find sites where RE undercuts PLN cost of supply (BPP) — strong resource, grid-ready substations, and buildable land.',
-    icon: '⚡',
+    Icon: PERSONA_ICONS.bolt,
   },
   {
     id: 'industrial',
@@ -44,7 +129,7 @@ const PERSONAS = [
     subtitle: 'KEK tenant, smelter operator, or industrial site planner',
     description:
       'Compare sites by electricity cost risk, grid reliability, CBAM export exposure, and captive coal phase-out pressure.',
-    icon: '🏭',
+    Icon: PERSONA_ICONS.factory,
   },
 ] as const;
 
@@ -458,7 +543,9 @@ function PersonaSelector() {
                 border: '1px solid rgba(255,255,255,0.08)',
               }}
             >
-              <div className="text-2xl mb-2">{p.icon}</div>
+              <div className="mb-2 text-blue-300/80 group-hover:text-blue-300 transition-colors">
+                <p.Icon className="w-6 h-6" />
+              </div>
               <div className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">
                 {p.title}
               </div>
