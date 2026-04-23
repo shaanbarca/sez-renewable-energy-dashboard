@@ -240,13 +240,18 @@ export default function FlipControls() {
               onClick={() => applyPreset(p)}
               className="w-full text-left px-2.5 py-1.5 rounded transition-colors"
               style={{
-                background: active ? 'var(--accent-muted)' : 'var(--card-bg)',
-                border: `1px solid ${active ? 'var(--accent-border)' : 'var(--border-subtle)'}`,
+                background: active
+                  ? 'color-mix(in srgb, var(--accent) 18%, transparent)'
+                  : 'var(--card-bg)',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                borderLeft: active ? `3px solid var(--accent)` : `1px solid var(--border-subtle)`,
+                paddingLeft: active ? 8 : 10,
                 color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: active ? 600 : 400,
               }}
               title={FLIP_PRESET_DESCRIPTIONS[p]}
             >
-              <div className="text-[11px] font-medium">{FLIP_PRESET_LABELS[p]}</div>
+              <div className="text-[11px]">{FLIP_PRESET_LABELS[p]}</div>
             </button>
           );
         })}
