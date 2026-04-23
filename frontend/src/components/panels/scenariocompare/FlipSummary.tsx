@@ -60,14 +60,7 @@ export default function FlipSummary({ summary }: { summary: FlipSummaryData | nu
   }
 
   if (!summary) {
-    return (
-      <div
-        className="h-full flex items-center justify-center text-xs"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        Pick a preset and click Compute Flip to see impact.
-      </div>
-    );
+    return null;
   }
 
   const gapClosed = summary.gap_closed_pct;
