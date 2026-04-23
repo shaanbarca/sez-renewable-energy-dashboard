@@ -106,7 +106,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   selectedSite: null,
   drawerOpen: false,
   assumptionsExpanded: false,
-  bottomPanelCollapsed: false,
+  bottomPanelCollapsed: true,
   activeTab: 'table',
   layerVisibility: {},
   benchmarkMode: 'bpp',
