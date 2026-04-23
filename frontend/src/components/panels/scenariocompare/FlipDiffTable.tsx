@@ -308,7 +308,7 @@ export default function FlipDiffTable({
                   <td className="px-2 py-1.5" style={{ color: 'var(--text-secondary)' }}>
                     {r.sector}
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-2 py-1.5" style={{ whiteSpace: 'nowrap' }}>
                     {r.tier_baseline !== r.tier_flip ? (
                       <span>
                         <span style={{ color: ECONOMIC_TIER_COLORS[r.tier_baseline] }}>
@@ -325,7 +325,7 @@ export default function FlipDiffTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5">
+                  <td className="px-2 py-1.5" style={{ whiteSpace: 'nowrap' }}>
                     {r.infra_baseline !== r.infra_flip ? (
                       <span>
                         <span style={{ color: INFRA_READINESS_COLORS[r.infra_baseline] }}>
