@@ -186,11 +186,17 @@ export default function FlipControls() {
           disabled={computeDisabled}
           className="w-full py-2 rounded text-[11px] font-medium transition-colors"
           style={{
-            background: computeDisabled ? 'var(--card-bg)' : 'var(--accent)',
-            color: computeDisabled ? 'var(--text-muted)' : '#0a0a0c',
+            background: computeDisabled
+              ? 'color-mix(in srgb, var(--accent) 8%, transparent)'
+              : 'var(--accent)',
+            color: computeDisabled ? 'var(--accent)' : '#0a0a0c',
             cursor: computeDisabled ? 'not-allowed' : 'pointer',
-            opacity: computeDisabled ? 0.5 : 1,
+            border: computeDisabled ? `1px dashed var(--accent-border)` : '1px solid transparent',
+            opacity: computeDisabled ? 0.85 : 1,
           }}
+          title={
+            computeDisabled && !flipLoading ? 'Pick a preset below to enable' : undefined
+          }
         >
           {flipLoading
             ? 'Computing…'
@@ -198,7 +204,9 @@ export default function FlipControls() {
               ? 'Recompute Flip'
               : flipScorecard
                 ? 'Recompute'
-                : 'Compute Flip'}
+                : !flipPreset
+                  ? 'Compute Flip (pick a preset)'
+                  : 'Compute Flip'}
         </button>
         {(flip || flipScorecard) && (
           <button
