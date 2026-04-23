@@ -13,6 +13,14 @@ import { useDashboardStore } from './store/dashboard';
 function Dashboard() {
   const initialize = useDashboardStore((s) => s.initialize);
   const mapStyle = useDashboardStore((s) => s.mapStyle);
+  const activeTab = useDashboardStore((s) => s.activeTab);
+  const bottomPanelCollapsed = useDashboardStore((s) => s.bottomPanelCollapsed);
+  const bottomPanelHeight = useDashboardStore((s) => s.bottomPanelHeight);
+
+  // Split mode: Ranked Table paired with map so both are visible.
+  // Other tabs (charts / Scenario Compare) keep overlay behavior.
+  const splitMode = activeTab === 'table' && !bottomPanelCollapsed;
+  const mapBottomInset = splitMode ? bottomPanelHeight : 0;
 
   useEffect(() => {
     initialize();
@@ -28,8 +36,15 @@ function Dashboard() {
 
   return (
     <div className="h-screen relative bg-[#121212] overflow-hidden">
-      {/* MAP — full screen behind everything */}
-      <div data-tour="map" className="absolute inset-0">
+      {/* MAP — shrinks from the bottom in split mode, full-screen otherwise */}
+      <div
+        data-tour="map"
+        className="absolute top-0 left-0 right-0"
+        style={{
+          bottom: mapBottomInset,
+          transition: 'bottom 0.3s ease-in-out',
+        }}
+      >
         <MapView />
       </div>
 
