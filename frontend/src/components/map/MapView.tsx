@@ -414,13 +414,14 @@ export default function MapView() {
         )}
       </Map>
 
-      {/* Back to National View button — sits below the legend strip (header
-          ~55px + strip 32px + gap 13px = 100px) and a notch smaller than
-          before so it doesn't fight the strip for attention. */}
+      {/* Back to National View button — sits below the legend strip. Header
+          is 61px (measured), strip is 62-94, so button at 106 leaves a 12px
+          gap below the strip. A notch smaller than before so it doesn't
+          fight the strip for attention. */}
       {(selectedSite || isZoomedIn) && (
         <button
           onClick={resetView}
-          className="absolute top-[100px] left-1/2 -translate-x-1/2 z-40 rounded-lg px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:scale-[1.02]"
+          className="absolute top-[106px] left-1/2 -translate-x-1/2 z-40 rounded-lg px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:scale-[1.02]"
           style={{
             backdropFilter: 'var(--blur)',
             WebkitBackdropFilter: 'var(--blur)',

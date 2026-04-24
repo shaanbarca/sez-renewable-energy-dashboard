@@ -39,9 +39,10 @@ export default function RasterLegend() {
     <div
       className="absolute left-0 right-0 z-20"
       style={{
-        // Header is actually ~55px tall with border + padding. Start at 56 so
-        // the strip sits cleanly below it with a 1px gap (no content clip).
-        top: 56,
+        // Header is actually 61px tall (measured via browse during
+        // /design-review). Start at 62 so the strip sits cleanly below with
+        // a 1px gap and no top clip.
+        top: 62,
         height: 32,
         display: 'flex',
         alignItems: 'center',
