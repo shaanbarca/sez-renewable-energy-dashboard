@@ -56,8 +56,10 @@ export default function BottomPanel() {
       className="relative"
       style={{
         height: collapsed ? 34 : panelHeight,
-        // No height transition — animating both panel and map forces MapLibre
-        // to resize every frame, which lags with 81 markers + overlays.
+        // Animate the panel. The map's inset is updated in App.tsx with an
+        // asymmetric delay so MapLibre only resizes once per toggle, not every
+        // frame of the animation.
+        transition: dragging.current ? 'none' : 'height 0.3s ease-in-out',
         backdropFilter: 'var(--blur-heavy)',
         WebkitBackdropFilter: 'var(--blur-heavy)',
         background: 'var(--panel-bg)',
