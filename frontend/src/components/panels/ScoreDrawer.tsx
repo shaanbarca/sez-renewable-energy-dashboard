@@ -120,7 +120,7 @@ export default function ScoreDrawer() {
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <h2
-                  className="text-sm font-semibold truncate"
+                  className="text-base font-bold truncate"
                   style={{ color: 'var(--text-primary)' }}
                 >
                   {row.site_name}

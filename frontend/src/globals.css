@@ -109,11 +109,26 @@
   --tab-active-bg: rgba(255, 255, 255, 0.1);
 }
 
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
 body {
   background-color: #121212;
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
   margin: 0;
+}
+
+/* Force third-party components (Recharts, react-map-gl) to inherit our stack */
+svg text,
+.recharts-wrapper,
+.recharts-wrapper * {
+  font-family: var(--font-sans);
 }
 
 /* MapLibre popup styling */

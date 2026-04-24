@@ -1,10 +1,9 @@
-import { useDraggable } from '../../hooks/useDraggable';
 import { useDashboardStore } from '../../store/dashboard';
 
 const RASTER_LEGENDS = [
   {
     key: 'pvout',
-    label: 'Solar Potential (PVOUT)',
+    label: 'PVOUT',
     unit: 'kWh/kWp/yr',
     min: '1,000',
     max: '1,800',
@@ -12,7 +11,7 @@ const RASTER_LEGENDS = [
   },
   {
     key: 'wind',
-    label: 'Wind Speed (100m)',
+    label: 'Wind 100m',
     unit: 'm/s',
     min: '2',
     max: '8',
@@ -20,199 +19,121 @@ const RASTER_LEGENDS = [
   },
 ] as const;
 
+// Legend strip that sits directly below the Header. Full-width, thin, single
+// row. Replaces the old floating center-top card — frees the ~100px of
+// vertical map space the card used to occupy and collects every legend token
+// in one consistent location. Renders null when there's nothing to show.
 export default function RasterLegend() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const selectedSite = useDashboardStore((s) => s.selectedSite);
-  const { position: dragPos, handleMouseDown: onDragStart } = useDraggable();
 
   const visible = RASTER_LEGENDS.filter(({ key }) => !!layerVisibility[key]);
   const showRadius = !!selectedSite;
   const showWindBuildable = !!layerVisibility.wind_buildable_polygons;
   const showSolarBuildable = !!layerVisibility.buildable_polygons;
-
-  const hasSwatches = showRadius || (!showRadius && (showSolarBuildable || showWindBuildable));
+  const hasSwatches = showRadius || showSolarBuildable || showWindBuildable;
 
   if (visible.length === 0 && !hasSwatches) return null;
 
   return (
     <div
-      className="absolute top-[120px] left-1/2 z-20"
-      style={{ transform: `translate(calc(-50% + ${dragPos.x}px), ${dragPos.y}px)` }}
+      style={{
+        // Strip is now rendered inside the header flex column (App.tsx), so
+        // it naturally sits below the Header regardless of Header height.
+        // No magic top offset — eliminates the coupling that broke when
+        // typography changes grew the header by a few pixels.
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        padding: '0 14px',
+        // Darker glass — user flagged the header-bg value (3% white tint)
+        // as too transparent against the dark map, text wasn't legible.
+        // 0.85 alpha dark glass matches what we use on the V4 rail + pane.
+        background: 'rgba(18, 18, 22, 0.85)',
+        backdropFilter: 'blur(28px) saturate(1.4)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+        borderBottom: '1px solid var(--glass-border-bright)',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+        overflowX: 'auto',
+        whiteSpace: 'nowrap',
+      }}
     >
-      <div
-        className="rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing"
-        style={{
-          backdropFilter: 'var(--blur)',
-          WebkitBackdropFilter: 'var(--blur)',
-          background: 'var(--glass)',
-          border: '1px solid var(--glass-border)',
-        }}
-        onMouseDown={onDragStart}
-      >
-        {/* Row 1: Raster gradients side by side */}
-        {visible.length > 0 && (
-          <div className={`flex gap-4 justify-center ${hasSwatches ? 'mb-2' : ''}`}>
-            {visible.map(({ key, label, unit, min, max, gradient }) => (
-              <div key={key}>
-                <div className="text-[10px] text-zinc-400 mb-1">
-                  {label} <span className="text-zinc-600">({unit})</span>
-                </div>
-                <div className="h-3 rounded-sm w-48" style={{ background: gradient }} />
-                <div className="flex justify-between mt-0.5">
-                  <span className="text-[9px] text-zinc-500">{min}</span>
-                  <span className="text-[9px] text-zinc-500">{max}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Raster gradients */}
+      {visible.map(({ key, label, unit, min, max, gradient }, idx) => (
+        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {idx > 0 && <Divider />}
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
+          <div style={{ height: 5, width: 80, borderRadius: 2, background: gradient }} />
+          <span
+            className="tnum"
+            style={{ fontSize: 9, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
+          >
+            {min}–{max} {unit}
+          </span>
+        </div>
+      ))}
 
-        {/* Row 2: Spatial legends when KEK is selected */}
-        {showRadius && (
-          <div className="flex items-center gap-3 flex-wrap justify-center">
-            <div className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 14 14">
-                <rect
-                  x="1"
-                  y="1"
-                  width="12"
-                  height="12"
-                  rx="2"
-                  fill="rgba(102, 187, 106, 0.45)"
-                  stroke="#43A047"
-                  strokeWidth="1.5"
-                />
-              </svg>
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                In-boundary solar
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 14 14">
-                <rect
-                  x="1"
-                  y="1"
-                  width="12"
-                  height="12"
-                  rx="2"
-                  fill="rgba(77, 208, 225, 0.35)"
-                  stroke="#00ACC1"
-                  strokeWidth="1.5"
-                />
-              </svg>
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Remote solar (50 km)
-              </span>
-            </div>
-            {showSolarBuildable && (
-              <div className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 14 14">
-                  <rect
-                    x="1"
-                    y="1"
-                    width="12"
-                    height="12"
-                    rx="2"
-                    fill="rgba(255, 213, 79, 0.6)"
-                    stroke="#FFA000"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  Chosen solar polygon
-                </span>
-              </div>
-            )}
-            {showWindBuildable && (
+      {/* Spatial swatches — shown when a site is selected (shows the three
+          zones on the map) or when a buildable layer is toggled standalone. */}
+      {hasSwatches && (
+        <>
+          {visible.length > 0 && <Divider />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            {showRadius && (
               <>
-                <div
-                  className="h-4 mx-0.5"
-                  style={{ width: 1, background: 'var(--border-subtle)' }}
-                />
-                <div className="flex items-center gap-1.5">
-                  <svg width="14" height="14" viewBox="0 0 14 14">
-                    <rect
-                      x="1"
-                      y="1"
-                      width="12"
-                      height="12"
-                      rx="2"
-                      fill="rgba(179, 157, 219, 0.4)"
-                      stroke="#7E57C2"
-                      strokeWidth="1.5"
-                    />
-                  </svg>
-                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                    Wind buildable
-                  </span>
-                </div>
+                <Swatch color="#66BB6A" label="In-boundary solar" />
+                <Swatch color="#4DD0E1" label="Remote solar (50 km)" />
+                {showSolarBuildable && <Swatch color="#FFD54F" label="Chosen polygon" />}
+                {showWindBuildable && <Swatch color="#7E57C2" label="Wind buildable" />}
+                <Swatch color="#90CAF9" label="50 km radius" dashed />
               </>
             )}
-            <div className="h-4 mx-0.5" style={{ width: 1, background: 'var(--border-subtle)' }} />
-            <div className="flex items-center gap-1.5">
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <circle
-                  cx="9"
-                  cy="9"
-                  r="7"
-                  fill="rgba(144, 202, 249, 0.06)"
-                  stroke="#90CAF9"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 3"
-                  opacity="0.6"
-                />
-              </svg>
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                50 km radius
-              </span>
-            </div>
+            {!showRadius && showSolarBuildable && (
+              <Swatch color="#4DD0E1" label="Solar buildable" />
+            )}
+            {!showRadius && showWindBuildable && <Swatch color="#7E57C2" label="Wind buildable" />}
           </div>
-        )}
+        </>
+      )}
+    </div>
+  );
+}
 
-        {/* Row 2: Standalone buildable legends when no KEK selected */}
-        {!showRadius && (showSolarBuildable || showWindBuildable) && (
-          <div className="flex items-center gap-3 justify-center">
-            {showSolarBuildable && (
-              <div className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 14 14">
-                  <rect
-                    x="1"
-                    y="1"
-                    width="12"
-                    height="12"
-                    rx="2"
-                    fill="rgba(77, 208, 225, 0.35)"
-                    stroke="#00ACC1"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  Solar Buildable
-                </span>
-              </div>
-            )}
-            {showWindBuildable && (
-              <div className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 14 14">
-                  <rect
-                    x="1"
-                    y="1"
-                    width="12"
-                    height="12"
-                    rx="2"
-                    fill="rgba(179, 157, 219, 0.4)"
-                    stroke="#7E57C2"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  Wind Buildable
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+function Divider() {
+  return (
+    <span
+      style={{
+        width: 1,
+        height: 14,
+        background: 'var(--border-subtle)',
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+function Swatch({
+  color,
+  label,
+  dashed = false,
+}: {
+  color: string;
+  label: string;
+  dashed?: boolean;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: dashed ? '50%' : 2,
+          background: `${color}44`,
+          border: `1px ${dashed ? 'dashed' : 'solid'} ${color}`,
+        }}
+      />
+      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
     </div>
   );
 }

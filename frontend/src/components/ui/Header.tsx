@@ -43,7 +43,7 @@ export default function Header() {
       >
         <div className="flex items-center gap-3">
           <h1
-            className="text-sm font-semibold tracking-wide whitespace-nowrap"
+            className="text-[18px] font-bold tracking-tight whitespace-nowrap"
             style={{ color: 'var(--text-primary)' }}
           >
             SEZ Renewable Energy

@@ -16,6 +16,19 @@ import { useDashboardStore } from '../../store/dashboard';
 // of which sectors currently have which flags populated.
 const ACTION_FLAG_COLUMNS: ActionFlag[] = ACTION_FLAG_HIERARCHY_BY_MODE.overall;
 
+// Round the y-axis to nice human-readable ticks (0, 10k, 20k... not 0, 9500, 19000...).
+function niceTicks(maxValue: number, count = 5): number[] {
+  if (!Number.isFinite(maxValue) || maxValue <= 0) return [0];
+  const rawStep = maxValue / (count - 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+  const niceMultiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  const step = niceMultiplier * magnitude;
+  const ticks: number[] = [];
+  for (let v = 0; v <= maxValue + step * 0.001; v += step) ticks.push(Math.round(v));
+  return ticks;
+}
+
 const SECTOR_ORDER: Sector[] = [
   'steel',
   'cement',
@@ -336,6 +349,14 @@ export default function SectorSummaryChart() {
     '2034': Number(d.cbamCost2034MUsd.toFixed(2)),
   }));
 
+  const cbamMax = Math.max(
+    0,
+    ...cbamChartData.flatMap((d) => [d['2026'], d['2030'], d['2034']]),
+  );
+  const cbamTicks = niceTicks(cbamMax);
+  const demandMax = Math.max(0, ...data.map((d) => d.totalDemandGwh));
+  const demandTicks = niceTicks(demandMax);
+
   const hasCbam = data.some(
     (d) => d.cbamCost2026MUsd > 0 || d.cbamCost2030MUsd > 0 || d.cbamCost2034MUsd > 0,
   );
@@ -379,6 +400,8 @@ export default function SectorSummaryChart() {
                   tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                   tickLine={false}
                   axisLine={{ stroke: 'var(--border-subtle)' }}
+                  ticks={cbamTicks}
+                  domain={[0, cbamTicks[cbamTicks.length - 1] || 'auto']}
                   label={{
                     value: '$M/yr',
                     angle: -90,
@@ -417,6 +440,8 @@ export default function SectorSummaryChart() {
                 tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
                 tickLine={false}
                 axisLine={{ stroke: 'var(--border-subtle)' }}
+                ticks={demandTicks}
+                domain={[0, demandTicks[demandTicks.length - 1] || 'auto']}
                 label={{
                   value: 'GWh',
                   angle: -90,

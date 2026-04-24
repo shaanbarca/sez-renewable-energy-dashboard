@@ -1,5 +1,5 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import type { BottomTab } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import RuptlChart from '../charts/RuptlChart';
@@ -14,8 +14,6 @@ const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'compare', label: 'Scenario Compare' },
 ];
 
-const TABLE_HEIGHT = 580;
-const CHART_HEIGHT = 420;
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 700;
 
@@ -24,20 +22,11 @@ export default function BottomPanel() {
   const setActiveTab = useDashboardStore((s) => s.setActiveTab);
   const collapsed = useDashboardStore((s) => s.bottomPanelCollapsed);
   const setCollapsed = useDashboardStore((s) => s.setBottomPanelCollapsed);
-  const [userHeight, setUserHeight] = useState<number | null>(null);
+  const panelHeight = useDashboardStore((s) => s.bottomPanelHeight);
+  const setPanelHeight = useDashboardStore((s) => s.setBottomPanelHeight);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startH = useRef(0);
-
-  const defaultHeight =
-    activeTab === 'table'
-      ? TABLE_HEIGHT
-      : activeTab === 'sector'
-        ? 540
-        : activeTab === 'compare'
-          ? 540
-          : CHART_HEIGHT;
-  const panelHeight = userHeight ?? defaultHeight;
 
   const onDragStart = useCallback(
     (e: React.PointerEvent) => {
@@ -49,11 +38,14 @@ export default function BottomPanel() {
     [panelHeight],
   );
 
-  const onDragMove = useCallback((e: React.PointerEvent) => {
-    if (!dragging.current) return;
-    const delta = startY.current - e.clientY;
-    setUserHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startH.current + delta)));
-  }, []);
+  const onDragMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current) return;
+      const delta = startY.current - e.clientY;
+      setPanelHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, startH.current + delta)));
+    },
+    [setPanelHeight],
+  );
 
   const onDragEnd = useCallback(() => {
     dragging.current = false;
@@ -64,6 +56,9 @@ export default function BottomPanel() {
       className="relative"
       style={{
         height: collapsed ? 34 : panelHeight,
+        // Animate the panel. The map's inset is updated in App.tsx with an
+        // asymmetric delay so MapLibre only resizes once per toggle, not every
+        // frame of the animation.
         transition: dragging.current ? 'none' : 'height 0.3s ease-in-out',
         backdropFilter: 'var(--blur-heavy)',
         WebkitBackdropFilter: 'var(--blur-heavy)',
@@ -177,17 +172,21 @@ export default function BottomPanel() {
           ))}
         </Tabs.List>
 
+        {/* Lazy-mount inactive tabs. Radix renders every <Tabs.Content> child
+            by default (hidden, but mounted — effects fire, fetches fire, Recharts
+            ResizeObservers spin up). Gate on activeTab so only the visible tab
+            does real work. Table stays eager because it's the default landing. */}
         <Tabs.Content value="table" className="flex-1 overflow-hidden">
           <DataTable />
         </Tabs.Content>
         <Tabs.Content value="ruptl" className="flex-1 overflow-hidden">
-          <RuptlChart />
+          {activeTab === 'ruptl' && <RuptlChart />}
         </Tabs.Content>
         <Tabs.Content value="sector" className="flex-1 overflow-hidden">
-          <SectorSummaryChart />
+          {activeTab === 'sector' && <SectorSummaryChart />}
         </Tabs.Content>
         <Tabs.Content value="compare" className="flex-1 overflow-hidden">
-          <ScenarioCompareTab />
+          {activeTab === 'compare' && <ScenarioCompareTab />}
         </Tabs.Content>
       </Tabs.Root>
     </div>

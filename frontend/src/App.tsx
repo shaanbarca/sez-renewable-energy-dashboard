@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import MapHint from './components/map/MapHint';
 import MapView from './components/map/MapView';
 import RasterLegend from './components/map/RasterLegend';
 import AssumptionsPanel from './components/panels/AssumptionsPanel';
@@ -28,14 +29,22 @@ function Dashboard() {
 
   return (
     <div className="h-screen relative bg-[#121212] overflow-hidden">
-      {/* MAP — full screen behind everything */}
+      {/* MAP — always full-screen. The bottom panel overlays it as a glass
+          panel rather than pushing it. Resizing the map on toggle was expensive
+          (MapLibre re-tiles) and visually awkward. Glass + blur makes the
+          overlap feel intentional. */}
       <div data-tour="map" className="absolute inset-0">
         <MapView />
+        <MapHint />
       </div>
 
-      {/* HEADER — liquid glass overlay on top of map */}
-      <div data-tour="header" className="absolute top-0 left-0 right-0 z-30">
+      {/* HEADER + LEGEND STRIP — one absolute-positioned column so the
+          strip naturally stacks below the Header at whatever height it
+          happens to be. Previously the strip had a hardcoded `top: 62`
+          that broke when typography changes grew the header. */}
+      <div data-tour="header" className="absolute top-0 left-0 right-0 z-30 flex flex-col">
         <Header />
+        <RasterLegend />
       </div>
 
       {/* ASSUMPTIONS PANEL */}
@@ -43,9 +52,6 @@ function Dashboard() {
 
       {/* SCORE DRAWER */}
       <ScoreDrawer />
-
-      {/* RASTER LEGENDS */}
-      <RasterLegend />
 
       {/* BOTTOM PANEL */}
       <div data-tour="bottom-panel" className="absolute bottom-0 left-0 right-0 z-10">

@@ -186,11 +186,17 @@ export default function FlipControls() {
           disabled={computeDisabled}
           className="w-full py-2 rounded text-[11px] font-medium transition-colors"
           style={{
-            background: computeDisabled ? 'var(--card-bg)' : 'var(--accent)',
-            color: computeDisabled ? 'var(--text-muted)' : '#0a0a0c',
+            background: computeDisabled
+              ? 'color-mix(in srgb, var(--accent) 8%, transparent)'
+              : 'var(--accent)',
+            color: computeDisabled ? 'var(--accent)' : '#0a0a0c',
             cursor: computeDisabled ? 'not-allowed' : 'pointer',
-            opacity: computeDisabled ? 0.5 : 1,
+            border: computeDisabled ? `1px dashed var(--accent-border)` : '1px solid transparent',
+            opacity: computeDisabled ? 0.85 : 1,
           }}
+          title={
+            computeDisabled && !flipLoading ? 'Pick a preset below to enable' : undefined
+          }
         >
           {flipLoading
             ? 'Computing…'
@@ -198,7 +204,9 @@ export default function FlipControls() {
               ? 'Recompute Flip'
               : flipScorecard
                 ? 'Recompute'
-                : 'Compute Flip'}
+                : !flipPreset
+                  ? 'Compute Flip (pick a preset)'
+                  : 'Compute Flip'}
         </button>
         {(flip || flipScorecard) && (
           <button
@@ -240,13 +248,18 @@ export default function FlipControls() {
               onClick={() => applyPreset(p)}
               className="w-full text-left px-2.5 py-1.5 rounded transition-colors"
               style={{
-                background: active ? 'var(--accent-muted)' : 'var(--card-bg)',
-                border: `1px solid ${active ? 'var(--accent-border)' : 'var(--border-subtle)'}`,
+                background: active
+                  ? 'color-mix(in srgb, var(--accent) 18%, transparent)'
+                  : 'var(--card-bg)',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                borderLeft: active ? `3px solid var(--accent)` : `1px solid var(--border-subtle)`,
+                paddingLeft: active ? 8 : 10,
                 color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: active ? 600 : 400,
               }}
               title={FLIP_PRESET_DESCRIPTIONS[p]}
             >
-              <div className="text-[11px] font-medium">{FLIP_PRESET_LABELS[p]}</div>
+              <div className="text-[11px]">{FLIP_PRESET_LABELS[p]}</div>
             </button>
           );
         })}

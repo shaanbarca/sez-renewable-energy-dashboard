@@ -18,6 +18,9 @@ import VectorOverlay from './VectorOverlay';
 const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };
 const INITIAL_ZOOM = 4;
 const KEK_ZOOM = 11;
+// When the user zooms in past this threshold, auto-collapse the bottom panel
+// if the Ranked Table is active. They're focused on a region now, not browsing.
+const AUTO_COLLAPSE_ZOOM = 8;
 const RADIUS_KM = 50;
 
 /** Generate a GeoJSON Polygon circle around a center point. */
@@ -66,11 +69,31 @@ export default function MapView() {
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [measuring, setMeasuring] = useState(false);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
+  // Track the previous crossing so we only auto-collapse on the upward transition,
+  // not on every zoom event while already zoomed in (otherwise the user couldn't
+  // reopen the panel while still zoomed).
+  const wasZoomedPastThresholdRef = useRef(false);
 
   const mapStyle = (MAP_STYLES[mapStyleKey] ?? MAP_STYLES.dark).style;
 
   const handleZoom = useCallback((e: ViewStateChangeEvent) => {
-    setIsZoomedIn(e.viewState.zoom > INITIAL_ZOOM + 1);
+    const zoom = e.viewState.zoom;
+    setIsZoomedIn(zoom > INITIAL_ZOOM + 1);
+
+    const pastThreshold = zoom > AUTO_COLLAPSE_ZOOM;
+    // Fire only on the upward crossing, only on the Ranked Table tab, only
+    // when the panel is currently open. Asymmetric by design: zooming out
+    // does not re-open the panel — that stays a user decision.
+    // Read state via getState() so this callback stays stable and doesn't
+    // rebind the onMove listener on every tab/collapse change.
+    if (pastThreshold && !wasZoomedPastThresholdRef.current) {
+      const { activeTab, bottomPanelCollapsed, setBottomPanelCollapsed } =
+        useDashboardStore.getState();
+      if (activeTab === 'table' && !bottomPanelCollapsed) {
+        setBottomPanelCollapsed(true);
+      }
+    }
+    wasZoomedPastThresholdRef.current = pastThreshold;
   }, []);
 
   // Activate lazy layer loading
@@ -391,11 +414,14 @@ export default function MapView() {
         )}
       </Map>
 
-      {/* Back to National View button — centered top, above assumptions panel */}
+      {/* Back to National View button — sits below the legend strip. Header
+          is 61px (measured), strip is 62-94, so button at 106 leaves a 12px
+          gap below the strip. A notch smaller than before so it doesn't
+          fight the strip for attention. */}
       {(selectedSite || isZoomedIn) && (
         <button
           onClick={resetView}
-          className="absolute top-[72px] left-1/2 -translate-x-1/2 z-40 rounded-xl px-5 py-2 text-sm font-medium transition-all cursor-pointer hover:scale-[1.02]"
+          className="absolute top-[106px] left-1/2 -translate-x-1/2 z-40 rounded-lg px-3 py-1 text-xs font-medium transition-all cursor-pointer hover:scale-[1.02]"
           style={{
             backdropFilter: 'var(--blur)',
             WebkitBackdropFilter: 'var(--blur)',
