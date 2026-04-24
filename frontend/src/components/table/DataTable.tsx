@@ -449,14 +449,14 @@ export default function DataTable() {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs">
           <thead className="sticky top-0 z-10" style={{ background: 'var(--glass-heavy)' }}>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="text-left px-3 py-2 font-medium cursor-pointer select-none overflow-visible"
+                    className="text-left px-2 py-1.5 font-medium cursor-pointer select-none overflow-visible"
                     style={{
                       color: 'var(--text-secondary)',
                       borderBottom: '1px solid var(--tab-border)',
@@ -479,7 +479,7 @@ export default function DataTable() {
                 {table.getHeaderGroups()[0].headers.map((header) => (
                   <th
                     key={`filter-${header.id}`}
-                    className="px-3 py-1"
+                    className="px-2 py-0.5"
                     style={{ borderBottom: '1px solid var(--border-subtle)' }}
                   >
                     {DROPDOWN_COLUMNS.has(header.column.id) && (
@@ -507,7 +507,7 @@ export default function DataTable() {
                 {row.getVisibleCells().map((cell) => (
                   <td
                     key={cell.id}
-                    className="px-3 py-2"
+                    className="px-2 py-1"
                     style={{
                       color: 'var(--text-primary)',
                       borderBottom: '1px solid var(--tab-border)',
