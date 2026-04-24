@@ -1,15 +1,35 @@
+import { useEffect, useState } from 'react';
 import { useDashboardStore } from '../../store/dashboard';
 
-// First-landing wayfinding. Shows a subtle center-map hint when the user
-// hasn't selected a site and hasn't zoomed in yet — gives them a direction
-// instead of dropping them cold on a map of Indonesia.
-//
-// Hides the moment they click a marker or zoom in, because at that point
-// they've figured out the interaction model and the hint becomes noise.
+const DISMISSED_KEY = 'map_hint_seen';
+
+// First-landing wayfinding. Shows a subtle center-map hint the first time a
+// user opens the dashboard. Once they click any marker, the hint is marked
+// as seen in localStorage and never shows again, even after reload or after
+// they return to the national view. Onboarding once, not a persistent chrome.
 export default function MapHint() {
   const selectedSite = useDashboardStore((s) => s.selectedSite);
   const scorecard = useDashboardStore((s) => s.scorecard);
 
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DISMISSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // First marker click marks the hint as dismissed forever.
+  useEffect(() => {
+    if (selectedSite && !dismissed) {
+      try {
+        localStorage.setItem(DISMISSED_KEY, 'true');
+      } catch {}
+      setDismissed(true);
+    }
+  }, [selectedSite, dismissed]);
+
+  if (dismissed) return null;
   if (selectedSite) return null;
   const total = scorecard?.length ?? 0;
   if (total === 0) return null;
