@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import MapHint from './components/map/MapHint';
 import MapView from './components/map/MapView';
 import RasterLegend from './components/map/RasterLegend';
 import AssumptionsPanel from './components/panels/AssumptionsPanel';
@@ -34,6 +35,7 @@ function Dashboard() {
           overlap feel intentional. */}
       <div data-tour="map" className="absolute inset-0">
         <MapView />
+        <MapHint />
       </div>
 
       {/* HEADER — liquid glass overlay on top of map */}
