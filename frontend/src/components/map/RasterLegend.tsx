@@ -37,12 +37,11 @@ export default function RasterLegend() {
 
   return (
     <div
-      className="absolute left-0 right-0 z-20"
       style={{
-        // Header is actually 61px tall (measured via browse during
-        // /design-review). Start at 62 so the strip sits cleanly below with
-        // a 1px gap and no top clip.
-        top: 62,
+        // Strip is now rendered inside the header flex column (App.tsx), so
+        // it naturally sits below the Header regardless of Header height.
+        // No magic top offset — eliminates the coupling that broke when
+        // typography changes grew the header by a few pixels.
         height: 32,
         display: 'flex',
         alignItems: 'center',
