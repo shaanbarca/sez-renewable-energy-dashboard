@@ -18,6 +18,9 @@ import VectorOverlay from './VectorOverlay';
 const INITIAL_CENTER = { longitude: 118.0, latitude: -2.5 };
 const INITIAL_ZOOM = 4;
 const KEK_ZOOM = 11;
+// When the user zooms in past this threshold, auto-collapse the bottom panel
+// if the Ranked Table is active. They're focused on a region now, not browsing.
+const AUTO_COLLAPSE_ZOOM = 8;
 const RADIUS_KM = 50;
 
 /** Generate a GeoJSON Polygon circle around a center point. */
@@ -66,12 +69,37 @@ export default function MapView() {
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [measuring, setMeasuring] = useState(false);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
+  const activeTab = useDashboardStore((s) => s.activeTab);
+  const bottomPanelCollapsed = useDashboardStore((s) => s.bottomPanelCollapsed);
+  const setBottomPanelCollapsed = useDashboardStore((s) => s.setBottomPanelCollapsed);
+  // Track the previous crossing so we only auto-collapse on the upward transition,
+  // not on every zoom event while already zoomed in (otherwise the user couldn't
+  // reopen the panel while still zoomed).
+  const wasZoomedPastThresholdRef = useRef(false);
 
   const mapStyle = (MAP_STYLES[mapStyleKey] ?? MAP_STYLES.dark).style;
 
-  const handleZoom = useCallback((e: ViewStateChangeEvent) => {
-    setIsZoomedIn(e.viewState.zoom > INITIAL_ZOOM + 1);
-  }, []);
+  const handleZoom = useCallback(
+    (e: ViewStateChangeEvent) => {
+      const zoom = e.viewState.zoom;
+      setIsZoomedIn(zoom > INITIAL_ZOOM + 1);
+
+      const pastThreshold = zoom > AUTO_COLLAPSE_ZOOM;
+      // Fire only on the upward crossing, only on the Ranked Table tab, only
+      // when the panel is currently open. Asymmetric by design: zooming out
+      // does not re-open the panel — that stays a user decision.
+      if (
+        pastThreshold &&
+        !wasZoomedPastThresholdRef.current &&
+        activeTab === 'table' &&
+        !bottomPanelCollapsed
+      ) {
+        setBottomPanelCollapsed(true);
+      }
+      wasZoomedPastThresholdRef.current = pastThreshold;
+    },
+    [activeTab, bottomPanelCollapsed, setBottomPanelCollapsed],
+  );
 
   // Activate lazy layer loading
   useMapLayers();
