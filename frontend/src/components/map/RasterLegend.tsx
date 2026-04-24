@@ -45,7 +45,6 @@ export default function RasterLegend() {
         height: 32,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
         gap: 14,
         padding: '0 14px',
         // Darker glass — user flagged the header-bg value (3% white tint)
