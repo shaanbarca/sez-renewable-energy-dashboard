@@ -172,17 +172,21 @@ export default function BottomPanel() {
           ))}
         </Tabs.List>
 
+        {/* Lazy-mount inactive tabs. Radix renders every <Tabs.Content> child
+            by default (hidden, but mounted — effects fire, fetches fire, Recharts
+            ResizeObservers spin up). Gate on activeTab so only the visible tab
+            does real work. Table stays eager because it's the default landing. */}
         <Tabs.Content value="table" className="flex-1 overflow-hidden">
           <DataTable />
         </Tabs.Content>
         <Tabs.Content value="ruptl" className="flex-1 overflow-hidden">
-          <RuptlChart />
+          {activeTab === 'ruptl' && <RuptlChart />}
         </Tabs.Content>
         <Tabs.Content value="sector" className="flex-1 overflow-hidden">
-          <SectorSummaryChart />
+          {activeTab === 'sector' && <SectorSummaryChart />}
         </Tabs.Content>
         <Tabs.Content value="compare" className="flex-1 overflow-hidden">
-          <ScenarioCompareTab />
+          {activeTab === 'compare' && <ScenarioCompareTab />}
         </Tabs.Content>
       </Tabs.Root>
     </div>
