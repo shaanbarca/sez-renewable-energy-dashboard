@@ -36,14 +36,13 @@ function Dashboard() {
 
   return (
     <div className="h-screen relative bg-[#121212] overflow-hidden">
-      {/* MAP — shrinks from the bottom in split mode, full-screen otherwise */}
+      {/* MAP — shrinks from the bottom in split mode, full-screen otherwise.
+          No transition on purpose: animating this forces MapLibre to re-tile
+          every frame, which is expensive with 81 markers + overlays. Snap. */}
       <div
         data-tour="map"
         className="absolute top-0 left-0 right-0"
-        style={{
-          bottom: mapBottomInset,
-          transition: 'bottom 0.3s ease-in-out',
-        }}
+        style={{ bottom: mapBottomInset }}
       >
         <MapView />
       </div>

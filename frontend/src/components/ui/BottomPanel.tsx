@@ -56,7 +56,8 @@ export default function BottomPanel() {
       className="relative"
       style={{
         height: collapsed ? 34 : panelHeight,
-        transition: dragging.current ? 'none' : 'height 0.3s ease-in-out',
+        // No height transition — animating both panel and map forces MapLibre
+        // to resize every frame, which lags with 81 markers + overlays.
         backdropFilter: 'var(--blur-heavy)',
         WebkitBackdropFilter: 'var(--blur-heavy)',
         background: 'var(--panel-bg)',
