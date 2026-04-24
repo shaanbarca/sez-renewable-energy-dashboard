@@ -39,16 +39,22 @@ export default function RasterLegend() {
     <div
       className="absolute left-0 right-0 z-20"
       style={{
-        top: 48, // sits flush under the Header (Header height ~48px)
-        height: 30,
+        // Header is actually ~55px tall with border + padding. Start at 56 so
+        // the strip sits cleanly below it with a 1px gap (no content clip).
+        top: 56,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         gap: 14,
         padding: '0 14px',
-        background: 'var(--header-bg)',
-        backdropFilter: 'var(--header-backdrop)',
-        WebkitBackdropFilter: 'var(--header-backdrop)',
-        borderBottom: '1px solid var(--header-border)',
+        // Darker glass — user flagged the header-bg value (3% white tint)
+        // as too transparent against the dark map, text wasn't legible.
+        // 0.85 alpha dark glass matches what we use on the V4 rail + pane.
+        background: 'rgba(18, 18, 22, 0.85)',
+        backdropFilter: 'blur(28px) saturate(1.4)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+        borderBottom: '1px solid var(--glass-border-bright)',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
         overflowX: 'auto',
         whiteSpace: 'nowrap',
       }}
