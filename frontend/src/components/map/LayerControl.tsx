@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MAP_STYLES } from '../../lib/constants';
 import type { MapStyleKey } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -28,7 +29,9 @@ export default function LayerControl() {
   const mapStyle = useDashboardStore((s) => s.mapStyle);
   const setMapStyle = useDashboardStore((s) => s.setMapStyle);
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const activeCount = LAYER_ITEMS.filter(({ name }) => !!layerVisibility[name]).length;
 
@@ -46,21 +49,44 @@ export default function LayerControl() {
     }
   };
 
-  // Close on outside click
+  // Position the portal panel below the button. Recompute on open, on resize,
+  // and on scroll so the panel tracks the button if the layout shifts.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPos({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
+
+  // Close on outside click. Panel now lives in a portal, so we check both the
+  // button (trigger) and the panel itself rather than a single container ref.
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
@@ -96,98 +122,107 @@ export default function LayerControl() {
         </span>
       </button>
 
-      {open && (
-        <div
-          className="absolute top-[calc(100%+6px)] right-0 z-[100] rounded-lg px-3 py-2.5 min-w-[220px]"
-          style={{
-            backdropFilter: 'blur(28px) saturate(1.4)',
-            WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
-            // Higher alpha (0.95 vs --glass-heavy's 0.65) so the AssumptionsPanel
-            // sliders behind don't bleed through the dropdown labels. z-[100]
-            // beats every other floating panel.
-            background: 'rgba(15, 15, 18, 0.95)',
-            border: '1px solid var(--glass-border-bright)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          }}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div
-              className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              Layers
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={selectAll}
-                disabled={allOn}
-                className="text-[10px] transition-colors cursor-pointer disabled:cursor-default"
-                style={{ color: 'var(--accent)' }}
+      {/* Portal the panel to document.body so it escapes the Header's stacking
+          context. The RasterLegend below it creates its own context via
+          backdrop-filter — z-index alone couldn't reliably put the panel on
+          top from inside the Header subtree. */}
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            className="rounded-lg px-3 py-2.5 min-w-[220px]"
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              right: pos.right,
+              zIndex: 1000,
+              backdropFilter: 'blur(28px) saturate(1.4)',
+              WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+              background: 'rgba(15, 15, 18, 0.95)',
+              border: '1px solid var(--glass-border-bright)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div
+                className="text-xs font-semibold uppercase tracking-wider"
+                style={{ color: 'var(--text-secondary)' }}
               >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={deselectAll}
-                disabled={noneOn}
-                className="text-[10px] transition-colors cursor-pointer disabled:cursor-default"
-                style={{ color: 'var(--accent)' }}
-              >
-                None
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1">
-            {LAYER_ITEMS.map(({ name, label }) => (
-              <label
-                key={name}
-                className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                <input
-                  type="checkbox"
-                  checked={!!layerVisibility[name]}
-                  onChange={() => toggleLayer(name)}
-                  className="accent-blue-500 w-3.5 h-3.5"
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-
-          {/* Map style switcher */}
-          <div className="mt-3 pt-2 pb-1" style={{ borderTop: '1px solid var(--glass-border)' }}>
-            <div
-              className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Map Style
-            </div>
-            <div className="flex gap-1">
-              {STYLE_KEYS.map((key) => (
+                Layers
+              </div>
+              <div className="flex gap-2">
                 <button
-                  key={key}
                   type="button"
-                  onClick={() => setMapStyle(key)}
-                  className="px-2 py-1 text-[10px] rounded transition-colors cursor-pointer"
-                  style={
-                    mapStyle === key
-                      ? {
-                          background: 'var(--accent-muted)',
-                          color: 'var(--accent)',
-                          border: '1px solid var(--accent-border)',
-                        }
-                      : { color: 'var(--text-secondary)', border: '1px solid transparent' }
-                  }
+                  onClick={selectAll}
+                  disabled={allOn}
+                  className="text-[10px] transition-colors cursor-pointer disabled:cursor-default"
+                  style={{ color: 'var(--accent)' }}
                 >
-                  {MAP_STYLES[key].label}
+                  All
                 </button>
+                <button
+                  type="button"
+                  onClick={deselectAll}
+                  disabled={noneOn}
+                  className="text-[10px] transition-colors cursor-pointer disabled:cursor-default"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  None
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {LAYER_ITEMS.map(({ name, label }) => (
+                <label
+                  key={name}
+                  className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!layerVisibility[name]}
+                    onChange={() => toggleLayer(name)}
+                    className="accent-blue-500 w-3.5 h-3.5"
+                  />
+                  {label}
+                </label>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+
+            {/* Map style switcher */}
+            <div className="mt-3 pt-2 pb-1" style={{ borderTop: '1px solid var(--glass-border)' }}>
+              <div
+                className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Map Style
+              </div>
+              <div className="flex gap-1">
+                {STYLE_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setMapStyle(key)}
+                    className="px-2 py-1 text-[10px] rounded transition-colors cursor-pointer"
+                    style={
+                      mapStyle === key
+                        ? {
+                            background: 'var(--accent-muted)',
+                            color: 'var(--accent)',
+                            border: '1px solid var(--accent-border)',
+                          }
+                        : { color: 'var(--text-secondary)', border: '1px solid transparent' }
+                    }
+                  >
+                    {MAP_STYLES[key].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
