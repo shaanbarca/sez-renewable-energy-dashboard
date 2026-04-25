@@ -308,7 +308,7 @@ Fields sourced from `POST /api/scorecard` response (~80 fields per site). See [D
 |-------|--------------|-------|
 | `pvout_centroid`, `pvout_best_50km`, `pvout_buildable_best_50km` | Solar PVOUT | kWh/kWp/yr, 3 siting scenarios |
 | `cf_centroid`, `cf_best_50km` | Solar capacity factor | % |
-| `buildable_area_ha`, `max_captive_capacity_mwp` | Buildable area + capacity | With fragmentation warning for small areas |
+| `buildable_area_ha`, `regional_groundmount_potential_mwp_50km` | Buildable area + capacity | With fragmentation warning for small areas |
 | `wind_speed_centroid_ms`, `cf_wind_centroid` | Wind resource | m/s + CF |
 | `lcoe_wind_mid_usd_mwh` | Wind LCOE | USD/MWh |
 | `best_re_technology` | Best RE technology | solar / wind / hybrid |

@@ -395,7 +395,7 @@ class TestFctKekResource:
         for col in [
             "pvout_buildable_best_50km",
             "buildable_area_ha",
-            "max_captive_capacity_mwp",
+            "regional_groundmount_potential_mwp_50km",
             "buildability_constraint",
         ]:
             assert col in resource.columns, f"Missing column: {col}"

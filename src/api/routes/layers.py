@@ -31,6 +31,7 @@ from src.model.basic_model import (
     new_transmission_cost_per_kw,
     substation_upgrade_cost_per_kw,
 )
+from src.model.columns import Col
 
 router = APIRouter()
 
@@ -191,7 +192,7 @@ def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge
         # V3.7: prefer anchored project scale; fall back to 50km envelope for
         # pre-anchor rows (wind-only, industrial sites without picker output).
         anchor_mwp_val = r.get("project_scale_solar_mwp")
-        envelope_mwp_val = r.get("max_captive_capacity_mwp")
+        envelope_mwp_val = r.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)
         if pd.notna(anchor_mwp_val):
             solar_mwp = float(anchor_mwp_val)
         elif pd.notna(envelope_mwp_val):

@@ -271,7 +271,7 @@ class TestComputeBuildabilityConstraint:
 
 class TestProperties:
     def test_max_capacity_formula(self):
-        """max_captive_capacity_mwp = buildable_area_ha / HA_PER_MWP."""
+        """regional_groundmount_potential_mwp_50km = buildable_area_ha / HA_PER_MWP."""
         from src.pipeline.buildability_filters import HA_PER_MWP
 
         buildable_area_ha = 150.0

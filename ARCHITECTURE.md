@@ -224,7 +224,7 @@ Layer 2a/c: dem.vrt           → read window → compute slope → exclude slop
 Layer 4: min area filter      → drop contiguous buildable patches < 10 ha
   ↓
 buildable_area_ha             = n_buildable_pixels × pixel_area_ha
-max_captive_capacity_mwp      = buildable_area_ha / 1.5 ha/MWp
+regional_groundmount_potential_mwp_50km      = buildable_area_ha / 1.5 ha/MWp
 pvout_buildable_best_50km     = max PVOUT value across all buildable pixels
 buildability_constraint       = dominant filter layer (kawasan_hutan / peat / agriculture / slope / unconstrained)
 ```

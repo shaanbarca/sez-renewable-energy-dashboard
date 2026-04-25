@@ -171,7 +171,7 @@ The biggest bottleneck to clean industrial power in Indonesia isn't solar econom
 ### Readiness — 85%
 
 **What works:**
-- Full 5-layer buildability filter (kawasan hutan, peatland, land cover, road proximity >10km, slope/elevation): `buildable_area_ha`, `max_captive_capacity_mwp`, `buildability_constraint` all populated for all 25 KEKs
+- Full 5-layer buildability filter (kawasan hutan, peatland, land cover, road proximity >10km, slope/elevation): `buildable_area_ha`, `regional_groundmount_potential_mwp_50km`, `buildability_constraint` all populated for all 25 KEKs
 - `dist_to_nearest_substation_km` and `nearest_substation_capacity_mva` (19/25 KEKs) — KEK-side grid data available
 - Solar resource data (`pvout_buildable_best_50km`) solid for screening
 - `demand_mwh_2030` provides relative demand ranking for investment prioritization
@@ -192,7 +192,7 @@ The biggest bottleneck to clean industrial power in Indonesia isn't solar econom
 - `grid_integration_category` — primary decision variable: `within_boundary` / `grid_ready` / `invest_transmission` / `invest_substation` / `grid_first`
 - `dist_solar_to_nearest_substation_km` — infrastructure gap metric: how far from best solar site to nearest grid injection point
 - `grid_investment_needed_usd` — order-of-magnitude investment estimate (derivable from `transmission_cost_per_kw x solar_mwp x 1000`)
-- `solar_capacity_unlocked_mwp` — how much solar capacity the grid investment would enable (reuse `max_captive_capacity_mwp`)
+- `solar_capacity_unlocked_mwp` — how much solar capacity the grid investment would enable (reuse `regional_groundmount_potential_mwp_50km`)
 - `demand_mwh_2030` — is there industrial demand to justify grid investment at this KEK?
 - `nearest_substation_capacity_mva` — can the existing substation absorb new solar generation? (V3.1: `capacity_assessment` traffic light)
 - `solar_vs_bpp_gap_pct` — does solar reduce PLN's cost of supply? Stronger gap = stronger investment case
@@ -334,14 +334,14 @@ Ranked table CSV filtered by `grid_integration_category`. Screenshot of three-po
 
 ### What only this dashboard shows them
 
-The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — not just where solar is cheap, but where it undercuts PLN's actual cost of supply (BPP), which is often 15-35% higher than the subsidized industrial tariff. Where that gap is negative, the IPP's pitch to PLN writes itself: "procure solar here and your generation cost drops." Combined with `grid_integration_category` (is the substation ready or does the IPP need to factor in grid delay?), `max_captive_capacity_mwp` (how big can the project be?), and `capacity_assessment` (can the local grid absorb the output?), this is a pre-feasibility screening tool that narrows 25 KEKs to 3-5 viable target regions before expensive site visits and land acquisition. The buildability data (slope, forest, peat, land cover filters) tells the IPP what percentage of nearby land is actually buildable — saving months of field screening. No other tool combines solar resource quality, grid injection readiness, BPP economics, and land buildability at this resolution.
+The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — not just where solar is cheap, but where it undercuts PLN's actual cost of supply (BPP), which is often 15-35% higher than the subsidized industrial tariff. Where that gap is negative, the IPP's pitch to PLN writes itself: "procure solar here and your generation cost drops." Combined with `grid_integration_category` (is the substation ready or does the IPP need to factor in grid delay?), `regional_groundmount_potential_mwp_50km` (how big can the project be?), and `capacity_assessment` (can the local grid absorb the output?), this is a pre-feasibility screening tool that narrows 25 KEKs to 3-5 viable target regions before expensive site visits and land acquisition. The buildability data (slope, forest, peat, land cover filters) tells the IPP what percentage of nearby land is actually buildable — saving months of field screening. No other tool combines solar resource quality, grid injection readiness, BPP economics, and land buildability at this resolution.
 
 **V2 note:** V1 framed the IPP as selling captive power directly to KEK tenants via PPA. V2 reframes the offtake model: IPP sells to PLN, PLN delivers to KEK tenants. This is the standard Indonesian model.
 
 ### Readiness — 85%
 
 **What works:**
-- Full buildability screening: `max_captive_capacity_mwp`, `buildable_area_ha`, `pvout_buildable_best_50km` all populated
+- Full buildability screening: `regional_groundmount_potential_mwp_50km`, `buildable_area_ha`, `pvout_buildable_best_50km` all populated
 - `nearest_substation_capacity_mva` available for 19/25 KEKs — grid absorption signal. V3.1 adds `capacity_assessment` traffic light.
 - `demand_mwh_2030` for relative site ranking (not PPA sizing)
 - `project_viable` boolean in scorecard
@@ -363,7 +363,7 @@ The `solar_vs_bpp_gap` reveals where PLN *saves money* by procuring solar — no
 - `dist_solar_to_nearest_substation_km` — how far from best solar site to grid injection point
 - `grid_integration_category` — `grid_ready` / `invest_transmission` / `invest_substation` / `grid_first`
 - `nearest_substation_capacity_mva` — can the local grid absorb the project's output? (`capacity_assessment` traffic light)
-- `max_captive_capacity_mwp` — maximum buildable capacity
+- `regional_groundmount_potential_mwp_50km` — maximum buildable capacity
 - `demand_mwh_2030` — is there sufficient industrial demand to justify solar procurement in this region?
 - `buildability_constraint` — land constraint type affects site development complexity
 

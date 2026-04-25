@@ -54,7 +54,7 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
     if (!pvout || pvout <= 0) return [];
 
     const cf = pvout / 8760;
-    const maxCap = row.max_captive_capacity_mwp ?? 200;
+    const maxCap = row.regional_groundmount_potential_mwp_50km ?? 200;
     if (maxCap <= 0) return [];
 
     const wacc = assumptions.wacc_pct / 100;
@@ -120,7 +120,7 @@ export default function LcoeCurveChart({ row }: { row: ScorecardRow }) {
   if (data.length === 0) return null;
 
   const gridCost = row.dashboard_rate_usd_mwh;
-  const maxCap = row.max_captive_capacity_mwp;
+  const maxCap = row.regional_groundmount_potential_mwp_50km;
   const effectiveCap = targetMwp != null && maxCap != null ? Math.min(targetMwp, maxCap) : null;
 
   // Find the LCOE at the effective capacity point (interpolate from data)

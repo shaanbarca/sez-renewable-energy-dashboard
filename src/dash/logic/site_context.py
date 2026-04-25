@@ -20,6 +20,7 @@ import pandas as pd
 from src.dash.logic.assumptions import UserAssumptions, UserThresholds
 from src.dash.logic.grid import compute_grid_integration
 from src.model.basic_model import is_solar_attractive, solar_competitive_gap
+from src.model.columns import Col
 
 
 @dataclass(slots=True)
@@ -116,7 +117,7 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
 
     reliability_req = _as_float(kek.get("reliability_req"), default=0.6)
     green_share = _as_float(kek.get("green_share_geas"))
-    max_mwp = _as_float(kek.get("max_captive_capacity_mwp"))
+    max_mwp = _as_float(kek.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM))
     wind_cap = _as_float(kek.get("max_wind_capacity_mwp"))
 
     # wind_cf_best: prefer per-site buildable best, fall back to wind LCOE table
@@ -130,11 +131,12 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
     demand_mwh = demand_by_site.get(site_id, 0.0)
 
     # Generation totals (MWh, unrounded — enrichers that care about coverage use these)
-    solar_data_valid = pd.notna(kek.get("max_captive_capacity_mwp")) and pd.notna(
+    solar_data_valid = pd.notna(kek.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)) and pd.notna(
         kek.get("pvout_best_50km")
     )
     solar_gen_mwh = (
-        float(kek.get("max_captive_capacity_mwp")) * float(kek.get("pvout_best_50km"))
+        float(kek.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM))
+        * float(kek.get("pvout_best_50km"))
         if solar_data_valid
         else 0.0
     )

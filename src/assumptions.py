@@ -310,7 +310,7 @@ GRID_LINE_BUFFER_KM: float = 2.0
 
 TRANSMISSION_FALLBACK_CAPACITY_MWP: float = 20.0
 # Conservative default solar capacity (MWp) used for transmission cost calculation
-# when max_captive_capacity_mwp is unavailable. All 25 KEKs currently have capacity
+# when regional_groundmount_potential_mwp_50km is unavailable. All 25 KEKs currently have capacity
 # data, so this only fires for future KEKs with missing buildability data.
 
 # ─── SUBSTATION-ANCHORED SOLAR SEARCH (V3.7) ─────────────────────────────────

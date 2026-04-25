@@ -407,7 +407,7 @@ Fact tables describe *what a site has* — resource quality, demand, cost, score
 | `pvout_source` | str | constant | "GlobalSolarAtlas-v2" |
 | `pvout_buildable_best_50km` | float | computed | Max PVOUT within 50km after 5-layer buildability filter (kawasan hutan, peatland, land cover, road proximity, slope/elevation). NaN when `data/buildability/` files absent. |
 | `buildable_area_ha` | float | computed | Total buildable area in 50km radius after all filters (ha). NaN when data absent. |
-| `max_captive_capacity_mwp` | float | computed | `buildable_area_ha / 1.5` — max captive solar capacity (MWp). 1.5 ha/MWp for tropical fixed-tilt. |
+| `regional_groundmount_potential_mwp_50km` | float | computed | `buildable_area_ha / 1.5` — max ground-mount solar capacity (MWp) within 50 km of site centroid. 1.5 ha/MWp for tropical fixed-tilt. **Renamed 2026-04-25** from `regional_groundmount_potential_mwp_50km` ("captive" suggested on-site; this number is regional). API serves both names for one release; old name removed in v4.2. |
 | `buildability_constraint` | str | computed | Dominant binding constraint: `"kawasan_hutan"` \| `"slope"` \| `"peat"` \| `"land_cover"` \| `"far_from_road"` \| `"area_too_small"` \| `"unconstrained"` \| `"data_unavailable"`. `"land_cover"` = ESA WorldCover layer (tree cover/forest, cropland, urban, water, wetland, mangrove) — dominant at most KEKs. `"far_from_road"` = >10km from motorable OSM road (motorway/trunk/primary/secondary/tertiary). |
 | `best_solar_site_lat` | float | computed | V3.7: Latitude of the substation-anchored patch (when `solar_search_method == "substation_anchored"`) or the highest-PVOUT buildable pixel within 50km (fallback). NaN when data absent or no buildable area. |
 | `best_solar_site_lon` | float | computed | V3.7: Longitude of the chosen patch (anchored or fallback). NaN when data absent. |
@@ -726,7 +726,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 **Resource columns** (from fct_site_resource):
 | `pvout_buildable_best_50km` | fct_site_resource | NaN until data/buildability/ populated |
 | `buildable_area_ha` | fct_site_resource | NaN until data/buildability/ populated |
-| `max_captive_capacity_mwp` | fct_site_resource | NaN until data/buildability/ populated |
+| `regional_groundmount_potential_mwp_50km` | fct_site_resource | NaN until data/buildability/ populated |
 | `buildability_constraint` | fct_site_resource | "data_unavailable" until populated |
 | `resource_quality` | derived | `"filtered"` when buildable data applied; else `"provisional (no buildability filter)"` |
 
@@ -789,8 +789,8 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `capacity_assessment` | str | V3.1: Traffic light — `green` / `yellow` / `red` / `unknown`. |
 | `transmission_cost_per_kw` | float | V3.1: New inter-substation line cost per kW (0 if connected). |
 | `substation_upgrade_cost_per_kw` | float | V3.2: Additional $/kW when substation capacity insufficient. `deficit_fraction × $80/kW` where `deficit = (solar_mwp − available) / solar_mwp` and `available = rated_mva × (1 − utilization_pct)`. 0 if capacity sufficient or unknown. |
-| `grid_investment_needed_usd` | float | Total grid infrastructure cost: `(connection_cost_per_kw + transmission_cost_per_kw + substation_upgrade_cost_per_kw) × max_captive_capacity_mwp × 1000`. Screening estimate for DFI investment sizing. NaN if capacity is 0 or no infrastructure cost. |
-| `project_viable` | bool | `max_captive_capacity_mwp ≥ PROJECT_VIABLE_MIN_MWP (20 MWp)`. True = minimum viable IPP project size met. All 81 sites = True at current 1km buildability resolution. DFI threshold is stricter (≥ 33 MWp / ≥ 50 ha). |
+| `grid_investment_needed_usd` | float | Total grid infrastructure cost: `(connection_cost_per_kw + transmission_cost_per_kw + substation_upgrade_cost_per_kw) × regional_groundmount_potential_mwp_50km × 1000`. Screening estimate for DFI investment sizing. NaN if capacity is 0 or no infrastructure cost. |
+| `project_viable` | bool | `regional_groundmount_potential_mwp_50km ≥ PROJECT_VIABLE_MIN_MWP (20 MWp)`. True = minimum viable IPP project size met. All 81 sites = True at current 1km buildability resolution. DFI threshold is stricter (≥ 33 MWp / ≥ 50 ha). |
 | `clean_power_advantage` | float | `−solar_competitive_gap_pct` — higher = more competitive |
 | `green_share_geas` | float | Pro-rata share of 2030 demand covered by pre-2030 RUPTL solar. Formula: `min(1, (pre2030_mw × 8760 × 0.20 × site_demand_share) / site_demand_mwh)`. See `geas_baseline_allocation()`. |
 | `pre2030_solar_mw` | float | `sum(plts_new_mw_re_base where year ≤ 2030)` for this site's region |
@@ -821,7 +821,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 | Column | Type | Formula |
 |--------|------|---------|
-| `max_solar_generation_gwh` | float | `max_captive_capacity_mwp × pvout_best_50km / 1000` — maximum annual solar generation if all buildable capacity were built at best-resource sites within 50km. |
+| `max_solar_generation_gwh` | float | `regional_groundmount_potential_mwp_50km × pvout_best_50km / 1000` — maximum annual solar generation if all buildable capacity were built at best-resource sites within 50km. |
 | `solar_supply_coverage_pct` | float | `max_solar_generation_gwh / demand_2030_gwh` — fraction of site demand coverable by buildable solar. >= 1.0 means solar can fully supply the site. |
 
 **Wind columns (from `fct_site_wind_resource`, merged at API startup + live-computed in `logic/scorecard.py`):**
@@ -878,7 +878,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `has_chinese_ownership` | bool | CGSP | True if any matched nickel facility has Chinese ownership. False if no nickel data. |
 | `has_captive_coal` | bool | Derived | `captive_coal_count > 0`. Indicates site is subject to Perpres 112/2022. |
 | `perpres_112_status` | str/null | Derived | `"Subject to 2050 phase-out"` if `has_captive_coal`, else null. Status-based proxy (commissioning_year unavailable). |
-| `effective_capacity_mwp` | float/null | User input (H10) | User-selected project capacity for LCOE recalculation. When set, overrides `max_captive_capacity_mwp` for gen-tie cost and substation capacity assessment. Null = use max buildable. |
+| `effective_capacity_mwp` | float/null | User input (H10) | User-selected project capacity for LCOE recalculation. When set, overrides `regional_groundmount_potential_mwp_50km` for gen-tie cost and substation capacity assessment. Null = use max buildable. |
 | `captive_coal_generation_gwh` | float/null | Derived | Estimated annual coal generation: `captive_coal_mw × 8.76 × 0.40` (40% CF assumption for Indonesian captive coal). |
 | `solar_replacement_pct` | float/null | Derived | `max_solar_generation_gwh / captive_coal_generation_gwh × 100`. What % of captive coal output is replaceable by buildable solar. |
 | `bess_sizing_hours` | float | Derived | BESS storage sizing (hours). V3.6 hierarchy: user override > bridge-hours 14h (reliability >= 0.75) > RKEF 4h > cloud-firming 2h. Drives `battery_adder_usd_mwh` and `lcoe_with_battery_usd_mwh`. |

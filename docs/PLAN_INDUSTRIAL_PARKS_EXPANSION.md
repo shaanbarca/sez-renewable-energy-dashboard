@@ -396,7 +396,7 @@ The data model is being designed to export cleanly to [PyPSA](https://pypsa.org/
 
 **What PyPSA needs from our data:**
 - **Buses** (nodes): each site -> a PyPSA bus. `site_id`, coordinates, voltage level from `fct_substation_proximity`
-- **Generators**: RE capacity at each site -> PyPSA generators. `max_captive_capacity_mwp`, `cf`, LCOE parameters
+- **Generators**: RE capacity at each site -> PyPSA generators. `regional_groundmount_potential_mwp_50km`, `cf`, LCOE parameters
 - **Loads**: site demand -> PyPSA loads. `demand_gwh` from `fct_site_demand`
 - **Lines**: grid connections -> PyPSA lines. `fct_substation_proximity` already has substation capacity (MVA), distance, and `pln_grid_lines.geojson` has transmission topology
 

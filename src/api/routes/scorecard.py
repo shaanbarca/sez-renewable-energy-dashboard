@@ -27,6 +27,7 @@ from src.dash.logic import (
     get_default_assumptions,
     get_default_thresholds,
 )
+from src.model.columns import Col
 
 router = APIRouter()
 
@@ -113,9 +114,23 @@ def _clean_nan(value):
 
 
 def _df_to_clean_records(df: pd.DataFrame) -> list[dict]:
-    """Convert DataFrame to list of dicts with NaN replaced by None."""
+    """Convert DataFrame to list of dicts with NaN replaced by None.
+
+    Adds deprecation aliases for renamed columns so external consumers on the
+    old name keep working for one release. Aliases removed in v4.2.
+    """
     records = df.to_dict(orient="records")
-    return [{k: _clean_nan(v) for k, v in row.items()} for row in records]
+    cleaned = [{k: _clean_nan(v) for k, v in row.items()} for row in records]
+
+    # DEPRECATED 2026-04-25: `max_captive_capacity_mwp` → renamed to
+    # `regional_groundmount_potential_mwp_50km`. Old name was misleading
+    # ("captive" suggests on-site; the number is regional 50 km ground-mount
+    # potential). Alias kept for one release; remove in v4.2.
+    for row in cleaned:
+        if Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM in row:
+            row["max_captive_capacity_mwp"] = row[Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM]
+
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +227,7 @@ def post_scorecard(req: ScorecardRequest):
             "fct_site_resource",
             [
                 "buildable_area_ha",
-                "max_captive_capacity_mwp",
+                Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM,
                 "pvout_centroid",
                 "pvout_best_50km",
             ],

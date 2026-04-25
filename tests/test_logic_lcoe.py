@@ -40,7 +40,7 @@ def _resource_row(**overrides) -> pd.DataFrame:
         "pvout_buildable_best_50km": 1700.0,
         "dist_solar_to_nearest_substation_km": 5.0,
         "dist_to_nearest_substation_km": 7.0,
-        "max_captive_capacity_mwp": 50.0,
+        "regional_groundmount_potential_mwp_50km": 50.0,
         "nearest_substation_capacity_mva": 100.0,
         "inter_substation_connected": True,
         "inter_substation_dist_km": 0.0,
