@@ -49,6 +49,7 @@ from src.model.basic_model import (
     invest_resilience,
     resolve_demand,
 )
+from src.model.columns import Col
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
 from src.pipeline.build_fct_site_resource import (
     _REQUIRED_BUILD_FILES,
@@ -231,7 +232,7 @@ def build_fct_site_scorecard(
     _build_cols = [
         "pvout_buildable_best_50km",
         "buildable_area_ha",
-        "max_captive_capacity_mwp",
+        Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM,
         "buildability_constraint",
         "pvout_within_boundary",
         "within_boundary_source",
@@ -394,7 +395,9 @@ def build_fct_site_scorecard(
     df.loc[wb_override, "grid_integration_category"] = "within_boundary"
 
     # V3.3: Firm solar metrics — temporal mismatch awareness (MacKay balance sheet)
-    _solar_gen = df["max_captive_capacity_mwp"].fillna(0) * df["pvout_best_50km"].fillna(0)
+    _solar_gen = df[Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM].fillna(0) * df[
+        "pvout_best_50km"
+    ].fillna(0)
     _firm_results = [
         firm_solar_metrics(float(gen), float(dem)) for gen, dem in zip(_solar_gen, demand_mwh)
     ]
@@ -404,7 +407,9 @@ def build_fct_site_scorecard(
     df["storage_gap_pct"] = [r["storage_gap_pct"] for r in _firm_results]
 
     # Project viability flag — True if buildable capacity meets minimum IPP threshold
-    df["project_viable"] = df["max_captive_capacity_mwp"].fillna(0) >= PROJECT_VIABLE_MIN_MWP
+    df["project_viable"] = (
+        df[Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM].fillna(0) >= PROJECT_VIABLE_MIN_MWP
+    )
 
     # Action flags — compute row by row using model function
     # Signature: action_flags(solar_attractive, grid_upgrade_pre2030, reliability_req,
@@ -459,7 +464,7 @@ def build_fct_site_scorecard(
     # - otherwise: first True flag wins
     def _flag_label(row: pd.Series) -> str:
         # No buildable land → no solar resource, skip all solar-dependent flags
-        max_mwp = row.get("max_captive_capacity_mwp", 0.0)
+        max_mwp = row.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM, 0.0)
         if pd.isna(max_mwp) or max_mwp <= 0:
             return "no_solar_resource"
         if any(
@@ -549,8 +554,8 @@ def build_fct_site_scorecard(
         + df["substation_upgrade_cost_per_kw"].fillna(0)
     )
     df["grid_investment_needed_usd"] = np.where(
-        (_infra_cost > 0) & (df["max_captive_capacity_mwp"] > 0),
-        (_infra_cost * df["max_captive_capacity_mwp"] * 1000).round(0),
+        (_infra_cost > 0) & (df[Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM] > 0),
+        (_infra_cost * df[Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM] * 1000).round(0),
         np.nan,
     )
 
@@ -606,7 +611,7 @@ def build_fct_site_scorecard(
             "cf_best_50km",
             "pvout_buildable_best_50km",
             "buildable_area_ha",
-            "max_captive_capacity_mwp",
+            Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM,
             "buildability_constraint",
             "resource_quality",
             "dist_to_nearest_substation_km",

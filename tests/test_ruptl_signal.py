@@ -301,7 +301,7 @@ def test_capacity_assessment_utilization_sweep(utilization: float, expected_ligh
 def _kek(**overrides) -> pd.Series:
     base = {
         "nearest_substation_capacity_mva": 100.0,
-        "max_captive_capacity_mwp": 30.0,
+        "regional_groundmount_potential_mwp_50km": 30.0,
         "has_internal_substation": False,
         "dist_solar_to_nearest_substation_km": 5.0,
         "dist_to_nearest_substation_km": 7.0,
@@ -385,7 +385,7 @@ def _resource_row(**overrides) -> dict:
         "dist_solar_to_nearest_substation_km": 5.0,
         "dist_to_nearest_substation_km": 7.0,
         "nearest_substation_capacity_mva": 60.0,
-        "max_captive_capacity_mwp": 50.0,
+        "regional_groundmount_potential_mwp_50km": 50.0,
         "project_scale_solar_mwp": 50.0,
         "inter_substation_connected": True,
         "inter_substation_dist_km": 0.0,

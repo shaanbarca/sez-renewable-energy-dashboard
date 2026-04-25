@@ -25,7 +25,7 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
     pvout_buildable_best_50km  annual PVOUT best within 50km after buildability filter
                                NaN if buildability data not present in data/buildability/
     buildable_area_ha          total buildable area within 50km after all filters (ha)
-    max_captive_capacity_mwp   buildable_area_ha / 1.5 (1.5 ha/MWp tropical fixed-tilt)
+    regional_groundmount_potential_mwp_50km   buildable_area_ha / 1.5 (1.5 ha/MWp tropical fixed-tilt)
     buildability_constraint    dominant binding constraint:
                                "kawasan_hutan"|"slope"|"peat"|"agriculture"|
                                "area_too_small"|"unconstrained"|"data_unavailable"
@@ -79,6 +79,7 @@ from src.model.basic_model import (
     lcoe_solar,
     pvout_daily_to_annual,
 )
+from src.model.columns import Col
 from src.pipeline.assumptions import (
     ANCHOR_SEARCH_RADIUS_KM,
     BASE_WACC_DECIMAL,
@@ -1231,7 +1232,9 @@ def build_fct_site_resource(
                     "buildable_area_ha": buildable_area_ha
                     if np.isfinite(buildable_area_ha)
                     else np.nan,
-                    "max_captive_capacity_mwp": max_mwp if np.isfinite(max_mwp) else np.nan,
+                    Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM: max_mwp
+                    if np.isfinite(max_mwp)
+                    else np.nan,
                     "buildability_constraint": constraint,
                     # V2: coordinates of the best buildable solar site (for three-point proximity)
                     "best_solar_site_lat": best_solar_lat

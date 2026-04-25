@@ -87,7 +87,7 @@ const DROPDOWN_COLUMNS = new Set([
 ]);
 // Columns that get range filters (numeric)
 const RANGE_COLUMNS = new Set([
-  'max_captive_capacity_mwp',
+  'regional_groundmount_potential_mwp_50km',
   'lcoe_mid_usd_mwh',
   'solar_competitive_gap_pct',
   'dashboard_rate_usd_mwh',

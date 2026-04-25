@@ -93,7 +93,7 @@ Wind now has the same analytical depth as solar: buildability filtering, capacit
 | Analysis | Solar | Wind |
 |----------|-------|------|
 | Buildable area (land-use filtered) | `buildable_area_ha` via 4-layer cascade | ✅ `wind_buildable_area_ha` via wind-adapted cascade |
-| Capacity constraint | `max_captive_capacity_mwp = area / 1.5` | ✅ `max_wind_capacity_mwp = area / 25` |
+| Capacity constraint | `regional_groundmount_potential_mwp_50km = area / 1.5` | ✅ `max_wind_capacity_mwp = area / 25` |
 | Buildable polygon map layer | `buildable_polygons.geojson` | ✅ `wind_buildable_polygons.geojson` (3,402 polygons) |
 | Supply coverage | `solar_supply_coverage_pct = generation / demand` | ✅ `wind_supply_coverage_pct` |
 | Temporal coverage | `firm_solar_coverage_pct`, `storage_gap_pct` | ✅ `firm_wind_coverage_pct`, `wind_firming_gap_pct`, `wind_firming_hours` |
@@ -239,7 +239,7 @@ Ensure the scorecard output has the same columns for wind as it does for solar:
 | Solar Column | Wind Equivalent | Status |
 |-------------|----------------|--------|
 | `buildable_area_ha` | `wind_buildable_area_ha` | 1D-2 |
-| `max_captive_capacity_mwp` | `max_wind_capacity_mwp` | 1D-2 |
+| `regional_groundmount_potential_mwp_50km` | `max_wind_capacity_mwp` | 1D-2 |
 | `solar_supply_coverage_pct` | `wind_supply_coverage_pct` | 1D-4 |
 | `within_boundary_coverage_pct` | `within_boundary_wind_coverage_pct` | 1D-2 |
 | `firm_solar_coverage_pct` | `firm_wind_coverage_pct` | 1D-5 |

@@ -972,7 +972,7 @@ $$\text{max\_solar\_generation\_gwh} = \text{max\_captive\_capacity\_mwp} \times
 $$\text{solar\_supply\_coverage} = \frac{\text{max\_solar\_generation\_gwh}}{\text{demand\_2030\_gwh}}$$
 
 Where:
-- `max_captive_capacity_mwp` = buildable solar capacity from buildability filters (§3, Appendix A)
+- `regional_groundmount_potential_mwp_50km` = buildable solar capacity from buildability filters (§3, Appendix A)
 - `pvout_best_50km` = best annual solar yield within 50km (kWh/kWp/yr)
 - `demand_2030_gwh` = estimated KEK annual electricity demand (from area x industrial intensity)
 - Generation formula: capacity x yield converts MWp to MWh/yr, then /1000 for GWh

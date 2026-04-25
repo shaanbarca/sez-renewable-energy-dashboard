@@ -19,6 +19,7 @@ from src.assumptions import HOSTING_CAPACITY_AVAILABILITY_PCT, SUBSTATION_UTILIZ
 from src.dash.logic.assumptions import UserAssumptions
 from src.model.basic_model import capacity_assessment as compute_capacity_assessment
 from src.model.basic_model import grid_integration_category as compute_grid_integration_category
+from src.model.columns import Col
 
 
 def _get_float(src: Any, key: str, default: float | None = None) -> float | None:
@@ -59,7 +60,7 @@ def compute_grid_integration(
         dist_solar_to_nearest_substation_km, dist_to_nearest_substation_km.
     """
     sub_cap_mva = _get_float(kek, "nearest_substation_capacity_mva")
-    solar_cap_mwp = _get_float(kek, "max_captive_capacity_mwp")
+    solar_cap_mwp = _get_float(kek, Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)
 
     # Prefer LCOE-derived effective capacity: it already reflects both
     # `meaningful_share_pct` (phase-1 sizing, slider) and `target_capacity_mwp`

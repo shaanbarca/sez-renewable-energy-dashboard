@@ -91,7 +91,9 @@ export interface ScorecardRow {
   grid_emission_factor_t_co2_mwh?: number | null;
   carbon_breakeven_usd_tco2: number | null;
   buildable_area_ha: number;
-  max_captive_capacity_mwp: number;
+  /** @deprecated 2026-04-25 — renamed to `regional_groundmount_potential_mwp_50km`. Alias kept for one release; remove in v4.2. */
+  max_captive_capacity_mwp?: number;
+  regional_groundmount_potential_mwp_50km: number;
   project_viable: boolean;
   best_re_technology: string;
   grid_cost_usd_mwh: number;

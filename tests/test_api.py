@@ -66,6 +66,28 @@ def test_scorecard_invalid_capex(client):
     assert resp.status_code == 422
 
 
+def test_scorecard_max_captive_capacity_mwp_alias(client):
+    """Deprecation alias: `max_captive_capacity_mwp` mirrors the renamed
+    `regional_groundmount_potential_mwp_50km` for one release. See
+    `src/api/routes/scorecard.py::_df_to_clean_records`. Remove this test
+    + the alias when v4.2 ships.
+    """
+    body = _default_body(client)
+    resp = client.post("/api/scorecard", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    for row in data["scorecard"]:
+        new = row.get("regional_groundmount_potential_mwp_50km")
+        old = row.get("max_captive_capacity_mwp")
+        # Either both null or both equal — never the case where one exists
+        # and the other is missing.
+        assert old == new, (
+            f"alias mismatch on {row.get('site_id')}: "
+            f"max_captive_capacity_mwp={old!r} vs "
+            f"regional_groundmount_potential_mwp_50km={new!r}"
+        )
+
+
 def test_defaults(client):
     """3. GET /api/defaults returns assumptions, thresholds, and slider_configs."""
     resp = client.get("/api/defaults")

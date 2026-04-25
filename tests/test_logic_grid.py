@@ -34,7 +34,7 @@ EXPECTED_KEYS = {
 def _kek(**overrides) -> pd.Series:
     base = {
         "nearest_substation_capacity_mva": 100.0,
-        "max_captive_capacity_mwp": 50.0,
+        "regional_groundmount_potential_mwp_50km": 50.0,
         "has_internal_substation": False,
         "dist_solar_to_nearest_substation_km": 5.0,
         "dist_to_nearest_substation_km": 7.0,

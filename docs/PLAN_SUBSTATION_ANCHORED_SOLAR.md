@@ -84,7 +84,7 @@ For each site, in `_compute_buildable_pvout()`:
 6. **Output (new + changed columns in `fct_site_resource.csv`):**
    - `best_solar_site_lat/lon` — now points to the chosen anchored patch (or fallback pixel)
    - `pvout_buildable_best_50km` — mean PVOUT of chosen patch (slightly lower than today's argmax)
-   - `buildable_area_ha`, `max_captive_capacity_mwp` — sized to chosen patch, not the whole 50 km radius
+   - `buildable_area_ha`, `regional_groundmount_potential_mwp_50km` — sized to chosen patch, not the whole 50 km radius
    - **NEW** `solar_search_method` — `"substation_anchored"` or `"best_pvout_fallback"`
    - **NEW** `chosen_anchor_substation_name` — for traceability in ScoreDrawer
    - **NEW** `solar_supply_share_pct` — chosen patch capacity ÷ required_mwp; lets the UI distinguish "full coverage" vs "meaningful but partial" vs "fallback only"

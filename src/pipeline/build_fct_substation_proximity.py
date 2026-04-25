@@ -69,6 +69,7 @@ from src.assumptions import (
     SUBSTATION_UTILIZATION_PCT_BY_RUPTL_SIGNAL,
 )
 from src.model.basic_model import capacity_assessment, grid_integration_category
+from src.model.columns import Col
 from src.pipeline.geo_utils import haversine_km
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -405,7 +406,7 @@ def build_fct_substation_proximity(  # noqa: PLR0913
             for _, r in resource_df.iterrows():
                 lat = r.get("best_solar_site_lat")
                 lon = r.get("best_solar_site_lon")
-                cap = r.get("max_captive_capacity_mwp")
+                cap = r.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)
                 if pd.notna(lat) and pd.notna(lon):
                     # V3.7 fix: when centroid pixel is NaN (raster hole / edge pixel),
                     # fall back to the best-in-50km buildable PVOUT so project_scale_mwp
@@ -493,7 +494,7 @@ def build_fct_substation_proximity(  # noqa: PLR0913
             # so sizing the project (and substation-upgrade costs) at 100% coverage
             # creates a logical gap — inflates $/kW and triggers false "Build
             # Substation" flags. Full-demand coverage is a later phase, not this model.
-            # max_captive_capacity_mwp is the upper bound on the land.
+            # regional_groundmount_potential_mwp_50km is the upper bound on the land.
             #
             # V3.7 NaN-safety: use cf_for_sizing (cf_centroid with buildable-best
             # fallback) so raster holes / edge pixels at the centroid don't silently

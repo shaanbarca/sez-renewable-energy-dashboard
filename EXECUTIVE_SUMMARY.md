@@ -170,7 +170,7 @@ All thirteen output tables are produced by the pipeline. Key outputs:
 
 Three things to be aware of when interpreting results:
 
-1. **Buildable area is a modelled estimate, not a surveyed figure.** The pipeline applies four land exclusion layers (protected forests, peatlands, croplands/urban, steep slopes) using satellite and open datasets. This produces a realistic buildable area per KEK, but field surveys will differ — local land tenure disputes, micro-terrain, and access constraints are not captured. Use `buildable_area_ha` and `max_captive_capacity_mwp` as order-of-magnitude screening figures, not engineering inputs.
+1. **Buildable area is a modelled estimate, not a surveyed figure.** The pipeline applies four land exclusion layers (protected forests, peatlands, croplands/urban, steep slopes) using satellite and open datasets. This produces a realistic buildable area per KEK, but field surveys will differ — local land tenure disputes, micro-terrain, and access constraints are not captured. Use `buildable_area_ha` and `regional_groundmount_potential_mwp_50km` as order-of-magnitude screening figures, not engineering inputs.
 
 2. **Construction costs are provisional.** The CAPEX and O&M figures from the ESDM Technology Catalogue still need to be manually verified against the source PDF. Once verified, all LCOE outputs will be updated and marked as confirmed.
 

@@ -179,7 +179,7 @@ Steps inside:
 
 **What degrades gracefully without GeoTIFFs on server:**
 - If PVOUT GeoTIFF missing: return error asking user to provide PVOUT estimate manually (add optional override field to form)
-- Buildability layers missing: `buildable_area_ha` = NaN, `max_captive_capacity_mwp` = NaN (same as existing KEKs without buildability data)
+- Buildability layers missing: `buildable_area_ha` = NaN, `regional_groundmount_potential_mwp_50km` = NaN (same as existing KEKs without buildability data)
 
 ### Phase 4: ScoreDrawer Integration
 

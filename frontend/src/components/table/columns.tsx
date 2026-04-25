@@ -34,8 +34,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   zone_classification: 'Site classification: Industrial, Tourism, or Mixed',
   category: 'Development stage: Established, Proposed, or Under Construction',
   area_ha: 'Total designated KEK area in hectares',
-  max_captive_capacity_mwp:
-    'Maximum buildable solar capacity (MWp) within 50km, based on buildability filters (slope, land cover, protected areas)',
+  regional_groundmount_potential_mwp_50km:
+    'Maximum buildable ground-mount solar capacity (MWp) within 50km of the site centroid, after applying buildability filters (slope, land cover, protected areas). Regional, not on-site.',
   action_flag:
     'Recommended action based on solar economics, grid readiness, and RUPTL pipeline status',
   lcoe_mid_usd_mwh:
@@ -312,8 +312,13 @@ export const columns = [
       return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
     },
   }),
-  col.accessor('max_captive_capacity_mwp', {
-    header: () => <HeaderWithTooltip label="Capacity (MWp)" columnId="max_captive_capacity_mwp" />,
+  col.accessor('regional_groundmount_potential_mwp_50km', {
+    header: () => (
+      <HeaderWithTooltip
+        label="Capacity (MWp)"
+        columnId="regional_groundmount_potential_mwp_50km"
+      />
+    ),
     filterFn: 'inRange',
     cell: (info) => {
       const v = info.getValue();

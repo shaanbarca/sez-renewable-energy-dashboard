@@ -115,8 +115,8 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
             <StatRowWithTip
               label={energyMode === 'overall' ? 'Solar Capacity' : 'Max Capacity'}
               value={
-                row.max_captive_capacity_mwp != null
-                  ? row.max_captive_capacity_mwp.toFixed(0)
+                row.regional_groundmount_potential_mwp_50km != null
+                  ? row.regional_groundmount_potential_mwp_50km.toFixed(0)
                   : null
               }
               unit="MWp"
@@ -172,7 +172,9 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
         </StatCard>
       )}
 
-      {row.max_captive_capacity_mwp != null && row.max_captive_capacity_mwp > 0 && showSolar && (
+      {row.regional_groundmount_potential_mwp_50km != null &&
+        row.regional_groundmount_potential_mwp_50km > 0 &&
+        showSolar && (
         <LcoeCurveChart row={row} />
       )}
     </>

@@ -21,6 +21,7 @@ from src.model.basic_model import (
     new_transmission_cost_per_kw,
     substation_upgrade_cost_per_kw,
 )
+from src.model.columns import Col
 
 
 def _round(value: float, decimals: int = 2) -> float:
@@ -150,7 +151,7 @@ def compute_lcoe_live(
             land_cost = assumptions.land_cost_usd_per_kw
 
             anchor_mwp_val = kek.get("project_scale_solar_mwp")
-            envelope_mwp_val = kek.get("max_captive_capacity_mwp")
+            envelope_mwp_val = kek.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)
             if pd.notna(anchor_mwp_val) and float(anchor_mwp_val) > 0:
                 max_mwp = float(anchor_mwp_val)
             elif pd.notna(envelope_mwp_val) and float(envelope_mwp_val) > 0:

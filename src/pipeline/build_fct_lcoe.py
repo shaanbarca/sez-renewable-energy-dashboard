@@ -56,6 +56,7 @@ from src.model.basic_model import (
     new_transmission_cost_per_kw,
     substation_upgrade_cost_per_kw,
 )
+from src.model.columns import Col
 from src.pipeline.assumptions import (
     HOURS_PER_YEAR,
     WACC_VALUES,
@@ -104,8 +105,8 @@ def build_fct_lcoe(
         resource_cols.append(gc_pvout_col)
     if wb_pvout_col not in resource_cols:
         resource_cols.append(wb_pvout_col)
-    if "max_captive_capacity_mwp" in resource_raw.columns:
-        resource_cols.append("max_captive_capacity_mwp")
+    if Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM in resource_raw.columns:
+        resource_cols.append(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)
     resource = resource_raw[resource_cols]
 
     tech = pd.read_csv(dim_tech_cost_csv).iloc[0]
@@ -175,7 +176,7 @@ def build_fct_lcoe(
         )
 
         # V3.2: Extract solar capacity + substation capacity for upgrade cost
-        solar_mwp_val = kek_row.get("max_captive_capacity_mwp")
+        solar_mwp_val = kek_row.get(Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM)
         solar_mwp = (
             float(solar_mwp_val)
             if pd.notna(solar_mwp_val) and float(solar_mwp_val) > 0
