@@ -100,11 +100,11 @@ export default function ActionFlagLegend() {
 
       {open && (
         <div
-          className="absolute top-full left-0 mt-2 p-3 rounded-lg z-50 min-w-[260px]"
+          className="absolute top-full left-0 mt-2 p-3 rounded-lg z-[100] min-w-[260px]"
           style={{
-            background: 'var(--glass-heavy)',
-            backdropFilter: 'var(--blur-heavy)',
-            WebkitBackdropFilter: 'var(--blur-heavy)',
+            background: 'rgba(15, 15, 18, 0.95)',
+            backdropFilter: 'blur(28px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
             border: '1px solid var(--glass-border-bright)',
             boxShadow: 'var(--popup-shadow)',
           }}

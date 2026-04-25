@@ -98,11 +98,14 @@ export default function LayerControl() {
 
       {open && (
         <div
-          className="absolute top-[calc(100%+6px)] right-0 z-50 rounded-lg px-3 py-2.5 min-w-[220px]"
+          className="absolute top-[calc(100%+6px)] right-0 z-[100] rounded-lg px-3 py-2.5 min-w-[220px]"
           style={{
-            backdropFilter: 'var(--blur-heavy)',
-            WebkitBackdropFilter: 'var(--blur-heavy)',
-            background: 'var(--glass-heavy)',
+            backdropFilter: 'blur(28px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+            // Higher alpha (0.95 vs --glass-heavy's 0.65) so the AssumptionsPanel
+            // sliders behind don't bleed through the dropdown labels. z-[100]
+            // beats every other floating panel.
+            background: 'rgba(15, 15, 18, 0.95)',
             border: '1px solid var(--glass-border-bright)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           }}
