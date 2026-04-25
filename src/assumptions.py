@@ -800,6 +800,85 @@ SECTOR_RELIABILITY_REQUIREMENT: dict[str, float] = {
 CLUSTER_PROXIMITY_THRESHOLD_KM: float = 15.0
 
 
+# ─── ROOFTOP SOLAR (v4.1 Phase 1) ─────────────────────────────────────────────
+# All constants here drive `compute_rooftop_solar_potential` and the §14
+# geometric building-type classifier. See
+# `docs/rooftop_solar_potential_feature_spec.md` §5.3 + §14.3 for the full
+# rationale + sources.
+
+# Usable share of detected building footprint after accounting for HVAC,
+# skylights, structural setbacks, walkways, etc.
+# Source: NREL 2016 technical potential study. 0.50 is conservative for
+# industrial flat roofs (sensitivity slider range 0.40-0.70 in v4.2).
+ROOFTOP_USABLE_SHARE: float = 0.50
+
+# Power density of modern bifacial monocrystalline panels (W/m² of usable
+# rooftop area). 400-450 W per panel × 2.3-2.5 m² panel area ≈ 170 W/m².
+# Tightens to 150 W/m² for conservative estimate.
+ROOFTOP_W_PER_M2: float = 170.0
+
+# Thermal derating factor for tropical Indonesia. Module temperature 20-25°C
+# above ambient in full sun reduces efficiency by ~0.4%/°C × 30°C = 12%.
+# Source: NREL PVWatts default for tropical equatorial.
+THERMAL_DERATE_TROPICAL: float = 0.88
+
+# ─── §14 Geometric building-type classifier ─────────────────────────────────
+# These are STARTING POINTS, calibrated by §14.6 manual validation BEFORE
+# merge. If classifier accuracy is < 80% on 100 manually-labeled fixtures,
+# tune these values and re-run validation.
+#
+# circularity = 4π × area / perimeter²
+#   1.00 = perfect circle (round tank)
+#   0.60-0.70 = regular rectangle
+#   0.40-0.50 = irregular warehouse
+#   <0.30 = elongated (conveyor)
+BUILDING_CIRCULARITY_TANK_THRESHOLD: float = 0.85
+
+# aspect_ratio = bbox_length / bbox_width
+#   1.0-2.0 = square-ish warehouse
+#   2.0-4.0 = typical factory
+#   6.0+ = conveyor / pipe rack
+BUILDING_ASPECT_CONVEYOR_THRESHOLD: float = 8.0
+
+# Below this floor, structures are too small for commercial rooftop solar
+# OR are likely non-buildings (equipment housings, guard posts, small tanks).
+BUILDING_MIN_AREA_M2: float = 200.0
+
+# convex_ratio = polygon_area / convex_hull_area
+#   0.95-1.00 = simple rectangle (clean roof)
+#   0.85-0.95 = warehouse with loading docks
+#   <0.70 = complex process equipment cluster
+BUILDING_HULL_RATIO_COMPLEX_THRESHOLD: float = 0.70
+
+# ─── F4 Confidence flag thresholds (derived signals, no hard-coded sites) ──
+# Typical industrial site has 5-40% of polygon area as building footprint.
+# Outside this band suggests undercount (low) or implausibly dense (also low).
+BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW: float = 0.05
+BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH: float = 0.40
+
+# Minimum building count for `high` confidence. Below this, even a healthy
+# footprint ratio could be a single warehouse (small sample).
+BUILDING_COUNT_HIGH_CONFIDENCE_MIN: int = 10
+
+# Below this count for a known major facility (capacity > 100k tonnes/yr),
+# flag as `low` confidence — likely undercount.
+BUILDING_COUNT_LOW_CONFIDENCE_MAX: int = 3
+
+# Site polygon area threshold above which a tiny footprint share suggests
+# imagery gap, not a small site (ha).
+SITE_POLYGON_LARGE_AREA_HA: float = 500.0
+
+# Below this footprint-as-share-of-polygon for large sites, flag `low`.
+BUILDING_FOOTPRINT_IMAGERY_GAP_RATIO: float = 0.01
+
+# Imagery vintage cutoff. Sites commissioned after this year are post-Google
+# Open Buildings v3 imagery (May 2023) and likely undercounted.
+BUILDING_DATA_VINTAGE_YEAR_CUTOFF: int = 2023
+
+# Static metadata for UI tooltips. Update when GoB v4 ships.
+BUILDING_DATA_VINTAGE: str = "2023-05 Google Open Buildings v3"
+
+
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 
 
