@@ -1,8 +1,8 @@
 # Feature Spec: Within-Boundary Solar Potential (Rooftop + Ground-Mount)
 
-**Status:** Refined v3 (2026-04-25). Scope reduced to *raw potential only* — Supply Blend integration, ESDM cap, and Tenant view all deferred to v4.2+. Ready to implement after prerequisite rename PR lands.
+**Status:** Refined v4 (2026-04-27). Scope reduced to *raw potential only* — Supply Blend integration, ESDM cap, and Tenant view all deferred to v4.2+. v4 adds visual tile-grid rendering for sanity-check + alternative data sourcing for sites GoB v3 misses.
 **Target version:** v4.1
-**Estimated effort:** ~3 weeks (was 2 weeks pre-review, then 3-4 weeks pre-scope-cut, now 3 weeks after deferring cost integration)
+**Estimated effort:** ~3-4 weeks (added tile-generation pipeline + alt-data fallback; trimmed by data-already-on-disk).
 
 ## 0. Decisions Resolved (post-review)
 
@@ -16,6 +16,8 @@
 | Rooftop CAPEX = ground-mount LCOE for v1? | **Moot in v4.1** since rooftop doesn't feed cost cascades. Differentiate when integration lands in v4.2. | Avoids blocking v4.1 on a CAPEX modeling exercise. |
 | §14.3 geometric classifier thresholds | **Starting points, calibrated by §14.6 manual validation before merge.** | Shipping unverified thresholds as defaults gives precision the data doesn't support. |
 | Validation target | **±20% on 10 manual sites** (was ±30%). | A 35 MW number with ±30% band could be 25–45 MW; even without cost integration, that's too loose to publish. |
+| **Visual sanity-check via panel tiles** (NEW v4) | Pre-generate a panel-tile grid per `standard_roof` building, render at zoom ≥14 as small filled rectangles. Tile capacity is configurable via slider. Live re-compute as user changes panel power / size assumptions. | "Show your work" — counting visible tiles must reproduce the headline MWp number. Eliminates the "trust the spreadsheet" failure mode for DFI / industrial investor personas. See §5.3.1 + §3.6. |
+| **Missing-data sites flagged for alt-data hunt** (NEW v4) | For the 14 sites where GoB v3 finds 0 buildings, write a pipeline-flagged shortlist with provenance hooks. Don't ship "low confidence" silently — make alt-data sourcing a first-class follow-up. | Verified in v4.1 build: 14 / 81 sites missing (post-2023 nickel IIA + Bali tourism KEKs). Microsoft GMLBF and Indonesia-specific sources (BIG ortho, BPS) likely close the gap. See §3.7 + L21 / L22 / L26 in §18. |
 
 ---
 
@@ -113,6 +115,77 @@ Implementation:
 - Columns: site_name, sector, rooftop_solar_mwp, within_site_groundmount_mwp, regional_groundmount_potential_mwp_50km, building_count, data_confidence
 - Sortable, filterable consistent with existing table behavior
 - Lets users compare all 81 sites' solar potential at a glance without opening Score Drawers
+
+### 3.6 Visual panel-tile grid (the "show your work" layer)
+
+**The premise.** A user viewing a site needs to validate the rooftop MWp number without opening a calculator. The map should render simulated panel placement on each rooftop. Counting visible tiles × per-tile capacity must reproduce the headline MWp number, transparent end-to-end.
+
+**F8. Pre-generate a panel-tile grid per `standard_roof` building.** Stored as a parquet (Layer 2.5 alongside `sites_buildings_filtered.parquet`). One row per tile, schema: `site_id`, `building_id`, `tile_idx`, `geometry` (small rectangle in EPSG:4326), `panels_in_tile`, `tile_kw_dc`, `tile_kw_ac`.
+
+**F9. Render at zoom ≥ 14.** New MapLibre layer `rooftop_panel_tiles`, fill = solar-panel-blue (#1a3a8a), opacity 0.85. Hover shows: "X panels × Y W = Z kW (this rooftop: N tiles → M kW total)". Below zoom 14, render only as the building polygon outline (count is in the tooltip — no clutter).
+
+**F10. Tile assumptions live in `assumptions.py`, exposed to the user as sliders.** When the user drags `panel_power_w` or `layout_density`, both the headline rooftop MWp AND the tile rendering recompute live. This is the "show your work" loop: change a number, watch the panels redraw to match.
+
+**F11. Click interaction — per-rooftop and per-cluster aggregate.** Clicking on the map should produce three levels of information depending on what was hit:
+
+| Click target | Popup shows |
+|---|---|
+| Single tile | "1 tile · 6 panels · 2.4 kW DC · 2.1 kW AC · ~3.2 MWh/yr" |
+| One rooftop (any tile within a single building polygon) | "32 tiles · 192 panels · 76.8 kW DC · 67.6 kW AC · ~104 MWh/yr" |
+| Contiguous rooftop cluster (tiles from buildings whose centroids are within `ROOFTOP_CLUSTER_RADIUS_M = 50 m` of each other) | "8 buildings · 187 tiles · 1,122 panels · 449 kW DC · 395 kW AC · ~607 MWh/yr" |
+
+Annual MWh derived from the site's `pvout_centroid` (or `pvout_within_boundary` if available) × tile AC kW. Same PVOUT the existing pipeline already computes — no new data sources.
+
+Implementation:
+- Tile parquet has a `cluster_id` column (NEW — computed at preprocess time via DBSCAN on building centroids with `eps = ROOFTOP_CLUSTER_RADIUS_M / 1000` km, `min_samples = 1`)
+- MapLibre `click` handler queries which tile / rooftop / cluster was hit
+- Frontend looks up neighbours in the cluster, sums on the fly
+- No backend round-trip for the aggregate (data is already in the tile parquet served per-site)
+
+**F12. Score Drawer Resource tab aggregate.** The site-wide totals shown in the Score Drawer are the sum of all tiles for that site. Already covered by §3.1 F2 and the `fct_site_solar_potential.csv` columns. Adding one detail:
+
+```
+┌─ Solar Potential ──────────────────────────────────────┐
+│  Rooftop:    287.4 MWp DC ·  253 MWp AC ·  389 GWh/yr  │
+│             ↳  47,818 tiles · 287,008 panels           │
+│             ↳  8,923 standard roofs (excluded: 3,208)  │
+│  Within-site ground:  412.1 MWp DC                     │
+│  50 km regional:    2,580.0 MWp DC                     │
+└────────────────────────────────────────────────────────┘
+```
+
+The dual MWp (DC nameplate vs AC at meter) + tile/panel counts make the cross-check loop trivial: if the user hovers a single building, sees "32 tiles · 67.6 kW AC", and the headline says "47,818 tiles · 253 MWp AC", they can verify by sampling.
+
+The four user-tunable parameters and their defaults:
+
+| Slider | Default | Range | Meaning |
+|---|---|---|---|
+| `ROOFTOP_PANEL_POWER_W_DC` | **400** | 300-600 | Per-panel DC nameplate. 400 W = mainstream commercial 2024-2026; 550-600 W = high-end utility N-type. |
+| `ROOFTOP_PANEL_AREA_M2` | **2.0** | 1.6-2.6 | Per-panel physical area. 2.0 m² = common commercial-class (~1.76 m × 1.13 m). |
+| `ROOFTOP_LAYOUT_DENSITY` | **0.50** | 0.40-0.65 | Panel area as fraction of building footprint. 0.50 typical for industrial flat roof after walkways, setbacks, HVAC. |
+| `ROOFTOP_PANELS_PER_TILE` | **6** | 1-24 | Visualization-only. How many panels = 1 visible tile rectangle. Smaller = more tiles to count, denser map. 6 = good balance. |
+
+`panels_per_tile = 1` shows individual panels (most accurate, dense map at zoom 17+). `panels_per_tile = 24` shows utility-scale "string blocks" (cleaner map at zoom 14). The total MWp doesn't depend on this parameter — only the visual granularity.
+
+### 3.7 Missing-data sites — flag, don't hide
+
+**F13. The pipeline must produce an explicit shortlist of sites with `building_data_confidence = 'low'` and an alt-data search hook.** Don't silently flag and move on; surface them so the next step is obvious.
+
+Two outputs:
+
+1. **`outputs/data/processed/fct_site_solar_potential.csv` row:** `building_data_confidence` = `low`, `building_data_source` = `gob_v3` (always for now; becomes `gob_v3+ms_gmlbf` or `gob_v3+manual` after fallback work).
+
+2. **`outputs/data/processed/sites_missing_buildings.csv`** (NEW): lightweight CSV with `site_id`, `site_name`, `commissioning_year`, `province`, `sector`, `reason_flagged` (one of: `post_2023_imagery`, `low_count_for_capacity`, `polygon_imagery_gap`), `recommended_alt_data` (one of: `microsoft_gmlbf`, `manual_kml`, `bps_industrial_directory`).
+
+The 14 sites the v4.1 build flagged (verified 2026-04-26):
+
+| Reason flagged | Sites | Recommended fallback |
+|---|---|---|
+| Post-2023 imagery | IWIP, Pomalaa (IPIP), Buli, Konawe (IKIP), Stardust Estate, Red Lion Hongshi, Tanjung Sauh, Pupuk Iskandar Muda Lhokseumawe | **Microsoft GMLBF** (refreshed quarterly, may catch post-2023 builds). Then **manual KML** for residual gaps. |
+| Tourism KEK (low industrial density) | KEK Kura Kura, KEK Mandalika, KEK Sanur, KEK Morotai | **No alt-data needed**; document as "predominantly tourism, minimal rooftop solar potential" in UI tooltip. |
+| Coordinates / polygon issues | Cemindo Gemilang Bayah, KEK Maloy Batuta, KEK Arun Lhokseumawe | **Manual coordinate verification** + Microsoft GMLBF cross-check. |
+
+This becomes the input to L21 (Microsoft GMLBF integration) — a concrete punch list, not a vague "sometime later" TODO.
 
 ### 3.2 Non-functional requirements
 
@@ -213,20 +286,78 @@ The v4.1 numbers are forward-compatible: when v4.2 adds the integration, the sam
 
 ### 5.3 Derating factors (with citations)
 
-All values live in `src/assumptions.py` as named constants (per project rule: tunable + auditable, no magic numbers):
+The model decomposes into FOUR explicit stages, all named constants in `src/assumptions.py` (per project rule: tunable, auditable, no magic numbers):
 
-| Constant in `assumptions.py` | Value | Source |
+```
+                                         ╭─ §5.3.1 Panel ────────────╮
+                                         │ panel_power_W_DC = 400    │
+                                         │ panel_area_m²    = 2.0    │  → 200 W/m² of panel area
+                                         ╰───────────────────────────╯
+                                                       ↓
+                                         ╭─ §5.3.2 Layout ───────────╮
+                                         │ layout_density   = 0.50   │  → fraction of footprint covered
+                                         ╰───────────────────────────╯  in panels (vs walkways/HVAC/setback)
+                                                       ↓
+                                         ╭─ §5.3.3 Climate ──────────╮
+                                         │ thermal_derate   = 0.88   │
+                                         ╰───────────────────────────╯  → tropical hot-module loss
+                                                       ↓
+                                         ╭─ §5.3.4 Composite ────────╮
+                                         │ rooftop_kW_AC =           │
+                                         │   footprint_m² × 0.50     │
+                                         │   × 200 W/m² × 0.88 ÷ 1k  │
+                                         │   ≈ footprint × 0.088     │  → 88 W/m² AC of footprint
+                                         ╰───────────────────────────╯
+
+     Worked example: 1,000 m² flat warehouse → ≈88 kW AC ≈ 22 visible tiles (at 6 panels/tile)
+```
+
+All numbers below come from current (2024-2026) commercial PV datasheets + NREL technical reports + IEC / SNI installation codes. Replaced the v3 spec's collapsed `ROOFTOP_W_PER_M2 = 170` with explicit panel + layout decomposition so the slider story is honest.
+
+#### 5.3.1 Panel (the physical module)
+
+| Constant | Default | Range | Source |
+|---|---|---|---|
+| `ROOFTOP_PANEL_POWER_W_DC` | 400 | 300-600 | Mainstream commercial 2024-2026 N-type bifacial monocrystalline. Tier-1 datasheets (JinkoSolar Tiger Neo 415-435W, JA Solar JAM72D40 410-430W, Trina Vertex S+ 425-450W). High-end utility N-type now 550-620W (Trina Vertex N TSM-NEG21C.20, LONGi Hi-MO 7). |
+| `ROOFTOP_PANEL_AREA_M2` | 2.0 | 1.6-2.6 | 1.76 m × 1.13 m commercial-class (≈2.0 m²) or 2.28 m × 1.13 m utility-class (≈2.6 m²). 1.6 m² = older small-format. |
+| Derived: panel-area density | **200 W/m²** | 150-260 | At default 400 W / 2.0 m². Modern N-type bifacial achieves 210-240 W/m² panel-area peak. |
+
+#### 5.3.2 Layout (panel area / footprint area)
+
+| Constant | Default | Range | Source |
+|---|---|---|---|
+| `ROOFTOP_LAYOUT_DENSITY` | 0.50 | 0.40-0.65 | NREL TP-6A20-65298 (rooftop technical potential). 0.50 = industrial flat roof after 1m edge setback (SNI 03-1736-2000, IEC 62548), 0.6-1.0m row-walkway aisles every few rows, HVAC / skylights / structural penetrations. Higher (0.55-0.65) if the rooftop is empty + low-tilt; lower (0.40) if heavy HVAC. |
+| `ROOFTOP_EDGE_SETBACK_M` | 1.0 | 0.5-2.0 | Industrial fire access code (SNI 03-1736-2000 §7.4, also IEC 62548:2016). 1m minimum; 1.5m more conservative. |
+| `ROOFTOP_PANELS_PER_TILE` | 6 | 1-24 | Visualization-only — see §3.6 F10. 6 = ~1 string-half (typical industrial inverter input is 12-24 panels per string). 1 = render individual panels. |
+| `ROOFTOP_CLUSTER_RADIUS_M` | 50 | 20-200 | DBSCAN epsilon for click-interaction "contiguous rooftop cluster" (see §3.6 F11). 50 m groups buildings sharing a continuous roofscape (e.g. an industrial estate's main hall + adjoining warehouses) without merging unrelated structures across roads. |
+
+#### 5.3.3 Climate / system derating
+
+| Constant | Default | Range | Source |
+|---|---|---|---|
+| `THERMAL_DERATE_TROPICAL` | 0.88 | 0.85-0.92 | Indonesian climate. Module temp coefficient typically -0.30 to -0.36 %/°C; module cell temp runs 25-30°C above ambient under STC; gives ~12% production loss vs nameplate. NREL PVWatts default for equatorial tropical. v4.2 will replace with regional variation (L23 in §18). |
+
+**v4.1 uses thermal derate only.** Other system losses (inverter ~0.97, DC wiring ~0.98, soiling ~0.95, mismatch ~0.98) compose to ~0.88 of their own. We absorb them implicitly by reading the headline number as "deliverable AC at the meter" rather than nameplate DC. v4.2 may unbundle if the single-derate model creates persona confusion — see L27 in §18.
+
+#### 5.3.4 §14 geometric building-type classifier
+
+| Constant | Default | Source |
 |---|---|---|
-| `ROOFTOP_USABLE_SHARE` | 0.50 | NREL 2016 technical potential study — accounts for HVAC, skylights, structural constraints, setbacks. Conservative for industrial rooftops which tend to be more solar-friendly than residential. |
-| `ROOFTOP_W_PER_M2` | 170 | Modern bifacial monocrystalline panels (400-450W per panel, 2.3-2.5 m²). Tightens to 150 W/m² for conservative estimate. |
-| `THERMAL_DERATE_TROPICAL` | 0.88 | Indonesian climate: module temperature 20-25°C above ambient in full sun, reducing efficiency by ~0.4%/°C × 30°C = 12%. NREL PVWatts default for tropical equatorial. |
-| `HA_PER_MWP` | (existing) | Already in `assumptions.py`, no change |
 | `BUILDING_CIRCULARITY_TANK_THRESHOLD` | 0.85 | §14.3 starting point, calibrated by §14.6 validation before merge. |
-| `BUILDING_ASPECT_CONVEYOR_THRESHOLD` | 8.0 | §14.3 starting point, calibrated by §14.6 validation before merge. |
-| `BUILDING_MIN_AREA_M2` | 200 | Below this, structures are too small for commercial rooftop solar regardless of type. |
-| `BUILDING_HULL_RATIO_COMPLEX_THRESHOLD` | 0.70 | §14.3 starting point, calibrated by §14.6 validation before merge. |
-| `BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW` | 0.05 | F4 confidence flag — typical industrial site has ≥5% of polygon as building footprint. |
-| `BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH` | 0.40 | F4 confidence flag — typical industrial site has ≤40% of polygon as building footprint. |
+| `BUILDING_ASPECT_CONVEYOR_THRESHOLD` | 8.0 | §14.3 starting point. |
+| `BUILDING_MIN_AREA_M2` | 200 | Below this: too small for commercial rooftop solar regardless of type. |
+| `BUILDING_HULL_RATIO_COMPLEX_THRESHOLD` | 0.70 | §14.3 starting point. |
+
+#### 5.3.5 F4 confidence-flag thresholds (derived signals only)
+
+| Constant | Default | Used to set `building_data_confidence` to |
+|---|---|---|
+| `BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW` | 0.05 | `low` if site polygon area > 500 ha and footprint < 5% — likely imagery gap |
+| `BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH` | 0.40 | `low` if footprint > 40% — implausibly dense, suggests miscount |
+| `BUILDING_COUNT_HIGH_CONFIDENCE_MIN` | 10 | `high` requires ≥10 buildings + footprint in 5-40% band |
+| `BUILDING_COUNT_LOW_CONFIDENCE_MAX` | 3 | `low` if known major facility (capacity > 100k tonnes/yr) has < 3 buildings |
+| `BUILDING_DATA_VINTAGE_YEAR_CUTOFF` | 2023 | `low` if site commissioned > 2023 (post-GoB v3 imagery) |
+| `SITE_POLYGON_LARGE_AREA_HA` | 500 | Threshold for the imagery-gap heuristic |
 
 ### 5.4 Confidence score threshold
 
@@ -959,6 +1090,10 @@ Captured to prevent scope creep. **The big cuts from the v2 spec are in the top 
 | `tests/test_compute_within_boundary_groundmount.py` | Within-site ground calc | Building subtraction → buildable area = polygon - buildings - 5-layer mask; assertion `rooftop + within_site_ground ≤ polygon_area` |
 | `tests/test_confidence_flag.py` | F4 derived signals | Each branch (low/high/medium) has a fixture; thresholds read from `assumptions.py` |
 | `tests/test_building_footprints_layer.py` | F6 map overlay GeoJSON shape | Returns valid GeoJSON; classification field present on every feature; respects site-bounds filter |
+| `tests/test_rooftop_tiles.py` | F8/F9 tile generation | Tile area sums to `layout_density × footprint_m²` ±2%; tiles fit inside polygon (no negative-buffer overflow); no overlapping tiles within a building |
+| `tests/test_tile_aggregation.py` | F11/F12 click aggregation math | Single-tile, single-rooftop, and cluster sums match the per-site total to ±0.5% (rounding tolerance); MWh/yr derived from PVOUT exactly |
+| `tests/test_panel_assumptions_live_recompute.py` | F10 slider recompute path | Changing `panel_power_w_dc` from 400 → 500 increases all rooftop_kw_dc rows by 25% exactly; tile geometry unchanged (only the per-tile capacity label changes) |
+| `tests/test_missing_data_flag.py` | F13 alt-data shortlist | `sites_missing_buildings.csv` has expected 14 rows on the v4.1 fixture; each row has a non-null `recommended_alt_data` |
 
 ### 16.2 Integration tests
 
@@ -1034,5 +1169,8 @@ Add to `TODOS.md` after the prerequisite rename PR merges. **The top three are s
 | low | Regional thermal derating variation (Q2) | Currently flat 0.88; varies 10-15% across Indonesia regions | ~1 day |
 | low | OSM building tag override (§14.8) | OSM has authoritative `building=*` tags for well-mapped Java zones | ~2 days |
 | low | Polygon tightening for imprecise site boundaries (Q3) | Improves all "within-boundary" metrics | ~1-2 weeks (separate workstream) |
+| **HIGH** (post-v4.1) | **L26 — Microsoft GMLBF integration for the 8 post-2023 missing sites** | Cross-reference `sites_missing_buildings.csv` against Microsoft Global Building Footprints (refreshed quarterly). Likely closes the gap on IWIP, Pomalaa, Buli, Konawe, Stardust, Red Lion Hongshi, Tanjung Sauh, Pupuk Iskandar Muda. | ~2 days |
+| medium (post-v4.1) | **L27 — Unbundle thermal derate into full system loss chain** | v4.1 absorbs inverter / wiring / soiling / mismatch losses into the same `THERMAL_DERATE_TROPICAL` factor. v4.2 should expose `INVERTER_EFFICIENCY`, `DC_WIRING_LOSS`, `SOILING_LOSS`, `MISMATCH_LOSS` as separate constants — improves model transparency and lets users compare against PVGIS / NREL SAM. | ~1 day |
+| medium (post-v4.1) | Manual coordinate verification for 3 sites with imagery gaps | Cemindo Gemilang Bayah, KEK Maloy Batuta, KEK Arun Lhokseumawe — Google Earth Pro spot-check + correct dim_sites coords if needed | ~half day |
 
 ---
