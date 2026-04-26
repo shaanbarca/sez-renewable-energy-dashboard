@@ -18,7 +18,8 @@
 | Validation target | **±20% on 10 manual sites** (was ±30%). | A 35 MW number with ±30% band could be 25–45 MW; even without cost integration, that's too loose to publish. |
 | **Visual sanity-check via panel tiles** (NEW v4) | Pre-generate a panel-tile grid per `standard_roof` building, render at zoom ≥14 as small filled rectangles. Tile capacity is configurable via slider. Live re-compute as user changes panel power / size assumptions. | "Show your work" — counting visible tiles must reproduce the headline MWp number. Eliminates the "trust the spreadsheet" failure mode for DFI / industrial investor personas. See §5.3.1 + §3.6. |
 | **Missing-data sites flagged for alt-data hunt** (NEW v4) | For the 14 sites where GoB v3 finds 0 buildings, write a pipeline-flagged shortlist with provenance hooks. Don't ship "low confidence" silently — make alt-data sourcing a first-class follow-up. | Verified in v4.1 build: 14 / 81 sites missing (post-2023 nickel IIA + Bali tourism KEKs). Microsoft GMLBF and Indonesia-specific sources (BIG ortho, BPS) likely close the gap. See §3.7 + L21 / L22 / L26 in §18. |
-| **Data source plugin architecture** (NEW v4) | Even with only GoB v3 in v4.1, build to a multi-source contract. Per-source loader modules under `src/pipeline/building_sources/` all return one canonical schema; downstream code (classifier / aggregator / tile gen / API / frontend) reads only the merged parquet and is source-agnostic. | "Adding Microsoft GMLBF later should be 2 days, not 5." Marginal cost in v4.1 is ~30 min (don't hardcode column names); marginal benefit is L26 stays scoped instead of ballooning into a refactor. See §13.10 for the contract + merge layer. |
+| **Forward-compatibility invariants for multi-source data** (NEW v4, replaces "full plugin architecture") | Defer the `_base.py` abstraction to v4.2 (when MS GMLBF gives us a second concrete shape to fit). v4.1 instead enforces 6 forward-compat invariants in the existing concrete code (no `_base.py`, no canonical-schema module): (1) parquet has `source_name` + `source_vintage` columns, (2) `building_id` is prefixed string, (3) `dim_sites.preferred_building_source` column exists, (4) single `load_buildings_for_pipeline()` function as the parquet entry point, (5) confidence handling treats null/NaN as "no score", (6) F4 reads `source_vintage` from data not from a hardcoded year. | Eng-review insight (2026-04-27): the contract as originally specified didn't fit MS GMLBF (no confidence scores), manual KML (no s2 token), or OSM (rich tag info). Shaping an abstraction from one concrete example is premature. v4.2's MS GMLBF migration becomes "new module + register it + merge by building_id" — additive, not a rewrite, as long as v4.1 ships the 6 invariants. See §13.10. |
+| **Storage policy: keep raw locally, discard waste, commit post-processed** (NEW v4) | Three storage layers with explicit policy: (Layer 1) Raw GoB v3 extract — gitignored, kept locally to support re-merge when sites are added; cleanup deletes per-cell intermediate files outside site buffers (saved ~6 GB on the v4.1 build). (Layer 2) Site-buffered parquet (12.3 MB) — committed. (Layer 2.5) Tile parquet (~50 MB est.) — committed if under 50 MB, else gitignored + regenerated. (Layer 3) Aggregated CSV (~10 KB) — committed. | "Re-running with new sites should be cheap; checking out the repo shouldn't drag 7 GB of unused data; the dashboard's runtime should never see anything bigger than the post-processed layers." See §13.11. |
 
 ---
 
@@ -866,86 +867,104 @@ This maintains the lightweight character of the existing architecture. The heavy
 | Preprocessing runs slowly | Script runtime >30 min | Profile; likely the spatial join is the bottleneck; pre-build spatial index |
 | Git-LFS adds deployment complexity | Deploy takes longer | Evaluate Option B if impact is meaningful |
 
-### 13.10 Data source plugin architecture (extensibility contract)
+### 13.10 Forward-compatibility invariants for multi-source data (v4.1 → v4.2)
 
-**Why this matters.** v4.1 ships Google Open Buildings v3 as the only source. v4.2+ will need to layer in Microsoft GMLBF (post-2023 sites), manual KMLs (coordinate-corrected sites), and possibly OSM building tags. If we hardcode "GoB v3" everywhere, adding the second source requires touching the classifier, aggregator, tile generator, API, and frontend. With this architecture, adding a new source is one new loader function + one config-dict entry.
+**Why this section.** v4.1 ships Google Open Buildings v3 as the only source. v4.2+ will need Microsoft GMLBF (post-2023 sites), manual KMLs (coordinate-corrected sites), and possibly OSM. The original v4 spec proposed a full `_base.py` plugin architecture in v4.1 — eng review (2026-04-27) flagged this as YAGNI: the contract was shaped from one example and didn't actually fit MS GMLBF (no confidence scores), manual KML (no s2 token), or OSM (rich tag info classifier could exploit).
 
-**The contract.** Every building data source produces a `GeoDataFrame` with this canonical schema, regardless of provider:
+**Resolution.** Defer the abstraction to v4.2 (when MS GMLBF gives us a second concrete shape to fit). Instead, v4.1 enforces SIX forward-compatibility invariants in the existing concrete code. Together they make v4.2's "add MS GMLBF" PR additive (new module + register it) instead of a rewrite.
 
-```python
-# src/pipeline/building_sources/_base.py
-@dataclass
-class BuildingSourceConfig:
-    name: str               # e.g. "gob_v3", "ms_gmlbf", "manual_v1"
-    vintage: str            # e.g. "2023-05", "2024-Q4"
-    priority: int           # higher wins on conflict (defines override order)
-    loader: Callable[..., gpd.GeoDataFrame]
+#### The 6 invariants
 
+| # | Invariant | What it prevents in v4.2 |
+|---|---|---|
+| **1** | `sites_buildings_filtered.parquet` has columns `source_name` (str) and `source_vintage` (str) — single value `"gob_v3"` / `"2023-05"` in v4.1, varies in v4.2. | Without these columns, adding MS GMLBF rows means migrating the parquet schema and every reader. With them, MS GMLBF rows just have different values. |
+| **2** | `building_id` is a STRING with source prefix (`"gob_v3:1234567"`), not int64. | When MS GMLBF rows arrive with their own integer IDs, prefix prevents collisions. Sets the merge key for v4.2. **Real change to the v4.1 implementation as currently shipped — preprocess_open_buildings.py writes int64.** |
+| **3** | `dim_sites` gains a nullable `preferred_building_source` column. All null in v4.1; v4.2 populates per-site overrides ("post-2023 nickel IIA → ms_gmlbf"). | Avoids a dim_sites schema migration in v4.2. |
+| **4** | One single function `load_buildings_for_pipeline()` in `src/pipeline/build_fct_site_solar_potential.py` is the only place that knows the parquet path. | v4.2 changes ONE function (fan out to multiple sources + merge); downstream callers see no change. Whole abstraction collapses into one function signature. |
+| **5** | Confidence handling treats `None` / `NaN` as "no score" gracefully. F4 logic uses `source_name` / `vintage` to set confidence flags when score is null. | MS GMLBF doesn't publish confidence scores. Code must NOT assume `confidence ∈ [0, 1)`. |
+| **6** | F4 confidence flag reads `source_vintage` from the data, not from a hardcoded `BUILDING_DATA_VINTAGE_YEAR_CUTOFF` compared against `commissioning_year`. | When MS GMLBF rows arrive (refreshed quarterly), vintage cutoff is per-row, not global. Same logic, vintage-driven. |
 
-CANONICAL_BUILDING_COLUMNS = [
-    "building_id",      # str — unique within source: "gob_v3:1234567"
-    "site_id",          # str — assigned by spatial join with site buffers
-    "latitude",         # float — centroid lat
-    "longitude",        # float — centroid lon
-    "area_in_meters",   # float — polygon area in m²
-    "confidence",       # float [0, 1] — provider-normalized
-    "source_name",      # str — matches BuildingSourceConfig.name
-    "source_vintage",   # str — matches BuildingSourceConfig.vintage
-    "s2_token_l4",      # str — for confidence threshold lookup
-    "geometry",         # shapely Polygon, EPSG:4326
-]
+#### v4.2 additive PR (when MS GMLBF lands as L26)
+
+1. New module `src/pipeline/building_sources/ms_gmlbf.py` — produces same parquet schema (~100 LOC).
+2. Modify `load_buildings_for_pipeline()` to fan out + merge by (`building_id`, `dedup_radius_m`) — change one function.
+3. Populate `dim_sites.preferred_building_source` for the 8 post-2023 sites.
+4. New tests for source-merge behavior.
+
+**Zero changes to:** §14 classifier, aggregator, tile generator, API endpoints, frontend. The 6 invariants buy this without the upfront `_base.py` cost.
+
+#### What to test in v4.1 to lock the invariants
+
+- `sites_buildings_filtered.parquet` schema includes `source_name`, `source_vintage`, prefixed `building_id` — assertion in `tests/test_preprocess_open_buildings.py`
+- `dim_sites.preferred_building_source` exists (all null) — schema test
+- `load_buildings_for_pipeline()` is the only `pd.read_parquet("sites_buildings_filtered.parquet")` callsite — grep test in `tests/test_invariants.py`
+- F4 logic accepts null/NaN confidence without crashing — unit test
+- F4 logic uses per-row `source_vintage` — unit test
+
+---
+
+### 13.11 Storage policy — keep raw locally, discard waste, commit post-processed
+
+**Three storage layers, three policies.**
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Layer 1: data/open_buildings/idn_open_buildings.csv.gz       (~6.7 GB)    │
+│ Raw merged GoB v3 extract for the 41 cells covering all 81 sites.         │
+│   ↳ gitignored (data/open_buildings/ in .gitignore)                       │
+│   ↳ kept on disk locally to support cheap re-runs when sites change       │
+│   ↳ not part of the deploy artifact                                        │
+└───────────────────────────────────────────────────────────────────────────┘
+                                ↓
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Layer 1 waste: data/open_buildings/_tmp_cells/*.csv.gz       (~6 GB)      │
+│ Per-cell intermediates outside the 41-cell site footprint.                │
+│   ↳ ALWAYS DELETE after the merge step succeeds                           │
+│   ↳ scripts/merge_open_buildings_cells.py --cleanup-wasted does this      │
+│   ↳ regenerable from Layer 1 via fetch_missing_cells.py                   │
+└───────────────────────────────────────────────────────────────────────────┘
+                                ↓
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Layer 2: data/processed/sites_buildings_filtered.parquet     (~12.3 MB)   │
+│ Site-buffered, confidence-thresholded buildings. The dashboard's input.   │
+│   ↳ COMMITTED to git (per spec §13.2 Option A: <50 MB threshold)          │
+│   ↳ regenerated by scripts/preprocess_open_buildings.py from Layer 1      │
+└───────────────────────────────────────────────────────────────────────────┘
+                                ↓
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Layer 2.5: data/processed/sites_rooftop_tiles.parquet         (~50 MB est)│
+│ Per-building panel-tile geometry for visual rendering.                    │
+│   ↳ COMMITTED if <50 MB; gitignored + regenerable if larger               │
+│   ↳ regenerated by src/pipeline/build_rooftop_tiles.py                    │
+└───────────────────────────────────────────────────────────────────────────┘
+                                ↓
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Layer 3: outputs/data/processed/fct_site_solar_potential.csv  (~10 KB)    │
+│ Per-site aggregated rooftop MWp / building counts / confidence flag.      │
+│   ↳ COMMITTED — the runtime pipeline reads this directly                  │
+│   ↳ regenerated by src/pipeline/build_fct_site_solar_potential.py         │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Per-source loaders.** Each source is one Python module under `src/pipeline/building_sources/`:
+**When sites are added (M22 / M28 / M29 → expanded site list):**
 
-```
-src/pipeline/building_sources/
-├── _base.py                # the contract + merge logic
-├── gob_v3.py               # v4.1 — wraps preprocess_open_buildings.py
-├── ms_gmlbf.py             # v4.2 (L26) — Microsoft Global ML Building Footprints
-├── manual_v1.py            # v4.2+ — KML/CSV for sites we hand-curate
-└── osm.py                  # future — OSM building polygons
-```
+1. Re-run `check_open_buildings_coverage.py` → identify newly-needed S2 cells
+2. Run `fetch_missing_cells.py --auto` → grab the new cells (typically 0-5 cells)
+3. Run `merge_open_buildings_cells.py --cleanup-wasted` → rebuild Layer 1, delete new waste
+4. Run `preprocess_open_buildings.py` → rebuild Layer 2
+5. Run `build_rooftop_tiles.py` + `build_fct_site_solar_potential.py` → rebuild Layers 2.5 and 3
+6. Commit only the regenerated parquet/CSV (Layers 2, 2.5, 3). Layer 1 stays gitignored.
 
-Each module exports a `load(sites_gdf, **kwargs) -> GeoDataFrame` returning the canonical schema. The downstream pipeline (classifier, aggregator, tile gen, API, frontend) **never imports these modules directly** — it reads only the merged parquet.
+Total marginal cost of adding 1-5 sites: ~10 minutes of recompute, ~10 KB of git diff.
 
-**The merge layer.** `src/pipeline/building_sources/_base.py::merge_sources()` combines outputs from multiple loaders:
+**Failure mode coverage.**
 
-```python
-def merge_sources(
-    source_outputs: list[gpd.GeoDataFrame],
-    sources_config: list[BuildingSourceConfig],
-    dedup_radius_m: float = 5.0,
-) -> gpd.GeoDataFrame:
-    """Per site, prefer higher-priority sources. Drop buildings within
-    dedup_radius_m of a higher-priority building (likely the same structure
-    detected twice). Track provenance via source_name column."""
-```
-
-Default priority order (config in `src/assumptions.py`):
-
-```python
-BUILDING_SOURCES_DEFAULT = [
-    BuildingSourceConfig(name="manual_v1",  vintage="2026-Q2", priority=300),
-    BuildingSourceConfig(name="ms_gmlbf",   vintage="2024-Q4", priority=200),
-    BuildingSourceConfig(name="gob_v3",     vintage="2023-05", priority=100),
-]
-```
-
-**Per-site source override.** Some sites need a specific source (e.g. recently commissioned IIA cluster has nothing in GoB v3 but everything in Microsoft GMLBF). Captured as `dim_sites.preferred_building_source` column — null = use default priority order, otherwise = force that source.
-
-**Confidence flag becomes source-aware.** F4 logic gains a check: if a site's primary `source_name` is `manual_v1`, set confidence to `high` regardless of building count (we curated it). If primary is `gob_v3` and `dim_sites.commissioning_year > BUILDING_DATA_VINTAGE_YEAR_CUTOFF`, set to `low` and record `recommended_alt_data` in `sites_missing_buildings.csv`.
-
-**Adding Microsoft GMLBF later (concretely):**
-
-1. Write `src/pipeline/building_sources/ms_gmlbf.py` with a `load()` function. ~100 LOC.
-2. Add a `BuildingSourceConfig` entry to `BUILDING_SOURCES_DEFAULT`.
-3. Re-run `build_fct_site_solar_potential.py` — it imports from `_base.py::merge_sources()`, picks up the new config automatically.
-4. Update tests (one new fixture, one new merge test).
-
-Total: estimated 2 days CC effort, captured as L26 in §18. **Zero changes to classifier, aggregator, tile generator, API endpoints, or frontend.** That's the test of whether this architecture worked.
-
-**v4.1 implementation note.** Even though we only have one source, BUILD `gob_v3.py` to the contract. Don't hardcode column names in `build_fct_site_solar_potential.py`; read them via `CANONICAL_BUILDING_COLUMNS` from `_base.py`. The marginal cost is ~30 minutes; the marginal benefit is L26 stays at 2 days instead of ballooning into a refactor.
+| Risk | Detection | Mitigation |
+|---|---|---|
+| Layer 1 deleted accidentally | Pipeline fails at preprocess step | Re-run `download_open_buildings.py` (~hour) or `fetch_missing_cells.py` (~minutes if cells partial) |
+| Layer 2 grows above 50 MB after site additions | `git status` shows large file | Move to gitignored + add download script; document in §13.2 |
+| Layer 2.5 grows above 50 MB | Pre-commit hook checks file size | Switch to gitignored + add to pipeline regenerate step |
+| `_tmp_cells/` not cleaned up after merge | Disk usage check in CI / manual | `merge_open_buildings_cells.py --cleanup-wasted` as part of the standard run |
 
 ---
 
