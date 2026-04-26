@@ -18,6 +18,7 @@
 | Validation target | **±20% on 10 manual sites** (was ±30%). | A 35 MW number with ±30% band could be 25–45 MW; even without cost integration, that's too loose to publish. |
 | **Visual sanity-check via panel tiles** (NEW v4) | Pre-generate a panel-tile grid per `standard_roof` building, render at zoom ≥14 as small filled rectangles. Tile capacity is configurable via slider. Live re-compute as user changes panel power / size assumptions. | "Show your work" — counting visible tiles must reproduce the headline MWp number. Eliminates the "trust the spreadsheet" failure mode for DFI / industrial investor personas. See §5.3.1 + §3.6. |
 | **Missing-data sites flagged for alt-data hunt** (NEW v4) | For the 14 sites where GoB v3 finds 0 buildings, write a pipeline-flagged shortlist with provenance hooks. Don't ship "low confidence" silently — make alt-data sourcing a first-class follow-up. | Verified in v4.1 build: 14 / 81 sites missing (post-2023 nickel IIA + Bali tourism KEKs). Microsoft GMLBF and Indonesia-specific sources (BIG ortho, BPS) likely close the gap. See §3.7 + L21 / L22 / L26 in §18. |
+| **Data source plugin architecture** (NEW v4) | Even with only GoB v3 in v4.1, build to a multi-source contract. Per-source loader modules under `src/pipeline/building_sources/` all return one canonical schema; downstream code (classifier / aggregator / tile gen / API / frontend) reads only the merged parquet and is source-agnostic. | "Adding Microsoft GMLBF later should be 2 days, not 5." Marginal cost in v4.1 is ~30 min (don't hardcode column names); marginal benefit is L26 stays scoped instead of ballooning into a refactor. See §13.10 for the contract + merge layer. |
 
 ---
 
@@ -864,6 +865,87 @@ This maintains the lightweight character of the existing architecture. The heavy
 | Raw dataset URL changes or is removed | Preprocessing script fails | Document download alternatives (HDX, Earth Engine); pin v3 as long as available |
 | Preprocessing runs slowly | Script runtime >30 min | Profile; likely the spatial join is the bottleneck; pre-build spatial index |
 | Git-LFS adds deployment complexity | Deploy takes longer | Evaluate Option B if impact is meaningful |
+
+### 13.10 Data source plugin architecture (extensibility contract)
+
+**Why this matters.** v4.1 ships Google Open Buildings v3 as the only source. v4.2+ will need to layer in Microsoft GMLBF (post-2023 sites), manual KMLs (coordinate-corrected sites), and possibly OSM building tags. If we hardcode "GoB v3" everywhere, adding the second source requires touching the classifier, aggregator, tile generator, API, and frontend. With this architecture, adding a new source is one new loader function + one config-dict entry.
+
+**The contract.** Every building data source produces a `GeoDataFrame` with this canonical schema, regardless of provider:
+
+```python
+# src/pipeline/building_sources/_base.py
+@dataclass
+class BuildingSourceConfig:
+    name: str               # e.g. "gob_v3", "ms_gmlbf", "manual_v1"
+    vintage: str            # e.g. "2023-05", "2024-Q4"
+    priority: int           # higher wins on conflict (defines override order)
+    loader: Callable[..., gpd.GeoDataFrame]
+
+
+CANONICAL_BUILDING_COLUMNS = [
+    "building_id",      # str — unique within source: "gob_v3:1234567"
+    "site_id",          # str — assigned by spatial join with site buffers
+    "latitude",         # float — centroid lat
+    "longitude",        # float — centroid lon
+    "area_in_meters",   # float — polygon area in m²
+    "confidence",       # float [0, 1] — provider-normalized
+    "source_name",      # str — matches BuildingSourceConfig.name
+    "source_vintage",   # str — matches BuildingSourceConfig.vintage
+    "s2_token_l4",      # str — for confidence threshold lookup
+    "geometry",         # shapely Polygon, EPSG:4326
+]
+```
+
+**Per-source loaders.** Each source is one Python module under `src/pipeline/building_sources/`:
+
+```
+src/pipeline/building_sources/
+├── _base.py                # the contract + merge logic
+├── gob_v3.py               # v4.1 — wraps preprocess_open_buildings.py
+├── ms_gmlbf.py             # v4.2 (L26) — Microsoft Global ML Building Footprints
+├── manual_v1.py            # v4.2+ — KML/CSV for sites we hand-curate
+└── osm.py                  # future — OSM building polygons
+```
+
+Each module exports a `load(sites_gdf, **kwargs) -> GeoDataFrame` returning the canonical schema. The downstream pipeline (classifier, aggregator, tile gen, API, frontend) **never imports these modules directly** — it reads only the merged parquet.
+
+**The merge layer.** `src/pipeline/building_sources/_base.py::merge_sources()` combines outputs from multiple loaders:
+
+```python
+def merge_sources(
+    source_outputs: list[gpd.GeoDataFrame],
+    sources_config: list[BuildingSourceConfig],
+    dedup_radius_m: float = 5.0,
+) -> gpd.GeoDataFrame:
+    """Per site, prefer higher-priority sources. Drop buildings within
+    dedup_radius_m of a higher-priority building (likely the same structure
+    detected twice). Track provenance via source_name column."""
+```
+
+Default priority order (config in `src/assumptions.py`):
+
+```python
+BUILDING_SOURCES_DEFAULT = [
+    BuildingSourceConfig(name="manual_v1",  vintage="2026-Q2", priority=300),
+    BuildingSourceConfig(name="ms_gmlbf",   vintage="2024-Q4", priority=200),
+    BuildingSourceConfig(name="gob_v3",     vintage="2023-05", priority=100),
+]
+```
+
+**Per-site source override.** Some sites need a specific source (e.g. recently commissioned IIA cluster has nothing in GoB v3 but everything in Microsoft GMLBF). Captured as `dim_sites.preferred_building_source` column — null = use default priority order, otherwise = force that source.
+
+**Confidence flag becomes source-aware.** F4 logic gains a check: if a site's primary `source_name` is `manual_v1`, set confidence to `high` regardless of building count (we curated it). If primary is `gob_v3` and `dim_sites.commissioning_year > BUILDING_DATA_VINTAGE_YEAR_CUTOFF`, set to `low` and record `recommended_alt_data` in `sites_missing_buildings.csv`.
+
+**Adding Microsoft GMLBF later (concretely):**
+
+1. Write `src/pipeline/building_sources/ms_gmlbf.py` with a `load()` function. ~100 LOC.
+2. Add a `BuildingSourceConfig` entry to `BUILDING_SOURCES_DEFAULT`.
+3. Re-run `build_fct_site_solar_potential.py` — it imports from `_base.py::merge_sources()`, picks up the new config automatically.
+4. Update tests (one new fixture, one new merge test).
+
+Total: estimated 2 days CC effort, captured as L26 in §18. **Zero changes to classifier, aggregator, tile generator, API endpoints, or frontend.** That's the test of whether this architecture worked.
+
+**v4.1 implementation note.** Even though we only have one source, BUILD `gob_v3.py` to the contract. Don't hardcode column names in `build_fct_site_solar_potential.py`; read them via `CANONICAL_BUILDING_COLUMNS` from `_base.py`. The marginal cost is ~30 minutes; the marginal benefit is L26 stays at 2 days instead of ballooning into a refactor.
 
 ---
 
