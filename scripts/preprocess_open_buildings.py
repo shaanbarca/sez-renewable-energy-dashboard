@@ -1,286 +1,357 @@
 """
-preprocess_open_buildings.py — One-time spatial filter of Google Open Buildings v3
-to the buffered areas around the 81 industrial sites.
+preprocess_open_buildings.py — Stream-filter the GoB v3 Indonesia raw extract
+to the per-site buffered region of interest, producing the Layer 2 GeoParquet.
 
-Run this script ONCE after downloading the Google Open Buildings v3 Indonesia
-extract. It produces the Layer 2 cached intermediate that the runtime pipeline
-consumes (see `docs/rooftop_solar_potential_feature_spec.md` §13).
+# What this script does
 
-# The three-layer data strategy
+1. Loads 81 site polygons (KEKs from kek_polygons.geojson; non-KEKs are buffered
+   centroids — proxy until per-site polygons exist for industrial rows).
+2. Buffers each site by 2 km in EPSG:23830 (UTM Zone 50S) for accurate metric
+   buffering, reproject back to EPSG:4326.
+3. Streams the 6.7 GB raw GoB v3 CSV in chunks. For each chunk:
+     a. Compute S2 level-4 cell for each row's centroid
+     b. Apply the 90% precision confidence threshold per S2 cell
+     c. Spatial-join with the site buffers (point-in-polygon)
+     d. Append surviving rows to a running list, with `site_id` attached
+4. Writes data/processed/sites_buildings_filtered.parquet (Layer 2 from
+   `docs/rooftop_solar_potential_feature_spec.md` §13).
 
-    Layer 1 (raw, external, ~5-15 GB)
-        Google Open Buildings v3 Indonesia extract.
-        NOT in git. Downloaded once via the official Colab notebook.
+# Output schema
 
-    Layer 2 (filtered intermediate, this script's output, ~15-100 MB)
-        Buildings within a 2 km buffer of any of the 81 site polygons,
-        confidence-thresholded per S2 cell (90% precision).
-        Stored as GeoParquet at:
-            data/processed/sites_buildings_filtered.parquet
-        Optionally committed to git if under 50 MB (use git-lfs above 100 MB).
+| col            | type   | description                                            |
+|----------------|--------|--------------------------------------------------------|
+| building_id    | int64  | Original GoB v3 row index (within the input file)      |
+| site_id        | str    | The site whose 2km-buffer contains the building point  |
+| latitude       | float  | Building centroid latitude                             |
+| longitude      | float  | Building centroid longitude                            |
+| area_in_meters | float  | Original GoB v3 detected area                          |
+| confidence     | float  | Original GoB v3 confidence score                       |
+| s2_token_l4    | str    | S2 level-4 cell token (for threshold audit)            |
+| geometry       | shape  | Building polygon (Shapely, EPSG:4326)                  |
 
-    Layer 3 (aggregated outputs, ~10 KB)
-        Per-site rooftop + ground-mount metrics derived by the runtime
-        pipeline from Layer 2. Always committed:
-            outputs/data/processed/fct_site_solar_potential.csv
+A building can match multiple sites if their buffers overlap — one row per
+(site_id, building_id) pair. The §14 classifier runs LATER (in the runtime
+pipeline), against this output. We don't apply geometric type classification
+here — that decision lives in the pipeline so threshold tuning per
+`assumptions.py` is hot-reloadable.
 
 # Usage
 
-    uv run python scripts/preprocess_open_buildings.py \\
-        --raw-data /path/to/idn_open_buildings.csv \\
-        --sites outputs/data/processed/dim_sites.csv \\
-        --polygons outputs/data/raw/kek_polygons.geojson \\
-        --buffer-km 2 \\
-        --confidence-thresholds /path/to/score_thresholds_s2_level_4.csv \\
-        --output data/processed/sites_buildings_filtered.parquet
+    uv run python scripts/preprocess_open_buildings.py
+    uv run python scripts/preprocess_open_buildings.py --chunk-size 2000000
+    uv run python scripts/preprocess_open_buildings.py --check-only
 
-# Properties
+# Performance
 
-    - Idempotent: same inputs + same buffer + same threshold = identical output.
-    - Logs filter statistics (input count, output count, total area, reduction).
-    - Takes 5-15 minutes on standard hardware.
-    - Output schema:
-        building_id      int64           — original GoB v3 row index
-        site_id          str             — site this building was clipped to (one row per (site, building) pair)
-        latitude         float           — building centroid lat
-        longitude        float           — building centroid lon
-        area_in_meters   float           — original GoB v3 area
-        confidence       float           — original GoB v3 confidence score
-        s2_cell          str             — S2 cell level 4 token (for threshold lookup)
-        geometry         shapely         — building polygon (EPSG:4326)
-        classification   str             — set later by §14 classifier:
-                                            standard_roof | elongated | tank_silo |
-                                            conveyor | complex | too_small
-
-# What this script does NOT do
-
-    - Download the raw GoB v3 data (use the official Colab notebook for that).
-    - Apply the §14 geometric type classifier (that runs at pipeline time
-      against this output, where the classifier thresholds in
-      `src/assumptions.py` are read live).
-    - Compute per-site aggregates (that's `build_fct_site_solar_potential.py`,
-      a runtime pipeline step).
-
-This is a STUB skeleton. Implementation is part of v4.1 Phase 1 work.
+Indonesia raw extract: 63.6M rows / 6.7 GB gzipped. Stream filter takes
+5-15 minutes depending on disk speed. Typical reduction:
+  raw 63,589,524 rows → ~50,000-200,000 buildings inside site buffers
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+import s2sphere
+from shapely import wkt as shp_wkt
+from shapely.geometry import Point
+from shapely.ops import unary_union
+from tqdm import tqdm
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
+DATA_DIR = REPO_ROOT / "data" / "open_buildings"
 DATA_PROCESSED = REPO_ROOT / "data" / "processed"
-DEFAULT_OUTPUT = DATA_PROCESSED / "sites_buildings_filtered.parquet"
+
+DEFAULT_RAW = DATA_DIR / "idn_open_buildings.csv.gz"
+DEFAULT_THRESHOLDS = DATA_DIR / "score_thresholds_s2_level_4.csv"
 DEFAULT_SITES = PROCESSED / "dim_sites.csv"
 DEFAULT_POLYGONS = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
+DEFAULT_OUTPUT = DATA_PROCESSED / "sites_buildings_filtered.parquet"
+
 DEFAULT_BUFFER_KM = 2.0
+DEFAULT_CHUNK_SIZE = 1_000_000
+# Indonesian National DGN95 / UTM Zone 50S — accurate metric distances for
+# the bulk of Indonesian industrial sites (Sumatra to Maluku). Papua-extreme
+# sites have ~few-meter error vs a perfect projection, well within our 2 km
+# buffer slop.
+PROJECTED_CRS = "EPSG:23830"
+
+# Use the 90%-precision threshold per cell. Trades recall for precision —
+# better to undercount than to include hallucinated buildings.
+PRECISION_COL = "confidence_threshold_90%_precision"
+
+# Fallback when an S2 cell isn't in the thresholds table (rare — we only
+# use cells inside Indonesia, which are all in the table).
+DEFAULT_THRESHOLD = 0.65
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Spatially filter Google Open Buildings v3 Indonesia to buffered "
-        "areas around the 81 industrial sites.",
+        description="Stream-filter Google Open Buildings v3 raw extract to "
+        "the per-site 2 km buffered region of interest.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--raw-data",
-        type=Path,
-        required=True,
-        help="Path to GoB v3 Indonesia CSV (downloaded via official Colab notebook).",
-    )
-    parser.add_argument(
-        "--sites",
-        type=Path,
-        default=DEFAULT_SITES,
-        help=f"Path to dim_sites.csv (default: {DEFAULT_SITES.relative_to(REPO_ROOT)}).",
-    )
-    parser.add_argument(
-        "--polygons",
-        type=Path,
-        default=DEFAULT_POLYGONS,
-        help=f"Path to KEK polygons GeoJSON (default: {DEFAULT_POLYGONS.relative_to(REPO_ROOT)}).",
-    )
-    parser.add_argument(
-        "--buffer-km",
-        type=float,
-        default=DEFAULT_BUFFER_KM,
-        help=f"Buffer around each site polygon in km (default: {DEFAULT_BUFFER_KM}).",
-    )
+    parser.add_argument("--raw-data", type=Path, default=DEFAULT_RAW)
+    parser.add_argument("--sites", type=Path, default=DEFAULT_SITES)
+    parser.add_argument("--polygons", type=Path, default=DEFAULT_POLYGONS)
     parser.add_argument(
         "--confidence-thresholds",
         type=Path,
-        help="Path to score_thresholds_s2_level_4.csv (90%% precision per-S2-cell). "
-        "If omitted, no confidence filtering is applied.",
+        default=DEFAULT_THRESHOLDS,
+        help="If file missing, falls back to a flat threshold (0.65).",
     )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=DEFAULT_OUTPUT,
-        help=f"Output GeoParquet path (default: {DEFAULT_OUTPUT.relative_to(REPO_ROOT)}).",
-    )
+    parser.add_argument("--buffer-km", type=float, default=DEFAULT_BUFFER_KM)
+    parser.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument(
         "--check-only",
         action="store_true",
-        help="Validate inputs exist and report stats; do not write output.",
+        help="Validate inputs + report stats without writing parquet.",
     )
     return parser.parse_args()
 
 
-def load_raw_buildings(raw_data: Path) -> "gpd.GeoDataFrame":  # noqa: F821
-    """Load Google Open Buildings v3 CSV with WKT polygons.
-
-    GoB v3 schema:
-        latitude, longitude, area_in_meters, confidence, geometry (WKT polygon),
-        full_plus_code
-
-    Returns
-    -------
-    GeoDataFrame in EPSG:4326 with geometry column as Shapely polygons.
-    """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
-
-
-def load_site_polygons(
+def load_site_buffers(
     sites_csv: Path,
     polygons_geojson: Path,
-) -> "gpd.GeoDataFrame":  # noqa: F821
-    """Load site polygons + identity columns.
-
-    For KEK sites: use the polygon from kek_polygons.geojson.
-    For non-KEK sites: build a circular buffer around the site centroid.
-    Both written into one GeoDataFrame with columns:
-        site_id, site_type, geometry (polygon, EPSG:4326)
-    """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
-
-
-def buffer_and_union(
-    sites: "gpd.GeoDataFrame",  # noqa: F821
     buffer_km: float,
-) -> "shapely.Geometry":  # noqa: F821
-    """Buffer every site polygon by `buffer_km` and union them into one mask.
+) -> gpd.GeoDataFrame:
+    """Load site polygons + buffer them by `buffer_km` in projected CRS.
 
-    Reproject to EPSG:23830 (UTM 50S) for accurate metric buffering, then
-    back to EPSG:4326. The 2 km buffer captures buildings logically part of
-    the site that fall outside the polygon due to geocoding imprecision.
+    KEKs use polygons from kek_polygons.geojson. Non-KEK industrial sites use
+    a buffered centroid (Point → buffer_km circle) as a proxy. Output is a
+    GeoDataFrame in EPSG:4326 with columns: site_id, geometry.
     """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
+    sites = pd.read_csv(sites_csv)
+    print(f"Loaded {len(sites)} sites from {sites_csv.name}")
+
+    # KEK polygons keyed by site_id
+    kek_polygons: dict[str, "Polygon"] = {}  # noqa: F821
+    if polygons_geojson.exists():
+        kek_gdf = gpd.read_file(polygons_geojson)
+        id_col = next(
+            (c for c in ("site_id", "kek_id", "id", "name") if c in kek_gdf.columns), None
+        )
+        if id_col:
+            for _, r in kek_gdf.iterrows():
+                key = str(r[id_col]).lower().replace(" ", "-")
+                kek_polygons[key] = r.geometry
+        print(f"Loaded {len(kek_polygons)} KEK polygons from {polygons_geojson.name}")
+
+    rows = []
+    for _, r in sites.iterrows():
+        sid = r["site_id"]
+        geom = kek_polygons.get(sid) or Point(r["longitude"], r["latitude"])
+        rows.append({"site_id": sid, "geometry": geom})
+
+    gdf = gpd.GeoDataFrame(rows, crs="EPSG:4326")
+
+    # Buffer in projected CRS for accurate metric distance, then back to 4326
+    gdf_proj = gdf.to_crs(PROJECTED_CRS)
+    gdf_proj["geometry"] = gdf_proj.geometry.buffer(buffer_km * 1000)
+    gdf = gdf_proj.to_crs("EPSG:4326")
+
+    print(
+        f"Buffered {len(gdf)} sites by {buffer_km} km "
+        f"(union bbox: {unary_union(gdf.geometry).bounds})"
+    )
+    return gdf
 
 
-def filter_to_mask(
-    buildings: "gpd.GeoDataFrame",  # noqa: F821
-    mask: "shapely.Geometry",  # noqa: F821
-) -> "gpd.GeoDataFrame":  # noqa: F821
-    """Spatial intersection of buildings with the unioned site mask.
-
-    Builds an R-tree on the building set first for efficient candidate
-    lookup, then does the per-row intersect check. Expects ~99% reduction
-    from the full Indonesia building set.
-    """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
-
-
-def apply_confidence_threshold(
-    buildings: "gpd.GeoDataFrame",  # noqa: F821
-    thresholds_csv: Path | None,
-) -> "gpd.GeoDataFrame":  # noqa: F821
-    """Drop low-confidence detections per the GoB v3 90%-precision-per-S2-cell table.
-
-    Each building falls in an S2 level-4 cell. The thresholds CSV gives the
-    confidence cutoff per cell at which precision = 90% (varies geographically).
-    Trades recall for precision — better to undercount than to include
-    hallucinated buildings.
-    """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
+def load_thresholds(thresholds_csv: Path) -> dict[str, float]:
+    """Load the 90%-precision threshold per S2 level-4 cell."""
+    if not thresholds_csv.exists():
+        print(
+            f"WARNING: thresholds CSV not found at {thresholds_csv}; "
+            f"using flat threshold {DEFAULT_THRESHOLD}",
+        )
+        return {}
+    df = pd.read_csv(thresholds_csv)
+    if PRECISION_COL not in df.columns:
+        raise ValueError(f"Expected column {PRECISION_COL!r} in {thresholds_csv}")
+    return dict(zip(df["s2_token"].astype(str), df[PRECISION_COL].astype(float), strict=False))
 
 
-def assign_to_sites(
-    buildings: "gpd.GeoDataFrame",  # noqa: F821
-    sites: "gpd.GeoDataFrame",  # noqa: F821
-) -> "gpd.GeoDataFrame":  # noqa: F821
-    """For each building, attach the `site_id` of the (buffered) site polygon
-    it falls inside.
-
-    A building can belong to multiple sites if site buffers overlap (e.g. KEK
-    Sei Mangkei + Krakatau Steel). In that case, emit one row per (site,
-    building) pair so downstream per-site aggregation is straightforward.
-    """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
+def s2_token_l4_for_point(lat: float, lon: float) -> str:
+    """Return the S2 level-4 cell token containing (lat, lon)."""
+    ll = s2sphere.LatLng.from_degrees(lat, lon)
+    cell_id = s2sphere.CellId.from_lat_lng(ll).parent(4)
+    return cell_id.to_token()
 
 
-def write_geoparquet(
-    buildings: "gpd.GeoDataFrame",  # noqa: F821
-    output: Path,
-) -> None:
-    """Write the filtered buildings to GeoParquet.
+def process_chunk(
+    chunk: pd.DataFrame,
+    sites_gdf: gpd.GeoDataFrame,
+    thresholds: dict[str, float],
+    chunk_offset: int,
+) -> gpd.GeoDataFrame:
+    """Filter one chunk: confidence threshold → spatial join to site buffers."""
+    # Compute S2 level-4 token per row (vectorize via Python loop — s2sphere
+    # has no vectorized API; this is the bottleneck per chunk)
+    chunk["s2_token_l4"] = [
+        s2_token_l4_for_point(lat, lon)
+        for lat, lon in zip(chunk["latitude"], chunk["longitude"], strict=False)
+    ]
 
-    Add metadata: filter parameters (buffer, threshold table version),
-    input file checksum, build timestamp. Lets us detect when re-preprocessing
-    is needed for a refresh cycle.
-    """
-    raise NotImplementedError("v4.1 Phase 1 — implementation pending data acquisition")
+    # Apply per-cell confidence threshold (fallback to default for missing keys)
+    chunk["threshold"] = chunk["s2_token_l4"].map(thresholds).fillna(DEFAULT_THRESHOLD)
+    chunk = chunk[chunk["confidence"] >= chunk["threshold"]].drop(columns=["threshold"])
+
+    if chunk.empty:
+        return gpd.GeoDataFrame(
+            columns=["site_id", "geometry"], geometry="geometry", crs="EPSG:4326"
+        )
+
+    # Convert to GeoDataFrame using the WKT polygon column — note this is the
+    # building polygon, not the centroid point. We keep the polygon for the
+    # downstream §14 classifier (needs full geometry for circularity / aspect).
+    chunk["geometry"] = chunk["geometry"].apply(shp_wkt.loads)
+    bldg_gdf = gpd.GeoDataFrame(chunk, geometry="geometry", crs="EPSG:4326")
+    bldg_gdf["building_id"] = chunk_offset + bldg_gdf.index.to_numpy()
+
+    # Spatial join: keep buildings whose CENTROID falls inside any site buffer.
+    # Centroid-based is faster than polygon-based and the 2 km buffer is
+    # plenty of slop for buildings that straddle the boundary.
+    centroids = gpd.GeoDataFrame(
+        bldg_gdf[["building_id"]].copy(),
+        geometry=gpd.points_from_xy(bldg_gdf["longitude"], bldg_gdf["latitude"]),
+        crs="EPSG:4326",
+    )
+    joined = gpd.sjoin(centroids, sites_gdf, predicate="within", how="inner")
+
+    if joined.empty:
+        return gpd.GeoDataFrame(
+            columns=["site_id", "geometry"], geometry="geometry", crs="EPSG:4326"
+        )
+
+    # Attach site_id back to the polygon GDF; emit one row per (site, building)
+    matches = joined.merge(
+        bldg_gdf,
+        on="building_id",
+        suffixes=("_pt", ""),
+    )
+    keep_cols = [
+        "building_id",
+        "site_id",
+        "latitude",
+        "longitude",
+        "area_in_meters",
+        "confidence",
+        "s2_token_l4",
+        "geometry",
+    ]
+    return gpd.GeoDataFrame(matches[keep_cols], geometry="geometry", crs="EPSG:4326")
 
 
-def log_filter_stats(
-    raw_count: int,
-    filtered_count: int,
-    output_path: Path,
-) -> None:
-    """Log filter statistics (input count, output count, reduction ratio,
-    output file size). Also writes a sidecar `_stats.json` next to the output
-    for audit / pipeline-refresh diff.
-    """
-    reduction_pct = (1 - filtered_count / raw_count) * 100 if raw_count else 0.0
-    output_size_mb = output_path.stat().st_size / 1_000_000 if output_path.exists() else 0.0
-    print(f"  raw count:        {raw_count:>15,}")
-    print(f"  filtered count:   {filtered_count:>15,}")
-    print(f"  reduction:        {reduction_pct:>14.2f}%")
-    print(f"  output size (MB): {output_size_mb:>14.2f}")
+def stream_filter(
+    raw_csv: Path,
+    sites_gdf: gpd.GeoDataFrame,
+    thresholds: dict[str, float],
+    chunk_size: int,
+) -> gpd.GeoDataFrame:
+    """Stream-read the raw CSV in chunks, accumulating filtered buildings."""
+    print(f"\nStreaming {raw_csv} (chunk_size={chunk_size:,})")
+    all_matches: list[gpd.GeoDataFrame] = []
+    total_raw = 0
+    total_post_threshold = 0
+
+    reader = pd.read_csv(
+        raw_csv,
+        compression="gzip",
+        chunksize=chunk_size,
+        dtype={
+            "latitude": float,
+            "longitude": float,
+            "area_in_meters": float,
+            "confidence": float,
+            "geometry": str,
+            "full_plus_code": str,
+        },
+    )
+
+    chunk_offset = 0
+    for chunk in tqdm(reader, desc="chunks", unit="chunk"):
+        chunk_size_actual = len(chunk)
+        total_raw += chunk_size_actual
+        matches = process_chunk(chunk, sites_gdf, thresholds, chunk_offset)
+        # Track post-threshold count (before spatial filter)
+        # Approximate: matches gives us post-everything; intermediate count
+        # is dropped during process_chunk. For now log final-only.
+        total_post_threshold += len(matches)
+        if not matches.empty:
+            all_matches.append(matches)
+        chunk_offset += chunk_size_actual
+
+    print(f"\n  raw rows read:        {total_raw:>15,}")
+    print(f"  rows after filtering: {total_post_threshold:>15,}")
+
+    if not all_matches:
+        return gpd.GeoDataFrame(
+            columns=["building_id", "site_id", "geometry"],
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
+    return gpd.GeoDataFrame(pd.concat(all_matches, ignore_index=True), crs="EPSG:4326")
 
 
 def main() -> int:
-    """Entry point. Wires the pipeline stages together."""
     args = parse_args()
 
-    if not args.raw_data.exists():
-        print(f"ERROR: raw data file not found: {args.raw_data}", file=sys.stderr)
-        return 1
-    if not args.sites.exists():
-        print(f"ERROR: sites CSV not found: {args.sites}", file=sys.stderr)
-        return 1
-    if not args.polygons.exists():
-        print(f"ERROR: polygons GeoJSON not found: {args.polygons}", file=sys.stderr)
-        return 1
-    if args.confidence_thresholds and not args.confidence_thresholds.exists():
-        print(
-            f"ERROR: confidence thresholds CSV not found: {args.confidence_thresholds}",
-            file=sys.stderr,
-        )
-        return 1
+    for label, path in [
+        ("raw data", args.raw_data),
+        ("sites", args.sites),
+        ("polygons", args.polygons),
+    ]:
+        if not path.exists():
+            print(f"ERROR: {label} not found: {path}", file=sys.stderr)
+            return 1
 
-    print("preprocess_open_buildings.py — STUB skeleton (v4.1 Phase 1 pending)")
-    print(f"  raw data:       {args.raw_data}")
-    print(f"  sites:          {args.sites}")
-    print(f"  polygons:       {args.polygons}")
-    print(f"  buffer:         {args.buffer_km} km")
-    print(f"  thresholds:     {args.confidence_thresholds or '(none — skip confidence filter)'}")
-    print(f"  output:         {args.output}")
-    print(f"  check-only:     {args.check_only}")
+    print("preprocess_open_buildings.py")
+    print(f"  raw data:    {args.raw_data}")
+    print(f"  sites:       {args.sites}")
+    print(f"  polygons:    {args.polygons}")
+    print(f"  thresholds:  {args.confidence_thresholds}")
+    print(f"  buffer:      {args.buffer_km} km")
+    print(f"  chunk size:  {args.chunk_size:,}")
+    print(f"  output:      {args.output}")
 
     if args.check_only:
-        print("Inputs exist. Implementation pending — exiting.")
+        print("\n--check-only: inputs validated, exiting.")
         return 0
 
+    t0 = time.time()
+    sites_gdf = load_site_buffers(args.sites, args.polygons, args.buffer_km)
+    thresholds = load_thresholds(args.confidence_thresholds)
     print(
-        "ERROR: implementation is a stub. v4.1 Phase 1 work is in progress — "
-        "see docs/rooftop_solar_potential_feature_spec.md §6 Phase 1.",
-        file=sys.stderr,
+        f"Loaded {len(thresholds):,} per-cell confidence thresholds "
+        f"(or flat fallback {DEFAULT_THRESHOLD})"
     )
-    return 2
+
+    filtered = stream_filter(args.raw_data, sites_gdf, thresholds, args.chunk_size)
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    print(f"\nWriting {args.output}")
+    filtered.to_parquet(args.output, index=False)
+    out_size_mb = args.output.stat().st_size / 1_000_000
+    elapsed = time.time() - t0
+
+    # Stats
+    site_counts = filtered["site_id"].value_counts() if not filtered.empty else pd.Series()
+    print(f"\n  output size:       {out_size_mb:.1f} MB")
+    print(f"  buildings matched: {len(filtered):,}")
+    print(f"  unique sites:      {site_counts.shape[0]:,} / {len(sites_gdf)}")
+    if site_counts.shape[0] > 0:
+        print(f"  most:  {site_counts.index[0]} → {int(site_counts.iloc[0]):,} buildings")
+        print(f"  least: {site_counts.index[-1]} → {int(site_counts.iloc[-1]):,} buildings")
+    print(f"  elapsed:           {elapsed:.0f}s")
+
+    return 0
 
 
 if __name__ == "__main__":
