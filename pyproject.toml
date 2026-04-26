@@ -28,6 +28,9 @@ dependencies = [
     "fastapi>=0.135.3",
     "uvicorn[standard]>=0.44.0",
     "httpx>=0.28.1",
+    "gcsfs>=2026.3.0",
+    "s2sphere>=0.2.5",
+    "tqdm>=4.67.3",
 ]
 
 [dependency-groups]

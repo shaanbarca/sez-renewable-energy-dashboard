@@ -154,6 +154,11 @@ data/buildability/
 # Wind raster data — Global Wind Atlas GeoTIFF (~300MB)
 data/wind/*.tif
 
+# Google Open Buildings v3 raw extract — 5-15 GB, downloaded once externally
+# via scripts/download_open_buildings.py. Filtered Layer-2 intermediate goes
+# to data/processed/sites_buildings_filtered.parquet (committed if <50 MB).
+data/open_buildings/
+
 # Large geospatial data files
 data/*.geojson
 !data/pln_grid_lines.geojson
