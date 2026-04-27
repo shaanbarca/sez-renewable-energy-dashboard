@@ -1,0 +1,22 @@
+site_id,site_name,commissioning_year,province,sector,zone_classification,reason_flagged,reason_human_readable,recommended_alt_data
+industropolis-batang,Industropolis Batang,2026,Central Java,mixed,Industri dan Pariwisata,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+tanjung-sauh,Tanjung Sauh,2026,Riau Islands,mixed,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-arun-lhokseumawe,Arun Lhokseumawe,2026,Aceh,mixed,Industri,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-sanur,Sanur,2026,Bali,mixed,Pariwisata,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-sorong,Sorong,2026,West Papua,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-morotai,Morotai,2026,North Maluku,mixed,Pariwisata,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-gresik,Gresik,2026,East Java,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-kura-kura,Kura Kura Bali,2026,Bali,mixed,Pariwisata,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-galang-batang,Galang Batang,2026,Riau Islands,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,2026,East Kalimantan,mixed,Industri,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-mandalika,Mandalika,2026,West Nusa Tenggara,mixed,Pariwisata,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-tanjung-lesung,Tanjung Lesung,2026,Banten,mixed,Pariwisata,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-sei-mangkei,Sei Mangkei,2026,North Sumatra,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,2026,East Kalimantan,cement,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+cemindo-gemilang-bayah,Cemindo Gemilang Bayah,2026,Banten,cement,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+sbi-andalas-lhoknga,SBI Andalas Lhoknga,2026,Aceh,cement,,low_count_for_capacity,Detected building count below threshold for facility scale,manual_kml
+indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),2026,,nickel,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),2026,,nickel,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),2026,,nickel,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+buli-industrial-park,Buli Industrial Park,2026,,nickel,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,2026,Aceh,fertilizer,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf

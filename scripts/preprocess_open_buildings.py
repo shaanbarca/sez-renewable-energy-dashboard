@@ -20,7 +20,9 @@ to the per-site buffered region of interest, producing the Layer 2 GeoParquet.
 
 | col            | type   | description                                            |
 |----------------|--------|--------------------------------------------------------|
-| building_id    | int64  | Original GoB v3 row index (within the input file)      |
+| building_id    | str    | Source-prefixed: "gob_v3:1234567" (forward-compat §13.10) |
+| source_name    | str    | Constant `"gob_v3"` in v4.1; varies in v4.2 (forward-compat §13.10) |
+| source_vintage | str    | Constant `"2023-05"` for GoB v3 imagery; varies per source in v4.2 |
 | site_id        | str    | The site whose 2km-buffer contains the building point  |
 | latitude       | float  | Building centroid latitude                             |
 | longitude      | float  | Building centroid longitude                            |
@@ -89,6 +91,11 @@ PRECISION_COL = "confidence_threshold_90%_precision"
 # Fallback when an S2 cell isn't in the thresholds table (rare — we only
 # use cells inside Indonesia, which are all in the table).
 DEFAULT_THRESHOLD = 0.65
+
+# Forward-compat invariants (spec §13.10). v4.1 has only one source; these
+# constants are provider-specific and become per-row when v4.2 adds MS GMLBF.
+SOURCE_NAME = "gob_v3"
+SOURCE_VINTAGE = "2023-05"  # Imagery date — Google Open Buildings v3 release
 
 
 def parse_args() -> argparse.Namespace:
@@ -213,7 +220,13 @@ def process_chunk(
     # downstream §14 classifier (needs full geometry for circularity / aspect).
     chunk["geometry"] = chunk["geometry"].apply(shp_wkt.loads)
     bldg_gdf = gpd.GeoDataFrame(chunk, geometry="geometry", crs="EPSG:4326")
-    bldg_gdf["building_id"] = chunk_offset + bldg_gdf.index.to_numpy()
+    # Forward-compat invariant #2: building_id is a source-prefixed STRING
+    # so MS GMLBF / manual / OSM rows in v4.2+ don't collide with GoB v3 IDs.
+    raw_idx = chunk_offset + bldg_gdf.index.to_numpy()
+    bldg_gdf["building_id"] = [f"{SOURCE_NAME}:{i}" for i in raw_idx]
+    # Forward-compat invariant #1: source_name + source_vintage on every row.
+    bldg_gdf["source_name"] = SOURCE_NAME
+    bldg_gdf["source_vintage"] = SOURCE_VINTAGE
 
     # Spatial join: keep buildings whose CENTROID falls inside any site buffer.
     # Centroid-based is faster than polygon-based and the 2 km buffer is
@@ -243,6 +256,8 @@ def process_chunk(
         "longitude",
         "area_in_meters",
         "confidence",
+        "source_name",
+        "source_vintage",
         "s2_token_l4",
         "geometry",
     ]

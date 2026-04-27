@@ -806,21 +806,53 @@ CLUSTER_PROXIMITY_THRESHOLD_KM: float = 15.0
 # `docs/rooftop_solar_potential_feature_spec.md` §5.3 + §14.3 for the full
 # rationale + sources.
 
-# Usable share of detected building footprint after accounting for HVAC,
-# skylights, structural setbacks, walkways, etc.
-# Source: NREL 2016 technical potential study. 0.50 is conservative for
-# industrial flat roofs (sensitivity slider range 0.40-0.70 in v4.2).
-ROOFTOP_USABLE_SHARE: float = 0.50
+# ─── §5.3.1 Panel (the physical module) ─────────────────────────────────────
+# Sources: JinkoSolar Tiger Neo 415-435W, JA Solar JAM72D40 410-430W, Trina
+# Vertex S+ 425-450W (mainstream commercial 2024-2026 N-type bifacial).
+# Utility-class N-type now 550-620W (Trina Vertex N TSM-NEG21C.20, LONGi Hi-MO 7).
+ROOFTOP_PANEL_POWER_W_DC: float = 400.0  # range 300-600
 
-# Power density of modern bifacial monocrystalline panels (W/m² of usable
-# rooftop area). 400-450 W per panel × 2.3-2.5 m² panel area ≈ 170 W/m².
-# Tightens to 150 W/m² for conservative estimate.
-ROOFTOP_W_PER_M2: float = 170.0
+# Per-panel physical area. 1.76 m × 1.13 m commercial-class ≈ 2.0 m²;
+# 2.28 m × 1.13 m utility-class ≈ 2.6 m².
+ROOFTOP_PANEL_AREA_M2: float = 2.0  # range 1.6-2.6
 
-# Thermal derating factor for tropical Indonesia. Module temperature 20-25°C
-# above ambient in full sun reduces efficiency by ~0.4%/°C × 30°C = 12%.
-# Source: NREL PVWatts default for tropical equatorial.
-THERMAL_DERATE_TROPICAL: float = 0.88
+# Derived: panel-area density. Default 400 W / 2.0 m² = 200 W/m².
+# Modern N-type bifacial achieves 210-240 W/m² panel-area peak.
+
+# ─── §5.3.2 Layout (panel area / footprint area) ────────────────────────────
+# Source: NREL TP-6A20-65298 (rooftop technical potential). 0.50 = industrial
+# flat roof after 1m edge setback (SNI 03-1736-2000, IEC 62548:2016),
+# 0.6-1.0m row-walkway aisles every few rows, HVAC / skylights / structural
+# penetrations. Higher (0.55-0.65) if rooftop is empty + low-tilt; lower
+# (0.40) if heavy HVAC.
+ROOFTOP_LAYOUT_DENSITY: float = 0.50  # range 0.40-0.65
+
+# Industrial fire access code (SNI 03-1736-2000 §7.4, also IEC 62548:2016).
+# 1m minimum; 1.5m more conservative.
+ROOFTOP_EDGE_SETBACK_M: float = 1.0  # range 0.5-2.0
+
+# Visualization-only — see §3.6 F10. 6 = ~1 string-half (typical industrial
+# inverter input is 12-24 panels per string). 1 = render individual panels.
+ROOFTOP_PANELS_PER_TILE: int = 6  # range 1-24
+
+# DBSCAN epsilon for click-interaction "contiguous rooftop cluster" (§3.6 F11).
+# 50m groups buildings sharing a continuous roofscape without merging
+# unrelated structures across roads.
+ROOFTOP_CLUSTER_RADIUS_M: float = 50.0
+
+# ─── §5.3.3 Climate / system derating ───────────────────────────────────────
+# Indonesian climate. Module temp coefficient typically -0.30 to -0.36 %/°C;
+# module cell temp runs 25-30°C above ambient under STC; gives ~12% production
+# loss vs nameplate. NREL PVWatts default for equatorial tropical.
+# v4.2 will replace with regional variation (L23 in §18).
+THERMAL_DERATE_TROPICAL: float = 0.88  # range 0.85-0.92
+
+# ─── DEPRECATED: legacy v3 collapsed constants ──────────────────────────────
+# Pre-v4 spec used these collapsed values. Kept as references for older
+# modules that haven't migrated; new code uses the decomposed model above.
+# Remove when no callers remain.
+ROOFTOP_USABLE_SHARE: float = ROOFTOP_LAYOUT_DENSITY  # alias
+ROOFTOP_W_PER_M2: float = ROOFTOP_PANEL_POWER_W_DC / ROOFTOP_PANEL_AREA_M2  # 200 W/m²
 
 # ─── §14 Geometric building-type classifier ─────────────────────────────────
 # These are STARTING POINTS, calibrated by §14.6 manual validation BEFORE
