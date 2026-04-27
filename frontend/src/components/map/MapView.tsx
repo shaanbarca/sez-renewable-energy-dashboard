@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MapLayerMouseEvent, MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
-import Map, { Layer, NavigationControl, Source } from 'react-map-gl/maplibre';
+import Map, { Layer, NavigationControl, Popup, Source } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useMapLayers } from '../../hooks/useMapLayers';
@@ -74,6 +74,19 @@ export default function MapView() {
   // Fetched per site (lightweight: per-site tiles are 1-50 KB each).
   const [siteBuildings, setSiteBuildings] = useState<GeoJSON.FeatureCollection | null>(null);
   const [rooftopTiles, setRooftopTiles] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Click-aggregate popup state — spec §3.6 F11. Computed from rooftopTiles
+  // by filtering to the clicked tile's cluster_id.
+  const [tilePopup, setTilePopup] = useState<{
+    longitude: number;
+    latitude: number;
+    clusterId: number;
+    tileCount: number;
+    panelCount: number;
+    kwDc: number;
+    kwAc: number;
+    mwhPerYear: number | null;
+    buildingCount: number;
+  } | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [measuring, setMeasuring] = useState(false);
@@ -188,6 +201,8 @@ export default function MapView() {
     fetchSiteRooftopTiles(selectedSite)
       .then((data) => setRooftopTiles(data.features?.length ? data : null))
       .catch(() => setRooftopTiles(null));
+    // Dismiss any stale cluster popup when the user switches sites
+    setTilePopup(null);
   }, [selectedSite]);
 
   // Radiate animation: buildable polygons pulse outward when KEK is selected
@@ -293,10 +308,55 @@ export default function MapView() {
     (e: MapLayerMouseEvent) => {
       const feature = e.features?.[0];
       if (!feature?.properties) return;
+
+      // v4.1 rooftop tile click → compute cluster aggregate popup (spec §3.6 F11).
+      // Branch on the feature's layer id; properties shape differs by source.
+      const layerId = feature.layer?.id;
+      if (layerId === 'rooftop-tiles-fill' && rooftopTiles) {
+        const clusterId = feature.properties.cluster_id as number;
+        const clusterTiles = rooftopTiles.features.filter(
+          (f) => f.properties?.cluster_id === clusterId,
+        );
+        const buildingIds = new Set(
+          clusterTiles.map((f) => f.properties?.building_id as string),
+        );
+        const tileCount = clusterTiles.length;
+        const panelCount = clusterTiles.reduce(
+          (acc, f) => acc + ((f.properties?.panels_in_tile as number) ?? 0),
+          0,
+        );
+        const kwDc = clusterTiles.reduce(
+          (acc, f) => acc + ((f.properties?.tile_kw_dc as number) ?? 0),
+          0,
+        );
+        const kwAc = clusterTiles.reduce(
+          (acc, f) => acc + ((f.properties?.tile_kw_ac as number) ?? 0),
+          0,
+        );
+        // Annual MWh = AC capacity × PVOUT (kWh/kWp/yr) / 1000. Use the
+        // selected site's PVOUT — same number that drives existing wb/gc LCOE.
+        const siteRow = scorecard?.find((r) => r.site_id === selectedSite);
+        const pvout =
+          siteRow?.pvout_centroid_kwh_kwp_yr ?? siteRow?.pvout_best_50km_kwh_kwp_yr ?? null;
+        const mwhPerYear = pvout != null ? (kwAc * pvout) / 1000 : null;
+        setTilePopup({
+          longitude: e.lngLat.lng,
+          latitude: e.lngLat.lat,
+          clusterId,
+          tileCount,
+          panelCount,
+          kwDc,
+          kwAc,
+          mwhPerYear,
+          buildingCount: buildingIds.size,
+        });
+        return;
+      }
+
       const siteId = feature.properties.site_id as string;
       selectSite(siteId);
     },
-    [selectSite],
+    [selectSite, rooftopTiles, scorecard, selectedSite],
   );
 
   const handleMouseEnter = useCallback((e: MapLayerMouseEvent) => {
@@ -356,7 +416,7 @@ export default function MapView() {
         }}
         mapStyle={mapStyle as string}
         style={{ width: '100%', height: '100%' }}
-        interactiveLayerIds={measuring ? [] : ['kek-circles']}
+        interactiveLayerIds={measuring ? [] : ['kek-circles', 'rooftop-tiles-fill']}
         onClick={measuring ? undefined : handleClick}
         onMouseEnter={measuring ? undefined : handleMouseEnter}
         onMouseLeave={measuring ? undefined : handleMouseLeave}
@@ -494,6 +554,109 @@ export default function MapView() {
               }}
             />
           </Source>
+        )}
+
+        {/* Cluster click popup — spec §3.6 F11. Shows tile-level aggregate when
+            a tile is clicked. Closes on the popup's own X button or when site
+            changes (via the fetch effect above). */}
+        {tilePopup && (
+          <Popup
+            longitude={tilePopup.longitude}
+            latitude={tilePopup.latitude}
+            onClose={() => setTilePopup(null)}
+            closeOnClick={false}
+            anchor="bottom"
+            offset={12}
+          >
+            <div
+              style={{
+                fontFamily:
+                  '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                fontSize: 12,
+                lineHeight: 1.55,
+                color: '#1a1a1a',
+                minWidth: 220,
+                padding: '4px 2px',
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  marginBottom: 6,
+                  color: '#0a1f4a',
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                Cluster #{tilePopup.clusterId}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>Buildings:</span>
+                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.buildingCount.toLocaleString()}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>Tiles:</span>
+                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.tileCount.toLocaleString()}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>Panels:</span>
+                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.panelCount.toLocaleString()}
+                </strong>
+              </div>
+              <div
+                style={{
+                  marginTop: 6,
+                  paddingTop: 6,
+                  borderTop: '1px solid rgba(26, 58, 138, 0.18)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  fontWeight: 600,
+                  color: '#0a1f4a',
+                }}
+              >
+                <span>kW DC:</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.kwDc.toFixed(1)}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  fontWeight: 600,
+                  color: '#0a1f4a',
+                }}
+              >
+                <span>kW AC:</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.kwAc.toFixed(1)}
+                </span>
+              </div>
+              {tilePopup.mwhPerYear != null && (
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    color: '#444',
+                  }}
+                >
+                  <span>Annual energy:</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    ~{tilePopup.mwhPerYear.toFixed(0)} MWh/yr
+                  </span>
+                </div>
+              )}
+            </div>
+          </Popup>
         )}
       </Map>
 
