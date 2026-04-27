@@ -1,29 +1,29 @@
 site_id,site_name,rooftop_kw_dc,rooftop_kw_ac,rooftop_solar_mwp_potential,total_building_footprint_m2,usable_roof_area_m2,type_filter_excluded_m2,building_count_total,building_count_standard_roof,building_count_elongated,building_count_tank_silo,building_count_conveyor,building_count_other_excluded,building_data_confidence,building_data_reason_flagged,building_data_source,building_data_vintage
-industropolis-batang,Industropolis Batang,4492.2,3953.14,4.4922,80521.77,44921.99,20457.94,245,43,13,0,0,189,low,polygon_imagery_gap,gob_v3,2023-05
-batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,100.93,88.82,0.1009,1009.27,1009.27,0.0,1,1,0,0,0,0,medium,,gob_v3,2023-05
-bumi-serpong-damai,"Banten International Education, Technology, and Health",30479.69,26822.13,30.4797,581052.71,304796.89,225397.04,2526,535,20,0,0,1971,medium,,gob_v3,2023-05
-setangga,Setangga,43.75,38.5,0.0438,3668.66,437.55,3231.11,34,2,0,0,0,32,medium,,gob_v3,2023-05
+industropolis-batang,Industropolis Batang,1826.95,1607.71,1.8269,23510.04,18269.47,774.94,25,14,0,0,0,11,low,polygon_imagery_gap,gob_v3,2023-05
+batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
+bumi-serpong-damai,"Banten International Education, Technology, and Health",467.64,411.52,0.4676,5233.3,4676.35,261.62,5,1,0,0,0,4,medium,,gob_v3,2023-05
+setangga,Setangga,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 tanjung-sauh,Tanjung Sauh,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 kek-arun-lhokseumawe,Arun Lhokseumawe,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 kek-sanur,Sanur,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
-kek-kendal,Kendal,14582.26,12832.39,14.5823,275091.88,145822.61,81017.7,915,115,11,0,0,789,medium,,gob_v3,2023-05
-kek-sorong,Sorong,145.31,127.87,0.1453,2166.6,1453.08,713.52,18,3,0,0,0,15,low,polygon_imagery_gap,gob_v3,2023-05
-kek-singhasari,Singhasari,12205.75,10741.06,12.2057,416552.82,122057.46,281463.47,3042,355,15,0,0,2672,high,,gob_v3,2023-05
+kek-kendal,Kendal,9926.09,8734.96,9.9261,142069.54,99260.94,4508.24,96,32,1,0,0,63,medium,,gob_v3,2023-05
+kek-sorong,Sorong,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
+kek-singhasari,Singhasari,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 kek-morotai,Morotai,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
-kek-gresik,Gresik,14104.17,12411.67,14.1042,168487.56,141041.72,9528.56,183,52,0,0,0,131,low,polygon_imagery_gap,gob_v3,2023-05
-kek-likupang,Likupang,1430.66,1258.98,1.4307,33195.2,14306.58,17065.37,209,43,0,0,0,166,medium,,gob_v3,2023-05
-kek-bitung,Bitung,36123.85,31788.99,36.1239,648325.6,361238.53,219599.85,2707,640,12,0,0,2055,high,,gob_v3,2023-05
-kek-palu,Palu,22553.68,19847.24,22.5537,355636.91,225536.79,100942.53,1377,382,10,0,0,985,medium,,gob_v3,2023-05
+kek-gresik,Gresik,13198.81,11614.95,13.1988,153472.93,131988.09,7122.68,132,38,0,0,0,94,low,polygon_imagery_gap,gob_v3,2023-05
+kek-likupang,Likupang,38.95,34.27,0.0389,736.17,389.46,201.61,4,1,0,0,0,3,medium,,gob_v3,2023-05
+kek-bitung,Bitung,13760.26,12109.03,13.7603,179274.78,137602.59,26025.95,424,146,7,0,0,271,medium,,gob_v3,2023-05
+kek-palu,Palu,4721.09,4154.56,4.7211,65890.09,47210.91,13045.42,178,39,2,0,0,137,low,polygon_imagery_gap,gob_v3,2023-05
 kek-kura-kura,Kura Kura Bali,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 kek-galang-batang,Galang Batang,421.84,371.22,0.4218,4218.38,4218.38,0.0,3,3,0,0,0,0,low,polygon_imagery_gap,gob_v3,2023-05
 kek-maloy-batuta,Maloy Batuta Trans Kalimantan,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 kek-nongsa,Nongsa,209.97,184.77,0.21,2099.68,2099.68,0.0,1,1,0,0,0,0,medium,,gob_v3,2023-05
 kek-mandalika,Mandalika,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,low,no_buildings_detected,,
 kek-batam-aero-technic,Batam Aero Technic,699.95,615.96,0.6999,15692.45,6999.49,0.0,3,1,0,0,0,2,medium,,gob_v3,2023-05
-kek-tanjung-kelayang,Tanjung Kelayang,2151.96,1893.72,2.152,30831.17,21519.58,7140.32,124,41,1,0,0,82,medium,,gob_v3,2023-05
-kek-lido,Lido,19235.99,16927.67,19.236,303176.52,192359.85,84803.33,1107,284,15,0,0,808,medium,,gob_v3,2023-05
+kek-tanjung-kelayang,Tanjung Kelayang,1804.21,1587.7,1.8042,23094.06,18042.07,4098.19,82,35,1,0,0,46,medium,,gob_v3,2023-05
+kek-lido,Lido,1884.79,1658.62,1.8848,35880.69,18847.94,13748.46,192,49,0,0,0,143,low,polygon_imagery_gap,gob_v3,2023-05
 kek-tanjung-lesung,Tanjung Lesung,318.11,279.94,0.3181,5801.93,3181.11,1679.03,26,9,0,0,0,17,low,polygon_imagery_gap,gob_v3,2023-05
-kek-sei-mangkei,Sei Mangkei,10676.6,9395.41,10.6766,146692.99,106765.97,21482.25,416,223,3,1,0,189,low,polygon_imagery_gap,gob_v3,2023-05
+kek-sei-mangkei,Sei Mangkei,9594.6,8443.25,9.5946,123192.86,95945.98,9742.01,295,192,3,1,0,99,low,polygon_imagery_gap,gob_v3,2023-05
 semen-gresik-tuban,Semen Gresik Tuban,9340.21,8219.39,9.3402,198101.52,93402.11,88440.66,1022,169,7,0,0,846,medium,,gob_v3,2023-05
 indocement-citeureup,Indocement Citeureup,95810.36,84313.12,95.8104,1250817.38,958103.59,197035.9,2463,558,22,1,0,1882,medium,,gob_v3,2023-05
 semen-padang-indarung,Semen Padang Indarung,56392.84,49625.7,56.3928,1179173.4,563928.35,536406.3,6157,1136,32,0,3,4986,medium,,gob_v3,2023-05

@@ -73,9 +73,67 @@ DEFAULT_BUILDINGS_PARQUET = DATA_PROCESSED / "sites_buildings_filtered.parquet"
 DEFAULT_SITES_CSV = PROCESSED / "dim_sites.csv"
 DEFAULT_OUTPUT_CSV = PROCESSED / "fct_site_solar_potential.csv"
 DEFAULT_MISSING_CSV = PROCESSED / "sites_missing_buildings.csv"
+DEFAULT_KEK_POLYGONS_GEOJSON = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
 
 # Indonesian National DGN95 / UTM 50S — accurate metric calc for classifier
 PROJECTED_CRS = "EPSG:23830"
+
+
+def _load_kek_polygons(
+    path: Path = DEFAULT_KEK_POLYGONS_GEOJSON,
+) -> gpd.GeoDataFrame | None:
+    """Load KEK boundary polygons keyed by slug (= site_id for KEK rows).
+
+    The source GeoJSON has multiple polygon rows per KEK (split-island
+    shapes — Tanjung Sauh has 6 fragments). We dissolve to one geometry
+    per slug so downstream `within()` checks see a single MultiPolygon.
+
+    Returns None if the file is missing — the caller falls back to the
+    pre-clip 2 km buffer behavior for graceful degradation.
+    """
+    if not path.exists():
+        return None
+    gdf = gpd.read_file(path)
+    if "slug" not in gdf.columns:
+        return None
+    return gdf.dissolve(by="slug", as_index=False)[["slug", "geometry"]]
+
+
+def _clip_buildings_to_kek_polygons(
+    buildings: gpd.GeoDataFrame,
+    kek_polys: gpd.GeoDataFrame,
+) -> gpd.GeoDataFrame:
+    """Drop buildings whose centroid falls outside the KEK polygon for
+    sites that have one. Preprocess assigns buildings using a 2 km buffer
+    around the site centroid, which over-includes for KEKs whose actual
+    boundary is smaller (and miscounts roofs in adjacent industrial parks).
+
+    Industrial sites (cement, steel, nickel) don't have a polygon — those
+    rows pass through unchanged, since their 2 km buffer IS the intended
+    catchment.
+    """
+    if buildings.empty or kek_polys.empty:
+        return buildings
+
+    # Single reprojection up front. KEK polygons are EPSG:4326; buildings
+    # parquet is EPSG:4326. Centroid in 4326 is geometrically wrong but
+    # fine for point-in-polygon testing (we're not measuring distance).
+    if buildings.crs != kek_polys.crs:
+        buildings_in_poly_crs = buildings.to_crs(kek_polys.crs)
+    else:
+        buildings_in_poly_crs = buildings
+
+    centroids = buildings_in_poly_crs.geometry.centroid
+    keep = pd.Series(True, index=buildings.index)
+
+    for slug, poly in kek_polys.set_index("slug").geometry.items():
+        site_idx = buildings.index[buildings["site_id"] == slug]
+        if len(site_idx) == 0:
+            continue
+        these = centroids.loc[site_idx]
+        keep.loc[site_idx] = these.within(poly).to_numpy()
+
+    return buildings.loc[keep].copy()
 
 
 # ─── Forward-compat invariant #4: SINGLE entry point for buildings ─────────
@@ -83,9 +141,14 @@ PROJECTED_CRS = "EPSG:23830"
 
 def load_buildings_for_pipeline(
     parquet_path: Path = DEFAULT_BUILDINGS_PARQUET,
+    *,
+    clip_kek_to_polygon: bool = True,
 ) -> gpd.GeoDataFrame:
     """The ONLY place in the pipeline that reads
     `sites_buildings_filtered.parquet`. Per spec §13.10 invariant #4.
+
+    `clip_kek_to_polygon` (default True) drops buildings outside the KEK
+    boundary polygon for KEK sites — industrial sites pass through.
 
     v4.2 (L26) replaces this with a fan-out over multiple sources +
     `merge_sources()`. Downstream callers don't change.
@@ -103,6 +166,19 @@ def load_buildings_for_pipeline(
             f"Re-run preprocess_open_buildings.py — schema may be stale."
         )
         raise ValueError(msg)
+
+    if clip_kek_to_polygon:
+        kek_polys = _load_kek_polygons()
+        if kek_polys is not None and not kek_polys.empty:
+            before = len(gdf)
+            gdf = _clip_buildings_to_kek_polygons(gdf, kek_polys)
+            after = len(gdf)
+            if before != after:
+                print(
+                    f"  KEK polygon clip: {before - after:,} buildings dropped "
+                    f"(outside KEK boundary, kept {after:,})"
+                )
+
     return gdf
 
 
