@@ -115,7 +115,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   benchmarkMode: 'bpp',
   energyMode: 'solar',
   costBasis: defaultCostBasis('solar'),
-  mapStyle: 'dark',
+  mapStyle: 'satellite',
   loading: true,
   walkthroughPersona: null,
   walkthroughStep: 0,
