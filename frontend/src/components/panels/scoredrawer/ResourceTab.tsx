@@ -227,9 +227,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
 
       {row.regional_groundmount_potential_mwp_50km != null &&
         row.regional_groundmount_potential_mwp_50km > 0 &&
-        showSolar && (
-        <LcoeCurveChart row={row} />
-      )}
+        showSolar && <LcoeCurveChart row={row} />}
     </>
   );
 }

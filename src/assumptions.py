@@ -873,8 +873,13 @@ BUILDING_CIRCULARITY_TANK_THRESHOLD: float = 0.85
 # aspect_ratio = bbox_length / bbox_width
 #   1.0-2.0 = square-ish warehouse
 #   2.0-4.0 = typical factory
-#   6.0+ = conveyor / pipe rack
-BUILDING_ASPECT_CONVEYOR_THRESHOLD: float = 8.0
+#   8.0-14.0 = long industrial production hall (cement clinker line, steel
+#              rolling mill) — still solar-suitable, classified as `elongated`
+#   15.0+ = true conveyor / pipe rack (typically 1-4 m wide ribbons)
+# v4.1 calibration on Semen Imasco Asiatic Jember: was 8.0; reclassified a
+# 4,310 m² @ aspect 12 production hall as conveyor (lost all tiles). Real
+# conveyors at this site sit at aspect 17+, so 15.0 cleanly separates them.
+BUILDING_ASPECT_CONVEYOR_THRESHOLD: float = 15.0
 
 # Below this floor, structures are too small for commercial rooftop solar
 # OR are likely non-buildings (equipment housings, guard posts, small tanks).
@@ -883,8 +888,14 @@ BUILDING_MIN_AREA_M2: float = 200.0
 # convex_ratio = polygon_area / convex_hull_area
 #   0.95-1.00 = simple rectangle (clean roof)
 #   0.85-0.95 = warehouse with loading docks
-#   <0.70 = complex process equipment cluster
-BUILDING_HULL_RATIO_COMPLEX_THRESHOLD: float = 0.70
+#   0.55-0.85 = L-shape / U-shape industrial hall, still solar-suitable
+#   <0.55 = genuine process equipment cluster (don't tile)
+# v4.1 calibration on Semen Imasco Asiatic Jember: was 0.70; rejected a
+# 9,309 m² @ hull_ratio 0.62 production hall whose GoB-traced outline
+# included cooling vents and stair towers as notches. Lowering to 0.55
+# keeps that hall in while still rejecting buildings with hull_ratio < 0.55
+# which are almost always real equipment clusters.
+BUILDING_HULL_RATIO_COMPLEX_THRESHOLD: float = 0.55
 
 # ─── F4 Confidence flag thresholds (derived signals, no hard-coded sites) ──
 # Typical industrial site has 5-40% of polygon area as building footprint.

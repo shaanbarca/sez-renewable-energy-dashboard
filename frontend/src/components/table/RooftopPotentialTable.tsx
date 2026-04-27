@@ -103,7 +103,9 @@ export default function RooftopPotentialTable() {
       const dir = sort.dir === 'desc' ? -1 : 1;
       const k = sort.key;
       if (k === 'rooftop_mwp') {
-        return ((a.rooftop_solar_mwp_potential ?? -1) - (b.rooftop_solar_mwp_potential ?? -1)) * dir;
+        return (
+          ((a.rooftop_solar_mwp_potential ?? -1) - (b.rooftop_solar_mwp_potential ?? -1)) * dir
+        );
       }
       if (k === 'building_count') {
         return (
@@ -180,10 +182,9 @@ export default function RooftopPotentialTable() {
         }}
       >
         <span>
-          <strong style={{ color: 'var(--text-primary)' }}>{rows.length}</strong> sites with
-          rooftop data ·{' '}
-          <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalMwp)}</strong> MWp DC
-          total ·{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>{rows.length}</strong> sites with rooftop
+          data · <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalMwp)}</strong> MWp
+          DC total ·{' '}
           <strong style={{ color: 'var(--text-primary)' }}>
             {FORMAT_NUMBER.format(totalBuildings)}
           </strong>{' '}
