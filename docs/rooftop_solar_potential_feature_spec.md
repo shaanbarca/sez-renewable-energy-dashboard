@@ -1,6 +1,6 @@
 # Feature Spec: Within-Boundary Solar Potential (Rooftop + Ground-Mount)
 
-**Status:** Refined v4 (2026-04-27). Scope reduced to *raw potential only* — Supply Blend integration, ESDM cap, and Tenant view all deferred to v4.2+. v4 adds visual tile-grid rendering for sanity-check + alternative data sourcing for sites GoB v3 misses.
+**Status:** Refined v4.1 (2026-04-27). Scope reduced to *raw potential only* — Supply Blend integration, ESDM cap, and Tenant view all deferred to v4.2+. v4 adds visual tile-grid rendering for sanity-check + alternative data sourcing for sites GoB v3 misses. v4.1 adds design-review fixes: §3.6.1 user journey, §3.6.2 DESIGN.md alignment, §3.8 interaction state matrix, §3.9 responsive + a11y, plus 4 new test files.
 **Target version:** v4.1
 **Estimated effort:** ~3-4 weeks (added tile-generation pipeline + alt-data fallback; trimmed by data-already-on-disk).
 
@@ -19,7 +19,11 @@
   - [3.3 Out of scope for v1](#33-out-of-scope-for-v1)
   - [3.4 Supply Blend integration — DEFERRED to v4.2](#34-supply-blend-integration--deferred-to-v42)
   - [3.6 Visual panel-tile grid (F8-F12, "show your work")](#36-visual-panel-tile-grid-the-show-your-work-layer)
+    - [3.6.1 User journey (CFO validation arc)](#361-user-journey-validating-a-rooftop-number-the-headline-interaction)
+    - [3.6.2 DESIGN.md alignment](#362-designmd-alignment)
   - [3.7 Missing-data sites — flag, don't hide](#37-missing-data-sites--flag-dont-hide)
+  - [3.8 Interaction state coverage (loading / empty / error / success / partial)](#38-interaction-state-coverage)
+  - [3.9 Responsive & Accessibility](#39-responsive--accessibility)
 - [4. Success KPIs](#4-success-kpis)
   - [4.1 Data coverage](#41-data-coverage-kpis)
   - [4.2 User value](#42-user-value-kpis)
@@ -96,6 +100,8 @@
 | **Missing-data sites flagged for alt-data hunt** (NEW v4) | For the 14 sites where GoB v3 finds 0 buildings, write a pipeline-flagged shortlist with provenance hooks. Don't ship "low confidence" silently — make alt-data sourcing a first-class follow-up. | Verified in v4.1 build: 14 / 81 sites missing (post-2023 nickel IIA + Bali tourism KEKs). Microsoft GMLBF and Indonesia-specific sources (BIG ortho, BPS) likely close the gap. See §3.7 + L21 / L22 / L26 in §18. |
 | **Forward-compatibility invariants for multi-source data** (NEW v4, replaces "full plugin architecture") | Defer the `_base.py` abstraction to v4.2 (when MS GMLBF gives us a second concrete shape to fit). v4.1 instead enforces 6 forward-compat invariants in the existing concrete code (no `_base.py`, no canonical-schema module): (1) parquet has `source_name` + `source_vintage` columns, (2) `building_id` is prefixed string, (3) `dim_sites.preferred_building_source` column exists, (4) single `load_buildings_for_pipeline()` function as the parquet entry point, (5) confidence handling treats null/NaN as "no score", (6) F4 reads `source_vintage` from data not from a hardcoded year. | Eng-review insight (2026-04-27): the contract as originally specified didn't fit MS GMLBF (no confidence scores), manual KML (no s2 token), or OSM (rich tag info). Shaping an abstraction from one concrete example is premature. v4.2's MS GMLBF migration becomes "new module + register it + merge by building_id" — additive, not a rewrite, as long as v4.1 ships the 6 invariants. See §13.10. |
 | **Storage policy: keep raw locally, discard waste, commit post-processed** (NEW v4) | Three storage layers with explicit policy: (Layer 1) Raw GoB v3 extract — gitignored, kept locally to support re-merge when sites are added; cleanup deletes per-cell intermediate files outside site buffers (saved ~6 GB on the v4.1 build). (Layer 2) Site-buffered parquet (12.3 MB) — committed. (Layer 2.5) Tile parquet (~50 MB est.) — committed if under 50 MB, else gitignored + regenerated. (Layer 3) Aggregated CSV (~10 KB) — committed. | "Re-running with new sites should be cheap; checking out the repo shouldn't drag 7 GB of unused data; the dashboard's runtime should never see anything bigger than the post-processed layers." See §13.11. |
+| **Mobile: outlines-only for tile layer** (NEW v4 — design review) | Below tablet breakpoint (768px), render building polygon outlines but NOT individual tiles. Score Drawer numbers still show. BottomPanel solar potential tab is the keyboard / mobile alternative for site comparison. Tile toggle in `LayerControl` shows "Desktop only" disabled state. | 47k tiles at 375px = unusable. CFO persona uses laptop; mobile is graceful degradation, not a blocker. See §3.9. |
+| **Keyboard a11y: Tab focus on tile clusters** (NEW v4 — design review) | Each contiguous rooftop CLUSTER (DBSCAN, ε=50m) gets `tabindex="0"` + ARIA role at cluster centroid. Tab navigates clusters in spatial reading order; Enter opens the popup. Screen reader gets `aria-label` with full cluster summary. | WCAG 2.1.1 keyboard requirement; aligns with adding the click-aggregate feature without locking out keyboard users. See §3.9. |
 
 ---
 
@@ -245,6 +251,45 @@ The four user-tunable parameters and their defaults:
 
 `panels_per_tile = 1` shows individual panels (most accurate, dense map at zoom 17+). `panels_per_tile = 24` shows utility-scale "string blocks" (cleaner map at zoom 14). The total MWp doesn't depend on this parameter — only the visual granularity.
 
+**Information-architecture note (Score Drawer placement).** The rooftop section in the existing Score Drawer Resource tab sits BELOW the within-boundary solar block and ABOVE the regional 50 km block. Section heading `Rooftop solar potential` follows DESIGN.md §4 typographic convention for stat-block headings. This anchors the new feature inside the existing solar reading order (within-site → rooftop → regional) without breaking established visual rhythm.
+
+**Credibility-recovery rule.** If summed visible tile capacity diverges from the headline number by more than 5%, the click-cluster popup MUST say "Note: small rounding from per-site classifier exclusions" instead of silently disagreeing. Never let the dashboard contradict itself in front of the user.
+
+### 3.6.1 User journey: validating a rooftop number (the headline interaction)
+
+The CFO persona's emotional arc through the "show your work" loop. Spec drives the UI to support each step.
+
+```
+STEP | USER DOES                       | USER FEELS                | UI SUPPORTS
+─────|─────────────────────────────────|───────────────────────────|────────────────────────────────
+ 1   | Opens site (IMIP Morowali)      | Curious, slight skepticism| Score Drawer reveals "287 MWp"
+ 2   | Reads big number                | "Is that real?"           | Caption: "47k tiles · 287k panels"
+ 3   | Looks at map                    | "Where are these?"        | Building polygons outlined
+ 4   | Toggles "Rooftop tiles" layer   | "Show me"                 | Layer fades in; zoom hint visible
+ 5   | Zooms to a warehouse            | "Let me count"            | Tiles render at 6m × 5m each
+ 6   | Counts a 12-tile rooftop        | "60 kW... yeah, plausible"| Hover popup: "12 tiles · 60 kW"
+ 7   | Drags `panel_power_w` 400→500   | "What if panels improved?"| Number → 358 MWp; tiles redraw
+ 8   | Closes the site                 | Trust earned              | (next site benefits from belief)
+```
+
+Time horizons (Norman): 5-second visceral (the big number), 5-minute behavioral (the validation), 5-year reflective (trust the dashboard's other numbers because this one was inspectable).
+
+### 3.6.2 DESIGN.md alignment
+
+The rooftop UI MUST conform to existing dashboard patterns; new visual elements only where genuinely needed.
+
+| Element | Reuse from DESIGN.md | New? |
+|---|---|---|
+| Tile fill color | Pick from existing accent palette (DESIGN.md §4); `#1a3a8a` was a placeholder. If no current accent is "solar blue", define a new CSS variable `--solar-panel-fill` in `globals.css` with a one-line comment about the addition. | Possibly |
+| AssumptionsPanel sliders for panel power / area / density | Reuse the existing slider component used for WACC / CAPEX (DESIGN.md §3 component choices) | No |
+| Score Drawer rooftop section heading + stat block | Reuse existing stat-block typography from the Resource tab's solar / wind blocks | No |
+| Map layer toggle entry in `LayerControl` | Reuse existing `LayerControl` row pattern (icon + label + active-count badge) | No |
+| Tile rendering zoom threshold (≥14) | Confirm against existing vector layer zoom strategy (DESIGN.md §6) — match unless strong reason to differ | TBD |
+| Click popup style | Reuse existing MapLibre tooltip component used by site markers + nickel smelters | No |
+| BottomPanel "Solar Potential" tab | Reuse existing TanStack Table column-header + sort UI from RankedTable | No |
+
+**Implementation rule:** if the implementer can't find an existing pattern in 5 minutes, escalate before inventing a new one.
+
 ### 3.7 Missing-data sites — flag, don't hide
 
 **F13. The pipeline must produce an explicit shortlist of sites with `building_data_confidence = 'low'` and an alt-data search hook.** Don't silently flag and move on; surface them so the next step is obvious.
@@ -264,6 +309,78 @@ The 14 sites the v4.1 build flagged (verified 2026-04-26):
 | Coordinates / polygon issues | Cemindo Gemilang Bayah, KEK Maloy Batuta, KEK Arun Lhokseumawe | **Manual coordinate verification** + Microsoft GMLBF cross-check. |
 
 This becomes the input to L21 (Microsoft GMLBF integration) — a concrete punch list, not a vague "sometime later" TODO.
+
+**Empty-state copy for missing-data sites in the Score Drawer.** Don't show "0 MWp" — that reads as "this site has no rooftop potential" which is wrong. Show the explanation:
+
+```
+┌─ Rooftop solar potential ──────────────────────────┐
+│  ⓘ Building data unavailable for this site.        │
+│    Reason: {reason_flagged_human_readable}         │
+│    Estimated rooftop potential: pending Microsoft  │
+│    GMLBF integration (v4.2 / L26).                 │
+└────────────────────────────────────────────────────┘
+```
+
+`{reason_flagged_human_readable}` is one of:
+- `post_2023_imagery` → "Imagery vintage (May 2023) predates site commissioning ({commissioning_year})"
+- `low_count_for_capacity` → "Detected building count below threshold for facility scale"
+- `polygon_imagery_gap` → "Imagery gap inside the site polygon"
+- Tourism KEK → "Predominantly tourism land use; minimal rooftop solar potential expected"
+
+This copy lives in `frontend/src/lib/missingDataMessages.ts` (single source for translation later).
+
+### 3.8 Interaction state coverage
+
+The spec previously described mostly the happy path. Real UI needs explicit specs for every state. Below is the matrix that v4.1 ships.
+
+| Feature | Loading | Empty | Error | Success | Partial |
+|---|---|---|---|---|---|
+| Map tile layer fetch | Skeleton overlay (faded blue rectangles at building centroids) while parquet streams in. Disappears on first paint. | Polygon outline rendered in gray dashed; no tiles. Score Drawer footnote: "No standard rooftops detected after §14 classification." | Toast: "Tile data unavailable. Retry." + retry button. Polygon outline stays. | F9 specified | If <50% of expected tiles arrive in 3s: render what we have + grey placeholder for missing buildings; no error toast unless 0 arrive |
+| Score Drawer rooftop section | Skeleton bars in the rooftop section while `fct_site_solar_potential.csv` loads | F11 in §3.7 (missing-data copy) | Inline "Rooftop data couldn't load. Retry?" with retry button | F12 specified | If aggregate is partial (some buildings still classifying), show "Updating…" indicator next to the number |
+| BottomPanel Solar Potential tab | Skeleton rows | Empty-state row: "No sites match current filters" with "Clear filters" link | Toast on column-fetch failure | F7 specified | Greyed cells with "—" if a single site's data is missing |
+| Slider mid-drag (panel power / area / density) | Number recomputes immediately frontend-only; no backend round-trip; no spinner | N/A | Frontend can't fail (pure JS multiply); if it does, log to console and freeze last known value | Number updates < 16ms; tile capacity labels redraw | N/A |
+| Slider mid-drag (layout density / setback — these change tile geometry) | Tile layer shows "Updating…" overlay while pipeline regenerates (~200ms-1s) | N/A | Toast "Couldn't recompute tiles. Last value: X" + slider snaps back | Tiles redraw at new positions | N/A |
+| Click cluster | N/A (instant) | "Clicked area has no tiles" subtitle in popup | "Couldn't load cluster summary. Try clicking a single tile instead." | F11 specified | Show partial sum if some tile capacities haven't loaded yet |
+| AssumptionsPanel slider reset | Sliders animate back to defaults (250ms ease-out) | N/A | N/A | N/A | N/A |
+
+**No silent failures.** Every state listed gets a test in §16 and a corresponding UI element. The dashboard's existing toast system handles error notifications uniformly.
+
+### 3.9 Responsive & Accessibility
+
+v4.1 is laptop-first per DESIGN.md, but the rooftop layer's density forces explicit responsive + a11y specs.
+
+#### Responsive breakpoints
+
+| Breakpoint | Behavior |
+|---|---|
+| Desktop (≥1024px) | Full feature set — tiles render at zoom ≥14, click aggregation, slider live recompute, BottomPanel tab. |
+| Tablet (768-1024px) | Same as desktop; tiles render but Score Drawer collapses to half-width to leave map room. |
+| **Mobile (<768px)** | **Outlines only** — building polygons render but TILES DO NOT. 47k tile rectangles destroy mobile perf + are unreadable at 375px. Score Drawer numbers still show. BottomPanel solar tab is the keyboard / mobile alternative for site comparison. Tile-toggle in `LayerControl` shows "Desktop only" disabled state with explainer tooltip. |
+
+This is decision-resolved (eng review 2026-04-27, user choice "outlines only on mobile"). The CFO persona uses laptop; mobile is a graceful degradation, not a blocker.
+
+#### Accessibility
+
+| Concern | Specification |
+|---|---|
+| Keyboard navigation for tile click | Each contiguous rooftop CLUSTER (DBSCAN, ε=50m) gets a `tabindex="0"` + ARIA-role attached at cluster centroid. Tab moves through clusters in spatial reading order (top-left → bottom-right). Enter triggers the click popup. (Eng review 2026-04-27 user choice; aligns with WCAG 2.1.1 keyboard requirement.) |
+| Screen reader text for click popup | `aria-label="Cluster of {N} buildings: {tiles} solar tiles totaling {kw_ac} kilowatts AC, estimated {mwh_yr} megawatt-hours per year"`. Popup also has a `role="dialog"` + `aria-modal="false"` (it's a transient tooltip, not a modal). |
+| Color contrast | The `--solar-panel-fill` color (per DESIGN.md §4 alignment, see §3.6.2) must meet WCAG AA 3:1 for non-text UI against the dashboard's basemap. Verify via Chrome DevTools color picker after the color is finalized. Document the measured ratio in the implementation PR. |
+| Touch targets | Cluster click target is the convex hull of the cluster's tiles. Minimum interactive area 44×44 CSS pixels per WCAG 2.5.5 — clusters smaller than that get a padded invisible click region. |
+| Focus ring | Use the existing `--focus-ring` CSS variable from DESIGN.md, not a one-off ring style. |
+| Reduced motion | `prefers-reduced-motion: reduce` skips the layer fade-in and the slider redraw animation; tiles appear instantly. |
+
+#### Tab order through the rooftop UI
+
+```
+1. LayerControl "Rooftop tiles" toggle
+2. AssumptionsPanel: panel_power slider → panel_area → layout_density → setback
+3. Map: each contiguous rooftop cluster (visible at current zoom), spatial reading order
+4. Score Drawer rooftop section heading
+5. BottomPanel Solar Potential tab (when active)
+```
+
+Test: a keyboard-only user must be able to (a) toggle the layer, (b) drag a slider via arrow keys, (c) reach a cluster popup via Tab+Enter, (d) read the popup content via screen reader. All four covered by the test plan §16.
 
 ### 3.2 Non-functional requirements
 
@@ -1271,6 +1388,10 @@ Captured to prevent scope creep. **The big cuts from the v2 spec are in the top 
 | `tests/test_tile_aggregation.py` | F11/F12 click aggregation math | Single-tile, single-rooftop, and cluster sums match the per-site total to ±0.5% (rounding tolerance); MWh/yr derived from PVOUT exactly |
 | `tests/test_panel_assumptions_live_recompute.py` | F10 slider recompute path | Changing `panel_power_w_dc` from 400 → 500 increases all rooftop_kw_dc rows by 25% exactly; tile geometry unchanged (only the per-tile capacity label changes) |
 | `tests/test_missing_data_flag.py` | F13 alt-data shortlist | `sites_missing_buildings.csv` has expected 14 rows on the v4.1 fixture; each row has a non-null `recommended_alt_data` |
+| `tests/test_interaction_states.py` | §3.8 state matrix coverage | Every (feature × state) cell has the expected UI element wired (loading skeleton renders, empty-state copy matches `missingDataMessages.ts`, error toast appears on parquet 500, partial-data spinner shows). |
+| `tests/e2e/test_keyboard_a11y.spec.ts` | §3.9 keyboard navigation | Tab through `LayerControl → AssumptionsPanel sliders → map clusters → Score Drawer`. Arrow-key drag on slider. Enter on focused cluster opens popup. Screen reader (axe-core) reports no critical violations. |
+| `tests/e2e/test_mobile_outlines.spec.ts` | §3.9 mobile responsive | At 375px viewport, tile toggle is disabled with "Desktop only" tooltip. Building outlines render. Score Drawer numbers still display. BottomPanel solar tab fully usable. |
+| `tests/test_credibility_recovery.py` | §3.6 5% divergence rule | When summed cluster tile capacity diverges from headline by >5%, popup includes the rounding note string. ≤5% no note. Headline always wins. |
 
 ### 16.2 Integration tests
 
