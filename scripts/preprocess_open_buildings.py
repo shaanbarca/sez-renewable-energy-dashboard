@@ -58,6 +58,7 @@ import time
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import s2sphere
 from shapely import wkt as shp_wkt
@@ -195,6 +196,7 @@ def s2_token_l4_for_point(lat: float, lon: float) -> str:
 def process_chunk(
     chunk: pd.DataFrame,
     sites_gdf: gpd.GeoDataFrame,
+    site_centroids: pd.DataFrame,  # site_id, centroid_lat, centroid_lon (deg)
     thresholds: dict[str, float],
     chunk_offset: int,
 ) -> gpd.GeoDataFrame:
@@ -249,6 +251,24 @@ def process_chunk(
         on="building_id",
         suffixes=("_pt", ""),
     )
+
+    # ─── Dedup: each building → ONE site (RV5 fix, 2026-04-27) ────────────────
+    # Without this, a warehouse near 3 nearby sites (Master Steel, Gunung Raja
+    # Paksi, Jakarta Prima Steel — all within 2 km of each other in Jakarta's
+    # industrial belt) gets summed into all 3 sites' rooftop MWp. Inflated the
+    # 81-site total by ~2× pre-dedup. Assignment rule: nearest site centroid by
+    # haversine distance — fast, correct enough at <50 km buffer scale.
+    matches = matches.merge(site_centroids, on="site_id", how="left")
+    # Vectorized haversine in km — same formula as src/pipeline/geo_utils
+    lat1 = np.radians(matches["latitude"].to_numpy())
+    lat2 = np.radians(matches["centroid_lat"].to_numpy())
+    dlat = lat2 - lat1
+    dlon = np.radians(matches["centroid_lon"].to_numpy() - matches["longitude"].to_numpy())
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    matches["dist_to_site_km"] = 2 * 6371.0 * np.arcsin(np.sqrt(a))
+    # For each building, keep only the row whose site centroid is nearest
+    matches = matches.sort_values("dist_to_site_km").drop_duplicates("building_id", keep="first")
+
     keep_cols = [
         "building_id",
         "site_id",
@@ -267,6 +287,7 @@ def process_chunk(
 def stream_filter(
     raw_csv: Path,
     sites_gdf: gpd.GeoDataFrame,
+    site_centroids: pd.DataFrame,  # site_id, centroid_lat, centroid_lon
     thresholds: dict[str, float],
     chunk_size: int,
 ) -> gpd.GeoDataFrame:
@@ -294,7 +315,7 @@ def stream_filter(
     for chunk in tqdm(reader, desc="chunks", unit="chunk"):
         chunk_size_actual = len(chunk)
         total_raw += chunk_size_actual
-        matches = process_chunk(chunk, sites_gdf, thresholds, chunk_offset)
+        matches = process_chunk(chunk, sites_gdf, site_centroids, thresholds, chunk_offset)
         # Track post-threshold count (before spatial filter)
         # Approximate: matches gives us post-everything; intermediate count
         # is dropped during process_chunk. For now log final-only.
@@ -342,13 +363,24 @@ def main() -> int:
 
     t0 = time.time()
     sites_gdf = load_site_buffers(args.sites, args.polygons, args.buffer_km)
+    # Site centroids in EPSG:4326 — passed to dedup step (RV5). For KEK polygons
+    # this is the polygon centroid; for non-KEK sites it's the dim_sites lat/lon
+    # we used to build the buffer originally. Either way, distance-from-centroid
+    # is the canonical "which site does this building belong to" rule.
+    site_centroids = pd.DataFrame(
+        {
+            "site_id": sites_gdf["site_id"].values,
+            "centroid_lat": sites_gdf.geometry.centroid.y.values,
+            "centroid_lon": sites_gdf.geometry.centroid.x.values,
+        }
+    )
     thresholds = load_thresholds(args.confidence_thresholds)
     print(
         f"Loaded {len(thresholds):,} per-cell confidence thresholds "
         f"(or flat fallback {DEFAULT_THRESHOLD})"
     )
 
-    filtered = stream_filter(args.raw_data, sites_gdf, thresholds, args.chunk_size)
+    filtered = stream_filter(args.raw_data, sites_gdf, site_centroids, thresholds, args.chunk_size)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     print(f"\nWriting {args.output}")
