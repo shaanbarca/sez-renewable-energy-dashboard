@@ -45,6 +45,7 @@ Contract for the data pipeline. Three parts:
   - [3.9 fct_captive_steel_summary](#39-outputsdataprocessedfct_captive_steel_summarycsv)
   - [3.10 fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv)
   - [3.11 fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv)
+  - [3.12 fct_site_solar_potential](#312-outputsdataprocessedfct_site_solar_potentialcsv)
 - [Open Questions](#open-questions)
 
 ---
@@ -1032,6 +1033,42 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `firm_wind_coverage_pct` | float | Demand fraction wind serves directly (without storage) |
 | `wind_firming_gap_pct` | float | Fraction of demand requiring firming (CF-dependent: 15-35%) |
 | `wind_firming_hours` | float | BESS bridge hours for wind intermittency (2-4h) |
+
+---
+
+### 3.12 `outputs/data/processed/fct_site_solar_potential.csv`
+
+**Rows:** 81 (one per site)
+**Built from:** `data/processed/sites_buildings_filtered.parquet` (Google Open Buildings v3) via `load_buildings_for_pipeline()` with KEK polygon clip + §14 classifier
+**Pipeline:** `build_fct_site_solar_potential.py`
+**Companion artifact:** `data/processed/sites_rooftop_tiles.parquet` (~25 MB, 703k panel-tile polygons rendered as the map "Rooftop Solar Tiles" layer — produced by `build_rooftop_tiles.py` from the same loader)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `site_id` | str | Site identifier (join key to `dim_sites`) |
+| `site_name` | str | Site display name |
+| `rooftop_kw_dc` | float | DC nameplate sum of `footprint × usability × layout_density × panel_density` (kW) |
+| `rooftop_kw_ac` | float | AC at meter, applies `THERMAL_DERATE_TROPICAL = 0.88` (kW) |
+| `rooftop_solar_mwp_potential` | float | `rooftop_kw_dc / 1000` — the headline rooftop ceiling (MWp) |
+| `total_building_footprint_m2` | float | Sum of all detected building footprints (m²) |
+| `usable_roof_area_m2` | float | Sum of `footprint × usability_multiplier` across classified buildings (m²) |
+| `type_filter_excluded_m2` | float | Footprint of buildings the §14 classifier rejected entirely (m²) |
+| `building_count_total` | int | Total buildings detected at the site (after KEK polygon clip) |
+| `building_count_standard_roof` | int | Buildings classified as `standard_roof` (multiplier 1.0) |
+| `building_count_elongated` | int | Buildings classified as `elongated` (multiplier 0.6) |
+| `building_count_tank_silo` | int | Buildings classified as `tank_silo` (multiplier 0.0) |
+| `building_count_conveyor` | int | Buildings classified as `conveyor` (multiplier 0.1) |
+| `building_count_other_excluded` | int | Sum of `too_small + complex + possibly_round` |
+| `building_data_confidence` | str | `high` / `medium` / `low` per §4A.6 thresholds |
+| `building_data_reason_flagged` | str | Reason flag (`imagery_gap`, `partial`, or empty) for low/medium confidence |
+| `building_data_source` | str | Always `Google Open Buildings v3` for v4.1 |
+| `building_data_vintage` | str | Always `2023-05` for v4.1 |
+
+**Sites with no buildings detected** are written separately to `outputs/data/processed/sites_missing_buildings.csv` (18 sites in v4.1) — these still get a row in `fct_site_solar_potential.csv` with zero counts and a `low` confidence flag (spec §3.7 — flag, don't hide).
+
+**KEK polygon clip behavior:** `load_buildings_for_pipeline()` filters buildings whose centroid falls outside the KEK polygon for the 25 KEK sites (using `outputs/data/raw/kek_polygons.geojson`). Industrial sites pass through unchanged — their 2 km buffer from preprocess IS the intended catchment. See METHODOLOGY §4A.4.
+
+**Methodology:** see METHODOLOGY_CONSOLIDATED.md §4A and the v4.1 spec at `docs/rooftop_solar_potential_feature_spec.md`.
 
 ---
 

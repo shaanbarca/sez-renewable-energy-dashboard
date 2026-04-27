@@ -291,6 +291,83 @@ Wind uses a 5-layer exclusion cascade, adapted from solar (Appendix A) with wind
 
 ---
 
+## 4A. Rooftop Solar Potential
+
+Per-site rooftop nameplate ceiling derived from Google Open Buildings v3 (vintage 2023-05). Distinct from §3 ground-mount potential — this counts **panels-on-existing-roofs**, the kind of distributed solar that lives behind the meter at industrial parks and tenant facilities. See [docs/rooftop_solar_potential_feature_spec.md](rooftop_solar_potential_feature_spec.md) for the full v4.1 spec.
+
+### 4A.1 Pipeline
+
+Single entry point — `load_buildings_for_pipeline()` in `src/pipeline/build_fct_site_solar_potential.py` (spec §13.10 invariant 4). Both the aggregator (`build_fct_site_solar_potential.py`) and tile generator (`build_rooftop_tiles.py`) read through this loader so any change to the building set propagates to both.
+
+```
+preprocess_open_buildings.py  →  sites_buildings_filtered.parquet (raw, 102k buildings × 81 sites)
+       ↓
+load_buildings_for_pipeline()  ←  KEK polygon clip (§4A.4)
+       ↓
+classify_building() per row    ←  §4A.2 §14 classifier
+       ↓
+fct_site_solar_potential.csv   →  18 columns per site
+sites_rooftop_tiles.parquet    →  703k panel-tile polygons (visual sanity-check overlay)
+```
+
+### 4A.2 §14 building classifier
+
+GoB v3 detects every above-ground structure (warehouses, tanks, silos, conveyors, cooling towers). A naive `footprint × usable_share × W/m²` overstates rooftop potential by 30–50% on heavy industry sites. The classifier applies geometric filters on each polygon (in EPSG:23830 metric units) and assigns a usability multiplier:
+
+| Category         | Heuristic                                         | Usability |
+|------------------|---------------------------------------------------|-----------|
+| `too_small`      | area < 200 m²                                     | 0.0       |
+| `tank_silo`      | circularity > 0.85                                | 0.0       |
+| `conveyor`       | aspect_ratio > 15                                 | 0.1       |
+| `complex`        | hull_ratio < 0.55                                 | 0.2       |
+| `possibly_round` | 0.75 < circularity ≤ 0.85                         | 0.3       |
+| `elongated`      | 5 ≤ aspect_ratio ≤ 15                             | 0.6       |
+| `standard_roof`  | passes all filters                                | 1.0       |
+
+Cascade — first match wins. Hard rejects (tank, conveyor, complex) precede soft derates. Thresholds live in `src/assumptions.py` (`BUILDING_*_THRESHOLD`); calibrated against Semen Imasco Asiatic Jember in 9a61ee0 (hull_ratio 0.70 → 0.55; aspect 8 → 15) to stop dropping legitimate ~9,000 m² halls into `complex` and ~4,300 m² halls into `conveyor`.
+
+### 4A.3 Footprint → MWp math (decomposed model, §5.3 of spec)
+
+```
+panel_density_w_per_m2 = panel_power_w_dc / panel_area_m2          (= 200 W/m²)
+rooftop_kw_dc          = footprint × usability × layout_density × panel_density / 1000
+rooftop_kw_ac          = rooftop_kw_dc × thermal_derate            (tropical = 0.88)
+```
+
+Defaults: `ROOFTOP_PANEL_POWER_W_DC = 400 W`, `ROOFTOP_PANEL_AREA_M2 = 2.0`, `ROOFTOP_LAYOUT_DENSITY = 0.50` (range 0.40–0.65 — accounts for inter-row spacing, parapets, HVAC, walkways), `THERMAL_DERATE_TROPICAL = 0.88`. F10 user sliders deferred to a later release.
+
+### 4A.4 KEK polygon clip (V3.11.1)
+
+`preprocess_open_buildings.py` uses a 2 km buffer around each site centroid to assign buildings — fine for industrial point sites, but for KEKs whose actual boundary is smaller (or shaped irregularly — Tanjung Sauh has 6 island fragments) it over-includes residential structures and adjacent industrial parks. After preprocess, `load_buildings_for_pipeline()` applies a centroid-within-polygon filter against `outputs/data/raw/kek_polygons.geojson` for the 25 KEK sites; industrial sites pass through unchanged. Effect on the 81-site set: 11,471 buildings dropped, KEK rooftop total falls ~170 → 58.9 MWp, industrial total unchanged at 1,727 MWp.
+
+Industrial-site catchment is still 2 km around the centroid — TODOS RV8 tracks per-sector radii (cement ~500 m, steel ~700 m, nickel ~3 km) since 2 km currently catches surrounding residential houses for non-KEK industrial sites.
+
+### 4A.5 Cluster aggregation (visual layer)
+
+The tile generator runs DBSCAN (`eps = 50 m`, `min_samples = 1`) on usable buildings per site to group physically-adjacent rooftops into clusters. Each cluster gets one popup on the map showing aggregate kW + building count — the "show your work" loop (spec §3.6.1). Output: 9,622 clusters across 62 sites with ≥1 usable building (703,001 individual panel tiles, ~25 MB parquet).
+
+### 4A.6 Confidence + missing-data flagging
+
+A per-site confidence score (`high` / `medium` / `low`) is derived from building count and footprint-to-site-area ratio:
+
+| Confidence | Building count | Footprint ratio  | Reason flag      |
+|------------|----------------|------------------|------------------|
+| high       | ≥ 10           | 0.05–0.40        | none             |
+| low        | < 3            | < 0.01           | `imagery_gap`    |
+| medium     | otherwise      | otherwise        | `partial`        |
+
+Sites with zero buildings (18 of 81) are written to `sites_missing_buildings.csv` with the reason flag — spec §3.7 "flag, don't hide" rather than silently zeroing the rooftop column.
+
+### 4A.7 Known limits
+
+- **GoB v3 vintage.** 2023-05. Post-2023 buildings are missing entirely (TODOS RV7 — refresh when v4 ships, or fan out to Microsoft / Overture / OSM as a second source per spec §13.10 invariant 4).
+- **Detection asymmetry.** Two visually-identical adjacent rooftops can produce different tile counts when GoB detected one cleanly and fragmented or missed the other (TODOS RV7).
+- **Industrial catchment radius.** 2 km buffer over-counts non-roof buildings around standalone cement/steel/nickel plants (TODOS RV8).
+- **Fragmented detection.** A single physical roof occasionally arrives as several `too_small` polygons; merging them before classification is an open option (TODOS RV9 — deferred pending visual validation of the merge tolerance).
+- **No manual validation pass yet.** Spec §16 calls for ±20% accuracy on 10 sample sites and ≥80% classifier accuracy on 100 manually-labelled buildings before declaring v4.1 final (Phase 4).
+
+---
+
 ## 5. Siting Scenarios
 
 ### 5.1 Within-boundary (captive)
