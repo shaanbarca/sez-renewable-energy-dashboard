@@ -4,7 +4,12 @@ import Map, { Layer, NavigationControl, Source } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useMapLayers } from '../../hooks/useMapLayers';
-import { fetchSiteBuildable, fetchSitePolygon } from '../../lib/api';
+import {
+  fetchSiteBuildable,
+  fetchSiteBuildings,
+  fetchSitePolygon,
+  fetchSiteRooftopTiles,
+} from '../../lib/api';
 import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -65,6 +70,10 @@ export default function MapView() {
   const selectSite = useDashboardStore((s) => s.selectSite);
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
   const [wbBuildable, setWbBuildable] = useState<GeoJSON.FeatureCollection | null>(null);
+  // v4.1 rooftop solar — buildings + tile rectangles for the selected site.
+  // Fetched per site (lightweight: per-site tiles are 1-50 KB each).
+  const [siteBuildings, setSiteBuildings] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [rooftopTiles, setRooftopTiles] = useState<GeoJSON.FeatureCollection | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [measuring, setMeasuring] = useState(false);
@@ -161,6 +170,24 @@ export default function MapView() {
         setWbBuildable(data.features?.length ? data : null);
       })
       .catch(() => setWbBuildable(null));
+  }, [selectedSite]);
+
+  // Fetch rooftop solar layers (v4.1) — buildings + tile rectangles. Two
+  // separate calls because they live in different parquets server-side.
+  // Errors are silenced because pipeline output is optional; the rooftop
+  // layers just don't render if the parquets aren't generated yet.
+  useEffect(() => {
+    if (!selectedSite) {
+      setSiteBuildings(null);
+      setRooftopTiles(null);
+      return;
+    }
+    fetchSiteBuildings(selectedSite)
+      .then((data) => setSiteBuildings(data.features?.length ? data : null))
+      .catch(() => setSiteBuildings(null));
+    fetchSiteRooftopTiles(selectedSite)
+      .then((data) => setRooftopTiles(data.features?.length ? data : null))
+      .catch(() => setRooftopTiles(null));
   }, [selectedSite]);
 
   // Radiate animation: buildable polygons pulse outward when KEK is selected
@@ -408,6 +435,62 @@ export default function MapView() {
                 'line-color': '#43A047',
                 'line-width': 1.5,
                 'line-opacity': 0.7,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* v4.1 rooftop solar — building footprints (gray) below tiles, always
+            visible when a site is selected so the user can see what GoB v3
+            detected even at low zoom. Spec §3.6 F6 + §3.7 (missing-data flag). */}
+        {siteBuildings && (
+          <Source id="rooftop-buildings" type="geojson" data={siteBuildings}>
+            <Layer
+              id="rooftop-buildings-fill"
+              type="fill"
+              minzoom={11}
+              paint={{
+                'fill-color': '#666666',
+                'fill-opacity': 0.18,
+              }}
+            />
+            <Layer
+              id="rooftop-buildings-outline"
+              type="line"
+              minzoom={11}
+              paint={{
+                'line-color': '#222222',
+                'line-width': 0.5,
+                'line-opacity': 0.55,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* v4.1 rooftop solar — panel tile rectangles (the "show your work"
+            layer). Spec §3.6 F9: render at zoom ≥14, fill #1a3a8a, hover
+            shows tile capacity. Mobile (< 768px viewport) gets outlines only
+            via the building layer above; tiles render desktop-only via the
+            zoom threshold which already gates them. */}
+        {rooftopTiles && (
+          <Source id="rooftop-tiles" type="geojson" data={rooftopTiles}>
+            <Layer
+              id="rooftop-tiles-fill"
+              type="fill"
+              minzoom={14}
+              paint={{
+                'fill-color': '#1a3a8a',
+                'fill-opacity': 0.78,
+              }}
+            />
+            <Layer
+              id="rooftop-tiles-outline"
+              type="line"
+              minzoom={14}
+              paint={{
+                'line-color': '#0a1f4a',
+                'line-width': 0.4,
+                'line-opacity': 0.85,
               }}
             />
           </Source>

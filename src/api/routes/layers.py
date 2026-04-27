@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import math
+from functools import lru_cache
+from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
@@ -147,6 +150,103 @@ def get_site_buildable(site_id: str):
     if result is None:
         return {"type": "FeatureCollection", "features": []}
     return result
+
+
+# ─── Rooftop solar layers (v4.1) ────────────────────────────────────────────
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_BUILDINGS_PARQUET = _REPO_ROOT / "data" / "processed" / "sites_buildings_filtered.parquet"
+_TILES_PARQUET = _REPO_ROOT / "data" / "processed" / "sites_rooftop_tiles.parquet"
+
+
+@lru_cache(maxsize=1)
+def _load_buildings_parquet() -> gpd.GeoDataFrame | None:
+    """Cached load of the Layer 2 buildings parquet. Returns None if missing
+    (graceful degradation — endpoint returns empty FeatureCollection)."""
+    if not _BUILDINGS_PARQUET.exists():
+        return None
+    return gpd.read_parquet(_BUILDINGS_PARQUET)
+
+
+@lru_cache(maxsize=1)
+def _load_tiles_parquet() -> gpd.GeoDataFrame | None:
+    """Cached load of the Layer 2.5 tiles parquet."""
+    if not _TILES_PARQUET.exists():
+        return None
+    return gpd.read_parquet(_TILES_PARQUET)
+
+
+@router.get("/site/{site_id}/buildings")
+def get_site_buildings(site_id: str):
+    """Return GoB v3 building footprints inside a site's 2 km buffer.
+
+    Renders as the gray "what was detected" layer beneath the rooftop tiles.
+    Empty FeatureCollection if no buildings (e.g. post-2023 site or tourism
+    KEK) — frontend should show the missing-data tooltip from the
+    fct_site_solar_potential row's `building_data_reason_flagged`.
+    """
+    gdf = _load_buildings_parquet()
+    if gdf is None:
+        return {"type": "FeatureCollection", "features": []}
+    site_buildings = gdf[gdf["site_id"] == site_id]
+    if site_buildings.empty:
+        return {"type": "FeatureCollection", "features": []}
+    # Slim payload — drop columns the frontend doesn't render
+    keep = ["building_id", "area_in_meters", "confidence", "source_name"]
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": row.geometry.__geo_interface__,
+                "properties": {k: row[k] for k in keep},
+            }
+            for _, row in site_buildings.iterrows()
+        ],
+    }
+
+
+@router.get("/site/{site_id}/rooftop-tiles")
+def get_site_rooftop_tiles(site_id: str):
+    """Return panel-tile rectangles for the rooftop solar map layer.
+
+    Each feature is a 6m × 4m tile rectangle in EPSG:4326. Properties:
+        tile_idx        — per-building index (0-based)
+        cluster_id      — DBSCAN cluster (50m radius) for click-aggregation
+        building_id     — parent building (source-prefixed string)
+        panels_in_tile  — constant (default 6)
+        tile_kw_dc      — per-tile DC nameplate (default 2.4)
+        tile_kw_ac      — per-tile AC after thermal derate (default 2.11)
+
+    Frontend should render at zoom ≥ 14 only — under that, fall back to the
+    building outline layer. See spec §3.6 F9 + §3.9 (responsive: outlines-only
+    on mobile).
+    """
+    gdf = _load_tiles_parquet()
+    if gdf is None:
+        return {"type": "FeatureCollection", "features": []}
+    site_tiles = gdf[gdf["site_id"] == site_id]
+    if site_tiles.empty:
+        return {"type": "FeatureCollection", "features": []}
+    keep = [
+        "tile_idx",
+        "cluster_id",
+        "building_id",
+        "panels_in_tile",
+        "tile_kw_dc",
+        "tile_kw_ac",
+    ]
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": row.geometry.__geo_interface__,
+                "properties": {k: row[k] for k in keep},
+            }
+            for _, row in site_tiles.iterrows()
+        ],
+    }
 
 
 @router.get("/site/{site_id}/substations")
