@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-04-25 (rooftop solar v4.1 spec finalized; cost-integration follow-ups added as M34-M37, classifier refinements + polygon tightening as L21-L25).
+Last updated: 2026-04-27 (rooftop solar v4.1 Phase 1 in progress — see "Active Work Plans" below for live status).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
@@ -9,9 +9,34 @@ Last updated: 2026-04-25 (rooftop solar v4.1 spec finalized; cost-integration fo
 
 ## Active Work Plans
 
-| Plan doc | Target version | Status | Scope summary |
+| Plan doc | Target | Phase | Branch | Status |
+|---|---|---|---|---|
+| [docs/rooftop_solar_potential_feature_spec.md](docs/rooftop_solar_potential_feature_spec.md) | **v4.1** | Phase 1 (4/5 done) | `feat/v4.1-rooftop-phase-1` | Spec v4 + TOC + 6 forward-compat invariants + storage policy. Eng-reviewed 2026-04-27. Phase 2 implementation next. |
+
+### Rooftop solar v4.1 — phase-by-phase progress
+
+| Phase | Status | Output |
+|---|---|---|
+| **Phase 0** — Rename PR (`max_captive_capacity_mwp` → `regional_groundmount_potential_mwp_50km`) | ✅ Merged in PR #20 (2026-04-25, commit `88163eb` on main) | `Col` enum scaffold + 38 files updated + deprecation alias |
+| **Phase 1.1** — Local Open Buildings v3 downloader | ✅ Done (`d53e2ed`, `7999485`) | `scripts/download_open_buildings.py` + `check_open_buildings_coverage.py` + `fetch_missing_cells.py` + `merge_open_buildings_cells.py`. Drops TF + Colab dependency. |
+| **Phase 1.2** — Indonesia raw extract (Layer 1) | ✅ Done | `data/open_buildings/idn_open_buildings.csv.gz` (6.5 GB, 63.6M polygons, gitignored). 41 site-relevant S2 cells. |
+| **Phase 1.3** — Site-buffered preprocess (Layer 2) | ✅ Done (`2efe806`) | `data/processed/sites_buildings_filtered.parquet` (12.3 MB, 114,767 buildings, 67/81 sites with data, committed). |
+| **Phase 1.4** — Spec v4 refinement | ✅ Done (`a11f28a`, `1a3fcce`, `9fc4338`, `2317c46`) | Panel research + tile model + click aggregate + alt-data flagging + 6 forward-compat invariants + storage policy + TOC. 1,360 lines. |
+| **Phase 1.5** — POC visual cross-check on 5 fixture sites | ⏳ Pending | Spot-check Krakatau Steel Cilegon, Petrokimia Gresik, IMIP Morowali, IWIP Weda Bay, KEK Sei Mangkei against current Google Earth imagery. |
+| **Phase 2** — Core pipeline + classifier + tile generator | ⏳ Pending | `src/pipeline/build_fct_site_solar_potential.py` + `build_rooftop_tiles.py` + §14 classifier in `assumptions.py`. With 6 forward-compat invariants baked in. |
+| **Phase 3** — Frontend (map overlay + BottomPanel tab + Score Drawer + sliders) | ⏳ Pending | New MapLibre tile layer, `LayerControl` toggles, `ResourceTab` rooftop section, AssumptionsPanel sliders for panel power/area/density. |
+| **Phase 4** — Validation + classifier calibration + Zenodo + methodology docs | ⏳ Pending | ±20% manual validation on 10 sites; ≥80% accuracy on 100 manually-labeled buildings; v4.1 DOI. |
+
+### Rooftop solar v4.1 — TODOs from eng review (2026-04-27)
+
+These are post-spec items to add to v4.1 implementation OR defer per priority. See [eng review for full reasoning](docs/rooftop_solar_potential_feature_spec.md#13-lightweight-data-strategy).
+
+| # | Item | Priority | Why |
 |---|---|---|---|
-| [docs/rooftop_solar_potential_feature_spec.md](docs/rooftop_solar_potential_feature_spec.md) | **v4.1** | Spec v3, eng-reviewed, ready to implement | Per-site rooftop solar MWp + within-site ground MWp + map overlay (cross-check) + BottomPanel solar potential tab. Cost-cascade integration deferred to v4.2 (M34-M36). Estimated 3 weeks. Phase 0 prereq: rename `max_captive_capacity_mwp` → `regional_groundmount_potential_mwp_50km`. |
+| RV1 | **Polygon tightening for tourism KEKs (Kura Kura, Mandalika, Sanur, Morotai)** | medium | Tourism KEK polygons are likely loose buffers including land far beyond the actual estate fence. Within-site ground potential = polygon area − buildings − buildability mask. Loose polygons → inflated ground potential numbers. Bali tourism KEKs could show 200 MWp ground when realistically 30 MWp. **Note: also covered by L25 in §18 — this is the v4.1-specific framing.** |
+| RV2 | **Profile §14 classifier on 114k buildings; vectorize if > 60s** | low | Per-building geometric ops (perimeter, bbox, convex hull) on 114k buildings *might* be 30-60s. If actual measured time is fine, skip. If slow, vectorize via shapely 2.0 array ops. Premature optimization avoidance. |
+| RV3 | **E2E test for tile click → cluster aggregate flow** | medium | The "show your work" feature's whole point is that clicking a cluster of rooftops returns a sum that matches the headline MWp. Unit tests on the math don't actually exercise the click → tooltip → sum flow. Playwright/Cypress test that opens a site, clicks a cluster, asserts displayed sum matches `fct_site_solar_potential.csv`. Without this, the headline-trust loop is unverified. |
+| RV4 | **CI check for parquet size growth (`sites_buildings_filtered.parquet` + `sites_rooftop_tiles.parquet`)** | low | Spec §13.2 commits both parquets to git if under 50 MB. As sites are added (M22, M28, M29) or tile density increases, files could grow past threshold. Pre-commit hook fails the build if a parquet exceeds 50 MB → forces switch to gitignored + regenerable. Catches the problem automatically rather than discovering a bloated repo months later. |
 
 ---
 
