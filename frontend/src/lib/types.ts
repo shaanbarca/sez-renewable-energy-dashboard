@@ -364,7 +364,7 @@ export type BenchmarkMode = 'bpp' | 'tariff';
  *  Mirrors `src/model/basic_model.py::CostBasis`. See TAXONOMY §7.3 for the
  *  `(EnergyMode × CostBasis)` resolution matrix. */
 export type CostBasis = 'raw' | 'firmed' | 'delivered';
-export type BottomTab = 'table' | 'ruptl' | 'sector' | 'compare';
+export type BottomTab = 'table' | 'ruptl' | 'sector' | 'compare' | 'rooftop';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 
 export interface SavedScenario {

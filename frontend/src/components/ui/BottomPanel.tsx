@@ -6,9 +6,11 @@ import RuptlChart from '../charts/RuptlChart';
 import SectorSummaryChart from '../charts/SectorSummaryChart';
 import ScenarioCompareTab from '../panels/scenariocompare/ScenarioCompareTab';
 import DataTable from '../table/DataTable';
+import RooftopPotentialTable from '../table/RooftopPotentialTable';
 
 const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'table', label: 'Ranked Table' },
+  { value: 'rooftop', label: 'Solar Potential' },
   { value: 'ruptl', label: 'RUPTL Context' },
   { value: 'sector', label: 'Sector Summary' },
   { value: 'compare', label: 'Scenario Compare' },
@@ -178,6 +180,9 @@ export default function BottomPanel() {
             does real work. Table stays eager because it's the default landing. */}
         <Tabs.Content value="table" className="flex-1 overflow-hidden">
           <DataTable />
+        </Tabs.Content>
+        <Tabs.Content value="rooftop" className="flex-1 overflow-hidden">
+          {activeTab === 'rooftop' && <RooftopPotentialTable />}
         </Tabs.Content>
         <Tabs.Content value="ruptl" className="flex-1 overflow-hidden">
           {activeTab === 'ruptl' && <RuptlChart />}
