@@ -101,6 +101,16 @@ export default function MapView() {
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [measuring, setMeasuring] = useState(false);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
+  // Toggle wired to LayerControl. Default ON the first time a site is
+  // selected (see store.selectSite). Both the tiles and the gray building
+  // footprints layer share this toggle so the user gets a clean satellite
+  // view when it's off.
+  const showRooftopTiles = useDashboardStore((s) => s.layerVisibility.rooftop_tiles !== false);
+  // Dismiss any stale cluster popup when the layer is hidden — otherwise it
+  // would float over the satellite pointing at nothing.
+  useEffect(() => {
+    if (!showRooftopTiles) setTilePopup(null);
+  }, [showRooftopTiles]);
   // Track the previous crossing so we only auto-collapse on the upward transition,
   // not on every zoom event while already zoomed in (otherwise the user couldn't
   // reopen the panel while still zoomed).
@@ -498,7 +508,13 @@ export default function MapView() {
         }}
         mapStyle={mapStyle as string}
         style={{ width: '100%', height: '100%' }}
-        interactiveLayerIds={measuring ? [] : ['kek-circles', 'rooftop-tiles-fill']}
+        interactiveLayerIds={
+          measuring
+            ? []
+            : showRooftopTiles
+              ? ['kek-circles', 'rooftop-tiles-fill']
+              : ['kek-circles']
+        }
         onClick={measuring ? undefined : handleClick}
         onMouseEnter={measuring ? undefined : handleMouseEnter}
         onMouseLeave={measuring ? undefined : handleMouseLeave}
@@ -587,7 +603,7 @@ export default function MapView() {
         {/* v4.1 rooftop solar — building footprints (gray) below tiles, always
             visible when a site is selected so the user can see what GoB v3
             detected even at low zoom. Spec §3.6 F6 + §3.7 (missing-data flag). */}
-        {siteBuildings && (
+        {showRooftopTiles && siteBuildings && (
           // Outline is drawn via fill-outline-color (single GL pass) instead of a
           // separate line layer. Keeps WebGL buffer count low for sites with
           // 10k+ buildings where the dedicated line layer was crashing the GPU.
@@ -610,7 +626,7 @@ export default function MapView() {
             shows tile capacity. Mobile (< 768px viewport) gets outlines only
             via the building layer above; tiles render desktop-only via the
             zoom threshold which already gates them. */}
-        {visibleRooftopTiles && (
+        {showRooftopTiles && visibleRooftopTiles && (
           // Source receives the viewport-clipped subset, not the full
           // FeatureCollection. Sites like Gunung Raja Paksi (77k tiles) would
           // OOM the MapLibre GeoJSON worker at zoom 14+ otherwise — black
@@ -653,54 +669,90 @@ export default function MapView() {
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
                 fontSize: 12,
                 lineHeight: 1.55,
-                color: '#1a1a1a',
+                color: 'var(--text-primary)',
                 minWidth: 220,
                 padding: '4px 2px',
               }}
             >
               <div
                 style={{
-                  fontWeight: 600,
-                  marginBottom: 6,
-                  color: '#0a1f4a',
+                  fontWeight: 700,
+                  marginBottom: 8,
+                  color: 'var(--accent)',
                   fontSize: 11,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
+                  letterSpacing: '0.06em',
                 }}
               >
                 Cluster #{tilePopup.clusterId}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>Buildings:</span>
-                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>Buildings</span>
+                <strong
+                  style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-primary)',
+                  }}
+                >
                   {tilePopup.buildingCount.toLocaleString()}
                 </strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>Tiles:</span>
-                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>Tiles</span>
+                <strong
+                  style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-primary)',
+                  }}
+                >
                   {tilePopup.tileCount.toLocaleString()}
                 </strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>Panels:</span>
-                <strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>Panels</span>
+                <strong
+                  style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-primary)',
+                  }}
+                >
                   {tilePopup.panelCount.toLocaleString()}
                 </strong>
               </div>
               <div
                 style={{
-                  marginTop: 6,
-                  paddingTop: 6,
-                  borderTop: '1px solid rgba(26, 58, 138, 0.18)',
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px solid var(--glass-border)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   gap: 12,
                   fontWeight: 600,
-                  color: '#0a1f4a',
+                  color: 'var(--text-primary)',
                 }}
               >
-                <span>kW DC:</span>
+                <span>kW DC</span>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {tilePopup.kwDc.toFixed(1)}
                 </span>
@@ -711,10 +763,10 @@ export default function MapView() {
                   justifyContent: 'space-between',
                   gap: 12,
                   fontWeight: 600,
-                  color: '#0a1f4a',
+                  color: 'var(--text-primary)',
                 }}
               >
-                <span>kW AC:</span>
+                <span>kW AC</span>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {tilePopup.kwAc.toFixed(1)}
                 </span>
@@ -725,10 +777,11 @@ export default function MapView() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     gap: 12,
-                    color: '#444',
+                    color: 'var(--text-secondary)',
+                    marginTop: 2,
                   }}
                 >
-                  <span>Annual energy:</span>
+                  <span>Annual energy</span>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                     ~{tilePopup.mwhPerYear.toFixed(0)} MWh/yr
                   </span>

@@ -161,6 +161,10 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       const lv = { ...state.layerVisibility };
       // Always show solar buildable polygons so the amber chosen-polygon highlight is visible.
       lv.buildable_polygons = true;
+      // First time a site is selected, default rooftop tiles ON so the
+      // user sees the headline visualization. Subsequent selections respect
+      // whatever the user toggled (so we only set it when undefined).
+      if (lv.rooftop_tiles === undefined) lv.rooftop_tiles = true;
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;
         lv.wind = true;
