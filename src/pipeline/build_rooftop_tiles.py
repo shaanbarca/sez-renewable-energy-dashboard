@@ -97,7 +97,7 @@ def tile_rooftop(
     tile_width_m: float = TILE_WIDTH_M,
     tile_height_m: float = TILE_HEIGHT_M,
     setback_m: float = ROOFTOP_EDGE_SETBACK_M,
-    min_overlap: float = 0.95,
+    min_overlap: float = 0.50,  # 0.50 = tile centroid roughly inside polygon
 ) -> list:
     """Generate panel tiles filling a rooftop polygon (in projected CRS).
 

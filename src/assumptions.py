@@ -828,8 +828,12 @@ ROOFTOP_PANEL_AREA_M2: float = 2.0  # range 1.6-2.6
 ROOFTOP_LAYOUT_DENSITY: float = 0.50  # range 0.40-0.65
 
 # Industrial fire access code (SNI 03-1736-2000 §7.4, also IEC 62548:2016).
-# 1m minimum; 1.5m more conservative.
-ROOFTOP_EDGE_SETBACK_M: float = 1.0  # range 0.5-2.0
+# Default 0 because the 1m fire-code setback is ALREADY incorporated into
+# `ROOFTOP_LAYOUT_DENSITY = 0.50` per spec §5.3.2. Applying it again
+# geometrically (in `build_rooftop_tiles.py`) would double-count.
+# Set to 0.5-1.0m if you want extra visual breathing room around tiles
+# without changing the capacity formula.
+ROOFTOP_EDGE_SETBACK_M: float = 0.0  # range 0.0-2.0 (0 = honor layout_density only)
 
 # Visualization-only — see §3.6 F10. 6 = ~1 string-half (typical industrial
 # inverter input is 12-24 panels per string). 1 = render individual panels.
