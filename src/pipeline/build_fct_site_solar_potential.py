@@ -83,6 +83,9 @@ DEFAULT_KEK_POLYGONS_GEOJSON = REPO_ROOT / "outputs" / "data" / "raw" / "kek_pol
 DEFAULT_INDUSTRIAL_POLYGONS_GEOJSON = (
     REPO_ROOT / "data" / "industrial_sites" / "site_polygons.geojson"
 )
+DEFAULT_EXCLUSION_POLYGONS_GEOJSON = (
+    REPO_ROOT / "data" / "industrial_sites" / "exclusion_polygons.geojson"
+)
 
 # Indonesian National DGN95 / UTM 50S — accurate metric calc for classifier
 PROJECTED_CRS = "EPSG:23830"
@@ -317,6 +320,62 @@ def compute_confidence_flag(  # noqa: PLR0913 — F4 has 7 derived signals
 # ─── Per-site aggregation ──────────────────────────────────────────────────
 
 
+def _load_exclusion_polygons(
+    path: Path = DEFAULT_EXCLUSION_POLYGONS_GEOJSON,
+) -> gpd.GeoDataFrame | None:
+    """Load OSM-tagged exclusion polygons (tanks, basins, water reservoirs).
+
+    Each feature has a `site_id` property identifying which site it
+    belongs to. Buildings whose centroid falls inside an exclusion polygon
+    are reclassified as `tank_silo` (multiplier 0) — catches the irregular
+    open-top tanks / settling ponds / cooling basins that the §14
+    geometric circularity test misses (because their outline isn't a
+    near-perfect circle).
+
+    Returns None if the file is missing — pipeline runs without the
+    exclusion layer, which is fine for graceful degradation.
+    """
+    if not path.exists():
+        return None
+    gdf = gpd.read_file(path)
+    if "site_id" not in gdf.columns:
+        return None
+    return gdf[["site_id", "geometry"]]
+
+
+def buildings_inside_exclusions(
+    site_buildings_proj: gpd.GeoDataFrame,
+    site_id: str,
+    exclusion_polys: gpd.GeoDataFrame | None,
+) -> np.ndarray:
+    """Per-building bool mask: True if centroid is inside an exclusion polygon
+    for this site_id. Returns all-False if no exclusion polygons configured.
+
+    Spatial test runs in EPSG:4326 against the buildings' centroid (also in
+    4326). Exclusion polygons are loaded in 4326 from the OSM Overpass
+    GeoJSON. The metre-precision misalignment of using 4326 for centroids
+    is irrelevant for point-in-polygon — the polygons are >> 1 m wide.
+    """
+    n = len(site_buildings_proj)
+    inside = np.zeros(n, dtype=bool)
+    if n == 0 or exclusion_polys is None or exclusion_polys.empty:
+        return inside
+    site_polys = exclusion_polys[exclusion_polys["site_id"] == site_id]
+    if site_polys.empty:
+        return inside
+
+    # Reproject centroids to 4326 for the test (exclusion polys are 4326).
+    if site_buildings_proj.crs != site_polys.crs:
+        centroids = site_buildings_proj.geometry.centroid.to_crs(site_polys.crs)
+    else:
+        centroids = site_buildings_proj.geometry.centroid
+
+    # Union the site's exclusion polygons once for a single fast test.
+    union = site_polys.geometry.union_all()
+    inside = centroids.within(union).to_numpy()
+    return inside
+
+
 def detect_residential_clusters(
     site_buildings_proj: gpd.GeoDataFrame,
     *,
@@ -371,6 +430,9 @@ def detect_residential_clusters(
 
 def aggregate_site_buildings(
     site_buildings_proj: gpd.GeoDataFrame,  # buildings already in PROJECTED_CRS
+    *,
+    site_id: str | None = None,
+    exclusion_polys: gpd.GeoDataFrame | None = None,
 ) -> dict:
     """Classify every building, sum standard_roof × multipliers → MWp.
 
@@ -392,10 +454,21 @@ def aggregate_site_buildings(
     usable_roof_area_m2 = 0.0
 
     is_residential = detect_residential_clusters(site_buildings_proj)
+    is_in_exclusion = (
+        buildings_inside_exclusions(site_buildings_proj, site_id, exclusion_polys)
+        if site_id is not None
+        else np.zeros(len(site_buildings_proj), dtype=bool)
+    )
 
     for i, (_, b) in enumerate(site_buildings_proj.iterrows()):
         area_m2 = b.geometry.area  # already in metres (UTM)
         total_footprint_m2 += area_m2
+        if is_in_exclusion[i]:
+            # OSM tagged this as tank / basin / water → no roof to put panels on.
+            # Account as `tank_silo` for the existing UI category.
+            counts["tank_silo"] += 1
+            type_filter_excluded_m2 += area_m2
+            continue
         if is_residential[i]:
             counts["residential"] += 1
             type_filter_excluded_m2 += area_m2
@@ -442,6 +515,14 @@ def build_fct_site_solar_potential(
     # Reproject buildings ONCE to UTM 50S — classifier needs metric units.
     buildings_proj = buildings.to_crs(PROJECTED_CRS)
 
+    # OSM exclusion polygons (tanks / basins / water). Loaded once, queried
+    # per-site inside aggregate_site_buildings().
+    exclusion_polys = _load_exclusion_polygons()
+    if exclusion_polys is not None:
+        n_excl = len(exclusion_polys)
+        n_sites_with_excl = exclusion_polys["site_id"].nunique()
+        print(f"  exclusion polygons loaded: {n_excl} across {n_sites_with_excl} sites")
+
     # Read source vintage from the data, not a hardcoded value (invariant #6).
     # In v4.1 every row has "2023-05"; in v4.2 it'll vary per row, and we'll
     # take the most-common per site (or per_row depending on UI need).
@@ -474,10 +555,15 @@ def build_fct_site_solar_potential(
                 "building_count_elongated": 0,
                 "building_count_tank_silo": 0,
                 "building_count_conveyor": 0,
+                "building_count_residential": 0,
                 "building_count_other_excluded": 0,
             }
         else:
-            agg = aggregate_site_buildings(site_buildings)
+            agg = aggregate_site_buildings(
+                site_buildings,
+                site_id=site_id,
+                exclusion_polys=exclusion_polys,
+            )
 
         # Extract per-site context for F4
         capacity_tonnes = site.get("capacity_annual_tonnes")

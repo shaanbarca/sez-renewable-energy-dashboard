@@ -66,6 +66,8 @@ from src.assumptions import (
 from src.model.buildings import classify_building
 from src.pipeline.build_fct_site_solar_potential import (
     PROJECTED_CRS,
+    _load_exclusion_polygons,
+    buildings_inside_exclusions,
     detect_residential_clusters,
     load_buildings_for_pipeline,
 )
@@ -190,13 +192,26 @@ def build_rooftop_tiles(
         is_residential[group.index.to_numpy()] = site_mask
     print(f"  {int(is_residential.sum()):,} residential-cluster buildings excluded")
 
+    # OSM exclusion polygons — buildings inside tank / basin / water polygons
+    # are not roofs. Loaded once, queried per-site to mask their indices.
+    print("Loading OSM exclusion polygons (tanks / basins / water)...")
+    exclusion_polys = _load_exclusion_polygons()
+    is_in_exclusion = np.zeros(len(buildings_proj), dtype=bool)
+    if exclusion_polys is not None and not exclusion_polys.empty:
+        for site_id, group in buildings_proj.groupby("site_id"):
+            mask = buildings_inside_exclusions(group, site_id, exclusion_polys)
+            is_in_exclusion[group.index.to_numpy()] = mask
+        print(f"  {int(is_in_exclusion.sum()):,} buildings inside OSM tank/basin/water polygons")
+    else:
+        print("  no exclusion file found — skipping (run scripts/fetch_osm_exclusions.py)")
+
     # Classify upfront — only standard_roof + soft-derate buildings get tiles.
-    # Hard-rejects (tank_silo, conveyor, complex, too_small, residential)
-    # get no tiles.
+    # Hard-rejects (tank_silo, conveyor, complex, too_small, residential, OSM
+    # exclusions) get no tiles.
     print("Classifying buildings...")
     keep_mask = []
     for i, (_, row) in enumerate(buildings_proj.iterrows()):
-        if is_residential[i]:
+        if is_residential[i] or is_in_exclusion[i]:
             keep_mask.append(False)
             continue
         cls = classify_building(row.geometry, row.geometry.area)
