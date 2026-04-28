@@ -1,0 +1,3 @@
+site_id,latitude_override,longitude_override,tracker_latitude,tracker_longitude,verification_method,verification_date,source_url,notes
+indocement-palimanan,-6.7146,108.3981,-6.72,108.38,osm_industrial_polygon,2026-04-28,https://www.openstreetmap.org/relation/Kedungbunder,GEM tracker geocoded ~3km off into forested terrain. OSM has the plant as a `landuse=industrial` polygon at Kedungbunder; satellite confirms massive limestone quarry + cement plant.
+sbi-narogong,-6.503,106.928,-6.48,106.96,visual_satellite,2026-04-28,manual_satellite_verification,GEM tracker geocoded into forest. Mapbox satellite at the override coords clearly shows large open-pit limestone quarry plus white industrial cement-plant buildings with conveyor systems.
