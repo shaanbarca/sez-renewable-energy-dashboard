@@ -369,6 +369,20 @@ Sites with zero buildings (18 of 81) are written to `sites_missing_buildings.csv
 - **Fragmented detection.** A single physical roof occasionally arrives as several `too_small` polygons; merging them before classification is an open option (TODOS RV9 — deferred pending visual validation of the merge tolerance).
 - **No manual validation pass yet.** Spec §16 calls for ±20% accuracy on 10 sample sites and ≥80% classifier accuracy on 100 manually-labelled buildings before declaring v4.1 final (Phase 4).
 
+### 4A.8 Automated accuracy eval
+
+`scripts/eval_rooftop_accuracy.py` runs three statistical/physical sanity checks against the rooftop pipeline output and surfaces sites that look off, without requiring any manual labelling:
+
+1. **Per-sector capacity-vs-MWp band.** For each sector with ≥4 sites, compute z-score on `rooftop_MWp / capacity_kt`. Flag |z| > 2σ. Catches systematic outliers within a sector — a cement plant whose ratio is 4σ above sector median is either over-counted or its peers are under-counted.
+2. **Zero-rooftop-but-nonzero-capacity rule.** Any operating site (capacity > 0) with `rooftop_MWp ≈ 0` is flagged HIGH-PRIORITY regardless of z-score. Catches the RV7 GoB-undercount pattern that the ratio band misses (zero pulls the median down, never the tail).
+3. **Plant-area band.** For standalone/cluster industrial sites with a fence-boundary polygon, footprint should be 5–30% of polygon area. Below 5% suggests the plant is under-detected (RV7); above 30% suggests residential bleed survived the filter or the polygon is too tight. KEKs are skipped — they're zones, not plants, and have undeveloped land by design.
+
+Output is two-tier console (HIGH / LOW priority, matching `validate_centroids.py`) plus a JSONL append to `~/.gstack/projects/eez/eval-history.jsonl` for trend tracking. Exit code 1 when HIGH-PRIORITY findings exist — CI-friendly.
+
+This complements the spec §16 manual ±20% pass — automated flags surface the right sites for the manual sample, scaling as more sites are added or as multi-source data lands. Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF) is a fourth planned check, deferred until multi-source ingestion lands per spec §13.10 invariant 4.
+
+Constants in `src/assumptions.py::EVAL_*`. 16 unit tests in `tests/test_eval_rooftop_accuracy.py`.
+
 ---
 
 ## 5. Siting Scenarios

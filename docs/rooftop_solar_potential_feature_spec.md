@@ -1411,6 +1411,21 @@ Captured to prevent scope creep. **The big cuts from the v2 spec are in the top 
 | Test file | What it covers |
 |---|---|
 | `tests/test_rename_alias.py` | Prerequisite PR — `max_captive_capacity_mwp` deprecation alias returns same value as `regional_groundmount_potential_mwp_50km` |
+| `tests/test_eval_rooftop_accuracy.py` | The automated accuracy eval itself (16 tests covering all branches in §16.6 below) |
+
+### 16.6 Automated accuracy eval
+
+**Companion to §16's manual ±20% pass.** `scripts/eval_rooftop_accuracy.py` runs three statistical/physical sanity checks on every pipeline run:
+
+1. **Per-sector capacity-vs-MWp z-score band** — flag |z| > 2σ for sectors with ≥4 sites.
+2. **Zero-MWp-but-nonzero-capacity rule** — explicit catch for the RV7 GoB-undercount pattern (Cemindo Bayah, Hongshi, IWIP, etc.) that z-score misses because zero pulls the median.
+3. **Plant-area band** — for standalone/cluster sites with a fence-boundary polygon, footprint should be 5–30% of polygon area.
+
+Two-tier console output (HIGH / LOW priority), exit code 1 on HIGH findings — CI-friendly. JSONL trend log at `~/.gstack/projects/eez/eval-history.jsonl`. Not a replacement for the §16 manual sample on 10 sites, but it surfaces the right sites for the manual sample to focus on, and the JSONL log lets us track signal quality over time as RV7 multi-source ingestion lands.
+
+Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF / Overture / OSM) is the fourth planned check, deferred until §13.10 invariant 4 multi-source fan-out is built.
+
+Constants: `EVAL_SECTOR_ZSCORE_THRESHOLD`, `EVAL_SECTOR_MIN_SAMPLE`, `EVAL_FOOTPRINT_RATIO_LOW`, `EVAL_FOOTPRINT_RATIO_HIGH` in `src/assumptions.py`. METHODOLOGY §4A.8 documents the rules.
 
 ### 16.5 Failure-mode coverage
 

@@ -959,6 +959,33 @@ RESIDENTIAL_AREA_SIMILARITY_RATIO: float = 0.5
 # warehouse fails this; two 100 m² houses pass.
 
 
+# ─── Rooftop accuracy eval (RV-eval) ───────────────────────────────────────
+# Automated red-flag thresholds for `scripts/eval_rooftop_accuracy.py`.
+# Companion to RV13's centroid validator — runs against the rooftop
+# pipeline output and surfaces sites that look statistically off vs their
+# sector peers OR vs their plant footprint. See METHODOLOGY §4A.7.
+
+EVAL_SECTOR_ZSCORE_THRESHOLD: float = 2.0
+# Per-sector MWp/kt-of-capacity ratio outside ±2σ flags the site as
+# HIGH-PRIORITY. Conservative — most distributions pass.
+
+EVAL_SECTOR_MIN_SAMPLE: int = 4
+# Sectors with fewer than this many sites can't form a reliable
+# distribution. Aluminium (n=2) and ammonia (n=0) bypass the band check.
+# These sites get a "manual review required" flag instead.
+
+EVAL_FOOTPRINT_RATIO_LOW: float = 0.05
+# Total building footprint as a share of plant polygon area. Below 5%
+# means we're missing most of the plant (pure RV7 case — GoB undercount).
+EVAL_FOOTPRINT_RATIO_HIGH: float = 0.30
+# Above 30% suggests we're catching residential bleed or the polygon is
+# too tight. Industrial plants typically run 5-25% rooftop coverage.
+
+EVAL_HIST_PATH: str = "~/.gstack/projects/eez/eval-history.jsonl"
+# Append every run's findings here so we can track signal quality over
+# time as multi-source data + classifier improvements land.
+
+
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 
 
