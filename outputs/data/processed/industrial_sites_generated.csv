@@ -32,12 +32,12 @@ solusi-bangun-cilegon,Solusi Bangun Cilegon,standalone,cement,clinker,Banten,-6.
 semen-kupang,Semen Kupang,standalone,cement,clinker,NTT,-10.194909,123.540076,,0.5 MTPA,500000.0,Integrated,Semen Indonesia Group,cement
 conch-west-kalimantan,Conch West Kalimantan,standalone,cement,clinker,West Kalimantan,0.032069,109.23757,,0.5 MTPA,500000.0,Grinding,Anhui Conch (China),cement
 krakatau-steel-cilegon,Krakatau Steel Cilegon,standalone,steel,crude_steel,Banten,-6.007021,106.001766,,4000000 TPA,4000000.0,EAF,Krakatau Steel,iron_steel
-krakatau-posco-cilegon,Krakatau Posco Cilegon,standalone,steel,crude_steel,Banten,-5.998661,105.99866,,3000000 TPA,3000000.0,BF-BOF,POSCO / Krakatau Steel,iron_steel
+krakatau-posco-cilegon,Krakatau Posco Cilegon,standalone,steel,crude_steel,Banten,-6.00715,105.97126,,3000000 TPA,3000000.0,BF-BOF,POSCO / Krakatau Steel,iron_steel
 dexin-steel-morowali,Dexin Steel Morowali,standalone,steel,crude_steel,Central Sulawesi,-2.829514,122.174896,,7000000 TPA,7000000.0,BF-BOF,Delong Holdings (China),iron_steel
 gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,standalone,steel,crude_steel,West Java,-6.282658,107.117683,,1820000 TPA,1820000.0,EAF,Gunung Raja Paksi,iron_steel
 master-steel-jakarta,Master Steel Jakarta,standalone,steel,crude_steel,DKI Jakarta,-6.18421,106.920067,,2000000 TPA,2000000.0,EAF,Master Steel MFG,iron_steel
 jakarta-prima-steel-industries,Jakarta Prima Steel Industries,standalone,steel,crude_steel,DKI Jakarta,-6.181643,106.932331,,900000 TPA,900000.0,EAF,Jakarta Prima Steel,iron_steel
-ispat-indo-sidoarjo,Ispat Indo Sidoarjo,standalone,steel,crude_steel,East Java,-7.448,112.718,,700000 TPA,700000.0,EAF,ArcelorMittal,iron_steel
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,standalone,steel,crude_steel,East Java,-7.35649,112.70311,,700000 TPA,700000.0,EAF,ArcelorMittal,iron_steel
 virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),cluster,nickel,mixed_nickel,,-3.890235466,122.4379273,,2000000 TPA,2000000.0,Ferro Nickel,,iron_steel
 bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),cluster,nickel,mixed_nickel,,-5.581220134,120.0574004,,263300 TPA,263300.0,Ferro Nickel,,iron_steel
 obi-island-industrial-park,Obi Island Industrial Park,cluster,nickel,mixed_nickel,,-1.532699668,127.4192247,,1970000 TPA,1970000.0,Ferro Nickel,,iron_steel
@@ -49,7 +49,7 @@ industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IW
 buli-industrial-park,Buli Industrial Park,cluster,nickel,mixed_nickel,,0.8408315536,128.2559372,,40500 TPA,40500.0,Ferro Nickel,,iron_steel
 indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),cluster,nickel,mixed_nickel,,-3.016794486,121.8324283,,,,Mixed RKEF/HPAL,,iron_steel
 inalum-asahan,Inalum Asahan,standalone,aluminium,primary_aluminium,North Sumatra,2.703,99.243,,250000 TPA,250000.0,Hall-Heroult,Indonesia Asahan Aluminium (Inalum),aluminium
-freeport-smelter-gresik,Freeport Smelter Gresik,standalone,aluminium,copper_cathode,East Java,-7.161,112.654,,300000 TPA,300000.0,Flash Smelting,Freeport Indonesia / Inalum,aluminium
+freeport-smelter-gresik,Freeport Smelter Gresik,standalone,aluminium,copper_cathode,East Java,-7.07726,112.62635,,300000 TPA,300000.0,Flash Smelting,Freeport Indonesia / Inalum,aluminium
 pupuk-kaltim-bontang,Pupuk Kaltim Bontang,standalone,fertilizer,urea,East Kalimantan,0.121,117.5,,2400000 TPA,2400000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
 pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,standalone,fertilizer,urea,South Sumatra,-2.99,104.757,,2000000 TPA,2000000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
 petrokimia-gresik,Petrokimia Gresik,standalone,fertilizer,urea,East Java,-7.151,112.651,,3400000 TPA,3400000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer

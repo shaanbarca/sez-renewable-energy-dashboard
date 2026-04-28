@@ -80,60 +80,88 @@ DEFAULT_SITES_CSV = PROCESSED / "dim_sites.csv"
 DEFAULT_OUTPUT_CSV = PROCESSED / "fct_site_solar_potential.csv"
 DEFAULT_MISSING_CSV = PROCESSED / "sites_missing_buildings.csv"
 DEFAULT_KEK_POLYGONS_GEOJSON = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
+DEFAULT_INDUSTRIAL_POLYGONS_GEOJSON = (
+    REPO_ROOT / "data" / "industrial_sites" / "site_polygons.geojson"
+)
 
 # Indonesian National DGN95 / UTM 50S — accurate metric calc for classifier
 PROJECTED_CRS = "EPSG:23830"
 
 
-def _load_kek_polygons(
-    path: Path = DEFAULT_KEK_POLYGONS_GEOJSON,
+def _load_site_polygons(
+    kek_path: Path = DEFAULT_KEK_POLYGONS_GEOJSON,
+    industrial_path: Path = DEFAULT_INDUSTRIAL_POLYGONS_GEOJSON,
 ) -> gpd.GeoDataFrame | None:
-    """Load KEK boundary polygons keyed by slug (= site_id for KEK rows).
+    """Load fence-boundary polygons keyed by site_id.
 
-    The source GeoJSON has multiple polygon rows per KEK (split-island
-    shapes — Tanjung Sauh has 6 fragments). We dissolve to one geometry
-    per slug so downstream `within()` checks see a single MultiPolygon.
+    Two sources are unioned:
+      1. KEK polygons (`outputs/data/raw/kek_polygons.geojson`, keyed on
+         `slug` which equals `site_id` for KEK rows). 25 polygons.
+      2. Industrial site polygons (`data/industrial_sites/site_polygons.geojson`,
+         keyed on `site_id`, sourced from OSM `landuse=industrial` /
+         `man_made=works` tags). 9 polygons as of 2026-04-28.
 
-    Returns None if the file is missing — the caller falls back to the
-    pre-clip 2 km buffer behavior for graceful degradation.
+    Both are dissolved by site_id so downstream `within()` checks see a
+    single (Multi)Polygon per site.
+
+    Returns None if neither file exists — caller falls back to the pre-clip
+    2 km buffer behavior for graceful degradation.
     """
-    if not path.exists():
+    frames: list[gpd.GeoDataFrame] = []
+    if kek_path.exists():
+        kek = gpd.read_file(kek_path)
+        if "slug" in kek.columns:
+            kek = kek.rename(columns={"slug": "site_id"})
+            frames.append(kek[["site_id", "geometry"]])
+    if industrial_path.exists():
+        ind = gpd.read_file(industrial_path)
+        if "site_id" in ind.columns:
+            frames.append(ind[["site_id", "geometry"]])
+
+    if not frames:
         return None
-    gdf = gpd.read_file(path)
-    if "slug" not in gdf.columns:
-        return None
-    return gdf.dissolve(by="slug", as_index=False)[["slug", "geometry"]]
+
+    # Align CRS — both are EPSG:4326 by convention but cast defensively.
+    target_crs = frames[0].crs or "EPSG:4326"
+    for i, f in enumerate(frames):
+        if f.crs != target_crs:
+            frames[i] = f.to_crs(target_crs)
+
+    combined = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=target_crs)
+    return combined.dissolve(by="site_id", as_index=False)[["site_id", "geometry"]]
 
 
-def _clip_buildings_to_kek_polygons(
+def _clip_buildings_to_site_polygons(
     buildings: gpd.GeoDataFrame,
-    kek_polys: gpd.GeoDataFrame,
+    site_polys: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
-    """Drop buildings whose centroid falls outside the KEK polygon for
+    """Drop buildings whose centroid falls outside the site polygon for
     sites that have one. Preprocess assigns buildings using a 2 km buffer
-    around the site centroid, which over-includes for KEKs whose actual
-    boundary is smaller (and miscounts roofs in adjacent industrial parks).
+    around the site centroid, which over-includes for sites whose actual
+    fence boundary is smaller — KEKs (especially irregular ones like
+    Tanjung Sauh's 6 island fragments) and non-KEK industrial plants
+    where OSM has a `landuse=industrial` polygon (Indocement Palimanan,
+    Petrokimia Gresik, Ispat Indo Sidoarjo, etc.).
 
-    Industrial sites (cement, steel, nickel) don't have a polygon — those
-    rows pass through unchanged, since their 2 km buffer IS the intended
-    catchment.
+    Sites without a polygon pass through unchanged — their 2 km buffer
+    remains the catchment.
     """
-    if buildings.empty or kek_polys.empty:
+    if buildings.empty or site_polys.empty:
         return buildings
 
-    # Single reprojection up front. KEK polygons are EPSG:4326; buildings
-    # parquet is EPSG:4326. Centroid in 4326 is geometrically wrong but
-    # fine for point-in-polygon testing (we're not measuring distance).
-    if buildings.crs != kek_polys.crs:
-        buildings_in_poly_crs = buildings.to_crs(kek_polys.crs)
+    # Single reprojection up front. Polygons are EPSG:4326; buildings
+    # parquet is EPSG:4326. Centroid in 4326 is geometrically imprecise
+    # but fine for point-in-polygon testing.
+    if buildings.crs != site_polys.crs:
+        buildings_in_poly_crs = buildings.to_crs(site_polys.crs)
     else:
         buildings_in_poly_crs = buildings
 
     centroids = buildings_in_poly_crs.geometry.centroid
     keep = pd.Series(True, index=buildings.index)
 
-    for slug, poly in kek_polys.set_index("slug").geometry.items():
-        site_idx = buildings.index[buildings["site_id"] == slug]
+    for sid, poly in site_polys.set_index("site_id").geometry.items():
+        site_idx = buildings.index[buildings["site_id"] == sid]
         if len(site_idx) == 0:
             continue
         these = centroids.loc[site_idx]
@@ -148,13 +176,17 @@ def _clip_buildings_to_kek_polygons(
 def load_buildings_for_pipeline(
     parquet_path: Path = DEFAULT_BUILDINGS_PARQUET,
     *,
-    clip_kek_to_polygon: bool = True,
+    clip_to_site_polygons: bool = True,
 ) -> gpd.GeoDataFrame:
     """The ONLY place in the pipeline that reads
     `sites_buildings_filtered.parquet`. Per spec §13.10 invariant #4.
 
-    `clip_kek_to_polygon` (default True) drops buildings outside the KEK
-    boundary polygon for KEK sites — industrial sites pass through.
+    `clip_to_site_polygons` (default True) drops buildings whose centroid
+    falls outside the fence boundary for sites that have one. Sources:
+    KEK polygons (25 sites) + OSM `landuse=industrial` / `man_made=works`
+    polygons captured for non-KEK industrial sites (9 sites as of
+    2026-04-28). Sites without a polygon pass through unchanged — their
+    2 km preprocess buffer remains the catchment.
 
     v4.2 (L26) replaces this with a fan-out over multiple sources +
     `merge_sources()`. Downstream callers don't change.
@@ -173,16 +205,16 @@ def load_buildings_for_pipeline(
         )
         raise ValueError(msg)
 
-    if clip_kek_to_polygon:
-        kek_polys = _load_kek_polygons()
-        if kek_polys is not None and not kek_polys.empty:
+    if clip_to_site_polygons:
+        site_polys = _load_site_polygons()
+        if site_polys is not None and not site_polys.empty:
             before = len(gdf)
-            gdf = _clip_buildings_to_kek_polygons(gdf, kek_polys)
+            gdf = _clip_buildings_to_site_polygons(gdf, site_polys)
             after = len(gdf)
             if before != after:
                 print(
-                    f"  KEK polygon clip: {before - after:,} buildings dropped "
-                    f"(outside KEK boundary, kept {after:,})"
+                    f"  Site polygon clip: {before - after:,} buildings dropped "
+                    f"(outside fence boundary, kept {after:,})"
                 )
 
     return gdf

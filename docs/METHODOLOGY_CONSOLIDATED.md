@@ -302,7 +302,7 @@ Single entry point — `load_buildings_for_pipeline()` in `src/pipeline/build_fc
 ```
 preprocess_open_buildings.py  →  sites_buildings_filtered.parquet (raw, 102k buildings × 81 sites)
        ↓
-load_buildings_for_pipeline()  ←  KEK polygon clip (§4A.4)
+load_buildings_for_pipeline()  ←  Site polygon clip (§4A.4)
        ↓
 classify_building() per row    ←  §4A.2 §14 classifier
        ↓
@@ -336,11 +336,14 @@ rooftop_kw_ac          = rooftop_kw_dc × thermal_derate            (tropical = 
 
 Defaults: `ROOFTOP_PANEL_POWER_W_DC = 400 W`, `ROOFTOP_PANEL_AREA_M2 = 2.0`, `ROOFTOP_LAYOUT_DENSITY = 0.50` (range 0.40–0.65 — accounts for inter-row spacing, parapets, HVAC, walkways), `THERMAL_DERATE_TROPICAL = 0.88`. F10 user sliders deferred to a later release.
 
-### 4A.4 KEK polygon clip (V3.11.1)
+### 4A.4 Site polygon clip
 
-`preprocess_open_buildings.py` uses a 2 km buffer around each site centroid to assign buildings — fine for industrial point sites, but for KEKs whose actual boundary is smaller (or shaped irregularly — Tanjung Sauh has 6 island fragments) it over-includes residential structures and adjacent industrial parks. After preprocess, `load_buildings_for_pipeline()` applies a centroid-within-polygon filter against `outputs/data/raw/kek_polygons.geojson` for the 25 KEK sites; industrial sites pass through unchanged. Effect on the 81-site set: 11,471 buildings dropped, KEK rooftop total falls ~170 → 58.9 MWp, industrial total unchanged at 1,727 MWp.
+`preprocess_open_buildings.py` uses a 2 km buffer around each site centroid to assign buildings. For sites whose actual fence boundary is smaller, this over-includes adjacent residential structures, industrial parks, or open water. After preprocess, `load_buildings_for_pipeline()` applies a centroid-within-polygon filter against two polygon sources:
 
-Industrial-site catchment is still 2 km around the centroid — TODOS RV8 tracks per-sector radii (cement ~500 m, steel ~700 m, nickel ~3 km) since 2 km currently catches surrounding residential houses for non-KEK industrial sites.
+1. **KEK polygons** (`outputs/data/raw/kek_polygons.geojson`, 25 sites). Boundaries from official OSS/KEK portal scrapes. Handles split-island KEKs (Tanjung Sauh has 6 fragments) by dissolving on `slug`.
+2. **Industrial site polygons** (`data/industrial_sites/site_polygons.geojson`, 9 sites as of 2026-04-28). OSM `landuse=industrial` and `man_made=works` polygons captured for non-KEK industrial plants where they exist: Indocement Palimanan, Cemindo Gemilang Bayah, Petrokimia Gresik, Ispat Indo Sidoarjo, Freeport Smelter Gresik, Semen Padang Indarung, Semen Baturaja, Krakatau Posco Cilegon, Gunung Raja Paksi Bekasi.
+
+Sites without a polygon pass through unchanged — their 2 km preprocess buffer remains the catchment, with RV11 (residential-pattern filter) at the building level providing the additional precision lever. Side effect: when the OSM polygon centroid is materially off from the dim_sites centroid (Ispat Indo at 10 km, Freeport at 9.8 km, Krakatau Posco at 3 km), the polygon centroid is also captured as a coordinate override in `data/industrial_sites/coordinate_overrides.csv` — the same audit-trail layer used for the GEM tracker miscodes (Tuban, Palimanan, Narogong).
 
 ### 4A.5 Cluster aggregation (visual layer)
 
