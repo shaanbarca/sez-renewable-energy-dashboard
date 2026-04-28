@@ -88,6 +88,7 @@ const DROPDOWN_COLUMNS = new Set([
 // Columns that get range filters (numeric)
 const RANGE_COLUMNS = new Set([
   'regional_groundmount_potential_mwp_50km',
+  'rooftop_solar_mwp_potential',
   'lcoe_mid_usd_mwh',
   'solar_competitive_gap_pct',
   'dashboard_rate_usd_mwh',
