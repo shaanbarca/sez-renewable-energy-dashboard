@@ -66,6 +66,7 @@ from src.assumptions import (
 from src.model.buildings import classify_building
 from src.pipeline.build_fct_site_solar_potential import (
     PROJECTED_CRS,
+    detect_residential_clusters,
     load_buildings_for_pipeline,
 )
 
@@ -178,13 +179,26 @@ def build_rooftop_tiles(
     )
     print(f"Loaded {len(buildings):,} buildings from Layer 2 parquet")
 
-    buildings_proj = buildings.to_crs(PROJECTED_CRS)
+    buildings_proj = buildings.to_crs(PROJECTED_CRS).reset_index(drop=True)
+
+    # Detect residential clusters per-site BEFORE the geometric classifier.
+    # Residential needs neighborhood context, so we run it per site_id.
+    print("Detecting residential clusters per site...")
+    is_residential = np.zeros(len(buildings_proj), dtype=bool)
+    for _site_id, group in buildings_proj.groupby("site_id"):
+        site_mask = detect_residential_clusters(group)
+        is_residential[group.index.to_numpy()] = site_mask
+    print(f"  {int(is_residential.sum()):,} residential-cluster buildings excluded")
 
     # Classify upfront — only standard_roof + soft-derate buildings get tiles.
-    # Hard-rejects (tank_silo, conveyor, complex, too_small) get no tiles.
+    # Hard-rejects (tank_silo, conveyor, complex, too_small, residential)
+    # get no tiles.
     print("Classifying buildings...")
     keep_mask = []
-    for _, row in buildings_proj.iterrows():
+    for i, (_, row) in enumerate(buildings_proj.iterrows()):
+        if is_residential[i]:
+            keep_mask.append(False)
+            continue
         cls = classify_building(row.geometry, row.geometry.area)
         # Tile only standard_roof + soft-derated categories that get >0 multiplier.
         # `possibly_round` and `complex` skipped (too uncertain to draw panels for).

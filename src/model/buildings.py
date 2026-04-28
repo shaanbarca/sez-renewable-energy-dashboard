@@ -71,6 +71,11 @@ BuildingCategory = Literal[
     "possibly_round",
     "elongated",
     "standard_roof",
+    # Residential cluster — small footprint with many similar-sized neighbors
+    # in a tight radius. Multiplier 0.0. Detected per-site BEFORE the
+    # geometric classifier in `build_fct_site_solar_potential.py`, since the
+    # check requires looking at neighbors (not a single-polygon property).
+    "residential",
 ]
 
 

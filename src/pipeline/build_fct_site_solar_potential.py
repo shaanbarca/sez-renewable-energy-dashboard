@@ -48,7 +48,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+from shapely.strtree import STRtree
 
 from src.assumptions import (
     BUILDING_COUNT_HIGH_CONFIDENCE_MIN,
@@ -57,6 +59,10 @@ from src.assumptions import (
     BUILDING_FOOTPRINT_IMAGERY_GAP_RATIO,
     BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH,
     BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW,
+    RESIDENTIAL_AREA_MAX_M2,
+    RESIDENTIAL_AREA_SIMILARITY_RATIO,
+    RESIDENTIAL_MIN_NEIGHBORS,
+    RESIDENTIAL_NEIGHBOR_RADIUS_M,
     SITE_POLYGON_LARGE_AREA_HA,
 )
 from src.model.buildings import classify_building, rooftop_kw_ac, rooftop_kw_dc
@@ -279,6 +285,58 @@ def compute_confidence_flag(  # noqa: PLR0913 — F4 has 7 derived signals
 # ─── Per-site aggregation ──────────────────────────────────────────────────
 
 
+def detect_residential_clusters(
+    site_buildings_proj: gpd.GeoDataFrame,
+    *,
+    area_max_m2: float = RESIDENTIAL_AREA_MAX_M2,
+    neighbor_radius_m: float = RESIDENTIAL_NEIGHBOR_RADIUS_M,
+    min_neighbors: int = RESIDENTIAL_MIN_NEIGHBORS,
+    area_similarity_ratio: float = RESIDENTIAL_AREA_SIMILARITY_RATIO,
+) -> np.ndarray:
+    """Per-building boolean mask: True if part of a residential cluster.
+
+    A building is "residential" if all three hold:
+      1. footprint < area_max_m2 (residential houses are small)
+      2. ≥ min_neighbors buildings within neighbor_radius_m
+      3. those neighbors are similar-sized (min(a,b)/max(a,b) ≥ ratio)
+
+    Industrial halls fail (1) trivially; isolated small auxiliary buildings
+    near a steel mill or cement plant fail (2). Dense rows of similar-sized
+    houses pass all three.
+
+    Buildings must already be in a metric CRS so that .area, .buffer(m),
+    and STRtree queries work in metres.
+    """
+    n = len(site_buildings_proj)
+    is_residential = np.zeros(n, dtype=bool)
+    if n == 0:
+        return is_residential
+
+    geoms = list(site_buildings_proj.geometry.values)
+    areas = site_buildings_proj.geometry.area.to_numpy()
+    tree = STRtree(geoms)
+
+    for i, (geom, area) in enumerate(zip(geoms, areas, strict=False)):
+        if area >= area_max_m2:
+            continue
+        # Candidate neighbors: anything intersecting the search-radius buffer.
+        # STRtree.query uses bbox prefilter which is good enough here.
+        search_geom = geom.buffer(neighbor_radius_m)
+        candidate_idx = tree.query(search_geom)
+        similar_count = 0
+        for j in candidate_idx:
+            if j == i:
+                continue
+            other_area = areas[j]
+            ratio = min(area, other_area) / max(area, other_area)
+            if ratio >= area_similarity_ratio:
+                similar_count += 1
+                if similar_count >= min_neighbors:
+                    is_residential[i] = True
+                    break
+    return is_residential
+
+
 def aggregate_site_buildings(
     site_buildings_proj: gpd.GeoDataFrame,  # buildings already in PROJECTED_CRS
 ) -> dict:
@@ -294,15 +352,22 @@ def aggregate_site_buildings(
         "tank_silo": 0,
         "conveyor": 0,
         "too_small": 0,
+        "residential": 0,
     }
     total_kw_dc = 0.0
     total_footprint_m2 = 0.0
     type_filter_excluded_m2 = 0.0
     usable_roof_area_m2 = 0.0
 
-    for _, b in site_buildings_proj.iterrows():
+    is_residential = detect_residential_clusters(site_buildings_proj)
+
+    for i, (_, b) in enumerate(site_buildings_proj.iterrows()):
         area_m2 = b.geometry.area  # already in metres (UTM)
         total_footprint_m2 += area_m2
+        if is_residential[i]:
+            counts["residential"] += 1
+            type_filter_excluded_m2 += area_m2
+            continue
         cls = classify_building(b.geometry, area_m2)
         counts[cls.category] += 1
         if cls.usability_multiplier > 0:
@@ -324,6 +389,7 @@ def aggregate_site_buildings(
         "building_count_elongated": counts["elongated"],
         "building_count_tank_silo": counts["tank_silo"],
         "building_count_conveyor": counts["conveyor"],
+        "building_count_residential": counts["residential"],
         "building_count_other_excluded": counts["too_small"]
         + counts["complex"]
         + counts["possibly_round"],

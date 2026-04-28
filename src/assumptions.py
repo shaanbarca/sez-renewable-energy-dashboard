@@ -925,6 +925,39 @@ BUILDING_DATA_VINTAGE_YEAR_CUTOFF: int = 2023
 # Static metadata for UI tooltips. Update when GoB v4 ships.
 BUILDING_DATA_VINTAGE: str = "2023-05 Google Open Buildings v3"
 
+# ─── Residential cluster detection (RV11) ──────────────────────────────────
+# 2 km buffer around non-KEK industrial sites pulls in adjacent residential
+# rooftops. RV8 (per-sector hard radius) was the obvious lever; RV11 filters
+# at the building level, which is more precise — a correct centroid that
+# happens to sit at the edge of a housing block still gets the plant
+# counted but throws out the houses.
+#
+# A building is "residential cluster" if ALL three hold:
+#   1. footprint < RESIDENTIAL_AREA_MAX_M2 (residential houses are small)
+#   2. ≥ RESIDENTIAL_MIN_NEIGHBORS buildings within
+#      RESIDENTIAL_NEIGHBOR_RADIUS_M whose area is within
+#      RESIDENTIAL_AREA_SIMILARITY_RATIO of this building's area
+#   3. (i.e. the building is part of a uniform-sized cluster)
+# Industrial sites have large halls (1) fail item 1, and small auxiliary
+# buildings (2) typically lack 5 similar neighbors within 100 m.
+RESIDENTIAL_AREA_MAX_M2: float = 300.0
+# A typical Indonesian rural/peri-urban house is 50-200 m². Bumping to 300
+# catches generously-sized homes, small shops, and modest commercial
+# buildings without flagging warehouse outbuildings.
+
+RESIDENTIAL_NEIGHBOR_RADIUS_M: float = 100.0
+# Density check radius. 100 m = ~3 typical kampung lots in any direction.
+
+RESIDENTIAL_MIN_NEIGHBORS: int = 5
+# Need ≥5 similar-sized neighbors within 100 m. Picks up housing rows
+# while leaving isolated small warehouses (the steel-mill auxiliary case)
+# alone.
+
+RESIDENTIAL_AREA_SIMILARITY_RATIO: float = 0.5
+# Two buildings count as "similar size" if min(a,b)/max(a,b) ≥ 0.5.
+# i.e. they're within 2× of each other. A 50 m² shed next to a 300 m²
+# warehouse fails this; two 100 m² houses pass.
+
 
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 

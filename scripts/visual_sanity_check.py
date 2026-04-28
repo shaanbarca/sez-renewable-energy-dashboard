@@ -17,11 +17,17 @@ import io
 import os
 from pathlib import Path
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import requests
 from PIL import Image
 from shapely import wkb
+
+from src.pipeline.build_fct_site_solar_potential import detect_residential_clusters
+
+PROJECTED_CRS = "EPSG:23830"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SITES_CSV = REPO_ROOT / "outputs" / "data" / "processed" / "dim_sites.csv"
@@ -114,7 +120,8 @@ def render(  # noqa: PLR0913
 
     axes[0].set_title("Satellite (centroid = cyan ×)", fontsize=11)
 
-    # Right pane: overlay the detected polygons
+    # Right pane: overlay the detected polygons, with residential-cluster
+    # buildings shown in gray (filtered out by RV11) vs red (counted).
     in_view = buildings_in_box[
         (buildings_in_box["longitude"] >= extent[0])
         & (buildings_in_box["longitude"] <= extent[1])
@@ -122,17 +129,49 @@ def render(  # noqa: PLR0913
         & (buildings_in_box["latitude"] <= extent[3])
     ].copy()
 
-    for _, b in in_view.iterrows():
+    # Residential detection runs on the FULL site-buildings set (need
+    # neighborhood context), not just the in-view subset.
+    is_residential_full = np.zeros(len(buildings_in_box), dtype=bool)
+    if len(buildings_in_box):
+        geoms_full = [wkb.loads(g) for g in buildings_in_box["geometry"]]
+        gdf_full = gpd.GeoDataFrame(
+            buildings_in_box.reset_index(drop=True),
+            geometry=geoms_full,
+            crs="EPSG:4326",
+        ).to_crs(PROJECTED_CRS)
+        is_residential_full = detect_residential_clusters(gdf_full)
+
+    n_res_view = 0
+    n_kept_view = 0
+    # Map from buildings_in_box position → in_view position
+    buildings_in_box_reset = buildings_in_box.reset_index(drop=True)
+    in_view_ids = set(in_view.index)
+    for pos, (_, b) in enumerate(buildings_in_box_reset.iterrows()):
+        if b.name not in in_view_ids and pos not in in_view_ids:
+            # iterating buildings_in_box, but we only want to plot in_view
+            pass
+        # Fallback: just plot buildings whose lat/lon land in extent
+        lat = b["latitude"]
+        lon = b["longitude"]
+        if not (extent[0] <= lon <= extent[1] and extent[2] <= lat <= extent[3]):
+            continue
         try:
             geom = wkb.loads(b["geometry"])
             xs, ys = geom.exterior.xy
-            axes[1].fill(xs, ys, color="red", alpha=0.45, zorder=5)
-            axes[1].plot(xs, ys, color="red", linewidth=0.6, zorder=6)
+            if is_residential_full[pos]:
+                axes[1].fill(xs, ys, color="lightgray", alpha=0.4, zorder=4)
+                axes[1].plot(xs, ys, color="gray", linewidth=0.4, zorder=5)
+                n_res_view += 1
+            else:
+                axes[1].fill(xs, ys, color="red", alpha=0.55, zorder=6)
+                axes[1].plot(xs, ys, color="darkred", linewidth=0.6, zorder=7)
+                n_kept_view += 1
         except Exception:
             continue
 
     axes[1].set_title(
-        f"GoB-detected buildings (red) — {len(in_view):,} in view  /  raw {raw_count:,} total assigned to site",
+        f"Counted (red) {n_kept_view:,}  /  residential-filtered (gray) {n_res_view:,}"
+        f"   in view ({len(in_view):,})  •  site total {raw_count:,}",
         fontsize=11,
     )
 
