@@ -268,6 +268,21 @@ def load_site_polygons() -> dict | None:
         return json.load(f)
 
 
+def load_industrial_polygons() -> dict | None:
+    """Load OSM industrial site polygons (`landuse=industrial` /
+    `man_made=works`) for non-KEK plants where they exist. As of v4.1
+    covers 9 plants — see `data/industrial_sites/site_polygons.geojson`.
+
+    Used both as a map overlay layer and (in the rooftop pipeline) to
+    clip building catchments to the actual fence boundary.
+    """
+    path = REPO_ROOT / "data" / "industrial_sites" / "site_polygons.geojson"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 def get_kek_polygon_by_id(site_id: str) -> dict | None:
     """Extract a single KEK polygon feature from the full GeoJSON by slug/site_id.
 
@@ -727,6 +742,17 @@ def get_all_layers() -> dict:
 
     layers["site_polygons"] = load_site_polygons()
     print(f"    KEK polygons: {'loaded' if layers['site_polygons'] else 'not found'}")
+    # Frontend stores the layer under `kek_polygons`; keep both keys to avoid
+    # a renaming churn elsewhere (substation/peatland code reads via key).
+    layers["kek_polygons"] = layers["site_polygons"]
+
+    layers["industrial_polygons"] = load_industrial_polygons()
+    n_ind = (
+        len(layers["industrial_polygons"]["features"])
+        if layers["industrial_polygons"] and "features" in layers["industrial_polygons"]
+        else 0
+    )
+    print(f"    Industrial polygons: {n_ind} loaded")
 
     try:
         layers["pvout"] = load_pvout_raster()

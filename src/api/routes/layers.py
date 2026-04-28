@@ -49,6 +49,8 @@ _POINT_LAYERS = {
 }
 _GEOJSON_LAYERS = {
     "site_polygons",
+    "kek_polygons",  # alias — same data as site_polygons; frontend uses this key
+    "industrial_polygons",  # OSM landuse=industrial / man_made=works for non-KEK plants
     "peatland",
     "protected_forest",
     "grid_lines",
