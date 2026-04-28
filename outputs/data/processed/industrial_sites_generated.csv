@@ -1,5 +1,5 @@
 site_id,site_name,site_type,sector,primary_product,province,latitude,longitude,area_ha,capacity_annual,capacity_annual_tonnes,technology,parent_company,cbam_product_type
-semen-gresik-tuban,Semen Gresik Tuban,standalone,cement,clinker,East Java,-6.87,112.04,,15.0 MTPA,15000000.0,Integrated,Semen Indonesia Group,cement
+semen-gresik-tuban,Semen Gresik Tuban,standalone,cement,clinker,East Java,-6.866,111.913,,15.0 MTPA,15000000.0,Integrated,Semen Indonesia Group,cement
 indocement-citeureup,Indocement Citeureup,standalone,cement,clinker,West Java,-6.479811,106.899118,,11.9 MTPA,11900000.0,Integrated,Indocement / Heidelberg,cement
 semen-padang-indarung,Semen Padang Indarung,standalone,cement,clinker,West Sumatra,-0.947827,100.469967,,8.8 MTPA,8800000.0,Integrated,Semen Indonesia Group,cement
 semen-tonasa,Semen Tonasa,standalone,cement,clinker,South Sulawesi,-4.789565,119.616409,,7.4 MTPA,7400000.0,Integrated,Semen Indonesia Group,cement
@@ -54,4 +54,4 @@ pupuk-kaltim-bontang,Pupuk Kaltim Bontang,standalone,fertilizer,urea,East Kalima
 pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,standalone,fertilizer,urea,South Sumatra,-2.99,104.757,,2000000 TPA,2000000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
 petrokimia-gresik,Petrokimia Gresik,standalone,fertilizer,urea,East Java,-7.151,112.651,,3400000 TPA,3400000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
 pupuk-kujang-cikampek,Pupuk Kujang Cikampek,standalone,fertilizer,urea,West Java,-6.41,107.457,,1140000 TPA,1140000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
-pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,standalone,fertilizer,urea,Aceh,5.235,97.097,,1140000 TPA,1140000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,standalone,fertilizer,urea,Aceh,5.235,97.055,,1140000 TPA,1140000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer

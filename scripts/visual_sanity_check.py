@@ -48,18 +48,42 @@ assert MAPBOX_TOKEN, "MAPBOX_TOKEN not found in env or .env"
 
 # Sites to investigate. (site_id, label, expected_finding)
 SUSPECT_SITES = [
+    # Centroid overrides shipped 2026-04-28 (RV10)
+    (
+        "semen-gresik-tuban",
+        "Semen Gresik Tuban (RV10 fixed)",
+        "15 Mt/yr — was offshore, now on plant",
+    ),
+    (
+        "indocement-palimanan",
+        "Indocement Palimanan (RV10 fixed)",
+        "3.6 Mt/yr — was forest, now on quarry",
+    ),
+    ("sbi-narogong", "SBI Narogong (RV10 fixed)", "6.06 Mt/yr — was forest, now on quarry+plant"),
+    (
+        "pupuk-iskandar-muda-lhokseumawe",
+        "Pupuk Iskandar Muda (RV10 fixed coord, RV7 data gap)",
+        "1.14 Mt/yr — coord better, GoB has 8 bldgs in 50km",
+    ),
+    # RV7 cases — correct centroid, GoB doesn't see plant
+    (
+        "cemindo-gemilang-bayah",
+        "Cemindo Gemilang Bayah (RV7)",
+        "3.5 Mt/yr, GoB sees nothing despite plant on imagery",
+    ),
+    (
+        "red-lion-hongshi-tonga",
+        "Red Lion Hongshi Tonga (RV7+coord)",
+        "4 Mt/yr — post-2023 build, also wrong centroid",
+    ),
+    # Big undercounts to inspect (Citeureup is RV7-leaning)
     ("indocement-citeureup", "Indocement Citeureup", "12 Mt/yr — should be huge"),
-    ("semen-gresik-tuban", "Semen Gresik Tuban", "15 Mt/yr, only 13 MWp"),
-    ("indocement-palimanan", "Indocement Palimanan", "3.6 Mt/yr, 1.8 MWp"),
-    ("sbi-narogong", "SBI Narogong", "6.06 Mt/yr, 2.95 MWp"),
-    ("red-lion-hongshi-tonga", "Red Lion Hongshi Tonga", "4 Mt/yr, 0 MWp"),
-    ("cemindo-gemilang-bayah", "Cemindo Gemilang Bayah", "3.5 Mt/yr, 0 MWp"),
-    ("krakatau-steel-cilegon", "Krakatau Steel Cilegon", "4 Mt/yr, 75 MWp — should be more"),
-    ("pupuk-iskandar-muda-lhokseumawe", "Pupuk Iskandar Muda", "1.14 Mt/yr fertilizer, 0 MWp"),
-    ("ispat-indo-sidoarjo", "Ispat Indo Sidoarjo", "39,635 bldgs — bleed-in?"),
-    # Baselines — look-correct sites
-    ("master-steel-jakarta", "Master Steel Jakarta (BASELINE)", "195 MWp — looks right"),
-    ("semen-gresik-city", "Semen Gresik City (BASELINE)", "108 MWp — looks right"),
+    ("krakatau-steel-cilegon", "Krakatau Steel Cilegon", "4 Mt/yr — partial detection"),
+    # Bleed-test — was high before residential filter
+    ("ispat-indo-sidoarjo", "Ispat Indo Sidoarjo", "RV11 should clip residential"),
+    # Baselines
+    ("master-steel-jakarta", "Master Steel Jakarta (BASELINE)", "RV11 should clip residential"),
+    ("semen-gresik-city", "Semen Gresik City (BASELINE)", "RV11 should clip residential"),
 ]
 
 
