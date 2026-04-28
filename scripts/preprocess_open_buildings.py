@@ -85,9 +85,14 @@ DEFAULT_CHUNK_SIZE = 1_000_000
 # buffer slop.
 PROJECTED_CRS = "EPSG:23830"
 
-# Use the 90%-precision threshold per cell. Trades recall for precision —
-# better to undercount than to include hallucinated buildings.
-PRECISION_COL = "confidence_threshold_90%_precision"
+# Use the 80%-precision threshold per cell. The §14 classifier downstream
+# (BUILDING_MIN_AREA_M2 = 200, geometric heuristics) already filters out
+# small / non-roof structures, which is where most low-precision detections
+# concentrate. The previous 90% precision threshold was wiping out ~99% of
+# legitimate large industrial roofs at sites with high-FP S2 cells (e.g.
+# Galang Batang's cell 31d — 318 buildings ≥200 m² in raw, only 4 survived
+# 0.963 threshold). 80% recovers them at minor classifier-borne FP risk.
+PRECISION_COL = "confidence_threshold_80%_precision"
 
 # Fallback when an S2 cell isn't in the thresholds table (rare — we only
 # use cells inside Indonesia, which are all in the table).
