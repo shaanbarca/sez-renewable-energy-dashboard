@@ -11,8 +11,11 @@ export function useMapLayers() {
   const layers = useDashboardStore((s) => s.layers);
 
   useEffect(() => {
-    // Layers handled client-side (not fetched from /api/layers/)
-    const CLIENT_ONLY_LAYERS = new Set(['terrain']);
+    // Layers handled client-side (not fetched from /api/layers/).
+    // rooftop_tiles is per-site (fetched via /api/site/{id}/rooftop-tiles in
+    // MapView when a site is selected) — the LayerControl entry is just a
+    // visibility toggle.
+    const CLIENT_ONLY_LAYERS = new Set(['terrain', 'rooftop_tiles']);
 
     for (const [name, visible] of Object.entries(layerVisibility)) {
       if (visible && !(name in layers) && !CLIENT_ONLY_LAYERS.has(name)) {
