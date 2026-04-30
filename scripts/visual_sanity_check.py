@@ -1,21 +1,40 @@
-"""Render per-site satellite imagery with detected GoB v3 building polygons
-overlaid, so we can visually categorize undercounted sites:
+"""Render per-site satellite imagery for sites flagged by the rooftop eval.
+
+The companion to scripts/eval_rooftop_accuracy.py. The eval surfaces sites
+that look statistically/physically off (zero rooftop, sector outliers,
+footprint-band hits); this script renders satellite + detected-polygon
+images for those exact sites so the human reviewer can categorize each:
   (a) GoB v3 missed them (RV7 — data freshness / coverage gap)
   (b) Centroid is wrong (geocoded to head-office, not the plant)
-  (c) Threshold dropped them (still possible despite 80% precision pass)
+  (c) Residential bleed survived RV11
+  (d) Polygon clip is too tight/loose
+
+The site list is data-driven from the latest record in
+outputs/data/eval/rooftop-history.jsonl — no hardcoded SUSPECT_SITES.
+Each site gets one image, even if it has multiple findings; all flag
+reasons are shown in the title.
 
 Output: outputs/data/visual_qa/<site_id>.png
-        Each image: 1024x768, satellite base, detected polygons in red outline.
+        Each image: 1024x768, satellite base, detected polygons in red,
+        residential-cluster filtered buildings in gray.
 
 Run:
-    PYTHONPATH=. uv run python scripts/visual_sanity_check.py
+    PYTHONPATH=. uv run python scripts/eval_rooftop_accuracy.py  # writes JSONL
+    PYTHONPATH=. uv run python scripts/visual_sanity_check.py    # renders flagged sites
+
+CLI: pass --site-ids a,b,c to force-render specific sites instead of the
+eval-flagged set (useful for verifying baselines or fix-targets).
 """
 
 from __future__ import annotations
 
+import argparse
 import io
+import json
+import math
 import os
 from pathlib import Path
+from typing import Any
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -33,6 +52,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SITES_CSV = REPO_ROOT / "outputs" / "data" / "processed" / "dim_sites.csv"
 PARQUET = REPO_ROOT / "data" / "processed" / "sites_buildings_filtered.parquet"
 OUT_DIR = REPO_ROOT / "outputs" / "data" / "visual_qa"
+EVAL_HISTORY = REPO_ROOT / "outputs" / "data" / "eval" / "rooftop-history.jsonl"
+FCT_ROOFTOP = REPO_ROOT / "outputs" / "data" / "processed" / "fct_site_solar_potential.csv"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Read MAPBOX_TOKEN from env or .env
@@ -46,45 +67,19 @@ if not MAPBOX_TOKEN:
                 break
 assert MAPBOX_TOKEN, "MAPBOX_TOKEN not found in env or .env"
 
-# Sites to investigate. (site_id, label, expected_finding)
-SUSPECT_SITES = [
-    # Centroid overrides shipped 2026-04-28 (RV10)
-    (
-        "semen-gresik-tuban",
-        "Semen Gresik Tuban (RV10 fixed)",
-        "15 Mt/yr — was offshore, now on plant",
-    ),
-    (
-        "indocement-palimanan",
-        "Indocement Palimanan (RV10 fixed)",
-        "3.6 Mt/yr — was forest, now on quarry",
-    ),
-    ("sbi-narogong", "SBI Narogong (RV10 fixed)", "6.06 Mt/yr — was forest, now on quarry+plant"),
-    (
-        "pupuk-iskandar-muda-lhokseumawe",
-        "Pupuk Iskandar Muda (RV10 fixed coord, RV7 data gap)",
-        "1.14 Mt/yr — coord better, GoB has 8 bldgs in 50km",
-    ),
-    # RV7 cases — correct centroid, GoB doesn't see plant
-    (
-        "cemindo-gemilang-bayah",
-        "Cemindo Gemilang Bayah (RV7)",
-        "3.5 Mt/yr, GoB sees nothing despite plant on imagery",
-    ),
-    (
-        "red-lion-hongshi-tonga",
-        "Red Lion Hongshi Tonga (RV7+coord)",
-        "4 Mt/yr — post-2023 build, also wrong centroid",
-    ),
-    # Big undercounts to inspect (Citeureup is RV7-leaning)
-    ("indocement-citeureup", "Indocement Citeureup", "12 Mt/yr — should be huge"),
-    ("krakatau-steel-cilegon", "Krakatau Steel Cilegon", "4 Mt/yr — partial detection"),
-    # Bleed-test — was high before residential filter
-    ("ispat-indo-sidoarjo", "Ispat Indo Sidoarjo", "RV11 should clip residential"),
-    # Baselines
-    ("master-steel-jakarta", "Master Steel Jakarta (BASELINE)", "RV11 should clip residential"),
-    ("semen-gresik-city", "Semen Gresik City (BASELINE)", "RV11 should clip residential"),
-]
+# Icon per check name — kept in sync with FLAG_DISPLAY in eval_rooftop_accuracy.py
+# (not imported because the eval script lives alongside this one and a relative
+# import would couple the two; this map is small enough to maintain in two places).
+# ASCII tokens used because matplotlib's default DejaVu Sans doesn't render
+# the 🟡 LARGE YELLOW CIRCLE glyph and emits warnings for every figure.
+FLAG_ICONS: dict[str, str] = {
+    "zero_mwp_with_capacity": "[!]",
+    "sector_outlier_above": "[!]",
+    "sector_outlier_below": "[!]",
+    "footprint_below_band": "[?]",
+    "footprint_above_band": "[?]",
+    "sector_sample_too_small": "[i]",
+}
 
 
 def fetch_satellite(
@@ -118,8 +113,6 @@ def render(  # noqa: PLR0913
     # Compute extent of the satellite image so polygons line up.
     # Mapbox Web Mercator math: at zoom z, pixel resolution at lat is
     # 156543.03 * cos(lat) / 2^z metres per pixel (at retina/2x: half that).
-    import math
-
     z = 15
     px_size_m = 156543.03 * math.cos(math.radians(lat)) / (2**z) / 2  # @2x
     img_w_m = sat.width * px_size_m
@@ -211,22 +204,111 @@ def render(  # noqa: PLR0913
     return out_path
 
 
+def load_latest_eval() -> dict[str, Any]:
+    """Read the last record from outputs/data/eval/rooftop-history.jsonl.
+
+    Raises FileNotFoundError with a hint if the eval hasn't been run yet —
+    the visual check is downstream of the eval, not a standalone tool.
+    """
+    if not EVAL_HISTORY.exists():
+        msg = (
+            f"Missing {EVAL_HISTORY} — run "
+            f"`PYTHONPATH=. uv run python scripts/eval_rooftop_accuracy.py` first."
+        )
+        raise FileNotFoundError(msg)
+    last_record: dict[str, Any] | None = None
+    with EVAL_HISTORY.open() as f:
+        for raw_line in f:
+            stripped = raw_line.strip()
+            if stripped:
+                last_record = json.loads(stripped)
+    if last_record is None:
+        msg = f"{EVAL_HISTORY} is empty — eval has never run successfully."
+        raise ValueError(msg)
+    return last_record
+
+
+def group_findings_by_site(findings: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Group findings by site_id. Sector-level findings (no site_id) are dropped —
+    they have no site to render."""
+    by_site: dict[str, list[dict[str, Any]]] = {}
+    for f in findings:
+        sid = f.get("site_id")
+        if not sid:
+            continue
+        by_site.setdefault(sid, []).append(f)
+    return by_site
+
+
+def compose_note(findings: list[dict[str, Any]]) -> str:
+    """Build a multi-line title note from one site's findings.
+
+    Each finding becomes one line: icon + flag_name + reason. Most sites
+    have 1 finding; under-detected ones often have 2 (zero_mwp_with_capacity
+    AND footprint_below_band — same root cause, both worth seeing).
+    """
+    lines = []
+    for f in findings:
+        check = f.get("check", "?")
+        icon = FLAG_ICONS.get(check, "•")
+        reason = f.get("reason", "")
+        lines.append(f"{icon} [{check}]  {reason}")
+    return "\n".join(lines)
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__.split("\n", maxsplit=1)[0])
+    p.add_argument(
+        "--site-ids",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated site_ids to render instead of the eval-flagged "
+            "set. Useful for verifying a baseline or a known fix-target."
+        ),
+    )
+    return p.parse_args()
+
+
 def main():
+    args = parse_args()
     sites = pd.read_csv(SITES_CSV)
     buildings = pd.read_parquet(PARQUET)
-    fct = pd.read_csv(REPO_ROOT / "outputs" / "data" / "processed" / "fct_site_solar_potential.csv")
+    fct = pd.read_csv(FCT_ROOFTOP)
 
-    for site_id, label, note in SUSPECT_SITES:
+    if args.site_ids:
+        # Ad-hoc mode: render specific sites with no eval context.
+        target_site_ids = [sid.strip() for sid in args.site_ids.split(",") if sid.strip()]
+        by_site: dict[str, list[dict[str, Any]]] = {sid: [] for sid in target_site_ids}
+        print(f"Rendering {len(by_site)} site(s) from --site-ids (no eval context).")
+    else:
+        # Default mode: read latest eval record, render every flagged site.
+        record = load_latest_eval()
+        counts = record.get("counts", {})
+        by_site = group_findings_by_site(record.get("findings", []))
+        print(
+            f"Rendering {len(by_site)} flagged site(s) from latest eval "
+            f"(actionable={counts.get('actionable', 0)}, "
+            f"review={counts.get('review', 0)}, info={counts.get('info', 0)})."
+        )
+
+    for site_id, findings in by_site.items():
         site_row = sites[sites["site_id"] == site_id]
         if not len(site_row):
-            print(f"SKIP {site_id}: not in dim_sites")
+            print(f"  SKIP {site_id}: not in dim_sites")
             continue
         s = site_row.iloc[0]
         site_buildings = buildings[buildings["site_id"] == site_id]
-        rooftop = fct[fct["site_id"] == site_id]["rooftop_solar_mwp_potential"].iloc[0]
+        rooftop_match = fct[fct["site_id"] == site_id]["rooftop_solar_mwp_potential"]
+        rooftop = float(rooftop_match.iloc[0]) if len(rooftop_match) else 0.0
+        note = compose_note(findings) if findings else "(ad-hoc render — no eval finding)"
+        # If the site has multiple findings, suffix the count for at-a-glance scan.
+        site_label = s["site_name"]
+        if len(findings) > 1:
+            site_label = f"{site_label}  ({len(findings)} findings)"
         out = render(
             site_id=site_id,
-            site_name=label,
+            site_name=site_label,
             note=note,
             lat=s["latitude"],
             lon=s["longitude"],
@@ -234,7 +316,8 @@ def main():
             rooftop_mwp=rooftop,
             raw_count=len(site_buildings),
         )
-        print(f"  {label:<40}  {out.relative_to(REPO_ROOT)}")
+        flag_summary = ",".join(f.get("check", "?") for f in findings) or "ad-hoc"
+        print(f"  {site_label:<48}  [{flag_summary}]  {out.relative_to(REPO_ROOT)}")
 
 
 if __name__ == "__main__":

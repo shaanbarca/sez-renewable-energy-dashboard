@@ -146,6 +146,7 @@ data/*.html
 outputs/
 !outputs/data/processed/
 !outputs/data/raw/
+!outputs/data/eval/
 !outputs/layers/
 
 # Buildability raster data — large GeoTIFFs downloaded by scripts/download_buildability_data.py

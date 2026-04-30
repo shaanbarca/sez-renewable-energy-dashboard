@@ -1417,11 +1417,13 @@ Captured to prevent scope creep. **The big cuts from the v2 spec are in the top 
 
 **Companion to §16's manual ±20% pass.** `scripts/eval_rooftop_accuracy.py` runs three statistical/physical sanity checks on every pipeline run:
 
-1. **Per-sector capacity-vs-MWp z-score band** — flag |z| > 2σ for sectors with ≥4 sites.
+1. **Per-sector capacity-vs-MWp z-score band** — flag |z| > 2σ for sectors with ≥4 sites. Direction-split: `sector_outlier_above` (>2σ over median, possible bleed) vs `sector_outlier_below` (<-2σ, possible undercount). Different fixes.
 2. **Zero-MWp-but-nonzero-capacity rule** — explicit catch for the RV7 GoB-undercount pattern (Cemindo Bayah, Hongshi, IWIP, etc.) that z-score misses because zero pulls the median.
 3. **Plant-area band** — for standalone/cluster sites with a fence-boundary polygon, footprint should be 5–30% of polygon area.
 
-Two-tier console output (HIGH / LOW priority), exit code 1 on HIGH findings — CI-friendly. JSONL trend log at `~/.gstack/projects/eez/eval-history.jsonl`. Not a replacement for the §16 manual sample on 10 sites, but it surfaces the right sites for the manual sample to focus on, and the JSONL log lets us track signal quality over time as RV7 multi-source ingestion lands.
+Console output is grouped by flag type — each group has a header that names the issue (e.g. "ZERO ROOFTOP — operating plant has no detected buildings"), the rule that fired, and the suggested fix. No more vague HIGH/LOW priority labels. Severity is encoded by icon (🔴 actionable / 🟡 review / ℹ info). Exit code 1 when any actionable finding exists — CI-friendly.
+
+JSONL trend log at `outputs/data/eval/rooftop-history.jsonl` — each record `{timestamp, counts, findings}`. Not a replacement for the §16 manual sample on 10 sites, but it surfaces the right sites for the manual sample to focus on, and the JSONL log lets us track signal quality over time as RV7 multi-source ingestion lands.
 
 Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF / Overture / OSM) is the fourth planned check, deferred until §13.10 invariant 4 multi-source fan-out is built.
 

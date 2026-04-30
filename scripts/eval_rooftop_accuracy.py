@@ -5,33 +5,38 @@ centroids land on industrial land cover). This validates OUTPUTS — once
 we've run the rooftop pipeline, do the per-site MWp numbers look right
 when held against statistical and physical sanity?
 
-Three checks:
+Three checks, surfaced as six self-explanatory flag types:
 
-  A. Per-sector capacity-vs-MWp band
-     For each sector with >= EVAL_SECTOR_MIN_SAMPLE sites, compute
-     z-score on rooftop_MWp / capacity_kt. Flag |z| > 2 as HIGH-PRIORITY.
-     Sectors below threshold (aluminium n=2) get a "manual review
-     required" flag instead of a numerical band.
+  A. zero_mwp_with_capacity (🔴 actionable)
+     Operating site (capacity > 0) but rooftop_MWp ≈ 0 — almost certainly
+     the RV7 GoB-undercount pattern (Cemindo Bayah, Hongshi, IWIP) or a
+     wrong centroid. Z-score won't catch this because zero pulls the
+     median down. Explicit rule catches it cleanly.
 
-  B. Zero-rooftop-but-nonzero-capacity rule
-     A site with capacity > 0 but rooftop_MWp ≈ 0 is almost certainly
-     the RV7 GoB-undercount pattern (Cemindo Bayah, Hongshi, IWIP).
-     Z-score won't catch this because zero pulls the median down.
-     Explicit rule catches it cleanly.
+  B. sector_outlier_above / sector_outlier_below (🔴 actionable)
+     Per-sector z-score on rooftop_MWp / capacity_kt. Above 2σ = possible
+     residential bleed, panels-on-quarry-pit, or polygon too tight.
+     Below -2σ = possible undercount that wasn't already caught by the
+     zero-rule. Direction matters — fix is different.
 
-  C. Plant-area band (sites with polygon)
+  C. footprint_below_band / footprint_above_band (🟡 sanity check)
      For sites with a fence-boundary polygon, total_building_footprint
-     should be 5-30% of polygon area. Below 5% suggests we're missing
-     most of the plant (RV7); above 30% suggests residential bleed or
-     the polygon is too tight. Sites without polygon are skipped and
-     reported as "uncovered."
+     should be 5-30% of polygon area. Below 5% = under-detection; above
+     30% = residential bleed or polygon too tight. Restricted to
+     standalone/cluster site types — KEKs include undeveloped land by
+     design and would always flag below 5%.
+
+  D. sector_sample_too_small (ℹ info)
+     Sectors with fewer than EVAL_SECTOR_MIN_SAMPLE sites can't form a
+     reliable z-score band. Pass-through with a manual-review note.
 
 Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF) is the
-fourth planned check, deferred until MS GMLBF is integrated.
+fifth planned check, deferred until MS GMLBF is integrated.
 
-Output: two-tier console report (HIGH / LOW priority) plus a JSONL
-append to ~/.gstack/projects/eez/eval-history.jsonl for trend tracking.
-Exit code 1 when any HIGH-PRIORITY findings exist — CI-friendly.
+Output: console report grouped by flag type (each group has a header
+explaining the rule + suggested fix) plus a JSONL append to
+docs/eval/rooftop-history.jsonl for trend tracking. Exit code 1 when
+any actionable (🔴) findings exist — CI-friendly.
 
 Run:
     PYTHONPATH=. uv run python scripts/eval_rooftop_accuracy.py
@@ -68,6 +73,82 @@ PROJECTED_CRS = "EPSG:23830"
 # Threshold below which we treat rooftop_MWp as "effectively zero" — operating
 # sites under this with non-zero capacity get the explicit zero-rule flag.
 ZERO_MWP_THRESHOLD = 0.1
+
+# Display order = priority order. The icon also encodes severity:
+#   🔴 actionable — site-level fix needed (treated as "exit 1" in CI)
+#   🟡 sanity check — investigate, may or may not be a real issue
+#   ℹ  info — pass-through, no action expected
+#
+# `priority` is the categorical bucket used by main()'s exit code logic:
+#   "actionable" — exit 1 if any present
+#   "review"     — exit 0 (warning only)
+#   "info"       — exit 0
+#
+# The user-facing report uses these display configs to render each group
+# with a header that explains the rule + how to act on it.
+FLAG_DISPLAY: dict[str, dict[str, str]] = {
+    "zero_mwp_with_capacity": {
+        "icon": "🔴",
+        "title": "ZERO ROOFTOP — operating plant has no detected buildings",
+        "rule": (
+            "Capacity > 0 but rooftop_MWp ≈ 0. Either GoB v3 missed the plant "
+            "(RV7 data freshness gap) or the centroid is still wrong."
+        ),
+        "fix": "Visual verification — run scripts/visual_sanity_check.py.",
+        "priority": "actionable",
+    },
+    "sector_outlier_above": {
+        "icon": "🔴",
+        "title": "SECTOR OUTLIER (above) — possible residential bleed",
+        "rule": (
+            "MWp/kt ratio is >2σ ABOVE sector median. Common causes: "
+            "residential bleed surviving the RV11 filter, panel-on-quarry-pit "
+            "misidentification, or polygon clip not tight enough."
+        ),
+        "fix": "Visual check; tighten polygon or add to OSM exclusions.",
+        "priority": "actionable",
+    },
+    "sector_outlier_below": {
+        "icon": "🔴",
+        "title": "SECTOR OUTLIER (below) — possible undercount",
+        "rule": (
+            "MWp/kt ratio is >2σ BELOW sector median. GoB v3 likely missed "
+            "buildings (RV7) or RV11 over-clipped."
+        ),
+        "fix": "Cross-check with footprint band findings — same root cause.",
+        "priority": "actionable",
+    },
+    "footprint_below_band": {
+        "icon": "🟡",
+        "title": "LOW FOOTPRINT — polygon coverage <5%",
+        "rule": (
+            "Building footprint is below 5% of the fence-boundary polygon — "
+            "the plant is likely under-detected."
+        ),
+        "fix": "Cross-check with zero_mwp findings — same root cause.",
+        "priority": "review",
+    },
+    "footprint_above_band": {
+        "icon": "🟡",
+        "title": "HIGH FOOTPRINT — polygon coverage >30%",
+        "rule": (
+            "Building footprint exceeds 30% of polygon — either residential "
+            "bleed surviving RV11, or the polygon is too tight."
+        ),
+        "fix": "Visual check — extend polygon or add exclusions.",
+        "priority": "review",
+    },
+    "sector_sample_too_small": {
+        "icon": "ℹ ",
+        "title": "MANUAL REVIEW — sector too small for z-score",
+        "rule": (
+            "Need at least the configured min sample to form a reliable band. "
+            "These sectors pass through unchecked."
+        ),
+        "fix": "Eyeball the values manually; defer until sector grows.",
+        "priority": "info",
+    },
+}
 
 
 def load_data() -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
@@ -149,16 +230,15 @@ def check_sector_ratio_band(df: pd.DataFrame) -> list[dict[str, Any]]:
         findings.append(
             {
                 "check": "zero_mwp_with_capacity",
-                "priority": "HIGH",
+                "priority": FLAG_DISPLAY["zero_mwp_with_capacity"]["priority"],
                 "site_id": row["site_id"],
                 "site_name": row["site_name"],
                 "sector": row["sector"],
                 "capacity_kt": round(row["capacity_kt"], 1),
                 "rooftop_mwp": round(row["rooftop_solar_mwp_potential"], 3),
                 "reason": (
-                    f"Operating site with {row['capacity_kt']:.1f} kt/yr capacity "
-                    f"but rooftop_MWp ≈ 0 — likely RV7 (GoB undercount) or "
-                    f"centroid still wrong"
+                    f"capacity {row['capacity_kt']:.1f} kt/yr but rooftop_MWp "
+                    f"≈ 0 — likely RV7 (GoB undercount) or wrong centroid"
                 ),
             }
         )
@@ -170,15 +250,14 @@ def check_sector_ratio_band(df: pd.DataFrame) -> list[dict[str, Any]]:
             findings.append(
                 {
                     "check": "sector_sample_too_small",
-                    "priority": "LOW",
+                    "priority": FLAG_DISPLAY["sector_sample_too_small"]["priority"],
                     "site_id": None,
                     "site_name": None,
                     "sector": sector,
                     "n": int(len(grp)),
                     "reason": (
-                        f"Sector '{sector}' has only {len(grp)} sites — "
-                        f"can't form reliable z-score band (min {EVAL_SECTOR_MIN_SAMPLE}). "
-                        f"Manual review required."
+                        f"only {len(grp)} sites — need ≥{EVAL_SECTOR_MIN_SAMPLE} "
+                        f"for a reliable z-score band"
                     ),
                 }
             )
@@ -190,25 +269,29 @@ def check_sector_ratio_band(df: pd.DataFrame) -> list[dict[str, Any]]:
             continue
         z = (ratios - median) / std
         for idx, zval in z.items():
-            if abs(zval) > EVAL_SECTOR_ZSCORE_THRESHOLD:
-                row = grp.loc[idx]
-                findings.append(
-                    {
-                        "check": "sector_ratio_outlier",
-                        "priority": "HIGH",
-                        "site_id": row["site_id"],
-                        "site_name": row["site_name"],
-                        "sector": sector,
-                        "mwp_per_kt": round(row["mwp_per_kt"], 4),
-                        "sector_median_mwp_per_kt": round(median, 4),
-                        "z_score": round(float(zval), 2),
-                        "reason": (
-                            f"MWp/kt ratio {row['mwp_per_kt']:.3f} is "
-                            f"{abs(zval):.1f}σ from sector median "
-                            f"{median:.3f} (n={len(grp)})"
-                        ),
-                    }
-                )
+            if abs(zval) <= EVAL_SECTOR_ZSCORE_THRESHOLD:
+                continue
+            row = grp.loc[idx]
+            # Direction matters — above sector = bleed/overcount; below = undercount.
+            # Different root cause, different fix, so they get distinct flag types.
+            check = "sector_outlier_above" if zval > 0 else "sector_outlier_below"
+            sign = "+" if zval > 0 else "−"
+            findings.append(
+                {
+                    "check": check,
+                    "priority": FLAG_DISPLAY[check]["priority"],
+                    "site_id": row["site_id"],
+                    "site_name": row["site_name"],
+                    "sector": sector,
+                    "mwp_per_kt": round(row["mwp_per_kt"], 4),
+                    "sector_median_mwp_per_kt": round(median, 4),
+                    "z_score": round(float(zval), 2),
+                    "reason": (
+                        f"ratio {row['mwp_per_kt']:.3f} is {sign}{abs(zval):.1f}σ "
+                        f"vs sector median {median:.3f} (n={len(grp)})"
+                    ),
+                }
+            )
     return findings
 
 
@@ -255,15 +338,15 @@ def check_plant_area_band(
             findings.append(
                 {
                     "check": "footprint_below_band",
-                    "priority": "HIGH",
+                    "priority": FLAG_DISPLAY["footprint_below_band"]["priority"],
                     "site_id": row["site_id"],
                     "site_name": row["site_name"],
                     "footprint_m2": round(footprint_m2, 0),
                     "polygon_m2": round(polygon_area_m2, 0),
                     "ratio": round(ratio, 4),
                     "reason": (
-                        f"Building footprint is {ratio * 100:.1f}% of polygon area, "
-                        f"below the 5% floor — plant likely under-detected"
+                        f"footprint {ratio * 100:.1f}% of polygon "
+                        f"({footprint_m2:,.0f} / {polygon_area_m2:,.0f} m²)"
                     ),
                 }
             )
@@ -271,16 +354,15 @@ def check_plant_area_band(
             findings.append(
                 {
                     "check": "footprint_above_band",
-                    "priority": "HIGH",
+                    "priority": FLAG_DISPLAY["footprint_above_band"]["priority"],
                     "site_id": row["site_id"],
                     "site_name": row["site_name"],
                     "footprint_m2": round(footprint_m2, 0),
                     "polygon_m2": round(polygon_area_m2, 0),
                     "ratio": round(ratio, 4),
                     "reason": (
-                        f"Building footprint is {ratio * 100:.1f}% of polygon area, "
-                        f"above the 30% ceiling — possible residential bleed or "
-                        f"polygon too tight"
+                        f"footprint {ratio * 100:.1f}% of polygon "
+                        f"({footprint_m2:,.0f} / {polygon_area_m2:,.0f} m²)"
                     ),
                 }
             )
@@ -291,32 +373,48 @@ def format_report(
     findings: list[dict[str, Any]],
     poly_coverage: tuple[int, int],
 ) -> str:
-    """Two-tier console output matching scripts/validate_centroids.py."""
-    high = [f for f in findings if f.get("priority") == "HIGH"]
-    low = [f for f in findings if f.get("priority") == "LOW"]
+    """Console output grouped by flag type.
+
+    Each group is a self-contained block: icon + title + 1-line rule + 1-line
+    fix + the findings themselves. Unknown check names (shouldn't happen but
+    defensive) are appended at the end with no header.
+
+    Backward compat: still prints the "HIGH-PRIORITY" header at the top so
+    existing tests that grep for it still pass.
+    """
     n_covered, n_total = poly_coverage
+    actionable = [f for f in findings if f.get("priority") == "actionable"]
+    review = [f for f in findings if f.get("priority") == "review"]
+    info = [f for f in findings if f.get("priority") == "info"]
 
-    lines = []
-    if high:
-        lines.append(f"🚨 HIGH-PRIORITY: {len(high)} finding(s)")
-        lines.append("")
-        for f in high:
-            sid = f.get("site_id") or f.get("sector", "?")
-            name = f.get("site_name") or sid
-            lines.append(f"  [{f['check']}] {name}")
-            lines.append(f"      {f['reason']}")
-        lines.append("")
+    lines: list[str] = []
+
+    # Top-level summary line — the only place the user sees a count.
+    n_act = len(actionable)
+    n_rev = len(review)
+    n_inf = len(info)
+    if n_act:
+        lines.append(f"🚨 HIGH-PRIORITY: {n_act} actionable finding(s)")
     else:
-        lines.append("✅ No HIGH-PRIORITY findings.")
-        lines.append("")
+        lines.append("✅ No actionable findings.")
+    if n_rev:
+        lines.append(f"   plus {n_rev} sanity-check warning(s) and {n_inf} info note(s)")
+    elif n_inf:
+        lines.append(f"   plus {n_inf} info note(s)")
+    lines.append("")
 
-    if low:
-        lines.append(f"ℹ LOWER-PRIORITY: {len(low)} finding(s)")
+    # Render each flag type in FLAG_DISPLAY's declared order.
+    for check, cfg in FLAG_DISPLAY.items():
+        group = [f for f in findings if f.get("check") == check]
+        if not group:
+            continue
+        lines.append(f"{cfg['icon']} {cfg['title']}  ({len(group)})")
+        lines.append(f"    Rule: {cfg['rule']}")
+        lines.append(f"    Fix:  {cfg['fix']}")
         lines.append("")
-        for f in low:
-            sid = f.get("sector") or f.get("site_id", "?")
-            lines.append(f"  [{f['check']}] {sid}")
-            lines.append(f"      {f['reason']}")
+        for f in group:
+            label = f.get("site_name") or f.get("sector") or f.get("site_id") or "?"
+            lines.append(f"    • {label}  —  {f['reason']}")
         lines.append("")
 
     lines.append(f"Plant-area-band coverage: {n_covered}/{n_total} sites have a polygon")
@@ -329,15 +427,26 @@ def format_report(
 
 
 def append_history(findings: list[dict[str, Any]]) -> None:
-    """Append a single JSONL line per run for trend tracking."""
-    path = Path(EVAL_HIST_PATH).expanduser()
+    """Append a single JSONL line per run for trend tracking.
+
+    Defaults to outputs/data/eval/rooftop-history.jsonl (set in
+    src/assumptions.py) — generated artifact, lives with other pipeline
+    outputs. The path is configurable so tests can redirect it.
+    """
+    raw = Path(EVAL_HIST_PATH).expanduser()
+    # Anchor relative paths to the repo root so the file lands in the same
+    # place regardless of cwd. EVAL_HIST_PATH is configured as a relative
+    # path in src/assumptions.py.
+    path = raw if raw.is_absolute() else REPO_ROOT / raw
     path.parent.mkdir(parents=True, exist_ok=True)
-    high = [f for f in findings if f.get("priority") == "HIGH"]
-    low = [f for f in findings if f.get("priority") == "LOW"]
+    counts = {
+        "actionable": sum(1 for f in findings if f.get("priority") == "actionable"),
+        "review": sum(1 for f in findings if f.get("priority") == "review"),
+        "info": sum(1 for f in findings if f.get("priority") == "info"),
+    }
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "n_high": len(high),
-        "n_low": len(low),
+        "counts": counts,
         "findings": findings,
     }
     with path.open("a") as f:
@@ -355,8 +464,8 @@ def main() -> int:
     print(format_report(findings, (n_covered, n_total)))
     append_history(findings)
 
-    n_high = sum(1 for f in findings if f.get("priority") == "HIGH")
-    return 1 if n_high > 0 else 0
+    n_actionable = sum(1 for f in findings if f.get("priority") == "actionable")
+    return 1 if n_actionable > 0 else 0
 
 
 if __name__ == "__main__":

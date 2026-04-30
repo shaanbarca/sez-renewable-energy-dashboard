@@ -14,6 +14,7 @@ This document is the single authoritative methodology reference for the Indonesi
 ## Table of Contents
 
 - [1. Core Question and Scope](#1-core-question-and-scope)
+  - [1.1 Site selection methodology](#11-site-selection-methodology)
 - [2. Data Flow Summary](#2-data-flow-summary)
 - [3. Solar Resource](#3-solar-resource)
   - [3.1 PVOUT extraction](#31-pvout-extraction)
@@ -21,6 +22,16 @@ This document is the single authoritative methodology reference for the Indonesi
   - [3.3 Buildability filters](#33-buildability-filters)
   - [3.4 Solar site coordinates](#34-solar-site-coordinates)
 - [4. Wind Resource](#4-wind-resource)
+  - [4.1 Wind Buildability Filters](#41-wind-buildability-filters)
+- [4A. Rooftop Solar Potential](#4a-rooftop-solar-potential)
+  - [4A.1 Pipeline](#4a1-pipeline)
+  - [4A.2 §14 building classifier](#4a2-14-building-classifier)
+  - [4A.3 Footprint → MWp math](#4a3-footprint--mwp-math-decomposed-model-53-of-spec)
+  - [4A.4 Site polygon clip](#4a4-site-polygon-clip)
+  - [4A.5 Cluster aggregation (visual layer)](#4a5-cluster-aggregation-visual-layer)
+  - [4A.6 Confidence + missing-data flagging](#4a6-confidence--missing-data-flagging)
+  - [4A.7 Known limits](#4a7-known-limits)
+  - [4A.8 Automated accuracy eval](#4a8-automated-accuracy-eval)
 - [5. Siting Scenarios](#5-siting-scenarios)
   - [5.1 Within-boundary (captive)](#51-within-boundary-captive)
   - [5.2 Grid-connected solar](#52-grid-connected-solar)
@@ -33,6 +44,16 @@ This document is the single authoritative methodology reference for the Indonesi
   - [6.4 Technology parameters](#64-technology-parameters)
   - [6.5 WACC](#65-wacc)
   - [6.6 LCOE bands](#66-lcoe-bands)
+  - [6.7 LCOE sensitivity to project scale](#67-lcoe-sensitivity-to-project-scale)
+- [6A. Hybrid Solar+Wind RE Framework](#6a-hybrid-solarwind-re-framework)
+  - [6A.1 Motivation](#6a1-motivation)
+  - [6A.2 RESource abstraction](#6a2-resource-abstraction)
+  - [6A.3 Blended LCOE](#6a3-blended-lcoe)
+  - [6A.4 BESS reduction formula](#6a4-bess-reduction-formula)
+  - [6A.5 Mix ratio optimization](#6a5-mix-ratio-optimization)
+  - [6A.6 Three-way technology comparison](#6a6-three-way-technology-comparison)
+  - [6A.7 Output fields](#6a7-output-fields)
+  - [6A.8 Hydro extensibility](#6a8-hydro-extensibility)
 - [7. Grid Cost Reference](#7-grid-cost-reference)
   - [7.1 I-4 industrial tariff](#71-i-4-industrial-tariff)
   - [7.2 BPP generation cost](#72-bpp-generation-cost)
@@ -42,14 +63,19 @@ This document is the single authoritative methodology reference for the Indonesi
   - [8.2 Grid integration categories](#82-grid-integration-categories)
   - [8.3 Threshold values](#83-threshold-values)
   - [8.4 Substation capacity check](#84-substation-capacity-check)
+  - [8.4a RUPTL-driven substation utilization (V3.8)](#84a-ruptl-driven-substation-utilization-v38)
   - [8.5 Inter-substation connectivity](#85-inter-substation-connectivity)
   - [8.6 Infrastructure cost layers](#86-infrastructure-cost-layers)
+  - [8.7 Substation-anchored solar search (V3.7)](#87-substation-anchored-solar-search-v37)
 - [9. Competitiveness Metrics](#9-competitiveness-metrics)
   - [9.1 Solar competitive gap](#91-solar-competitive-gap)
   - [9.2 Carbon breakeven price](#92-carbon-breakeven-price)
   - [9.3 Flip scenario](#93-flip-scenario)
   - [9.4 Solar supply coverage](#94-solar-supply-coverage)
   - [9.5 Firm solar coverage (V3.3)](#95-firm-solar-coverage-v33)
+  - [9.6 Wind supply coverage](#96-wind-supply-coverage)
+  - [9.7 Wind carbon breakeven](#97-wind-carbon-breakeven)
+  - [9.8 Firm wind coverage (intermittency model)](#98-firm-wind-coverage-intermittency-model)
 - [10. Action Flags](#10-action-flags)
   - [10.1 Flag definitions (10 solar-mode flags; 14 total across all energy modes)](#101-flag-definitions-10-solar-mode-flags-14-total-across-all-energy-modes)
   - [10.2 Priority ordering](#102-priority-ordering)
@@ -64,9 +90,11 @@ This document is the single authoritative methodology reference for the Indonesi
   - [13.3 Perpres 112/2022 compliance](#133-perpres-1122022-compliance)
   - [13.4 Scorecard fields](#134-scorecard-fields)
   - [13.5 Map overlays](#135-map-overlays)
+  - [13.6 Solar replacement potential](#136-solar-replacement-potential)
+  - [13.7 BESS sizing for industrial loads (M19 + V3.3)](#137-bess-sizing-for-industrial-loads-m19--v33)
 - [14. EU CBAM Exposure](#14-eu-cbam-exposure)
   - [14.1 CBAM signal detection](#141-cbam-signal-detection)
-  - [14.2 Product-specific parameters](#142-product-specific-parameters)
+  - [14.2 Two kinds of emissions: Energy vs Process](#142-two-kinds-of-emissions-energy-vs-process)
   - [14.3 Emission intensity calculation](#143-emission-intensity-calculation)
   - [14.4 CBAM cost trajectory](#144-cbam-cost-trajectory)
   - [14.5 CBAM-adjusted competitive gap](#145-cbam-adjusted-competitive-gap)
@@ -77,10 +105,10 @@ This document is the single authoritative methodology reference for the Indonesi
 - [18. Assumptions Summary](#18-assumptions-summary)
 - [19. Reproducibility](#19-reproducibility)
 - [20. Regulatory References](#20-regulatory-references)
-- [References](#references)
 - [Appendix A: Buildability Filter Details](#appendix-a-buildability-filter-details)
 - [Appendix B: Legal Framework for Captive Solar](#appendix-b-legal-framework-for-captive-solar)
 - [Appendix C: Evolution from V1 to V3](#appendix-c-evolution-from-v1-to-v3)
+- [References](#references)
 
 ---
 
@@ -373,15 +401,30 @@ Sites with zero buildings (18 of 81) are written to `sites_missing_buildings.csv
 
 `scripts/eval_rooftop_accuracy.py` runs three statistical/physical sanity checks against the rooftop pipeline output and surfaces sites that look off, without requiring any manual labelling:
 
-1. **Per-sector capacity-vs-MWp band.** For each sector with ≥4 sites, compute z-score on `rooftop_MWp / capacity_kt`. Flag |z| > 2σ. Catches systematic outliers within a sector — a cement plant whose ratio is 4σ above sector median is either over-counted or its peers are under-counted.
-2. **Zero-rooftop-but-nonzero-capacity rule.** Any operating site (capacity > 0) with `rooftop_MWp ≈ 0` is flagged HIGH-PRIORITY regardless of z-score. Catches the RV7 GoB-undercount pattern that the ratio band misses (zero pulls the median down, never the tail).
+1. **Per-sector capacity-vs-MWp band.** For each sector with ≥4 sites, compute z-score on `rooftop_MWp / capacity_kt`. Outliers split by direction — `sector_outlier_above` (>2σ over median, suggests bleed/overcount) and `sector_outlier_below` (<-2σ, suggests undercount). Different root causes, different fixes.
+2. **Zero-rooftop-but-nonzero-capacity rule.** Any operating site (capacity > 0) with `rooftop_MWp ≈ 0` is flagged actionable regardless of z-score. Catches the RV7 GoB-undercount pattern that the ratio band misses (zero pulls the median down, never the tail).
 3. **Plant-area band.** For standalone/cluster industrial sites with a fence-boundary polygon, footprint should be 5–30% of polygon area. Below 5% suggests the plant is under-detected (RV7); above 30% suggests residential bleed survived the filter or the polygon is too tight. KEKs are skipped — they're zones, not plants, and have undeveloped land by design.
 
-Output is two-tier console (HIGH / LOW priority, matching `validate_centroids.py`) plus a JSONL append to `~/.gstack/projects/eez/eval-history.jsonl` for trend tracking. Exit code 1 when HIGH-PRIORITY findings exist — CI-friendly.
+**Six flag types**, each with a distinct console group (header + 1-line rule + 1-line suggested fix) so the report is self-explanatory rather than relying on a vague HIGH/LOW priority label. Severity icons:
 
-This complements the spec §16 manual ±20% pass — automated flags surface the right sites for the manual sample, scaling as more sites are added or as multi-source data lands. Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF) is a fourth planned check, deferred until multi-source ingestion lands per spec §13.10 invariant 4.
+| Flag                       | Icon | Priority   | Cause / Fix |
+|----------------------------|:----:|------------|-------------|
+| `zero_mwp_with_capacity`   | 🔴  | actionable | RV7 or wrong centroid → run `scripts/visual_sanity_check.py` |
+| `sector_outlier_above`     | 🔴  | actionable | bleed / over-clip miss → tighten polygon or extend OSM exclusions |
+| `sector_outlier_below`     | 🔴  | actionable | undercount → cross-check footprint band, same root cause |
+| `footprint_below_band`     | 🟡  | review     | under-detection — usually the same site as zero_mwp |
+| `footprint_above_band`     | 🟡  | review     | bleed survived RV11, or polygon is too tight |
+| `sector_sample_too_small`  | ℹ   | info       | sector < `EVAL_SECTOR_MIN_SAMPLE` — eyeball manually |
 
-Constants in `src/assumptions.py::EVAL_*`. 16 unit tests in `tests/test_eval_rooftop_accuracy.py`.
+`priority` enum drives exit code: any `actionable` finding → exit 1 (CI fails); `review` and `info` are warnings only.
+
+**Trend log:** every run appends a JSONL record to `outputs/data/eval/rooftop-history.jsonl`. Path is set in `src/assumptions.py::EVAL_HIST_PATH` (repo-relative, resolved against repo root inside the script). Each record is `{timestamp, counts: {actionable, review, info}, findings: [...]}` — preserves the full finding payload for diffing across runs as multi-source + classifier improvements land.
+
+**Visual companion (`scripts/visual_sanity_check.py`).** Reads the latest record from the trend log and renders one satellite + detected-polygon image per flagged site to `outputs/data/visual_qa/<site_id>.png`. Single source of truth — no hardcoded site list. The image title shows all flag reasons for that site, so a site with both `zero_mwp_with_capacity` and `footprint_below_band` (e.g. Cemindo Bayah) gets one image with both reasons. CLI `--site-ids a,b,c` allows ad-hoc rendering of baselines or fix-targets that are no longer flagged.
+
+This complements the spec §16 manual ±20% pass — automated flags surface the right sites for the manual sample, scaling as more sites are added. Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF) is a fourth planned check, deferred until multi-source ingestion lands per spec §13.10 invariant 4.
+
+Constants in `src/assumptions.py::EVAL_*`. 18 unit tests in `tests/test_eval_rooftop_accuracy.py`.
 
 ---
 

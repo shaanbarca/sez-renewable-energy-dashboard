@@ -981,9 +981,11 @@ EVAL_FOOTPRINT_RATIO_HIGH: float = 0.30
 # Above 30% suggests we're catching residential bleed or the polygon is
 # too tight. Industrial plants typically run 5-25% rooftop coverage.
 
-EVAL_HIST_PATH: str = "~/.gstack/projects/eez/eval-history.jsonl"
+EVAL_HIST_PATH: str = "outputs/data/eval/rooftop-history.jsonl"
 # Append every run's findings here so we can track signal quality over
-# time as multi-source data + classifier improvements land.
+# time as multi-source data + classifier improvements land. Repo-relative
+# path; resolved against REPO_ROOT in scripts/eval_rooftop_accuracy.py
+# so it lands in the same place regardless of cwd.
 
 
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────

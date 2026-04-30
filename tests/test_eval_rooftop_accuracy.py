@@ -101,7 +101,7 @@ def test_sector_band_skips_small_sample():
     )
     findings = eval_rooftop.check_sector_ratio_band(df)
     assert len(findings) == 1
-    assert findings[0]["priority"] == "LOW"
+    assert findings[0]["priority"] == "info"
     assert findings[0]["check"] == "sector_sample_too_small"
     assert findings[0]["sector"] == "aluminium"
 
@@ -130,7 +130,7 @@ def test_sector_band_zero_mwp_rule_fires():
     findings = eval_rooftop.check_sector_ratio_band(df)
     zero_findings = [f for f in findings if f["check"] == "zero_mwp_with_capacity"]
     assert len(zero_findings) == 1
-    assert zero_findings[0]["priority"] == "HIGH"
+    assert zero_findings[0]["priority"] == "actionable"
     assert zero_findings[0]["site_id"] == "zero"
 
 
@@ -150,12 +150,14 @@ def test_sector_band_in_band_no_finding():
         ]
     )
     findings = eval_rooftop.check_sector_ratio_band(df)
-    outliers = [f for f in findings if f["check"] == "sector_ratio_outlier"]
+    outliers = [
+        f for f in findings if f["check"] in ("sector_outlier_above", "sector_outlier_below")
+    ]
     assert outliers == []
 
 
 def test_sector_band_outlier_above_threshold():
-    """One site way above sector median → HIGH-PRIORITY outlier."""
+    """One site way above sector median → outlier_above (actionable)."""
     df = _make_df(
         [
             {
@@ -170,11 +172,43 @@ def test_sector_band_outlier_above_threshold():
         ]
     )
     findings = eval_rooftop.check_sector_ratio_band(df)
-    outliers = [f for f in findings if f["check"] == "sector_ratio_outlier"]
-    assert len(outliers) >= 1
-    # The wildly-high site should be flagged.
-    flagged_ids = {f["site_id"] for f in outliers}
+    above = [f for f in findings if f["check"] == "sector_outlier_above"]
+    below = [f for f in findings if f["check"] == "sector_outlier_below"]
+    assert len(above) >= 1
+    assert len(below) == 0  # no site below median by >2σ in this fixture
+    # The wildly-high site should be flagged with positive z.
+    flagged_ids = {f["site_id"] for f in above}
     assert "c4" in flagged_ids
+    assert above[0]["z_score"] > 0
+    assert above[0]["priority"] == "actionable"
+
+
+def test_sector_band_outlier_below_threshold():
+    """One site way below sector median → outlier_below (actionable).
+
+    Direction matters — bleed (above) and undercount (below) need different
+    fixes. The eval used to lump these into a single 'sector_ratio_outlier'
+    flag; now they're separate so the report can route each correctly.
+    """
+    df = _make_df(
+        [
+            {
+                "site_id": f"c{i}",
+                "site_name": f"C{i}",
+                "sector": "cement",
+                "capacity_annual_tonnes": 1_000_000,
+                "rooftop_solar_mwp_potential": v,
+                "total_building_footprint_m2": 50_000,
+            }
+            for i, v in enumerate([100.0, 110.0, 105.0, 115.0, 0.5])
+        ]
+    )
+    findings = eval_rooftop.check_sector_ratio_band(df)
+    below = [f for f in findings if f["check"] == "sector_outlier_below"]
+    assert len(below) == 1
+    assert below[0]["site_id"] == "c4"
+    assert below[0]["z_score"] < 0
+    assert below[0]["priority"] == "actionable"
 
 
 def test_sector_band_kek_with_nan_capacity_skipped():
@@ -270,7 +304,7 @@ def test_plant_area_band_below_low_flags():
     findings, _, _ = eval_rooftop.check_plant_area_band(df, polys)
     assert len(findings) == 1
     assert findings[0]["check"] == "footprint_below_band"
-    assert findings[0]["priority"] == "HIGH"
+    assert findings[0]["priority"] == "review"
 
 
 def test_plant_area_band_above_high_flags():
@@ -290,7 +324,7 @@ def test_plant_area_band_above_high_flags():
     findings, _, _ = eval_rooftop.check_plant_area_band(df, polys)
     assert len(findings) == 1
     assert findings[0]["check"] == "footprint_above_band"
-    assert findings[0]["priority"] == "HIGH"
+    assert findings[0]["priority"] == "review"
 
 
 def test_plant_area_band_no_polygon_skipped_and_counted():
@@ -338,16 +372,43 @@ def test_format_report_high_priority_visible():
     findings = [
         {
             "check": "zero_mwp_with_capacity",
-            "priority": "HIGH",
+            "priority": "actionable",
             "site_id": "x",
             "site_name": "X Plant",
             "reason": "operating with no rooftop",
         }
     ]
     out = eval_rooftop.format_report(findings, (5, 10))
-    assert "HIGH-PRIORITY" in out
+    assert "HIGH-PRIORITY" in out  # top-level summary still uses this label
+    assert "ZERO ROOFTOP" in out  # new descriptive group header
     assert "X Plant" in out
     assert "5/10" in out
+
+
+def test_format_report_groups_above_and_below_separately():
+    """Above and below outliers must render under distinct headers — same
+    flag would conflate two opposite root causes."""
+    findings = [
+        {
+            "check": "sector_outlier_above",
+            "priority": "actionable",
+            "site_id": "high",
+            "site_name": "High Plant",
+            "reason": "ratio +4σ vs median",
+        },
+        {
+            "check": "sector_outlier_below",
+            "priority": "actionable",
+            "site_id": "low",
+            "site_name": "Low Plant",
+            "reason": "ratio -3σ vs median",
+        },
+    ]
+    out = eval_rooftop.format_report(findings, (0, 0))
+    assert "SECTOR OUTLIER (above)" in out
+    assert "SECTOR OUTLIER (below)" in out
+    assert "High Plant" in out
+    assert "Low Plant" in out
 
 
 def test_main_exit_code_zero_when_clean(tmp_path, monkeypatch):
