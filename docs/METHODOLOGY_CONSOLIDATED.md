@@ -31,6 +31,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [4A.5 Cluster aggregation (visual layer)](#4a5-cluster-aggregation-visual-layer)
   - [4A.6 Confidence + missing-data flagging](#4a6-confidence--missing-data-flagging)
   - [4A.7 Known limits](#4a7-known-limits)
+  - [4A.7a Multi-source fan-out (MS GMLBF)](#4a7a-multi-source-fan-out-microsoft-gmlbf-in-progress-2026-04-30)
   - [4A.8 Automated accuracy eval](#4a8-automated-accuracy-eval)
 - [5. Siting Scenarios](#5-siting-scenarios)
   - [5.1 Within-boundary (captive)](#51-within-boundary-captive)
@@ -369,7 +370,7 @@ Defaults: `ROOFTOP_PANEL_POWER_W_DC = 400 W`, `ROOFTOP_PANEL_AREA_M2 = 2.0`, `RO
 `preprocess_open_buildings.py` uses a 2 km buffer around each site centroid to assign buildings. For sites whose actual fence boundary is smaller, this over-includes adjacent residential structures, industrial parks, or open water. After preprocess, `load_buildings_for_pipeline()` applies a centroid-within-polygon filter against two polygon sources:
 
 1. **KEK polygons** (`outputs/data/raw/kek_polygons.geojson`, 25 sites). Boundaries from official OSS/KEK portal scrapes. Handles split-island KEKs (Tanjung Sauh has 6 fragments) by dissolving on `slug`.
-2. **Industrial site polygons** (`data/industrial_sites/site_polygons.geojson`, 9 sites as of 2026-04-28). OSM `landuse=industrial` and `man_made=works` polygons captured for non-KEK industrial plants where they exist: Indocement Palimanan, Cemindo Gemilang Bayah, Petrokimia Gresik, Ispat Indo Sidoarjo, Freeport Smelter Gresik, Semen Padang Indarung, Semen Baturaja, Krakatau Posco Cilegon, Gunung Raja Paksi Bekasi.
+2. **Industrial site polygons** (`data/industrial_sites/site_polygons.geojson`, 11 sites as of 2026-04-30). OSM `landuse=industrial` and `man_made=works` polygons captured for non-KEK industrial plants where they exist: Indocement Palimanan, Cemindo Gemilang Bayah, Petrokimia Gresik, Ispat Indo Sidoarjo, Freeport Smelter Gresik, Semen Padang Indarung, Semen Baturaja, Krakatau Posco Cilegon, Gunung Raja Paksi Bekasi, Semen Gresik City, Semen Kupang. Last 2 added 2026-04-30 after RV-eval surfaced sector_outlier_above findings — heavy residential bleed surviving RV11; polygon clip dropped Gresik 99.66 → 10.12 MWp and Kupang 33.42 → 6.54 MWp.
 
 Sites without a polygon pass through unchanged — their 2 km preprocess buffer remains the catchment, with RV11 (residential-pattern filter) at the building level providing the additional precision lever. Side effect: when the OSM polygon centroid is materially off from the dim_sites centroid (Ispat Indo at 10 km, Freeport at 9.8 km, Krakatau Posco at 3 km), the polygon centroid is also captured as a coordinate override in `data/industrial_sites/coordinate_overrides.csv` — the same audit-trail layer used for the GEM tracker miscodes (Tuban, Palimanan, Narogong).
 
@@ -391,11 +392,33 @@ Sites with zero buildings (18 of 81) are written to `sites_missing_buildings.csv
 
 ### 4A.7 Known limits
 
-- **GoB v3 vintage.** 2023-05. Post-2023 buildings are missing entirely (TODOS RV7 — refresh when v4 ships, or fan out to Microsoft / Overture / OSM as a second source per spec §13.10 invariant 4).
-- **Detection asymmetry.** Two visually-identical adjacent rooftops can produce different tile counts when GoB detected one cleanly and fragmented or missed the other (TODOS RV7).
-- **Industrial catchment radius.** 2 km buffer over-counts non-roof buildings around standalone cement/steel/nickel plants (TODOS RV8).
+- **GoB v3 vintage.** 2023-05. Post-2023 buildings are missing entirely (TODOS RV7 — multi-source fan-out via Microsoft GMLBF in progress; see §4A.7a).
+- **Detection asymmetry.** Two visually-identical adjacent rooftops can produce different tile counts when GoB detected one cleanly and fragmented or missed the other. Microsoft GMLBF, trained on a different model + imagery vintage, is expected to mostly cover the asymmetric cases.
+- **Industrial catchment radius.** 2 km buffer over-counts non-roof buildings around standalone cement/steel/nickel plants (TODOS RV8). RV-eval surfaces these as `sector_outlier_above`; the OSM-polygon clip in §4A.4 is the primary fix when coverage exists.
 - **Fragmented detection.** A single physical roof occasionally arrives as several `too_small` polygons; merging them before classification is an open option (TODOS RV9 — deferred pending visual validation of the merge tolerance).
 - **No manual validation pass yet.** Spec §16 calls for ±20% accuracy on 10 sample sites and ≥80% classifier accuracy on 100 manually-labelled buildings before declaring v4.1 final (Phase 4).
+
+### 4A.7a Multi-source fan-out (Microsoft GMLBF, in progress 2026-04-30)
+
+RV-eval's first triage rounds exhausted the easy bleed wins (Ispat Indo, Semen Gresik City, Semen Kupang) and exposed two structural blockers in the remaining `sector_outlier_above` and all 7 `zero_mwp_with_capacity` findings:
+
+1. **Plants GoB v3 just doesn't see** even when fully visible on satellite (Cemindo Gemilang Bayah pattern — kilns, silos, conveyors clearly present but GoB returns zero buildings).
+2. **Post-2023 buildouts** invisible because the GoB v3 imagery cutoff is May 2023 (Hongshi, IMIP/IWIP, post-2023 nickel IIA expansions).
+
+Both are addressed by **Microsoft Global ML Building Footprints (MS GMLBF)** — a second detection source trained on different imagery, refreshed periodically. Per spec §13.10 invariant 4, the integration is additive (new module + register it) thanks to invariants 1–6 already shipped in v4.1: prefixed `building_id`, `source_name`/`source_vintage` columns, single `load_buildings_for_pipeline()` entry point, null-safe confidence handling, vintage-driven (not hardcoded) cutoff logic.
+
+**Phased delivery:**
+
+| Phase | Status | Output |
+|-------|--------|--------|
+| 1. Download scaffolding | ✅ 2026-04-30 | `scripts/download_microsoft_buildings.py` (601 Indonesia tiles, ~4.7 GB gzipped, dry-run verified) |
+| 2. Preprocess + per-site filter | ⏳ pending | `scripts/preprocess_microsoft_buildings.py` writes parquet matching invariant schema |
+| 3. Source fan-out + dedup | ⏳ pending | New `src/pipeline/building_sources/ms_gmlbf.py`; `load_buildings_for_pipeline()` fans out + IoU-merges; `dim_sites.preferred_building_source` populated for the 8 post-2023 sites |
+| 4. Cross-source IoU eval | ⏳ pending | 4th RV-eval check (the one deferred at v4.1 ship) — flags sites where GoB and MS GMLBF strongly disagree (likely RV7-fixable) |
+
+**Dedup strategy.** Two buildings from different sources are merged if their geometry IoU exceeds `MS_DEDUP_IOU_THRESHOLD` (default 0.5). The retained row carries both source_names in a list (`["gob_v3", "ms_gmlbf"]`) for provenance audit; `confidence` is preferentially read from GoB when both have it. Buildings from only one source are kept as-is.
+
+**Targets.** Validates fix for: Cemindo Gemilang Bayah, Cemindo Gemilang Batam, Red Lion Hongshi Tonga, IPIP, IWIP, Buli IP, SBI Andalas, Pupuk Iskandar Muda Lhokseumawe, Conch West Kalimantan — the 9 currently-blocked sites where GoB returns zero or near-zero despite the plant being clearly visible on satellite.
 
 ### 4A.8 Automated accuracy eval
 
