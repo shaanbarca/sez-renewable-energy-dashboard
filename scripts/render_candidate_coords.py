@@ -34,11 +34,14 @@ MAPBOX_TOKEN = (
 )
 
 # Edit this dict per hunt. Each value is a list of (lat, lon, label) tuples.
-# The script renders a side-by-side grid per site_id key. Last hunt
-# (PIM final, 2026-04-28) left this as the example — overwrite freely.
+# The script renders a side-by-side grid per site_id key.
+# Current hunt (2026-04-30): Jakarta Prima Steel Industries — visual showed
+# centroid in residential, plant upper-left of frame. Two OSM candidates.
 CANDIDATES: dict[str, list[tuple[float, float, str]]] = {
-    "pim-final": [
-        (5.240, 97.050, "PIM-final-best"),
+    "jakarta-prima-steel-candidates": [
+        (-6.181643, 106.932331, "current-dimsites"),
+        (-6.1824, 106.9244, "Hong-Xin-Steel-osm"),
+        (-6.1758, 106.9261, "Cakratunggal-Steel-osm"),
     ],
 }
 
