@@ -38,17 +38,28 @@ MAPBOX_TOKEN = (
 # Current hunt (2026-04-30): Jakarta Prima Steel Industries — visual showed
 # centroid in residential, plant upper-left of frame. Two OSM candidates.
 CANDIDATES: dict[str, list[tuple[float, float, str]]] = {
-    # 2026-05-02 hunt: Red Lion Hongshi Tonga (4 Mt/yr cement, post-2023 build).
-    # Zoom-16 showed jetty extending NW → SE through (0.76, 117.77). Plant
-    # building must be inland (NW end). Trace back along jetty.
-    "hongshi-jetty-inland": [
-        (0.770, 117.755, "NW-along-jetty-inland"),
-        (0.775, 117.748, "further-NW-inland"),
-        (0.765, 117.760, "midway-along-jetty"),
+    # 2026-05-02 nickel polygon hunt — top 5 high-priority sites from
+    # polygon_coverage_priority.csv. IMIP found directly via Nominatim;
+    # the rest need visual verification of OSM candidates.
+    "ipip-vs-current": [
+        (-4.2912, 121.5584, "current-dimsites"),
+        (-4.1866, 121.6116, "ANTAM-Feronikel-osm"),
+    ],
+    "vdnip-nis-konawe": [
+        (-3.8902, 122.4379, "vdnip-current"),
+        (-3.8352, 122.4034, "nis-current"),
+        (-3.8255, 122.4788, "konawe-relation-14284935"),
+        (-3.8282, 122.4656, "delong-nickel-phase2"),
+    ],
+    "obi-candidates": [
+        (-1.5327, 127.4192, "obi-current"),
+        (-1.5451, 127.4328, "obi-2km-S-way150491132"),
+        (-1.5058, 127.3944, "obi-4km-NW-way150491120"),
+        (-1.5134, 127.4571, "obi-4km-E-way1282881067"),
     ],
 }
 
-ZOOM = 16  # higher = more zoomed in. Drop to 13 for region-scan, 17 for plant detail.
+ZOOM = 13  # higher = more zoomed in. Drop to 13 for region-scan, 17 for plant detail.
 
 
 def fetch_sat(lat: float, lon: float, zoom: int = ZOOM, w: int = 800, h: int = 600) -> Image.Image:

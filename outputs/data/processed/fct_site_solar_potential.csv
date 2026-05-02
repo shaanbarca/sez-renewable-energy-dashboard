@@ -1,29 +1,29 @@
 site_id,site_name,rooftop_kw_dc,rooftop_kw_ac,rooftop_solar_mwp_potential,total_building_footprint_m2,usable_roof_area_m2,type_filter_excluded_m2,building_count_total,building_count_standard_roof,building_count_elongated,building_count_tank_silo,building_count_conveyor,building_count_residential,building_count_other_excluded,building_data_confidence,building_data_reason_flagged,building_data_source,building_data_vintage
-industropolis-batang,Industropolis Batang,2234.12,1966.03,2.2341,30900.76,22341.22,3431.54,67,17,1,0,0,0,49,low,polygon_imagery_gap,gob_v3,2023-05
+industropolis-batang,Industropolis Batang,4416.33,3886.37,4.4163,73153.97,44163.32,23238.57,325,47,1,0,0,160,117,low,polygon_imagery_gap,gob_v3,2026-02-23
 batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,2636.1,2319.77,2.6361,32987.42,26361.02,5496.21,68,25,0,0,0,23,20,high,,gob_v3,2026-02-23
-bumi-serpong-damai,"Banten International Education, Technology, and Health",893.44,786.22,0.8934,10100.37,8934.37,870.67,17,3,0,0,0,2,12,medium,,gob_v3,2023-05
-setangga,Setangga,95.15,83.73,0.0951,3842.79,951.48,2891.32,48,2,0,0,0,0,46,medium,,gob_v3,2026-02-23
-tanjung-sauh,Tanjung Sauh,83.65,73.61,0.0837,2774.99,836.52,1734.69,25,3,0,0,0,13,9,medium,,gob_v3,2026-02-23
-kek-arun-lhokseumawe,Arun Lhokseumawe,13254.13,11663.64,13.2541,241909.53,132541.35,95089.06,771,121,7,17,0,380,246,low,polygon_imagery_gap,gob_v3,2026-02-23
-kek-sanur,Sanur,2087.15,1836.69,2.0872,33064.8,20871.52,10599.69,101,19,3,0,0,64,15,high,,gob_v3,2026-02-23
-kek-kendal,Kendal,11025.92,9702.81,11.0259,161500.07,110259.17,12719.93,236,39,1,0,0,61,135,medium,,gob_v3,2023-05
-kek-sorong,Sorong,140.91,124.0,0.1409,2654.82,1409.06,1245.76,25,5,0,0,0,0,20,low,polygon_imagery_gap,gob_v3,2026-02-23
-kek-singhasari,Singhasari,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,low,no_buildings_detected,,
-kek-morotai,Morotai,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,low,no_buildings_detected,,
-kek-gresik,Gresik,15832.92,13932.97,15.8329,191983.66,158329.22,27873.71,372,51,2,2,0,227,90,low,polygon_imagery_gap,gob_v3,2023-05
+bumi-serpong-damai,"Banten International Education, Technology, and Health",955.54,840.88,0.9555,10855.52,9555.45,1004.74,20,4,0,0,0,2,14,medium,,gob_v3,2023-05
+setangga,Setangga,146.29,128.73,0.1463,5305.69,1462.89,3842.8,61,4,0,0,0,0,57,medium,,gob_v3,2026-02-23
+tanjung-sauh,Tanjung Sauh,21.8,19.19,0.0218,810.77,218.02,592.74,6,1,0,0,0,0,5,medium,,gob_v3,2023-05
+kek-arun-lhokseumawe,Arun Lhokseumawe,55293.16,48657.98,55.2932,964190.62,552931.57,362097.06,3695,893,20,17,0,1978,787,medium,,gob_v3,2026-02-23
+kek-sanur,Sanur,3200.37,2816.33,3.2004,46757.58,32003.7,12442.36,133,29,3,0,0,70,31,high,,gob_v3,2026-02-23
+kek-kendal,Kendal,13597.89,11966.14,13.5979,192649.79,135978.92,15392.52,280,45,4,0,0,71,160,medium,,gob_v3,2023-05
+kek-sorong,Sorong,171.4,150.83,0.1714,5312.41,1713.95,3448.85,54,6,0,0,0,3,45,low,polygon_imagery_gap,gob_v3,2026-02-23
+kek-singhasari,Singhasari,513.02,451.46,0.513,7709.72,5130.2,1942.56,27,8,0,0,0,7,12,medium,,gob_v3,2026-02-23
+kek-morotai,Morotai,0.0,0.0,0.0,1734.54,0.0,1734.54,35,0,0,0,0,0,35,low,polygon_imagery_gap,gob_v3,2026-02-23
+kek-gresik,Gresik,16442.09,14469.04,16.4421,200780.64,164420.89,30579.02,411,56,2,2,0,232,119,low,polygon_imagery_gap,gob_v3,2023-05
 kek-likupang,Likupang,38.95,34.27,0.0389,2133.33,389.46,1598.78,27,1,0,0,0,13,13,medium,,gob_v3,2023-05
-kek-bitung,Bitung,16875.49,14850.43,16.8755,340064.99,168754.87,155369.86,1932,161,10,0,0,1551,210,high,,gob_v3,2023-05
-kek-palu,Palu,4972.9,4376.15,4.9729,104717.87,49728.98,48822.25,632,40,2,0,0,442,148,low,polygon_imagery_gap,gob_v3,2023-05
-kek-kura-kura,Kura Kura Bali,274.3,241.39,0.2743,4781.02,2743.02,2037.99,44,6,0,1,0,3,34,medium,,gob_v3,2026-02-23
-kek-galang-batang,Galang Batang,9972.19,8775.53,9.9722,133893.53,99721.9,18095.73,292,97,26,0,0,67,102,low,polygon_imagery_gap,gob_v3,2023-05
-kek-maloy-batuta,Maloy Batuta Trans Kalimantan,159.94,140.74,0.1599,4836.22,1599.36,1736.07,33,2,0,0,0,5,26,low,polygon_imagery_gap,gob_v3,2026-02-23
+kek-bitung,Bitung,18987.67,16709.15,18.9877,391195.14,189876.7,183912.6,2239,197,11,0,0,1761,270,high,,gob_v3,2023-05
+kek-palu,Palu,6123.91,5389.04,6.1239,126181.36,61239.09,57521.11,753,57,2,0,0,507,187,low,polygon_imagery_gap,gob_v3,2023-05
+kek-kura-kura,Kura Kura Bali,274.3,241.39,0.2743,5137.54,2743.02,2394.52,49,6,0,1,0,3,39,medium,,gob_v3,2026-02-23
+kek-galang-batang,Galang Batang,11258.34,9907.34,11.2583,175841.46,112583.38,45419.46,663,123,26,0,0,161,353,low,polygon_imagery_gap,gob_v3,2026-02-23
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,159.94,140.74,0.1599,5448.45,1599.36,2348.3,44,2,0,0,0,5,37,low,polygon_imagery_gap,gob_v3,2026-02-23
 kek-nongsa,Nongsa,4676.71,4115.51,4.6767,92521.15,46767.11,42491.0,370,49,1,0,0,291,29,high,,gob_v3,2026-02-23
-kek-mandalika,Mandalika,4264.21,3752.5,4.2642,139923.84,42642.07,86881.72,1043,69,4,2,0,801,167,medium,,gob_v3,2026-02-23
+kek-mandalika,Mandalika,5059.57,4452.43,5.0596,180388.88,50595.75,118025.21,1527,89,5,2,0,1020,411,medium,,gob_v3,2026-02-23
 kek-batam-aero-technic,Batam Aero Technic,5096.5,4484.92,5.0965,60810.51,50964.98,1152.57,23,11,0,0,0,0,12,high,,gob_v3,2023-05
-kek-tanjung-kelayang,Tanjung Kelayang,1742.87,1533.73,1.7429,25339.16,17428.73,7122.88,114,32,1,0,0,52,29,medium,,gob_v3,2023-05
-kek-lido,Lido,7046.09,6200.56,7.0461,212813.48,70460.87,138059.09,1431,125,3,0,0,1206,97,medium,,gob_v3,2026-02-23
-kek-tanjung-lesung,Tanjung Lesung,1220.16,1073.74,1.2202,54626.77,12201.56,40085.42,428,24,2,0,0,341,61,low,polygon_imagery_gap,gob_v3,2026-02-23
-kek-sei-mangkei,Sei Mangkei,8695.13,7651.72,8.6951,246123.29,86951.31,139654.62,1111,100,4,11,0,864,132,medium,,gob_v3,2023-05
+kek-tanjung-kelayang,Tanjung Kelayang,1742.87,1533.73,1.7429,25412.46,17428.73,7196.18,115,32,1,0,0,52,30,medium,,gob_v3,2023-05
+kek-lido,Lido,8386.45,7380.08,8.3864,265033.46,83864.5,175345.62,1843,154,7,0,0,1539,143,medium,,gob_v3,2026-02-23
+kek-tanjung-lesung,Tanjung Lesung,1812.44,1594.95,1.8124,105926.07,18124.41,84054.13,1002,41,2,0,0,736,223,low,polygon_imagery_gap,gob_v3,2026-02-23
+kek-sei-mangkei,Sei Mangkei,8891.74,7824.73,8.8917,249891.09,88917.37,141115.31,1134,102,4,11,0,864,153,medium,,gob_v3,2023-05
 semen-gresik-tuban,Semen Gresik Tuban,44373.28,39048.48,44.3733,689613.12,443732.78,170354.09,2365,264,15,1,2,1564,519,medium,,gob_v3,2026-02-23
 indocement-citeureup,Indocement Citeureup,173583.06,152753.09,173.5831,3566880.12,1735830.56,1693115.64,17995,1332,55,15,5,16195,393,medium,,gob_v3,2023-05
 semen-padang-indarung,Semen Padang Indarung,22438.74,19746.09,22.4387,350454.3,224387.42,100483.5,1147,155,23,1,6,888,74,medium,,gob_v3,2023-05
@@ -65,10 +65,10 @@ jakarta-prima-steel-industries,Jakarta Prima Steel Industries,251140.9,221004.0,
 ispat-indo-sidoarjo,Ispat Indo Sidoarjo,10055.29,8848.65,10.0553,111624.12,100552.87,9545.35,130,35,0,0,0,65,30,medium,,gob_v3,2023-05
 virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),2324.74,2045.77,2.3247,58208.54,23247.37,31036.38,419,39,11,0,0,155,214,medium,,gob_v3,2023-05
 bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),24543.6,21598.37,24.5436,484426.59,245436.03,224612.92,2464,124,8,0,0,2120,212,medium,,gob_v3,2023-05
-obi-island-industrial-park,Obi Island Industrial Park,45082.14,39672.29,45.0821,648500.37,450821.44,144757.0,2006,333,61,0,2,1139,471,medium,,gob_v3,2023-05
-indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),1409.28,1240.17,1.4093,59231.13,14092.81,44468.35,434,32,0,0,0,272,130,medium,,gob_v3,2026-02-23
+obi-island-industrial-park,Obi Island Industrial Park,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,low,no_buildings_detected,,
+indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),12305.6,10828.93,12.3056,153726.24,123056.01,24926.86,341,100,1,0,0,199,41,medium,,gob_v3,2026-02-23
 nusantara-industri-sejati,Nusantara Industri Sejati,777.36,684.08,0.7774,51665.84,7773.6,42713.18,442,20,0,0,0,265,157,medium,,gob_v3,2023-05
-indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),76111.21,66977.86,76.1112,984850.18,761112.1,104301.07,1539,337,99,11,23,717,352,medium,,gob_v3,2023-05
+indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),75753.62,66663.19,75.7536,966798.4,757536.22,90252.45,1408,328,98,11,23,599,349,medium,,gob_v3,2023-05
 stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,low,no_buildings_detected,,
 industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),0.0,0.0,0.0,98.5,0.0,98.5,3,0,0,0,0,0,3,medium,,gob_v3,2026-02-23
 buli-industrial-park,Buli Industrial Park,2626.69,2311.48,2.6267,43982.15,26266.87,16335.95,197,48,0,0,0,68,81,medium,,gob_v3,2026-02-23
