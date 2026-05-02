@@ -1,7 +1,7 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-04-28 (rooftop solar v4.1 Phase 2/3 shipped; centroid + threshold + residential triage active — see "Active Work Plans" below).
+Last updated: 2026-05-02 (rooftop solar v4.1 Phase 1 merged to main as PR #21; Phase 2 in progress on `feat/v4.1-rooftop-phase-2`).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
 
@@ -11,7 +11,7 @@ Last updated: 2026-04-28 (rooftop solar v4.1 Phase 2/3 shipped; centroid + thres
 
 | Plan doc | Target | Phase | Branch | Status |
 |---|---|---|---|---|
-| [docs/rooftop_solar_potential_feature_spec.md](docs/rooftop_solar_potential_feature_spec.md) | **v4.1** | Phase 2 ✅ / Phase 3 ✅ partial / Phase 4 ⏳ | `feat/v4.1-rooftop-phase-1` | 9 unpushed commits. Pipeline + classifier + tile gen + frontend overlay + KEK polygon clip + GoB threshold drop + 2 centroid overrides shipped. Active triage: residential bleed + 3 outstanding centroids + RV7 (plants GoB doesn't see). Phase 4 validation pending. |
+| [docs/rooftop_solar_potential_feature_spec.md](docs/rooftop_solar_potential_feature_spec.md) | **v4.1** | Phase 1 ✅ merged / Phase 2 in progress / Phase 4 ⏳ | `feat/v4.1-rooftop-phase-2` | Phase 1 (PR #21, commit `6c49302`) shipped: MS GMLBF multi-source merge + RV-eval framework + 686 tests. Phase 2 active items: F10 sliders (RV15), polygon hunts (RV-eval-triage continuation), tourism KEK tightening (RV1), fragmented detection merge (RV9), Phase 4 manual validation (RV16). |
 
 ### Rooftop solar v4.1 — phase-by-phase progress
 
@@ -60,7 +60,7 @@ These are post-spec items to add to v4.1 implementation OR defer per priority. S
 | RV-eval-triage | **Iterative bleed-fix triage** | medium (in progress 2026-04-30) | First triage round shipped 2 polygons (Semen Gresik City way/1381564788, Semen Kupang way/141462830) — Gresik dropped 99.66 → 10.12 MWp, Kupang 33.42 → 6.54 MWp. Eval-driven `scripts/visual_sanity_check.py` is now the single source of truth for what to triage next. Remaining `sector_outlier_above` findings have **structural blockers**: (a) **Bantaeng IIA** — centroid in bay (over water), partial RV7 buildout post-2023; (b) **Jakarta Prima Steel Industries** — GEM tracker name doesn't match OSM; 2 candidate steel mills (Hong Xin way/436180532, Cakratunggal way/873115069) need GEM source URL to disambiguate; (c/d) **Cemindo Gemilang Batam** + **Conch West Kalimantan** — no OSM polygon coverage at all in 2 km radius (verified Nominatim + Overpass), bleed from adjacent industrial / linear riverside village. Easy bleed wins exhausted; remaining work needs MS GMLBF (RV7) or manual polygon trace. |
 | RV15 | **F10 user sliders (panel power, panel area, layout density)** | medium | Spec §3.6.x F10. Expose `ROOFTOP_PANEL_POWER_W_DC`, `ROOFTOP_PANEL_AREA_M2`, `ROOFTOP_LAYOUT_DENSITY` to AssumptionsPanel. No backend change needed — already parameters of the §5.3 formula. ~half day frontend work + tooltip copy. |
 | RV16 | **Phase 4 validation pass (10 sites ±20%, 100 buildings ≥80%)** | high (spec-required to declare v4.1 final) | Spec §16: manual visual validation on 10 sample sites with ±20% tolerance, plus §14 classifier accuracy ≥80% on 100 manually-labeled buildings. Needs human eyes on satellite imagery. RV13 auto-validator + the `scripts/visual_sanity_check.py` renderer make this faster. |
-| RV17 | **19 test files for the rooftop pipeline** | medium | Spec §16 calls for 19 test files; zero written so far. Every change shipped right now (KEK clip, threshold, classifier calibration, layer toggle, override layer) is load-bearing on manual eyeballing. Locks in current behavior so the next session can't silently break it. ~1–2 hrs mechanical work. |
+| RV17 | ~~**Test files for the rooftop pipeline**~~ ✅ CLOSED 2026-05-02 (commit `91ef4e9`) | medium | Spec §16 called for 19 test files; we shipped 3 focused files (`tests/test_buildings_classifier.py` 19 tests, `tests/test_residential_clusters.py` 8, `tests/test_polygon_clip.py` 10) covering the highest-leverage untested functions. Combined with the existing `test_merge_sources.py` (8) and `test_eval_rooftop_accuracy.py` (22, +4 cross-source) = **67 new tests this branch**, total 686 passing. Critical-path coverage ≈95% on the 5 prompt-flagged paths. The "19 files" target was overshoot; 3 files cover the load-bearing logic. Still-untested-direct (exercised E2E only): `aggregate_site_buildings`, `compute_confidence_flag` (6 unit-testable branches — earmarked for Phase 2), `tile_rooftop`, scripts. |
 
 ---
 

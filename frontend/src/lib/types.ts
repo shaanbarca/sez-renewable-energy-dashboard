@@ -17,6 +17,11 @@ export interface UserAssumptions {
   hybrid_solar_share?: number | null;
   cbam_certificate_price_eur: number;
   cbam_eur_usd_rate: number;
+  // V4.1 RV15: rooftop §5.3 sliders. Recompute happens at request time
+  // in /api/scorecard against `usable_roof_area_m2` from the rooftop fct.
+  rooftop_panel_power_w_dc: number;
+  rooftop_panel_area_m2: number;
+  rooftop_layout_density: number;
 }
 
 export interface UserThresholds {
@@ -332,7 +337,7 @@ export interface SliderConfig {
   step: number;
   default?: number;
   label: string;
-  unit: string;
+  unit?: string;
   description: string;
 }
 
@@ -350,6 +355,12 @@ export interface DefaultsResponse {
       default: number;
       marks: Record<string, string>;
       description: string;
+    };
+    // V4.1 RV15: rooftop §5.3 sliders (panel power, area, layout density).
+    rooftop?: {
+      panel_power_w_dc: SliderConfig;
+      panel_area_m2: SliderConfig;
+      layout_density: SliderConfig;
     };
   };
 }

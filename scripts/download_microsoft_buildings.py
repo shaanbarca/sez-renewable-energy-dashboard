@@ -69,7 +69,9 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
 from tqdm import tqdm
+from urllib3.util.retry import Retry
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = REPO_ROOT / "data" / "microsoft_buildings"
@@ -78,8 +80,22 @@ INDEX_URL = "https://minedbuildings.z5.web.core.windows.net/global-buildings/dat
 INDEX_CACHE = DATA_DIR / "dataset-links.csv"
 
 USER_AGENT = "eez-rooftop-research/1.0 (shaan.b1223@gmail.com)"
+# Retry transient failures: 5xx server errors, 429 rate-limit, connection
+# resets. With ~600 tiles across 4-8 workers, even a 0.1% blip rate causes
+# painful re-runs without retry — and Microsoft's CDN does occasionally 503.
+# Backoff: 1s, 2s, 4s (3 attempts beyond the initial request).
+RETRY_STRATEGY = Retry(
+    total=3,
+    backoff_factor=1.0,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset(["GET", "HEAD"]),
+    raise_on_status=False,
+)
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": USER_AGENT})
+_ADAPTER = HTTPAdapter(max_retries=RETRY_STRATEGY)
+SESSION.mount("http://", _ADAPTER)
+SESSION.mount("https://", _ADAPTER)
 
 
 def _parse_size_total(s: pd.Series) -> float:

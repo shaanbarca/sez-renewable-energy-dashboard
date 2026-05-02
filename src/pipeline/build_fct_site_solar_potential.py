@@ -212,6 +212,16 @@ def merge_sources(
     if primary.crs is not None and secondary.crs is not None and primary.crs != secondary.crs:
         secondary = secondary.to_crs(primary.crs)
 
+    # Drop zero-area / null secondary geometries up front. Avoids the
+    # asymmetric handling where a zero-area row would skip the dedup
+    # check (continue) but still pass through into the output. Real
+    # building footprints are never 0 m² — these are upstream
+    # pre-processing corruption signals.
+    sec_areas = secondary.geometry.area.to_numpy()
+    secondary = secondary.loc[(sec_areas > 0) & secondary.geometry.notna()]
+    if secondary.empty:
+        return primary
+
     primary_cols = list(primary.columns)
     parts: list[gpd.GeoDataFrame] = [primary]
 
@@ -231,8 +241,6 @@ def merge_sources(
         sec_geoms = sec_grp.geometry.to_numpy()
         for i, sg in enumerate(sec_geoms):
             sa = sg.area
-            if sa <= 0:
-                continue
             # STRtree.query returns positional indices into prim_geoms.
             cand_idx = tree.query(sg)
             if len(cand_idx) == 0:

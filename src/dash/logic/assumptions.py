@@ -26,6 +26,9 @@ from src.assumptions import (
     PLAN_LATE_POST2030_SHARE_THRESHOLD,
     PROJECT_VIABLE_MIN_MWP,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
+    ROOFTOP_LAYOUT_DENSITY,
+    ROOFTOP_PANEL_AREA_M2,
+    ROOFTOP_PANEL_POWER_W_DC,
     SUBSTATION_UTILIZATION_PCT,
     TECH006_CAPEX_USD_PER_KW,
     TECH006_FOM_USD_PER_KW_YR,
@@ -71,6 +74,16 @@ class UserAssumptions:
     cbam_certificate_price_eur: float = CBAM_CERTIFICATE_PRICE_EUR_TCO2
     cbam_eur_usd_rate: float = CBAM_EUR_USD_RATE
 
+    # V4.1 RV15: rooftop §5.3 footprint→MWp parameters. The fct_site_solar_potential
+    # CSV stores `usable_roof_area_m2` (post-§14-classifier weighted area); the
+    # scorecard endpoint recomputes rooftop_kw_dc / rooftop_kw_ac /
+    # rooftop_solar_mwp_potential at request time using these values, so a
+    # tenant can flex panel power, panel area, and layout density interactively
+    # without re-running the build pipeline.
+    rooftop_panel_power_w_dc: float = ROOFTOP_PANEL_POWER_W_DC
+    rooftop_panel_area_m2: float = ROOFTOP_PANEL_AREA_M2
+    rooftop_layout_density: float = ROOFTOP_LAYOUT_DENSITY
+
     @property
     def wacc_decimal(self) -> float:
         return self.wacc_pct / 100.0
@@ -103,6 +116,9 @@ class UserAssumptions:
             "grid_benchmark_usd_mwh": self.grid_benchmark_usd_mwh,
             "cbam_certificate_price_eur": self.cbam_certificate_price_eur,
             "cbam_eur_usd_rate": self.cbam_eur_usd_rate,
+            "rooftop_panel_power_w_dc": self.rooftop_panel_power_w_dc,
+            "rooftop_panel_area_m2": self.rooftop_panel_area_m2,
+            "rooftop_layout_density": self.rooftop_layout_density,
         }
         if self.bess_sizing_hours_override is not None:
             d["bess_sizing_hours_override"] = self.bess_sizing_hours_override
