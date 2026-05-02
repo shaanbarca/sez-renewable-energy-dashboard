@@ -411,14 +411,32 @@ Both are addressed by **Microsoft Global ML Building Footprints (MS GMLBF)** —
 
 | Phase | Status | Output |
 |-------|--------|--------|
-| 1. Download scaffolding | ✅ 2026-04-30 | `scripts/download_microsoft_buildings.py` (601 Indonesia tiles, ~4.7 GB gzipped, dry-run verified) |
-| 2. Preprocess + per-site filter | ⏳ pending | `scripts/preprocess_microsoft_buildings.py` writes parquet matching invariant schema |
-| 3. Source fan-out + dedup | ⏳ pending | New `src/pipeline/building_sources/ms_gmlbf.py`; `load_buildings_for_pipeline()` fans out + IoU-merges; `dim_sites.preferred_building_source` populated for the 8 post-2023 sites |
-| 4. Cross-source IoU eval | ⏳ pending | 4th RV-eval check (the one deferred at v4.1 ship) — flags sites where GoB and MS GMLBF strongly disagree (likely RV7-fixable) |
+| 1. Download scaffolding | ✅ 2026-04-30 | `scripts/download_microsoft_buildings.py` (601 Indonesia tiles, 4.92 GB confirmed, ~12 min download) |
+| 2. Preprocess + per-site filter | ✅ 2026-05-02 | `scripts/preprocess_microsoft_buildings.py` → `data/processed/sites_buildings_microsoft.parquet` (267,735 buildings, 78/81 sites covered, 17 min) |
+| 3. Source fan-out + dedup | ✅ 2026-05-02 | `merge_sources()` in `build_fct_site_solar_potential.py` (per-site STRtree IoU dedup); `MS_DEDUP_IOU_THRESHOLD = 0.5` in assumptions; 8 unit tests pass |
+| 4. Cross-source IoU eval | ✅ 2026-05-02 | New `ms_gmlbf_reveals_buildings` info-tier flag in RV-eval (`scripts/eval_rooftop_accuracy.py::check_cross_source_audit`); 4 unit tests pass |
+| 5. Integrated rebuild | ✅ 2026-05-02 | First end-to-end run; results below |
 
-**Dedup strategy.** Two buildings from different sources are merged if their geometry IoU exceeds `MS_DEDUP_IOU_THRESHOLD` (default 0.5). The retained row carries both source_names in a list (`["gob_v3", "ms_gmlbf"]`) for provenance audit; `confidence` is preferentially read from GoB when both have it. Buildings from only one source are kept as-is.
+**Dedup strategy.** Per-site STRtree on GoB polygons; for each MS polygon, query for overlapping GoB polygons and compute IoU. If max IoU > `MS_DEDUP_IOU_THRESHOLD` (default 0.5), MS row is dropped (GoB wins as primary because it carries a confidence score and is the established input to the §14 classifier). Otherwise the MS row is kept as net-new. Per-site isolation prevents false-dedup across nearby sites. Sites with no GoB rows but MS rows present (the Cemindo Bayah pattern) get full MS coverage.
 
-**Targets.** Validates fix for: Cemindo Gemilang Bayah, Cemindo Gemilang Batam, Red Lion Hongshi Tonga, IPIP, IWIP, Buli IP, SBI Andalas, Pupuk Iskandar Muda Lhokseumawe, Conch West Kalimantan — the 9 currently-blocked sites where GoB returns zero or near-zero despite the plant being clearly visible on satellite.
+**Phase 5 results.** GoB 337,101 + MS 267,735 → 549,377 merged → 292,197 after fence-boundary polygon clip. Total rooftop bumped **2,396 → 2,743 MWp (+14.5%)**. RV-eval actionable findings: **11 → 7 (-36%)**. Zero-MWp findings: **7 → 2 (-71%)**.
+
+**5 of 7 RV7 cases unblocked:**
+
+| Site | Before (MWp) | After (MWp) | Buildings now counted |
+|---|---|---|---|
+| Cemindo Gemilang Bayah | 0.00 | 10.74 | 67 |
+| Pupuk Iskandar Muda Lhokseumawe | 0.00 | 13.84 | 230 |
+| SBI Andalas Lhoknga | 0.00 | 5.94 | 44 |
+| Indonesia Pomalaa Industry Park (IPIP) | 0.00 | 1.41 | 32 |
+| Buli Industrial Park | 0.00 | 2.63 | 48 |
+
+**2 still zero (both sources predate plant):**
+
+- **Red Lion Hongshi Tonga** (4 Mt/yr cement, post-2023 build): plant in Desa Selangkau, Kaliorang per cemnet.com, but commissioned late 2023. Both GoB v3 (May 2023 cutoff) and MS GMLBF imagery vintage predate it. Fix path: centroid override + wait for next imagery refresh.
+- **IWIP** (Industrial Weda Bay nickel mega-buildout): post-2023 nickel processing expansion, both sources missed. Same fix path.
+
+54 sites flagged in info-tier (🟢 `ms_gmlbf_reveals_buildings`) as net-new MS GMLBF buildings — direct evidence that the multi-source path is closing GoB's structural gaps. Notable additions: Cemindo Bayah +1184, IPIP +434, Buli +197, Cemindo Batam +1348, Conch West Kalimantan +892. These were either fully RV7-blocked or `sector_outlier_above` (false-bleed flags from MS-only buildings being absent).
 
 ### 4A.8 Automated accuracy eval
 
