@@ -57,7 +57,7 @@ At the current default assumptions, a meaningful slice of the 81 sites flip to s
 | DFI Infrastructure Investor | **87%** | V3.1 grid connectivity + capacity + transmission cost; V3.2 `grid_investment_needed_usd`; V3.3 honest storage economics; V3.4 panel degradation; V4.1: 81-site screening universe spans the actual decarbonization opportunity, not just KEKs | BPP is FY2020 vintage (Gap priority 4) |
 | Policy Maker *(primary)* | **87%** | 14 action flags across 4 energy modes; V3.3 firm solar coverage; V4.1 sector-level aggregation (SectorSummaryChart) + 81 sites with site_type + sector columns; industrial CO₂ now modelable site-by-site for steel/cement/aluminium/fertilizer/nickel; ammonia + petrochemical scaffolding wired pending M28/M29 | `reliability_req` still type-based proxy for KEK/KI; sector-based default for standalone/cluster |
 | IPP / Solar Developer | **85%** | Buildability + resource screening solid; V3.3 bridge-hours BESS + RTE; V4.1 pipeline now includes standalone industrial plants with real per-plant demand (TPA × intensity), which makes offtake sizing concrete | Power factor not in capacity assessment (~10-15% overstatement, rarely changes traffic light); ammonia/petrochem merchant offtake pending M28/M29 |
-| Industrial Investor / KEK Tenant | **85%** | I-4 tariff + BPP (FY2020); V3.1 grid infra; CBAM Layer 3 now 68/81 sites exposed; ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (M28); steel/cement plant proximity (direct + 50km); hybrid optimization; V4.1 side-by-side comparison now possible between a KEK and a nearby standalone plant | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data |
+| Industrial Investor / KEK Tenant | **85%** | I-4 tariff + BPP (FY2020); V3.1 grid infra; CBAM Layer 3 now 68/81 sites exposed; ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (M28); steel/cement plant proximity (direct + 50km); hybrid optimization; V4.1 side-by-side comparison now possible between a KEK and a nearby standalone plant; **V4.1 onsite rooftop solar potential per site** (multi-source GoB+MS GMLBF, RV-eval-monitored, 78/81 covered, 2,743 MWp fleet) — direct Scope 2 / CBAM hedge lever | BPP is FY2020 vintage; no PLN SAIDI/SAIFI data; rooftop project NPV not yet modeled per-tenant (TODOS RV15) |
 | Green Industry Roadmap Planner | **87%** | 81-site screening universe covering the actual decarbonization problem (25 KEK + 32 cement + 7 steel + 10 nickel IIA + 2 aluminium + 5 fertilizer); Sector Summary chart + sector dropdown in ranked table; Scenario Compare bottom tab + per-site Flip tab; CBAM trajectory honest post-M30 (RE-addressable fraction bounds Scope 2 savings); pipeline-driven site selection (GEM/CGSP trackers) makes outputs reproducibly citable; Zenodo DOI | `pathway_flag` synthesis column not yet built; sectoral summary PDF export not yet built; ammonia/petrochem rows pending M28/M29 |
 
 ---
@@ -403,12 +403,14 @@ Ranked table CSV (top 10 sites) for BD pipeline tracker. KEK Scorecard screensho
 ## Persona 5: Industrial Investor / KEK Tenant
 
 **Role:** Site selection manager or country director, industrial manufacturer or smelter operator (e.g., nickel processing, petrochemicals, automotive components, data center operator)
-**Context:** Deciding which KEK to locate a factory or processing facility in. This persona does **not** build solar — they buy electricity from PLN at the regulated industrial tariff. Their decision is driven by electricity cost, reliability, and increasingly by green energy credentials (ESG requirements from buyers and investors).
-**Primary question:** *Which KEK offers the lowest risk for electricity cost and reliability over the next 10–15 years — and which ones will have the greenest power mix?*
+**Context:** Deciding which KEK or industrial plant location to operate from. This persona buys electricity from PLN at the regulated industrial tariff but increasingly explores **onsite rooftop solar** to hedge tariff risk, meet ESG/Scope 2 commitments, and reduce CBAM exposure. Their decision is driven by electricity cost, reliability, green energy credentials (ESG requirements from buyers and investors), and the physical feasibility of self-generation at the site.
+**Primary question:** *Which KEK or plant location offers the lowest risk for electricity cost and reliability over the next 10–15 years, the greenest power mix, and the largest onsite rooftop solar potential to hedge tariff risk and meet ESG/CBAM commitments?*
 
 ### What only this dashboard shows them
 
 All KEKs pay the same PLN industrial tariff today — the differentiation is *risk*. This dashboard exposes the subsidy gap (BPP vs. tariff) by region. In regions like Papua, PLN's actual cost of supply is $133/MWh but the tariff is $63/MWh — a $70/MWh subsidy that is a future tariff hike waiting to happen. KEKs in regions where solar could lower the BPP are safer 15-year bets for electricity cost stability. For ESG-sensitive operators — nickel processors selling to EV battery supply chains, data centers with carbon commitments — the `green_share_geas` metric shows which KEKs will have the greenest power mix by 2030. The captive power context shows existing coal plants and nickel smelters within 50km, many subject to Perpres 112/2022 phase-out by 2050 — a regulatory risk (and transition opportunity) for co-located industry. No other tool maps subsidy exposure, green energy trajectory, and captive power regulatory risk at KEK level for industrial site selection.
+
+**v4.1 onsite rooftop potential.** The dashboard now estimates the per-site rooftop solar nameplate ceiling (`rooftop_solar_mwp_potential`) from satellite-derived building footprints (Google Open Buildings v3 + Microsoft GMLBF, merged via per-site IoU dedup). Total fleet ceiling is 2,743 MWp across 78/81 sites. For a tenant deciding between two CBAM-exposed locations with similar tariffs, the one with 30 MWp of ready rooftop area gives a direct lever to cut Scope 2 emissions, hedge against future I-4 tariff hikes, and stack against the rising CBAM cost trajectory (€80/tCO₂ × phase-out schedule, $0.35/tCO₂ in 2026 → $76/tCO₂ in 2034). Self-generation behind the meter avoids the wheeling problem entirely — no PPA, no grid permit, panels on your own roof.
 
 **V2 note:** This persona was implicit in V1 but not separately modeled. They are the demand side of the equation — the factories and smelters that create the industrial electricity demand the dashboard quantifies.
 
@@ -416,7 +418,7 @@ All KEKs pay the same PLN industrial tariff today — the differentiation is *ri
 
 **Forward-looking note on wheeling:** If PLN ever adopts grid wheeling for industrial consumers (legally authorized but rejected in practice), KEKs near strong solar potential and `grid_ready` substations would benefit first. This makes `grid_integration_category` a forward-looking site selection criterion, not just an infrastructure gap indicator.
 
-### Readiness — 80%
+### Readiness — 85%
 
 **What works:**
 - PLN I-4 tariff ($63.08/MWh) available as baseline electricity cost
@@ -432,11 +434,13 @@ All KEKs pay the same PLN industrial tariff today — the differentiation is *ri
 - ✅ V3.6: **Hybrid solar+wind optimization** — 3-way technology comparison (solar, wind, hybrid) per KEK. `best_re_technology` selects the lowest all-in LCOE.
 - ✅ V3.4: **Panel degradation modeled** — midpoint approximation (0.5%/yr, ~7% LCOE increase).
 - ✅ V3.6: **User-adjustable CBAM parameters** — certificate price (€30-150) and EUR/USD rate sliders in AssumptionsPanel.
+- ✅ V4.1: **Onsite rooftop solar potential per site** — `rooftop_solar_mwp_potential` derived from multi-source building footprints (GoB v3 + MS GMLBF, IoU-merged at 0.5), §14 geometric classifier (7 categories), RV11 residential filter, OSM fence-boundary clip. 78/81 sites covered, 2,743 MWp fleet ceiling. Direct Scope 2 reduction lever for ESG/CBAM-exposed tenants. Quality monitored by automated RV-eval (7 flag types, 6 actionable findings on current pipeline). See METHODOLOGY §4A and `docs/rooftop_solar_potential_feature_spec.md`.
 
 **What's missing:**
 - **BPP is FY2020 vintage** — more recent PLN Statistik 2024 values would strengthen subsidy exposure analysis (Gap priority 4)
 - **No PLN SAIDI/SAIFI data** — actual grid reliability by region is not available. Substation distance, capacity, and `capacity_assessment` are proxies only.
 - **KEK operational status is coarse** — doesn't distinguish operating KEKs with tenants from greenfield development
+- **Rooftop economics not modeled per-tenant** — `rooftop_solar_mwp_potential` is a physical ceiling, not a project NPV. F10 user sliders for panel power / panel area / layout density are deferred to Phase 2 (TODOS RV15)
 
 ### Key data needs
 
@@ -447,6 +451,8 @@ All KEKs pay the same PLN industrial tariff today — the differentiation is *ri
 - `dist_kek_to_nearest_substation_km` — proxy for grid connection quality and outage restoration time
 - `nearest_substation_capacity_mva` — can PLN's local grid handle industrial-scale load expansion?
 - `grid_cost_usd_mwh` — current I-4 tariff (nationally uniform, but useful as baseline)
+- `rooftop_solar_mwp_potential` (V4.1) — onsite rooftop nameplate ceiling, the direct Scope 2 reduction lever for ESG / CBAM-exposed tenants
+- `cbam_cost_2030_usd_per_tonne` and `cbam_savings_2030_usd_per_tonne` — for CBAM-exposed sectors (cement, steel, fertilizer, aluminium, nickel), the dollar value of every tonne of CO₂ that onsite rooftop solar can avoid
 
 ### User journey
 
@@ -455,7 +461,8 @@ All KEKs pay the same PLN industrial tariff today — the differentiation is *ri
 3. **Check grid reliability proxies** — `dist_kek_to_nearest_substation_km` and `nearest_substation_capacity_mva`. Continuous-process industries (smelters, chemicals, data centers) cannot tolerate frequent outages. KEKs close to large substations offer better reliability prospects.
 4. **Assess green credentials** — ESG-conscious manufacturers and their buyers increasingly require renewable energy sourcing. `grid_ready` KEKs near strong solar resource offer a credible green pathway. Check `green_share_geas_2030_pct` for the regional renewable trajectory.
 5. **Check `plan_late` flag** — KEKs where RUPTL grid improvements arrive after 2030 face infrastructure risk. An industrial investor committing to a 15-year facility needs confidence that grid capacity will keep pace.
-6. **Export comparison matrix** — CSV with all KEKs ranked by risk factors (BPP gap, substation proximity, green share, plan_late) for site selection decision. Differentiated by risk, not current price.
+6. **Quantify onsite rooftop hedge** (V4.1) — for each shortlisted location, read `rooftop_solar_mwp_potential` to see the physical Scope 2 lever. A 30 MWp rooftop ceiling on a CBAM-exposed plant means tens of millions of dollars of avoided CBAM cost over the 2026–2034 trajectory, plus tariff-hedge value. For CBAM sectors, multiply rooftop MWp by the CF and the `cbam_savings_2030_usd_per_tonne` to estimate annual exposure relief.
+7. **Export comparison matrix** — CSV with all sites ranked by risk factors (BPP gap, substation proximity, green share, plan_late, rooftop MWp) for site selection decision. Differentiated by risk, trajectory, and self-generation potential — not current price.
 
 ### What they export
 Comparison matrix CSV for site selection team. Screenshots of grid integration map for management presentation.
@@ -474,6 +481,8 @@ Comparison matrix CSV for site selection team. Screenshots of grid integration m
 | No logistics or transport cost data | Electricity is one input; transport, labor, and raw material access also matter for site selection. Dashboard covers electricity only. | Out of scope — fundamental limitation. |
 | EU CBAM tariff exposure by KEK | Manufacturers in iron/steel, aluminium, fertilizer, and cement face EU carbon border tariffs rising from ~$2/tCO₂ (2026) to ~$88/tCO₂ (2034) as free allocation phases out. Site selection must factor CBAM cost trajectory and RE availability. | ✅ Built (2026-04-14) — 3-signal detection (nickel process, plant counts, business sectors). 12 KEKs exposed. `cbam_cost_2030_usd_per_tonne` + `cbam_savings` quantify RE switching value. ScoreDrawer Industry tab shows full trajectory. |
 | Steel/cement plant proximity | Industrial investors choosing manufacturing KEKs need to know existing heavy industry (supply chain, clustering effects, infrastructure sharing). | ✅ Built (2026-04-14) — GEM Steel (7 plants, 2 KEKs matched) and Cement (32 plants, 5 KEKs matched) Trackers. Map overlays + ScoreDrawer Industry tab + table Industry badge column. |
+| Onsite rooftop solar feasibility | Tenants committing to a CBAM-exposed location need to know the physical Scope 2 reduction lever onsite — building footprints, useable rooftop categories, and the resulting MWp ceiling. Without this, every CBAM cost projection assumes 100% PLN dependency. | ✅ Built (V4.1, shipped 2026-05-02) — `rooftop_solar_mwp_potential` and `rooftop_solar_mwp_ac_potential` derived from multi-source building footprints (GoB v3 + MS GMLBF, IoU-merged), §14 geometric classifier, RV11 residential filter, fence-boundary clip. 78/81 sites covered; 2,743 MWp total fleet ceiling. RV-eval monitors quality with 7 flag types (6 actionable on current pipeline). |
+| Rooftop project economics per tenant | Physical MWp ceiling is shipped, but tenant-tunable economics (panel power, panel area, layout density sliders for sensitivity analysis) are not yet exposed. A tenant who wants to flex the ceiling against bifacial vs mono panels or denser layouts can't do that interactively today. | Deferred to Phase 2 (TODOS RV15) — F10 user sliders for `ROOFTOP_PANEL_POWER_W_DC`, `ROOFTOP_PANEL_AREA_M2`, `ROOFTOP_LAYOUT_DENSITY` in AssumptionsPanel. ~half day of frontend work + tooltip copy. |
 
 ---
 
