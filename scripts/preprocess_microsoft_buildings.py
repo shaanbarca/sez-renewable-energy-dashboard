@@ -111,8 +111,11 @@ def load_site_buffers(
     kek_polygons: dict[str, object] = {}
     if polygons_geojson.exists():
         kek_gdf = gpd.read_file(polygons_geojson)
+        # `slug` is the actual key in kek_polygons.geojson; the other fallbacks
+        # are defensive for differently-keyed GeoJSONs.
         id_col = next(
-            (c for c in ("site_id", "kek_id", "id", "name") if c in kek_gdf.columns), None
+            (c for c in ("site_id", "slug", "kek_id", "id", "name") if c in kek_gdf.columns),
+            None,
         )
         if id_col:
             for _, r in kek_gdf.iterrows():
@@ -268,14 +271,12 @@ def main() -> int:
         return 0
 
     parts: list[gpd.GeoDataFrame] = []
-    n_buildings_in = n_buildings_out = 0
+    n_buildings_out = 0
     for tile_path in tqdm(tiles, unit="tile"):
         quadkey = tile_path.stem.replace(".geojsonl", "")
         vintage = vintages.get(quadkey, DEFAULT_VINTAGE)
         result = process_tile(tile_path, sites_gdf, centroids, vintage)
         n_buildings_out += len(result)
-        # Approximate input count via tile size (gzipped — rough but useful).
-        n_buildings_in += tile_path.stat().st_size
         if not result.empty:
             parts.append(result)
 

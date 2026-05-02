@@ -464,13 +464,13 @@ def check_cross_source_audit(
         # Two gates — absolute count + fractional gain — to cut noise.
         gain_fraction = net_new / max(gob_count, 1)
         if net_new >= MS_REVEAL_MIN_NEW_BUILDINGS and gain_fraction >= MS_REVEAL_MIN_GAIN_FRACTION:
-            site_name_match = ms_grp["site_id"].iloc[0]
             findings.append(
                 {
                     "check": "ms_gmlbf_reveals_buildings",
                     "priority": "info",
                     "site_id": site_id,
-                    "site_name": site_name_match,
+                    # No site_name field — MS parquet doesn't carry it. Consumers
+                    # that want a human label should join against dim_sites.
                     "gob_count": int(gob_count),
                     "ms_count": int(ms_count),
                     "net_new": int(net_new),

@@ -206,6 +206,12 @@ def merge_sources(
     if primary is None or primary.empty:
         return secondary
 
+    # CRS guard — IoU is meaningless if primary and secondary live in
+    # different coordinate systems (e.g., 4326 vs 23830). Reproject
+    # secondary to match primary so areas + intersections are comparable.
+    if primary.crs is not None and secondary.crs is not None and primary.crs != secondary.crs:
+        secondary = secondary.to_crs(primary.crs)
+
     primary_cols = list(primary.columns)
     parts: list[gpd.GeoDataFrame] = [primary]
 
