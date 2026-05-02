@@ -678,7 +678,7 @@ export default function VectorOverlay() {
               <Layer
                 id="overlay-industrial-polygons-fill"
                 type="fill"
-                paint={{ 'fill-color': '#FFA726', 'fill-opacity': 0.10 }}
+                paint={{ 'fill-color': '#FFA726', 'fill-opacity': 0.1 }}
               />
               <Layer
                 id="overlay-industrial-polygons-line"

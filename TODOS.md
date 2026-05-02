@@ -29,6 +29,15 @@ Last updated: 2026-04-28 (rooftop solar v4.1 Phase 2/3 shipped; centroid + thres
 
 ### Rooftop solar v4.1 — TODOs from eng review (2026-04-27)
 
+**Status as of 2026-05-02 (branch `feat/v4.1-rooftop-phase-1` ready to merge):**
+RV5, RV6, RV7, RV10, RV11, RV12, RV13, RV14, RV-eval, RV17 are all closed. The remaining
+items below (RV1, RV2, RV3, RV4, RV8, RV9, RV15, RV16, RV-eval-triage continuation) are
+**deferred to v4.2 (Phase 2)**. This branch ships the merged v4.1 + multi-source pipeline
+end-to-end (2,743 MWp total, 6 actionable RV-eval findings, 686 tests green); the deferred
+items are either lower-priority (RV2/RV4), needing human eyes (RV3/RV15/RV16), or blocked on
+OSM coverage / multi-source data refresh (RV-eval-triage residual + RV8/RV9).
+
+
 These are post-spec items to add to v4.1 implementation OR defer per priority. See [eng review for full reasoning](docs/rooftop_solar_potential_feature_spec.md#13-lightweight-data-strategy).
 
 | # | Item | Priority | Why |
