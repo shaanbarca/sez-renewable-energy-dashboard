@@ -666,6 +666,29 @@ export default function VectorOverlay() {
           );
         })()}
 
+      {/* Industrial Plant Polygons (non-KEK, sourced from OSM) */}
+      {layerVisibility.industrial_polygons &&
+        layers.industrial_polygons &&
+        !layers.industrial_polygons._loading &&
+        (() => {
+          const data = layers.industrial_polygons;
+          if (!data?.features) return null;
+          return (
+            <Source id="overlay-industrial-polygons" type="geojson" data={data}>
+              <Layer
+                id="overlay-industrial-polygons-fill"
+                type="fill"
+                paint={{ 'fill-color': '#FFA726', 'fill-opacity': 0.1 }}
+              />
+              <Layer
+                id="overlay-industrial-polygons-line"
+                type="line"
+                paint={{ 'line-color': '#FB8C00', 'line-width': 1.5, 'line-opacity': 0.7 }}
+              />
+            </Source>
+          );
+        })()}
+
       {/* Peatland */}
       {layerVisibility.peatland &&
         layers.peatland &&

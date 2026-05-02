@@ -194,9 +194,7 @@ export default function FlipControls() {
             border: computeDisabled ? `1px dashed var(--accent-border)` : '1px solid transparent',
             opacity: computeDisabled ? 0.85 : 1,
           }}
-          title={
-            computeDisabled && !flipLoading ? 'Pick a preset below to enable' : undefined
-          }
+          title={computeDisabled && !flipLoading ? 'Pick a preset below to enable' : undefined}
         >
           {flipLoading
             ? 'Computing…'

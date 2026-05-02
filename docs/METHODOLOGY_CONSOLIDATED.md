@@ -14,6 +14,7 @@ This document is the single authoritative methodology reference for the Indonesi
 ## Table of Contents
 
 - [1. Core Question and Scope](#1-core-question-and-scope)
+  - [1.1 Site selection methodology](#11-site-selection-methodology)
 - [2. Data Flow Summary](#2-data-flow-summary)
 - [3. Solar Resource](#3-solar-resource)
   - [3.1 PVOUT extraction](#31-pvout-extraction)
@@ -21,6 +22,17 @@ This document is the single authoritative methodology reference for the Indonesi
   - [3.3 Buildability filters](#33-buildability-filters)
   - [3.4 Solar site coordinates](#34-solar-site-coordinates)
 - [4. Wind Resource](#4-wind-resource)
+  - [4.1 Wind Buildability Filters](#41-wind-buildability-filters)
+- [4A. Rooftop Solar Potential](#4a-rooftop-solar-potential)
+  - [4A.1 Pipeline](#4a1-pipeline)
+  - [4A.2 §14 building classifier](#4a2-14-building-classifier)
+  - [4A.3 Footprint → MWp math](#4a3-footprint--mwp-math-decomposed-model-53-of-spec)
+  - [4A.4 Site polygon clip](#4a4-site-polygon-clip)
+  - [4A.5 Cluster aggregation (visual layer)](#4a5-cluster-aggregation-visual-layer)
+  - [4A.6 Confidence + missing-data flagging](#4a6-confidence--missing-data-flagging)
+  - [4A.7 Known limits](#4a7-known-limits)
+  - [4A.7a Multi-source fan-out (MS GMLBF)](#4a7a-multi-source-fan-out-microsoft-gmlbf-shipped-2026-05-02)
+  - [4A.8 Automated accuracy eval](#4a8-automated-accuracy-eval)
 - [5. Siting Scenarios](#5-siting-scenarios)
   - [5.1 Within-boundary (captive)](#51-within-boundary-captive)
   - [5.2 Grid-connected solar](#52-grid-connected-solar)
@@ -33,6 +45,16 @@ This document is the single authoritative methodology reference for the Indonesi
   - [6.4 Technology parameters](#64-technology-parameters)
   - [6.5 WACC](#65-wacc)
   - [6.6 LCOE bands](#66-lcoe-bands)
+  - [6.7 LCOE sensitivity to project scale](#67-lcoe-sensitivity-to-project-scale)
+- [6A. Hybrid Solar+Wind RE Framework](#6a-hybrid-solarwind-re-framework)
+  - [6A.1 Motivation](#6a1-motivation)
+  - [6A.2 RESource abstraction](#6a2-resource-abstraction)
+  - [6A.3 Blended LCOE](#6a3-blended-lcoe)
+  - [6A.4 BESS reduction formula](#6a4-bess-reduction-formula)
+  - [6A.5 Mix ratio optimization](#6a5-mix-ratio-optimization)
+  - [6A.6 Three-way technology comparison](#6a6-three-way-technology-comparison)
+  - [6A.7 Output fields](#6a7-output-fields)
+  - [6A.8 Hydro extensibility](#6a8-hydro-extensibility)
 - [7. Grid Cost Reference](#7-grid-cost-reference)
   - [7.1 I-4 industrial tariff](#71-i-4-industrial-tariff)
   - [7.2 BPP generation cost](#72-bpp-generation-cost)
@@ -42,14 +64,19 @@ This document is the single authoritative methodology reference for the Indonesi
   - [8.2 Grid integration categories](#82-grid-integration-categories)
   - [8.3 Threshold values](#83-threshold-values)
   - [8.4 Substation capacity check](#84-substation-capacity-check)
+  - [8.4a RUPTL-driven substation utilization (V3.8)](#84a-ruptl-driven-substation-utilization-v38)
   - [8.5 Inter-substation connectivity](#85-inter-substation-connectivity)
   - [8.6 Infrastructure cost layers](#86-infrastructure-cost-layers)
+  - [8.7 Substation-anchored solar search (V3.7)](#87-substation-anchored-solar-search-v37)
 - [9. Competitiveness Metrics](#9-competitiveness-metrics)
   - [9.1 Solar competitive gap](#91-solar-competitive-gap)
   - [9.2 Carbon breakeven price](#92-carbon-breakeven-price)
   - [9.3 Flip scenario](#93-flip-scenario)
   - [9.4 Solar supply coverage](#94-solar-supply-coverage)
   - [9.5 Firm solar coverage (V3.3)](#95-firm-solar-coverage-v33)
+  - [9.6 Wind supply coverage](#96-wind-supply-coverage)
+  - [9.7 Wind carbon breakeven](#97-wind-carbon-breakeven)
+  - [9.8 Firm wind coverage (intermittency model)](#98-firm-wind-coverage-intermittency-model)
 - [10. Action Flags](#10-action-flags)
   - [10.1 Flag definitions (10 solar-mode flags; 14 total across all energy modes)](#101-flag-definitions-10-solar-mode-flags-14-total-across-all-energy-modes)
   - [10.2 Priority ordering](#102-priority-ordering)
@@ -64,9 +91,11 @@ This document is the single authoritative methodology reference for the Indonesi
   - [13.3 Perpres 112/2022 compliance](#133-perpres-1122022-compliance)
   - [13.4 Scorecard fields](#134-scorecard-fields)
   - [13.5 Map overlays](#135-map-overlays)
+  - [13.6 Solar replacement potential](#136-solar-replacement-potential)
+  - [13.7 BESS sizing for industrial loads (M19 + V3.3)](#137-bess-sizing-for-industrial-loads-m19--v33)
 - [14. EU CBAM Exposure](#14-eu-cbam-exposure)
   - [14.1 CBAM signal detection](#141-cbam-signal-detection)
-  - [14.2 Product-specific parameters](#142-product-specific-parameters)
+  - [14.2 Two kinds of emissions: Energy vs Process](#142-two-kinds-of-emissions-energy-vs-process)
   - [14.3 Emission intensity calculation](#143-emission-intensity-calculation)
   - [14.4 CBAM cost trajectory](#144-cbam-cost-trajectory)
   - [14.5 CBAM-adjusted competitive gap](#145-cbam-adjusted-competitive-gap)
@@ -77,10 +106,10 @@ This document is the single authoritative methodology reference for the Indonesi
 - [18. Assumptions Summary](#18-assumptions-summary)
 - [19. Reproducibility](#19-reproducibility)
 - [20. Regulatory References](#20-regulatory-references)
-- [References](#references)
 - [Appendix A: Buildability Filter Details](#appendix-a-buildability-filter-details)
 - [Appendix B: Legal Framework for Captive Solar](#appendix-b-legal-framework-for-captive-solar)
 - [Appendix C: Evolution from V1 to V3](#appendix-c-evolution-from-v1-to-v3)
+- [References](#references)
 
 ---
 
@@ -288,6 +317,155 @@ Wind uses a 5-layer exclusion cascade, adapted from solar (Appendix A) with wind
 **Pipeline:** `build_wind_buildable_raster.py` produces `buildable_wind_web.tif`. `build_wind_buildable_polygons.py` vectorizes to `wind_buildable_polygons.geojson` (3,402 polygons). `wind_buildability_filters.py` defines filter thresholds.
 
 **Memory-efficient processing:** The raster pipeline uses `rasterio.band()` lazy references with `Resampling.mode` to stream the 10m ESA WorldCover VRT without loading it into memory. Each filter layer is applied as an intermediate step file.
+
+---
+
+## 4A. Rooftop Solar Potential
+
+Per-site rooftop nameplate ceiling derived from Google Open Buildings v3 (vintage 2023-05). Distinct from §3 ground-mount potential — this counts **panels-on-existing-roofs**, the kind of distributed solar that lives behind the meter at industrial parks and tenant facilities. See [docs/rooftop_solar_potential_feature_spec.md](rooftop_solar_potential_feature_spec.md) for the full v4.1 spec.
+
+### 4A.1 Pipeline
+
+Single entry point — `load_buildings_for_pipeline()` in `src/pipeline/build_fct_site_solar_potential.py` (spec §13.10 invariant 4). Both the aggregator (`build_fct_site_solar_potential.py`) and tile generator (`build_rooftop_tiles.py`) read through this loader so any change to the building set propagates to both.
+
+```
+preprocess_open_buildings.py  →  sites_buildings_filtered.parquet (raw, 102k buildings × 81 sites)
+       ↓
+load_buildings_for_pipeline()  ←  Site polygon clip (§4A.4)
+       ↓
+classify_building() per row    ←  §4A.2 §14 classifier
+       ↓
+fct_site_solar_potential.csv   →  18 columns per site
+sites_rooftop_tiles.parquet    →  703k panel-tile polygons (visual sanity-check overlay)
+```
+
+### 4A.2 §14 building classifier
+
+GoB v3 detects every above-ground structure (warehouses, tanks, silos, conveyors, cooling towers). A naive `footprint × usable_share × W/m²` overstates rooftop potential by 30–50% on heavy industry sites. The classifier applies geometric filters on each polygon (in EPSG:23830 metric units) and assigns a usability multiplier:
+
+| Category         | Heuristic                                         | Usability |
+|------------------|---------------------------------------------------|-----------|
+| `too_small`      | area < 200 m²                                     | 0.0       |
+| `tank_silo`      | circularity > 0.85                                | 0.0       |
+| `conveyor`       | aspect_ratio > 15                                 | 0.1       |
+| `complex`        | hull_ratio < 0.55                                 | 0.2       |
+| `possibly_round` | 0.75 < circularity ≤ 0.85                         | 0.3       |
+| `elongated`      | 5 ≤ aspect_ratio ≤ 15                             | 0.6       |
+| `standard_roof`  | passes all filters                                | 1.0       |
+
+Cascade — first match wins. Hard rejects (tank, conveyor, complex) precede soft derates. Thresholds live in `src/assumptions.py` (`BUILDING_*_THRESHOLD`); calibrated against Semen Imasco Asiatic Jember in 9a61ee0 (hull_ratio 0.70 → 0.55; aspect 8 → 15) to stop dropping legitimate ~9,000 m² halls into `complex` and ~4,300 m² halls into `conveyor`.
+
+### 4A.3 Footprint → MWp math (decomposed model, §5.3 of spec)
+
+```
+panel_density_w_per_m2 = panel_power_w_dc / panel_area_m2          (= 200 W/m²)
+rooftop_kw_dc          = footprint × usability × layout_density × panel_density / 1000
+rooftop_kw_ac          = rooftop_kw_dc × thermal_derate            (tropical = 0.88)
+```
+
+Defaults: `ROOFTOP_PANEL_POWER_W_DC = 400 W`, `ROOFTOP_PANEL_AREA_M2 = 2.0`, `ROOFTOP_LAYOUT_DENSITY = 0.50` (range 0.40–0.65 — accounts for inter-row spacing, parapets, HVAC, walkways), `THERMAL_DERATE_TROPICAL = 0.88`. F10 user sliders deferred to a later release.
+
+### 4A.4 Site polygon clip
+
+`preprocess_open_buildings.py` uses a 2 km buffer around each site centroid to assign buildings. For sites whose actual fence boundary is smaller, this over-includes adjacent residential structures, industrial parks, or open water. After preprocess, `load_buildings_for_pipeline()` applies a centroid-within-polygon filter against two polygon sources:
+
+1. **KEK polygons** (`outputs/data/raw/kek_polygons.geojson`, 25 sites). Boundaries from official OSS/KEK portal scrapes. Handles split-island KEKs (Tanjung Sauh has 6 fragments) by dissolving on `slug`.
+2. **Industrial site polygons** (`data/industrial_sites/site_polygons.geojson`, 11 sites as of 2026-04-30). OSM `landuse=industrial` and `man_made=works` polygons captured for non-KEK industrial plants where they exist: Indocement Palimanan, Cemindo Gemilang Bayah, Petrokimia Gresik, Ispat Indo Sidoarjo, Freeport Smelter Gresik, Semen Padang Indarung, Semen Baturaja, Krakatau Posco Cilegon, Gunung Raja Paksi Bekasi, Semen Gresik City, Semen Kupang. Last 2 added 2026-04-30 after RV-eval surfaced sector_outlier_above findings — heavy residential bleed surviving RV11; polygon clip dropped Gresik 99.66 → 10.12 MWp and Kupang 33.42 → 6.54 MWp.
+
+Sites without a polygon pass through unchanged — their 2 km preprocess buffer remains the catchment, with RV11 (residential-pattern filter) at the building level providing the additional precision lever. Side effect: when the OSM polygon centroid is materially off from the dim_sites centroid (Ispat Indo at 10 km, Freeport at 9.8 km, Krakatau Posco at 3 km), the polygon centroid is also captured as a coordinate override in `data/industrial_sites/coordinate_overrides.csv` — the same audit-trail layer used for the GEM tracker miscodes (Tuban, Palimanan, Narogong).
+
+### 4A.5 Cluster aggregation (visual layer)
+
+The tile generator runs DBSCAN (`eps = 50 m`, `min_samples = 1`) on usable buildings per site to group physically-adjacent rooftops into clusters. Each cluster gets one popup on the map showing aggregate kW + building count — the "show your work" loop (spec §3.6.1). Output: 9,622 clusters across 62 sites with ≥1 usable building (703,001 individual panel tiles, ~25 MB parquet).
+
+### 4A.6 Confidence + missing-data flagging
+
+A per-site confidence score (`high` / `medium` / `low`) is derived from building count and footprint-to-site-area ratio:
+
+| Confidence | Building count | Footprint ratio  | Reason flag      |
+|------------|----------------|------------------|------------------|
+| high       | ≥ 10           | 0.05–0.40        | none             |
+| low        | < 3            | < 0.01           | `imagery_gap`    |
+| medium     | otherwise      | otherwise        | `partial`        |
+
+Sites with zero buildings (18 of 81) are written to `sites_missing_buildings.csv` with the reason flag — spec §3.7 "flag, don't hide" rather than silently zeroing the rooftop column.
+
+### 4A.7 Known limits
+
+- **GoB v3 vintage.** 2023-05. Post-2023 buildings are missing entirely (TODOS RV7 — multi-source fan-out via Microsoft GMLBF shipped 2026-05-02; see §4A.7a).
+- **Detection asymmetry.** Two visually-identical adjacent rooftops can produce different tile counts when GoB detected one cleanly and fragmented or missed the other. Microsoft GMLBF, trained on a different model + imagery vintage, is expected to mostly cover the asymmetric cases.
+- **Industrial catchment radius.** 2 km buffer over-counts non-roof buildings around standalone cement/steel/nickel plants (TODOS RV8). RV-eval surfaces these as `sector_outlier_above`; the OSM-polygon clip in §4A.4 is the primary fix when coverage exists.
+- **Fragmented detection.** A single physical roof occasionally arrives as several `too_small` polygons; merging them before classification is an open option (TODOS RV9 — deferred pending visual validation of the merge tolerance).
+- **No manual validation pass yet.** Spec §16 calls for ±20% accuracy on 10 sample sites and ≥80% classifier accuracy on 100 manually-labelled buildings before declaring v4.1 final (Phase 4).
+
+### 4A.7a Multi-source fan-out (Microsoft GMLBF, shipped 2026-05-02)
+
+RV-eval's first triage rounds exhausted the easy bleed wins (Ispat Indo, Semen Gresik City, Semen Kupang) and exposed two structural blockers in the remaining `sector_outlier_above` and all 7 `zero_mwp_with_capacity` findings:
+
+1. **Plants GoB v3 just doesn't see** even when fully visible on satellite (Cemindo Gemilang Bayah pattern — kilns, silos, conveyors clearly present but GoB returns zero buildings).
+2. **Post-2023 buildouts** invisible because the GoB v3 imagery cutoff is May 2023 (Hongshi, IMIP/IWIP, post-2023 nickel IIA expansions).
+
+Both are addressed by **Microsoft Global ML Building Footprints (MS GMLBF)** — a second detection source trained on different imagery, refreshed periodically. Per spec §13.10 invariant 4, the integration is additive (new module + register it) thanks to invariants 1–6 already shipped in v4.1: prefixed `building_id`, `source_name`/`source_vintage` columns, single `load_buildings_for_pipeline()` entry point, null-safe confidence handling, vintage-driven (not hardcoded) cutoff logic.
+
+**Phased delivery:**
+
+| Phase | Status | Output |
+|-------|--------|--------|
+| 1. Download scaffolding | ✅ 2026-04-30 | `scripts/download_microsoft_buildings.py` (601 Indonesia tiles, 4.92 GB confirmed, ~12 min download) |
+| 2. Preprocess + per-site filter | ✅ 2026-05-02 | `scripts/preprocess_microsoft_buildings.py` → `data/processed/sites_buildings_microsoft.parquet` (267,735 buildings, 78/81 sites covered, 17 min) |
+| 3. Source fan-out + dedup | ✅ 2026-05-02 | `merge_sources()` in `build_fct_site_solar_potential.py` (per-site STRtree IoU dedup); `MS_DEDUP_IOU_THRESHOLD = 0.5` in assumptions; 8 unit tests pass |
+| 4. Cross-source IoU eval | ✅ 2026-05-02 | New `ms_gmlbf_reveals_buildings` info-tier flag in RV-eval (`scripts/eval_rooftop_accuracy.py::check_cross_source_audit`); 4 unit tests pass |
+| 5. Integrated rebuild | ✅ 2026-05-02 | First end-to-end run; results below |
+
+**Dedup strategy.** Per-site STRtree on GoB polygons; for each MS polygon, query for overlapping GoB polygons and compute IoU. If max IoU > `MS_DEDUP_IOU_THRESHOLD` (default 0.5), MS row is dropped (GoB wins as primary because it carries a confidence score and is the established input to the §14 classifier). Otherwise the MS row is kept as net-new. Per-site isolation prevents false-dedup across nearby sites. Sites with no GoB rows but MS rows present (the Cemindo Bayah pattern) get full MS coverage.
+
+**Phase 5 results.** GoB 337,101 + MS 267,735 → 549,377 merged → 292,197 after fence-boundary polygon clip. Total rooftop bumped **2,396 → 2,743 MWp (+14.5%)**. RV-eval actionable findings: **11 → 7 (-36%)**. Zero-MWp findings: **7 → 2 (-71%)**.
+
+**5 of 7 RV7 cases unblocked:**
+
+| Site | Before (MWp) | After (MWp) | Buildings now counted |
+|---|---|---|---|
+| Cemindo Gemilang Bayah | 0.00 | 10.74 | 67 |
+| Pupuk Iskandar Muda Lhokseumawe | 0.00 | 13.84 | 230 |
+| SBI Andalas Lhoknga | 0.00 | 5.94 | 44 |
+| Indonesia Pomalaa Industry Park (IPIP) | 0.00 | 1.41 | 32 |
+| Buli Industrial Park | 0.00 | 2.63 | 48 |
+
+**2 still zero (both sources predate plant):**
+
+- **Red Lion Hongshi Tonga** (4 Mt/yr cement, post-2023 build): plant in Desa Selangkau, Kaliorang per cemnet.com, but commissioned late 2023. Both GoB v3 (May 2023 cutoff) and MS GMLBF imagery vintage predate it. Fix path: centroid override + wait for next imagery refresh.
+- **IWIP** (Industrial Weda Bay nickel mega-buildout): post-2023 nickel processing expansion, both sources missed. Same fix path.
+
+54 sites flagged in info-tier (🟢 `ms_gmlbf_reveals_buildings`) as net-new MS GMLBF buildings — direct evidence that the multi-source path is closing GoB's structural gaps. Notable additions: Cemindo Bayah +1184, IPIP +434, Buli +197, Cemindo Batam +1348, Conch West Kalimantan +892. These were either fully RV7-blocked or `sector_outlier_above` (false-bleed flags from MS-only buildings being absent).
+
+### 4A.8 Automated accuracy eval
+
+`scripts/eval_rooftop_accuracy.py` runs three statistical/physical sanity checks against the rooftop pipeline output and surfaces sites that look off, without requiring any manual labelling:
+
+1. **Per-sector capacity-vs-MWp band.** For each sector with ≥4 sites, compute z-score on `rooftop_MWp / capacity_kt`. Outliers split by direction — `sector_outlier_above` (>2σ over median, suggests bleed/overcount) and `sector_outlier_below` (<-2σ, suggests undercount). Different root causes, different fixes.
+2. **Zero-rooftop-but-nonzero-capacity rule.** Any operating site (capacity > 0) with `rooftop_MWp ≈ 0` is flagged actionable regardless of z-score. Catches the RV7 GoB-undercount pattern that the ratio band misses (zero pulls the median down, never the tail).
+3. **Plant-area band.** For standalone/cluster industrial sites with a fence-boundary polygon, footprint should be 5–30% of polygon area. Below 5% suggests the plant is under-detected (RV7); above 30% suggests residential bleed survived the filter or the polygon is too tight. KEKs are skipped — they're zones, not plants, and have undeveloped land by design.
+
+**Six flag types**, each with a distinct console group (header + 1-line rule + 1-line suggested fix) so the report is self-explanatory rather than relying on a vague HIGH/LOW priority label. Severity icons:
+
+| Flag                       | Icon | Priority   | Cause / Fix |
+|----------------------------|:----:|------------|-------------|
+| `zero_mwp_with_capacity`   | 🔴  | actionable | RV7 or wrong centroid → run `scripts/visual_sanity_check.py` |
+| `sector_outlier_above`     | 🔴  | actionable | bleed / over-clip miss → tighten polygon or extend OSM exclusions |
+| `sector_outlier_below`     | 🔴  | actionable | undercount → cross-check footprint band, same root cause |
+| `footprint_below_band`     | 🟡  | review     | under-detection — usually the same site as zero_mwp |
+| `footprint_above_band`     | 🟡  | review     | bleed survived RV11, or polygon is too tight |
+| `sector_sample_too_small`  | ℹ   | info       | sector < `EVAL_SECTOR_MIN_SAMPLE` — eyeball manually |
+
+`priority` enum drives exit code: any `actionable` finding → exit 1 (CI fails); `review` and `info` are warnings only.
+
+**Trend log:** every run appends a JSONL record to `outputs/data/eval/rooftop-history.jsonl`. Path is set in `src/assumptions.py::EVAL_HIST_PATH` (repo-relative, resolved against repo root inside the script). Each record is `{timestamp, counts: {actionable, review, info}, findings: [...]}` — preserves the full finding payload for diffing across runs as multi-source + classifier improvements land.
+
+**Visual companion (`scripts/visual_sanity_check.py`).** Reads the latest record from the trend log and renders one satellite + detected-polygon image per flagged site to `outputs/data/visual_qa/<site_id>.png`. Single source of truth — no hardcoded site list. The image title shows all flag reasons for that site, so a site with both `zero_mwp_with_capacity` and `footprint_below_band` (e.g. Cemindo Bayah) gets one image with both reasons. CLI `--site-ids a,b,c` allows ad-hoc rendering of baselines or fix-targets that are no longer flagged.
+
+This complements the spec §16 manual ±20% pass — automated flags surface the right sites for the manual sample, scaling as more sites are added. Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF) is a fourth planned check, deferred until multi-source ingestion lands per spec §13.10 invariant 4.
+
+Constants in `src/assumptions.py::EVAL_*`. 18 unit tests in `tests/test_eval_rooftop_accuracy.py`.
 
 ---
 

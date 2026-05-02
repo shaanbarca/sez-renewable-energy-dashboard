@@ -1,0 +1,12 @@
+site_id,site_name,commissioning_year,province,sector,zone_classification,reason_flagged,reason_human_readable,recommended_alt_data
+industropolis-batang,Industropolis Batang,2026,Central Java,mixed,Industri dan Pariwisata,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-arun-lhokseumawe,Arun Lhokseumawe,2026,Aceh,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-sorong,Sorong,2026,West Papua,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-singhasari,Singhasari,2026,East Java,mixed,Pariwisata,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-morotai,Morotai,2026,North Maluku,mixed,Pariwisata,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf
+kek-gresik,Gresik,2026,East Java,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-palu,Palu,2026,Central Sulawesi,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-galang-batang,Galang Batang,2026,Riau Islands,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,2026,East Kalimantan,mixed,Industri,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+kek-tanjung-lesung,Tanjung Lesung,2026,Banten,mixed,Pariwisata,polygon_imagery_gap,Imagery gap inside the site polygon,manual_kml
+stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),2026,,nickel,,no_buildings_detected,No buildings detected in 2 km buffer,microsoft_gmlbf

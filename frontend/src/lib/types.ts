@@ -94,6 +94,25 @@ export interface ScorecardRow {
   /** @deprecated 2026-04-25 — renamed to `regional_groundmount_potential_mwp_50km`. Alias kept for one release; remove in v4.2. */
   max_captive_capacity_mwp?: number;
   regional_groundmount_potential_mwp_50km: number;
+
+  // Rooftop solar (v4.1, optional — null/missing if pipeline hasn't run)
+  rooftop_solar_mwp_potential?: number;
+  rooftop_kw_dc?: number;
+  rooftop_kw_ac?: number;
+  total_building_footprint_m2?: number;
+  usable_roof_area_m2?: number;
+  type_filter_excluded_m2?: number;
+  building_count_total?: number;
+  building_count_standard_roof?: number;
+  building_count_elongated?: number;
+  building_count_tank_silo?: number;
+  building_count_conveyor?: number;
+  building_count_other_excluded?: number;
+  building_data_confidence?: 'high' | 'medium' | 'low';
+  building_data_reason_flagged?: string | null;
+  building_data_source?: string | null;
+  building_data_vintage?: string | null;
+
   project_viable: boolean;
   best_re_technology: string;
   grid_cost_usd_mwh: number;
@@ -345,7 +364,7 @@ export type BenchmarkMode = 'bpp' | 'tariff';
  *  Mirrors `src/model/basic_model.py::CostBasis`. See TAXONOMY §7.3 for the
  *  `(EnergyMode × CostBasis)` resolution matrix. */
 export type CostBasis = 'raw' | 'firmed' | 'delivered';
-export type BottomTab = 'table' | 'ruptl' | 'sector' | 'compare';
+export type BottomTab = 'table' | 'ruptl' | 'sector' | 'compare' | 'rooftop';
 export type MapStyleKey = 'dark' | 'light' | 'voyager' | 'satellite';
 
 export interface SavedScenario {

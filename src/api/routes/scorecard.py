@@ -221,7 +221,10 @@ def post_scorecard(req: ScorecardRequest):
     if len(merge_cols_sites) > 1:
         scorecard_df = scorecard_df.merge(dim_sites[merge_cols_sites], on="site_id", how="left")
 
-    # Merge resource/grid columns (wind columns now come from compute_scorecard_live)
+    # Merge resource/grid columns (wind columns now come from compute_scorecard_live).
+    # fct_site_solar_potential is optional (v4.1 rooftop work) — merged when
+    # present, silently absent when the build_fct_site_solar_potential.py step
+    # hasn't been run yet.
     for source_name, source_cols in [
         (
             "fct_site_resource",
@@ -233,6 +236,27 @@ def post_scorecard(req: ScorecardRequest):
             ],
         ),
         ("fct_grid_cost_proxy", ["dashboard_rate_usd_mwh", "bpp_usd_mwh"]),
+        (
+            "fct_site_solar_potential",
+            [
+                "rooftop_solar_mwp_potential",
+                "rooftop_kw_dc",
+                "rooftop_kw_ac",
+                "total_building_footprint_m2",
+                "usable_roof_area_m2",
+                "type_filter_excluded_m2",
+                "building_count_total",
+                "building_count_standard_roof",
+                "building_count_elongated",
+                "building_count_tank_silo",
+                "building_count_conveyor",
+                "building_count_other_excluded",
+                "building_data_confidence",
+                "building_data_reason_flagged",
+                "building_data_source",
+                "building_data_vintage",
+            ],
+        ),
     ]:
         source_df = tables.get(source_name)
         if source_df is None:

@@ -40,7 +40,7 @@ Open http://localhost:5173.
 ## Running tests
 
 ```bash
-# Backend: 610 tests across model, pipeline, and API modules
+# Backend: 686 tests across model, pipeline, API, and rooftop solar pipeline modules
 uv run pytest tests/
 
 # Frontend: type-check

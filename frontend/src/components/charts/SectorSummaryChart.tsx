@@ -349,10 +349,7 @@ export default function SectorSummaryChart() {
     '2034': Number(d.cbamCost2034MUsd.toFixed(2)),
   }));
 
-  const cbamMax = Math.max(
-    0,
-    ...cbamChartData.flatMap((d) => [d['2026'], d['2030'], d['2034']]),
-  );
+  const cbamMax = Math.max(0, ...cbamChartData.flatMap((d) => [d['2026'], d['2030'], d['2034']]));
   const cbamTicks = niceTicks(cbamMax);
   const demandMax = Math.max(0, ...data.map((d) => d.totalDemandGwh));
   const demandTicks = niceTicks(demandMax);

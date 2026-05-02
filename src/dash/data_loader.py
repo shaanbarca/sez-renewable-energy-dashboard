@@ -28,6 +28,14 @@ _REQUIRED_FILES = {
     "dim_sites": ["site_id", "site_name", "latitude", "longitude"],
 }
 
+# Optional CSV files — loaded if present, silently skipped otherwise.
+# Used for v4.x feature additions where pipeline output is not always
+# regenerated (e.g. v4.1 rooftop solar — fct_site_solar_potential.csv
+# is generated only after running build_fct_site_solar_potential).
+_OPTIONAL_FILES = {
+    "fct_site_solar_potential": ["site_id", "rooftop_solar_mwp_potential"],
+}
+
 
 class DataLoadError(Exception):
     """Raised when required data files are missing or invalid."""
@@ -59,6 +67,20 @@ def load_all_data(data_dir: Path = PROCESSED) -> dict[str, pd.DataFrame]:
             f"Missing data files: {missing_files}. "
             f"Run 'uv run python run_pipeline.py' to generate them."
         )
+
+    # Optional tables — present iff their generator has run. Frontend handles
+    # absence gracefully (column will be missing in API response).
+    for name, required_cols in _OPTIONAL_FILES.items():
+        csv_path = data_dir / f"{name}.csv"
+        if not csv_path.exists():
+            continue
+        df = pd.read_csv(csv_path)
+        missing_cols = [c for c in required_cols if c not in df.columns]
+        if missing_cols:
+            # Schema drift — log but don't crash the API
+            print(f"WARNING: optional table {name} missing cols {missing_cols}, skipping")
+            continue
+        tables[name] = df
 
     return tables
 

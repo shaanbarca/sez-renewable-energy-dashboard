@@ -51,6 +51,7 @@ GEM_STEEL_CSV = DATA_DIR / "captive_power" / "gem_steel_plants.csv"
 CGSP_NICKEL_CSV = DATA_DIR / "captive_power" / "cgsp_nickel_tracker.csv"
 PRIORITY1_CSV = DATA_DIR / "industrial_sites" / "priority1_sites.csv"
 DIM_KEK_CSV = PROCESSED / "dim_kek.csv"
+COORDINATE_OVERRIDES_CSV = DATA_DIR / "industrial_sites" / "coordinate_overrides.csv"
 
 OUTPUT_COLUMNS = [
     "site_id",
@@ -338,12 +339,53 @@ def _load_residual_manual_rows(priority1_csv: Path = PRIORITY1_CSV) -> pd.DataFr
     return residual[OUTPUT_COLUMNS]
 
 
+def _apply_coordinate_overrides(
+    df: pd.DataFrame,
+    overrides_csv: Path = COORDINATE_OVERRIDES_CSV,
+) -> pd.DataFrame:
+    """Override latitude/longitude for sites whose tracker coordinates are wrong.
+
+    Tracker coordinates (GEM cement, GEM steel, CGSP nickel) are sometimes
+    geocoded to a head-office or settlement nearby instead of the actual plant.
+    The override CSV is the audit trail — tracker values stay untouched in the
+    upstream tracker CSVs, and this layer applies a verified correction with
+    citation. See `data/industrial_sites/coordinate_overrides.csv` for the
+    schema and per-site verification notes.
+
+    No-op when the overrides CSV is missing.
+    """
+    if not overrides_csv.exists():
+        return df
+    overrides = pd.read_csv(overrides_csv)
+    if overrides.empty:
+        return df
+
+    unknown = set(overrides["site_id"]) - set(df["site_id"])
+    if unknown:
+        raise ValueError(
+            f"coordinate_overrides.csv references site_id(s) not in the "
+            f"generated industrial sites frame: {sorted(unknown)}. Either the "
+            f"override is stale or the tracker rule changed."
+        )
+
+    df = df.copy()
+    n_overridden = 0
+    for _, row in overrides.iterrows():
+        mask = df["site_id"] == row["site_id"]
+        df.loc[mask, "latitude"] = row["latitude_override"]
+        df.loc[mask, "longitude"] = row["longitude_override"]
+        n_overridden += int(mask.sum())
+    print(f"  coordinate overrides applied: {n_overridden}")
+    return df
+
+
 def build_industrial_sites(
     gem_cement_csv: Path = GEM_CEMENT_CSV,
     gem_steel_csv: Path = GEM_STEEL_CSV,
     cgsp_nickel_csv: Path = CGSP_NICKEL_CSV,
     priority1_csv: Path = PRIORITY1_CSV,
     dim_kek_csv: Path = DIM_KEK_CSV,
+    overrides_csv: Path = COORDINATE_OVERRIDES_CSV,
 ) -> pd.DataFrame:
     """Union tracker-driven rows with residual manual rows into one industrial-sites frame."""
     frames = [
@@ -357,6 +399,8 @@ def build_industrial_sites(
     if not unified["site_id"].is_unique:
         dupes = unified[unified["site_id"].duplicated(keep=False)]["site_id"].tolist()
         raise ValueError(f"Duplicate site_id between tracker and residual manual rows: {dupes}")
+
+    unified = _apply_coordinate_overrides(unified, overrides_csv)
 
     return unified
 

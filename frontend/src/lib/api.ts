@@ -48,6 +48,25 @@ export async function fetchSiteBuildable(siteId: string): Promise<GeoJSON.Featur
   return res.json();
 }
 
+/** Detected building footprints (Google Open Buildings v3) inside the site's
+ * 2 km buffer. Renders as the gray "what was detected" layer beneath rooftop
+ * tiles. Empty FeatureCollection when no buildings (post-2023 sites,
+ * tourism KEKs). v4.1 rooftop solar feature. */
+export async function fetchSiteBuildings(siteId: string): Promise<GeoJSON.FeatureCollection> {
+  const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/buildings`);
+  if (!res.ok) throw new Error(`GET /api/site/${siteId}/buildings failed: ${res.status}`);
+  return res.json();
+}
+
+/** Per-tile panel rectangles for the rooftop solar map layer. Each feature is
+ * a 6m × 4m tile in EPSG:4326 with properties: tile_idx, cluster_id,
+ * building_id, panels_in_tile, tile_kw_dc, tile_kw_ac. Render at zoom ≥14. */
+export async function fetchSiteRooftopTiles(siteId: string): Promise<GeoJSON.FeatureCollection> {
+  const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/rooftop-tiles`);
+  if (!res.ok) throw new Error(`GET /api/site/${siteId}/rooftop-tiles failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchSiteSubstations(siteId: string, radiusKm?: number): Promise<unknown> {
   const params = radiusKm != null ? `?radius_km=${radiusKm}` : '';
   const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/substations${params}`);

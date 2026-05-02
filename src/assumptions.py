@@ -800,6 +800,214 @@ SECTOR_RELIABILITY_REQUIREMENT: dict[str, float] = {
 CLUSTER_PROXIMITY_THRESHOLD_KM: float = 15.0
 
 
+# ─── ROOFTOP SOLAR (v4.1 Phase 1) ─────────────────────────────────────────────
+# All constants here drive `compute_rooftop_solar_potential` and the §14
+# geometric building-type classifier. See
+# `docs/rooftop_solar_potential_feature_spec.md` §5.3 + §14.3 for the full
+# rationale + sources.
+
+# ─── §5.3.1 Panel (the physical module) ─────────────────────────────────────
+# Sources: JinkoSolar Tiger Neo 415-435W, JA Solar JAM72D40 410-430W, Trina
+# Vertex S+ 425-450W (mainstream commercial 2024-2026 N-type bifacial).
+# Utility-class N-type now 550-620W (Trina Vertex N TSM-NEG21C.20, LONGi Hi-MO 7).
+ROOFTOP_PANEL_POWER_W_DC: float = 400.0  # range 300-600
+
+# Per-panel physical area. 1.76 m × 1.13 m commercial-class ≈ 2.0 m²;
+# 2.28 m × 1.13 m utility-class ≈ 2.6 m².
+ROOFTOP_PANEL_AREA_M2: float = 2.0  # range 1.6-2.6
+
+# Derived: panel-area density. Default 400 W / 2.0 m² = 200 W/m².
+# Modern N-type bifacial achieves 210-240 W/m² panel-area peak.
+
+# ─── §5.3.2 Layout (panel area / footprint area) ────────────────────────────
+# Source: NREL TP-6A20-65298 (rooftop technical potential). 0.50 = industrial
+# flat roof after 1m edge setback (SNI 03-1736-2000, IEC 62548:2016),
+# 0.6-1.0m row-walkway aisles every few rows, HVAC / skylights / structural
+# penetrations. Higher (0.55-0.65) if rooftop is empty + low-tilt; lower
+# (0.40) if heavy HVAC.
+ROOFTOP_LAYOUT_DENSITY: float = 0.50  # range 0.40-0.65
+
+# Industrial fire access code (SNI 03-1736-2000 §7.4, also IEC 62548:2016).
+# Default 0 because the 1m fire-code setback is ALREADY incorporated into
+# `ROOFTOP_LAYOUT_DENSITY = 0.50` per spec §5.3.2. Applying it again
+# geometrically (in `build_rooftop_tiles.py`) would double-count.
+# Set to 0.5-1.0m if you want extra visual breathing room around tiles
+# without changing the capacity formula.
+ROOFTOP_EDGE_SETBACK_M: float = 0.0  # range 0.0-2.0 (0 = honor layout_density only)
+
+# Visualization-only — see §3.6 F10. 6 = ~1 string-half (typical industrial
+# inverter input is 12-24 panels per string). 1 = render individual panels.
+ROOFTOP_PANELS_PER_TILE: int = 6  # range 1-24
+
+# DBSCAN epsilon for click-interaction "contiguous rooftop cluster" (§3.6 F11).
+# 50m groups buildings sharing a continuous roofscape without merging
+# unrelated structures across roads.
+ROOFTOP_CLUSTER_RADIUS_M: float = 50.0
+
+# ─── §5.3.3 Climate / system derating ───────────────────────────────────────
+# Indonesian climate. Module temp coefficient typically -0.30 to -0.36 %/°C;
+# module cell temp runs 25-30°C above ambient under STC; gives ~12% production
+# loss vs nameplate. NREL PVWatts default for equatorial tropical.
+# v4.2 will replace with regional variation (L23 in §18).
+THERMAL_DERATE_TROPICAL: float = 0.88  # range 0.85-0.92
+
+# ─── DEPRECATED: legacy v3 collapsed constants ──────────────────────────────
+# Pre-v4 spec used these collapsed values. Kept as references for older
+# modules that haven't migrated; new code uses the decomposed model above.
+# Remove when no callers remain.
+ROOFTOP_USABLE_SHARE: float = ROOFTOP_LAYOUT_DENSITY  # alias
+ROOFTOP_W_PER_M2: float = ROOFTOP_PANEL_POWER_W_DC / ROOFTOP_PANEL_AREA_M2  # 200 W/m²
+
+# ─── §14 Geometric building-type classifier ─────────────────────────────────
+# These are STARTING POINTS, calibrated by §14.6 manual validation BEFORE
+# merge. If classifier accuracy is < 80% on 100 manually-labeled fixtures,
+# tune these values and re-run validation.
+#
+# circularity = 4π × area / perimeter²
+#   1.00 = perfect circle (round tank)
+#   0.60-0.70 = regular rectangle
+#   0.40-0.50 = irregular warehouse
+#   <0.30 = elongated (conveyor)
+BUILDING_CIRCULARITY_TANK_THRESHOLD: float = 0.85
+
+# aspect_ratio = bbox_length / bbox_width
+#   1.0-2.0 = square-ish warehouse
+#   2.0-4.0 = typical factory
+#   8.0-14.0 = long industrial production hall (cement clinker line, steel
+#              rolling mill) — still solar-suitable, classified as `elongated`
+#   15.0+ = true conveyor / pipe rack (typically 1-4 m wide ribbons)
+# v4.1 calibration on Semen Imasco Asiatic Jember: was 8.0; reclassified a
+# 4,310 m² @ aspect 12 production hall as conveyor (lost all tiles). Real
+# conveyors at this site sit at aspect 17+, so 15.0 cleanly separates them.
+BUILDING_ASPECT_CONVEYOR_THRESHOLD: float = 15.0
+
+# Below this floor, structures are too small for commercial rooftop solar
+# OR are likely non-buildings (equipment housings, guard posts, small tanks).
+BUILDING_MIN_AREA_M2: float = 200.0
+
+# convex_ratio = polygon_area / convex_hull_area
+#   0.95-1.00 = simple rectangle (clean roof)
+#   0.85-0.95 = warehouse with loading docks
+#   0.55-0.85 = L-shape / U-shape industrial hall, still solar-suitable
+#   <0.55 = genuine process equipment cluster (don't tile)
+# v4.1 calibration on Semen Imasco Asiatic Jember: was 0.70; rejected a
+# 9,309 m² @ hull_ratio 0.62 production hall whose GoB-traced outline
+# included cooling vents and stair towers as notches. Lowering to 0.55
+# keeps that hall in while still rejecting buildings with hull_ratio < 0.55
+# which are almost always real equipment clusters.
+BUILDING_HULL_RATIO_COMPLEX_THRESHOLD: float = 0.55
+
+# ─── F4 Confidence flag thresholds (derived signals, no hard-coded sites) ──
+# Typical industrial site has 5-40% of polygon area as building footprint.
+# Outside this band suggests undercount (low) or implausibly dense (also low).
+BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW: float = 0.05
+BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH: float = 0.40
+
+# Minimum building count for `high` confidence. Below this, even a healthy
+# footprint ratio could be a single warehouse (small sample).
+BUILDING_COUNT_HIGH_CONFIDENCE_MIN: int = 10
+
+# Below this count for a known major facility (capacity > 100k tonnes/yr),
+# flag as `low` confidence — likely undercount.
+BUILDING_COUNT_LOW_CONFIDENCE_MAX: int = 3
+
+# Site polygon area threshold above which a tiny footprint share suggests
+# imagery gap, not a small site (ha).
+SITE_POLYGON_LARGE_AREA_HA: float = 500.0
+
+# Below this footprint-as-share-of-polygon for large sites, flag `low`.
+BUILDING_FOOTPRINT_IMAGERY_GAP_RATIO: float = 0.01
+
+# Imagery vintage cutoff. Sites commissioned after this year are post-Google
+# Open Buildings v3 imagery (May 2023) and likely undercounted.
+BUILDING_DATA_VINTAGE_YEAR_CUTOFF: int = 2023
+
+# Static metadata for UI tooltips. Update when GoB v4 ships.
+BUILDING_DATA_VINTAGE: str = "2023-05 Google Open Buildings v3"
+
+# ─── Residential cluster detection (RV11) ──────────────────────────────────
+# 2 km buffer around non-KEK industrial sites pulls in adjacent residential
+# rooftops. RV8 (per-sector hard radius) was the obvious lever; RV11 filters
+# at the building level, which is more precise — a correct centroid that
+# happens to sit at the edge of a housing block still gets the plant
+# counted but throws out the houses.
+#
+# A building is "residential cluster" if ALL three hold:
+#   1. footprint < RESIDENTIAL_AREA_MAX_M2 (residential houses are small)
+#   2. ≥ RESIDENTIAL_MIN_NEIGHBORS buildings within
+#      RESIDENTIAL_NEIGHBOR_RADIUS_M whose area is within
+#      RESIDENTIAL_AREA_SIMILARITY_RATIO of this building's area
+#   3. (i.e. the building is part of a uniform-sized cluster)
+# Industrial sites have large halls (1) fail item 1, and small auxiliary
+# buildings (2) typically lack 5 similar neighbors within 100 m.
+RESIDENTIAL_AREA_MAX_M2: float = 300.0
+# A typical Indonesian rural/peri-urban house is 50-200 m². Bumping to 300
+# catches generously-sized homes, small shops, and modest commercial
+# buildings without flagging warehouse outbuildings.
+
+RESIDENTIAL_NEIGHBOR_RADIUS_M: float = 100.0
+# Density check radius. 100 m = ~3 typical kampung lots in any direction.
+
+RESIDENTIAL_MIN_NEIGHBORS: int = 5
+# Need ≥5 similar-sized neighbors within 100 m. Picks up housing rows
+# while leaving isolated small warehouses (the steel-mill auxiliary case)
+# alone.
+
+RESIDENTIAL_AREA_SIMILARITY_RATIO: float = 0.5
+# Two buildings count as "similar size" if min(a,b)/max(a,b) ≥ 0.5.
+# i.e. they're within 2× of each other. A 50 m² shed next to a 300 m²
+# warehouse fails this; two 100 m² houses pass.
+
+
+# ─── Rooftop accuracy eval (RV-eval) ───────────────────────────────────────
+# Automated red-flag thresholds for `scripts/eval_rooftop_accuracy.py`.
+# Companion to RV13's centroid validator — runs against the rooftop
+# pipeline output and surfaces sites that look statistically off vs their
+# sector peers OR vs their plant footprint. See METHODOLOGY §4A.7.
+
+EVAL_SECTOR_ZSCORE_THRESHOLD: float = 2.0
+# Per-sector MWp/kt-of-capacity ratio outside ±2σ flags the site as
+# HIGH-PRIORITY. Conservative — most distributions pass.
+
+EVAL_SECTOR_MIN_SAMPLE: int = 4
+# Sectors with fewer than this many sites can't form a reliable
+# distribution. Aluminium (n=2) and ammonia (n=0) bypass the band check.
+# These sites get a "manual review required" flag instead.
+
+EVAL_FOOTPRINT_RATIO_LOW: float = 0.05
+# Total building footprint as a share of plant polygon area. Below 5%
+# means we're missing most of the plant (pure RV7 case — GoB undercount).
+EVAL_FOOTPRINT_RATIO_HIGH: float = 0.30
+# Above 30% suggests we're catching residential bleed or the polygon is
+# too tight. Industrial plants typically run 5-25% rooftop coverage.
+
+EVAL_HIST_PATH: str = "outputs/data/eval/rooftop-history.jsonl"
+# Append every run's findings here so we can track signal quality over
+# time as multi-source data + classifier improvements land. Repo-relative
+# path; resolved against REPO_ROOT in scripts/eval_rooftop_accuracy.py
+# so it lands in the same place regardless of cwd.
+
+
+# ─── Multi-source building data fan-out (RV7 / spec §13.10 invariant 4) ────
+# When both GoB v3 and Microsoft GMLBF parquets are present,
+# load_buildings_for_pipeline() merges them with IoU-based spatial dedup.
+
+MS_DEDUP_IOU_THRESHOLD: float = 0.5
+# Two buildings from different sources are considered duplicates if their
+# polygon IoU exceeds this threshold. 0.5 is the conventional cutoff in
+# building-detection benchmarks (TUM / SpaceNet). Below 0.5 the buildings
+# are kept separate (different buildings). Above 0.5 the GoB row wins
+# (it has a confidence score and an established place in the §14
+# classifier output) and the MS source is dropped silently — both are
+# real, the row just doesn't double-count.
+
+MS_PREFERRED_SOURCE_DEFAULT: str = "gob_v3"
+# Per spec §13.10 invariant 3, dim_sites.preferred_building_source can
+# override on a per-site basis (post-2023 nickel IIA → "ms_gmlbf"). When
+# the column is null OR missing entirely (v4.1 reality), fall back to
+# this default — keeps existing GoB-only behavior intact.
+
+
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 
 

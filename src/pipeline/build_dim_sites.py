@@ -189,6 +189,13 @@ def build_dim_sites(
     # Stamp data vintage
     unified["data_vintage"] = date.today().isoformat()
 
+    # Forward-compat invariant #3 (rooftop spec §13.10): the
+    # `preferred_building_source` column lets v4.2 force a specific source
+    # per site (e.g., post-2023 sites prefer "ms_gmlbf" over "gob_v3").
+    # All null in v4.1 — single-source default order applies.
+    if "preferred_building_source" not in unified.columns:
+        unified["preferred_building_source"] = pd.NA
+
     # Select and order final columns
     output_cols = [
         "site_id",
@@ -214,6 +221,7 @@ def build_dim_sites(
         "cbam_product_type",
         "business_sectors",
         "data_vintage",
+        "preferred_building_source",
     ]
 
     # Only include columns that exist (graceful for missing optional cols)

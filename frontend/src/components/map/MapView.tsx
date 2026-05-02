@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MapLayerMouseEvent, MapRef, ViewStateChangeEvent } from 'react-map-gl/maplibre';
-import Map, { Layer, NavigationControl, Source } from 'react-map-gl/maplibre';
+import Map, { Layer, NavigationControl, Popup, Source } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useMapLayers } from '../../hooks/useMapLayers';
-import { fetchSiteBuildable, fetchSitePolygon } from '../../lib/api';
+import {
+  fetchSiteBuildable,
+  fetchSiteBuildings,
+  fetchSitePolygon,
+  fetchSiteRooftopTiles,
+} from '../../lib/api';
 import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
@@ -65,10 +70,47 @@ export default function MapView() {
   const selectSite = useDashboardStore((s) => s.selectSite);
   const [polygon, setPolygon] = useState<PolygonData | null>(null);
   const [wbBuildable, setWbBuildable] = useState<GeoJSON.FeatureCollection | null>(null);
+  // v4.1 rooftop solar — buildings + tile rectangles for the selected site.
+  // Fetched per site (lightweight: per-site tiles are 1-50 KB each).
+  const [siteBuildings, setSiteBuildings] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Full tile set for the selected site. Sites like Gunung Raja Paksi have
+  // 77k+ rectangles — handing the whole FeatureCollection to MapLibre at zoom
+  // 14+ OOMs the GeoJSON worker (black-screen WebGL context loss). We keep
+  // the full set here, then memoize a viewport-clipped subset for the Source.
+  const [rooftopTiles, setRooftopTiles] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [viewportBounds, setViewportBounds] = useState<{
+    minLng: number;
+    minLat: number;
+    maxLng: number;
+    maxLat: number;
+  } | null>(null);
+  // Click-aggregate popup state — spec §3.6 F11. Computed from rooftopTiles
+  // by filtering to the clicked tile's cluster_id.
+  const [tilePopup, setTilePopup] = useState<{
+    longitude: number;
+    latitude: number;
+    clusterId: number;
+    tileCount: number;
+    panelCount: number;
+    kwDc: number;
+    kwAc: number;
+    mwhPerYear: number | null;
+    buildingCount: number;
+  } | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [measuring, setMeasuring] = useState(false);
   const mapStyleKey = useDashboardStore((s) => s.mapStyle);
+  // Toggle wired to LayerControl. Default ON the first time a site is
+  // selected (see store.selectSite). Both the tiles and the gray building
+  // footprints layer share this toggle so the user gets a clean satellite
+  // view when it's off.
+  const showRooftopTiles = useDashboardStore((s) => s.layerVisibility.rooftop_tiles !== false);
+  // Dismiss any stale cluster popup when the layer is hidden — otherwise it
+  // would float over the satellite pointing at nothing.
+  useEffect(() => {
+    if (!showRooftopTiles) setTilePopup(null);
+  }, [showRooftopTiles]);
   // Track the previous crossing so we only auto-collapse on the upward transition,
   // not on every zoom event while already zoomed in (otherwise the user couldn't
   // reopen the panel while still zoomed).
@@ -95,6 +137,43 @@ export default function MapView() {
     }
     wasZoomedPastThresholdRef.current = pastThreshold;
   }, []);
+
+  // Track viewport bounds so we can clip the rooftop tile FeatureCollection
+  // to what's visible. Without this, MapLibre's GeoJSON worker chokes on
+  // sites with 50k+ tiles and crashes the WebGL context (black screen).
+  // moveend covers both pan and zoom; load fires once at startup.
+  const handleMoveEnd = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const b = map.getBounds();
+    setViewportBounds({
+      minLng: b.getWest(),
+      minLat: b.getSouth(),
+      maxLng: b.getEast(),
+      maxLat: b.getNorth(),
+    });
+  }, []);
+
+  // Viewport-clipped tiles. We expand the bounds slightly so panning has a
+  // small prefetch margin (avoids visible pop-in at the edges).
+  const visibleRooftopTiles = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    if (!rooftopTiles) return null;
+    if (!viewportBounds) return rooftopTiles;
+    const lngPad = (viewportBounds.maxLng - viewportBounds.minLng) * 0.15;
+    const latPad = (viewportBounds.maxLat - viewportBounds.minLat) * 0.15;
+    const minLng = viewportBounds.minLng - lngPad;
+    const maxLng = viewportBounds.maxLng + lngPad;
+    const minLat = viewportBounds.minLat - latPad;
+    const maxLat = viewportBounds.maxLat + latPad;
+    const filtered = rooftopTiles.features.filter((f) => {
+      const props = f.properties as Record<string, number> | null;
+      const lng = props?._lng;
+      const lat = props?._lat;
+      if (lng == null || lat == null) return false;
+      return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+    });
+    return { type: 'FeatureCollection', features: filtered };
+  }, [rooftopTiles, viewportBounds]);
 
   // Activate lazy layer loading
   useMapLayers();
@@ -161,6 +240,51 @@ export default function MapView() {
         setWbBuildable(data.features?.length ? data : null);
       })
       .catch(() => setWbBuildable(null));
+  }, [selectedSite]);
+
+  // Fetch rooftop solar layers (v4.1) — buildings + tile rectangles. Two
+  // separate calls because they live in different parquets server-side.
+  // Errors are silenced because pipeline output is optional; the rooftop
+  // layers just don't render if the parquets aren't generated yet.
+  useEffect(() => {
+    if (!selectedSite) {
+      setSiteBuildings(null);
+      setRooftopTiles(null);
+      return;
+    }
+    fetchSiteBuildings(selectedSite)
+      .then((data) => setSiteBuildings(data.features?.length ? data : null))
+      .catch(() => setSiteBuildings(null));
+    fetchSiteRooftopTiles(selectedSite)
+      .then((data) => {
+        if (!data.features?.length) {
+          setRooftopTiles(null);
+          return;
+        }
+        // Precompute a centroid lng/lat into each feature's properties so the
+        // viewport-clip pass below stays O(1) per feature instead of walking
+        // the polygon ring each time the user pans.
+        for (const f of data.features) {
+          if (f.properties && f.geometry?.type === 'Polygon') {
+            const ring = (f.geometry as GeoJSON.Polygon).coordinates[0];
+            if (ring && ring.length >= 4) {
+              // 5-point closed ring; average the first 4 corners.
+              let sx = 0;
+              let sy = 0;
+              for (let i = 0; i < 4; i++) {
+                sx += ring[i][0];
+                sy += ring[i][1];
+              }
+              (f.properties as Record<string, number>)._lng = sx / 4;
+              (f.properties as Record<string, number>)._lat = sy / 4;
+            }
+          }
+        }
+        setRooftopTiles(data);
+      })
+      .catch(() => setRooftopTiles(null));
+    // Dismiss any stale cluster popup when the user switches sites
+    setTilePopup(null);
   }, [selectedSite]);
 
   // Radiate animation: buildable polygons pulse outward when KEK is selected
@@ -266,15 +390,70 @@ export default function MapView() {
     (e: MapLayerMouseEvent) => {
       const feature = e.features?.[0];
       if (!feature?.properties) return;
+
+      // v4.1 rooftop tile click → compute cluster aggregate popup (spec §3.6 F11).
+      // Branch on the feature's layer id; properties shape differs by source.
+      const layerId = feature.layer?.id;
+      if (layerId === 'rooftop-tiles-fill' && rooftopTiles) {
+        const clusterId = feature.properties.cluster_id as number;
+        const clusterTiles = rooftopTiles.features.filter(
+          (f) => f.properties?.cluster_id === clusterId,
+        );
+        const buildingIds = new Set(clusterTiles.map((f) => f.properties?.building_id as string));
+        const tileCount = clusterTiles.length;
+        const panelCount = clusterTiles.reduce(
+          (acc, f) => acc + ((f.properties?.panels_in_tile as number) ?? 0),
+          0,
+        );
+        const kwDc = clusterTiles.reduce(
+          (acc, f) => acc + ((f.properties?.tile_kw_dc as number) ?? 0),
+          0,
+        );
+        const kwAc = clusterTiles.reduce(
+          (acc, f) => acc + ((f.properties?.tile_kw_ac as number) ?? 0),
+          0,
+        );
+        // Annual MWh = AC capacity × PVOUT (kWh/kWp/yr) / 1000. Use the
+        // selected site's PVOUT — same number that drives existing wb/gc LCOE.
+        const siteRow = scorecard?.find((r) => r.site_id === selectedSite);
+        const pvout =
+          siteRow?.pvout_centroid_kwh_kwp_yr ?? siteRow?.pvout_best_50km_kwh_kwp_yr ?? null;
+        const mwhPerYear = pvout != null ? (kwAc * pvout) / 1000 : null;
+        setTilePopup({
+          longitude: e.lngLat.lng,
+          latitude: e.lngLat.lat,
+          clusterId,
+          tileCount,
+          panelCount,
+          kwDc,
+          kwAc,
+          mwhPerYear,
+          buildingCount: buildingIds.size,
+        });
+        return;
+      }
+
       const siteId = feature.properties.site_id as string;
       selectSite(siteId);
     },
-    [selectSite],
+    [selectSite, rooftopTiles, scorecard, selectedSite],
   );
 
   const handleMouseEnter = useCallback((e: MapLayerMouseEvent) => {
-    const feature = e.features?.[0];
-    if (!feature?.properties) return;
+    // interactiveLayerIds includes both kek-circles (Point) and
+    // rooftop-tiles-fill (Polygon). Only the site-marker layer carries the
+    // properties the SiteMarkers Popup expects — and only Points have a
+    // [lng, lat] coordinates pair. If we accept tile features here, coords[0]
+    // is the polygon's outer ring (an array), coords[1] is undefined, both
+    // end up as NaN, MapLibre throws "Invalid LngLat", React tears down the
+    // entire map → black screen. Gate strictly on the marker layer.
+    const feature = e.features?.find((f) => f.layer?.id === 'kek-circles');
+    if (!feature?.properties) {
+      // Still update the cursor for tile hovers — feels responsive.
+      const map = mapRef.current?.getMap();
+      if (map && e.features?.length) map.getCanvas().style.cursor = 'pointer';
+      return;
+    }
     const coords = (feature.geometry as GeoJSON.Point).coordinates;
     setHoverInfo({
       longitude: coords[0],
@@ -329,11 +508,19 @@ export default function MapView() {
         }}
         mapStyle={mapStyle as string}
         style={{ width: '100%', height: '100%' }}
-        interactiveLayerIds={measuring ? [] : ['kek-circles']}
+        interactiveLayerIds={
+          measuring
+            ? []
+            : showRooftopTiles
+              ? ['kek-circles', 'rooftop-tiles-fill']
+              : ['kek-circles']
+        }
         onClick={measuring ? undefined : handleClick}
         onMouseEnter={measuring ? undefined : handleMouseEnter}
         onMouseLeave={measuring ? undefined : handleMouseLeave}
         onZoom={handleZoom}
+        onMoveEnd={handleMoveEnd}
+        onLoad={handleMoveEnd}
       >
         <NavigationControl position="bottom-right" />
 
@@ -411,6 +598,197 @@ export default function MapView() {
               }}
             />
           </Source>
+        )}
+
+        {/* v4.1 rooftop solar — building footprints (gray) below tiles, always
+            visible when a site is selected so the user can see what GoB v3
+            detected even at low zoom. Spec §3.6 F6 + §3.7 (missing-data flag). */}
+        {showRooftopTiles && siteBuildings && (
+          // Outline is drawn via fill-outline-color (single GL pass) instead of a
+          // separate line layer. Keeps WebGL buffer count low for sites with
+          // 10k+ buildings where the dedicated line layer was crashing the GPU.
+          <Source id="rooftop-buildings" type="geojson" data={siteBuildings}>
+            <Layer
+              id="rooftop-buildings-fill"
+              type="fill"
+              minzoom={11}
+              paint={{
+                'fill-color': '#666666',
+                'fill-opacity': 0.18,
+                'fill-outline-color': 'rgba(34, 34, 34, 0.55)',
+              }}
+            />
+          </Source>
+        )}
+
+        {/* v4.1 rooftop solar — panel tile rectangles (the "show your work"
+            layer). Spec §3.6 F9: render at zoom ≥14, fill #1a3a8a, hover
+            shows tile capacity. Mobile (< 768px viewport) gets outlines only
+            via the building layer above; tiles render desktop-only via the
+            zoom threshold which already gates them. */}
+        {showRooftopTiles && visibleRooftopTiles && (
+          // Source receives the viewport-clipped subset, not the full
+          // FeatureCollection. Sites like Gunung Raja Paksi (77k tiles) would
+          // OOM the MapLibre GeoJSON worker at zoom 14+ otherwise — black
+          // screen WebGL context loss. Clipping caps the worker payload at
+          // however many tiles fit in the current viewport (typically <5k).
+          <Source
+            id="rooftop-tiles"
+            type="geojson"
+            data={visibleRooftopTiles}
+            tolerance={0.5}
+            buffer={32}
+          >
+            <Layer
+              id="rooftop-tiles-fill"
+              type="fill"
+              minzoom={14}
+              paint={{
+                'fill-color': '#1a3a8a',
+                'fill-opacity': 0.78,
+                'fill-outline-color': 'rgba(10, 31, 74, 0.85)',
+              }}
+            />
+          </Source>
+        )}
+
+        {/* Cluster click popup — spec §3.6 F11. Shows tile-level aggregate when
+            a tile is clicked. Closes on the popup's own X button or when site
+            changes (via the fetch effect above). */}
+        {tilePopup && (
+          <Popup
+            longitude={tilePopup.longitude}
+            latitude={tilePopup.latitude}
+            onClose={() => setTilePopup(null)}
+            closeOnClick={false}
+            anchor="bottom"
+            offset={12}
+          >
+            <div
+              style={{
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+                fontSize: 12,
+                lineHeight: 1.55,
+                color: 'var(--text-primary)',
+                minWidth: 220,
+                padding: '4px 2px',
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 700,
+                  marginBottom: 8,
+                  color: 'var(--accent)',
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Cluster #{tilePopup.clusterId}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>Buildings</span>
+                <strong
+                  style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {tilePopup.buildingCount.toLocaleString()}
+                </strong>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>Tiles</span>
+                <strong
+                  style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {tilePopup.tileCount.toLocaleString()}
+                </strong>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span>Panels</span>
+                <strong
+                  style={{
+                    fontVariantNumeric: 'tabular-nums',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {tilePopup.panelCount.toLocaleString()}
+                </strong>
+              </div>
+              <div
+                style={{
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px solid var(--glass-border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <span>kW DC</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.kwDc.toFixed(1)}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <span>kW AC</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {tilePopup.kwAc.toFixed(1)}
+                </span>
+              </div>
+              {tilePopup.mwhPerYear != null && (
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    color: 'var(--text-secondary)',
+                    marginTop: 2,
+                  }}
+                >
+                  <span>Annual energy</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    ~{tilePopup.mwhPerYear.toFixed(0)} MWh/yr
+                  </span>
+                </div>
+              )}
+            </div>
+          </Popup>
         )}
       </Map>
 

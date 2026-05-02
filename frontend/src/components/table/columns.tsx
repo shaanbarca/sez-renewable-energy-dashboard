@@ -36,6 +36,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   area_ha: 'Total designated KEK area in hectares',
   regional_groundmount_potential_mwp_50km:
     'Maximum buildable ground-mount solar capacity (MWp) within 50km of the site centroid, after applying buildability filters (slope, land cover, protected areas). Regional, not on-site.',
+  rooftop_solar_mwp_potential:
+    'On-site rooftop solar nameplate ceiling (MWp). Sum of detected building footprints × §14 classifier usability multiplier × layout density × panel density. Source: Google Open Buildings v3 (vintage 2023-05). Outliers help spot data issues — extremely low may indicate stale GoB v3 detection; extremely high may indicate over-counted residential structures.',
   action_flag:
     'Recommended action based on solar economics, grid readiness, and RUPTL pipeline status',
   lcoe_mid_usd_mwh:
@@ -315,7 +317,7 @@ export const columns = [
   col.accessor('regional_groundmount_potential_mwp_50km', {
     header: () => (
       <HeaderWithTooltip
-        label="Capacity (MWp)"
+        label="Ground 50km (MWp)"
         columnId="regional_groundmount_potential_mwp_50km"
       />
     ),
@@ -323,6 +325,16 @@ export const columns = [
     cell: (info) => {
       const v = info.getValue();
       return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+    },
+  }),
+  col.accessor('rooftop_solar_mwp_potential', {
+    header: () => (
+      <HeaderWithTooltip label="Rooftop (MWp)" columnId="rooftop_solar_mwp_potential" />
+    ),
+    filterFn: 'inRange',
+    cell: (info) => {
+      const v = info.getValue();
+      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
     },
   }),
   col.accessor('action_flag', {

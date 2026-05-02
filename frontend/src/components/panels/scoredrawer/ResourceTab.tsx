@@ -146,6 +146,59 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
         )}
       </StatCard>
 
+      {showSolar && row.rooftop_solar_mwp_potential != null && (
+        <StatCard>
+          <SectionHeader
+            title="Rooftop Solar Potential"
+            subtitle={
+              row.building_data_confidence === 'low' && row.building_data_reason_flagged
+                ? `Building data unavailable for this site — ${row.building_data_reason_flagged.replace(/_/g, ' ')}`
+                : "How much rooftop solar can the site's existing buildings host?"
+            }
+            tip="Per-building footprints from Google Open Buildings v3, classified for solar suitability (tanks, silos, conveyors excluded), then sized at modern panel density."
+          />
+          <StatRowWithTip
+            label="Rooftop MWp"
+            value={
+              row.rooftop_solar_mwp_potential != null
+                ? row.rooftop_solar_mwp_potential.toFixed(1)
+                : null
+            }
+            unit="MWp DC"
+            tip="Total rooftop solar capacity from the §14 building classifier × layout density × panel power. Includes all suitable buildings (standard rooftops + soft-derated)."
+          />
+          <StatRow
+            label="Standard rooftops"
+            value={
+              row.building_count_standard_roof != null
+                ? row.building_count_standard_roof.toLocaleString()
+                : null
+            }
+            unit={
+              row.building_count_other_excluded != null && row.building_count_other_excluded > 0
+                ? `(${row.building_count_other_excluded.toLocaleString()} excluded)`
+                : ''
+            }
+          />
+          {row.usable_roof_area_m2 != null && row.usable_roof_area_m2 > 0 && (
+            <StatRowWithTip
+              label="Usable roof area"
+              value={(row.usable_roof_area_m2 / 10_000).toFixed(1)}
+              unit="ha"
+              tip="Building footprint × usability multiplier from the §14 classifier (1.0 for standard rooftops, derated for elongated / complex / round shapes)."
+            />
+          )}
+          {row.building_data_confidence && (
+            <StatRowWithTip
+              label="Data confidence"
+              value={row.building_data_confidence}
+              unit=""
+              tip={`Derived from building count + footprint ratio + imagery vintage. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`}
+            />
+          )}
+        </StatCard>
+      )}
+
       {showSolar && (
         <StatCard>
           <SectionHeader
@@ -174,9 +227,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
 
       {row.regional_groundmount_potential_mwp_50km != null &&
         row.regional_groundmount_potential_mwp_50km > 0 &&
-        showSolar && (
-        <LcoeCurveChart row={row} />
-      )}
+        showSolar && <LcoeCurveChart row={row} />}
     </>
   );
 }
