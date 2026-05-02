@@ -60,6 +60,7 @@ flowchart TD
         P12["fct_captive_steel"]
         P13["fct_captive_cement"]
         P14["fct_site_wind_resource"]
+        P15["fct_site_solar_potential\n(v4.1: rooftop MWp from GoB v3 + MS GMLBF)"]
     end
 
     subgraph OUTPUTS["outputs/data/processed/"]

@@ -31,7 +31,7 @@ This document is the single authoritative methodology reference for the Indonesi
   - [4A.5 Cluster aggregation (visual layer)](#4a5-cluster-aggregation-visual-layer)
   - [4A.6 Confidence + missing-data flagging](#4a6-confidence--missing-data-flagging)
   - [4A.7 Known limits](#4a7-known-limits)
-  - [4A.7a Multi-source fan-out (MS GMLBF)](#4a7a-multi-source-fan-out-microsoft-gmlbf-in-progress-2026-04-30)
+  - [4A.7a Multi-source fan-out (MS GMLBF)](#4a7a-multi-source-fan-out-microsoft-gmlbf-shipped-2026-05-02)
   - [4A.8 Automated accuracy eval](#4a8-automated-accuracy-eval)
 - [5. Siting Scenarios](#5-siting-scenarios)
   - [5.1 Within-boundary (captive)](#51-within-boundary-captive)
@@ -392,13 +392,13 @@ Sites with zero buildings (18 of 81) are written to `sites_missing_buildings.csv
 
 ### 4A.7 Known limits
 
-- **GoB v3 vintage.** 2023-05. Post-2023 buildings are missing entirely (TODOS RV7 — multi-source fan-out via Microsoft GMLBF in progress; see §4A.7a).
+- **GoB v3 vintage.** 2023-05. Post-2023 buildings are missing entirely (TODOS RV7 — multi-source fan-out via Microsoft GMLBF shipped 2026-05-02; see §4A.7a).
 - **Detection asymmetry.** Two visually-identical adjacent rooftops can produce different tile counts when GoB detected one cleanly and fragmented or missed the other. Microsoft GMLBF, trained on a different model + imagery vintage, is expected to mostly cover the asymmetric cases.
 - **Industrial catchment radius.** 2 km buffer over-counts non-roof buildings around standalone cement/steel/nickel plants (TODOS RV8). RV-eval surfaces these as `sector_outlier_above`; the OSM-polygon clip in §4A.4 is the primary fix when coverage exists.
 - **Fragmented detection.** A single physical roof occasionally arrives as several `too_small` polygons; merging them before classification is an open option (TODOS RV9 — deferred pending visual validation of the merge tolerance).
 - **No manual validation pass yet.** Spec §16 calls for ±20% accuracy on 10 sample sites and ≥80% classifier accuracy on 100 manually-labelled buildings before declaring v4.1 final (Phase 4).
 
-### 4A.7a Multi-source fan-out (Microsoft GMLBF, in progress 2026-04-30)
+### 4A.7a Multi-source fan-out (Microsoft GMLBF, shipped 2026-05-02)
 
 RV-eval's first triage rounds exhausted the easy bleed wins (Ispat Indo, Semen Gresik City, Semen Kupang) and exposed two structural blockers in the remaining `sector_outlier_above` and all 7 `zero_mwp_with_capacity` findings:
 
