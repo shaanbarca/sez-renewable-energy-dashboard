@@ -66,6 +66,17 @@ FCT_ROOFTOP = REPO_ROOT / "outputs" / "data" / "processed" / "fct_site_solar_pot
 DIM_SITES = REPO_ROOT / "outputs" / "data" / "processed" / "dim_sites.csv"
 KEK_POLYGONS = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
 INDUSTRIAL_POLYGONS = REPO_ROOT / "data" / "industrial_sites" / "site_polygons.geojson"
+GOB_PARQUET = REPO_ROOT / "data" / "processed" / "sites_buildings_filtered.parquet"
+MS_PARQUET = REPO_ROOT / "data" / "processed" / "sites_buildings_microsoft.parquet"
+
+# Threshold for the cross-source IoU check (matches MS_DEDUP_IOU_THRESHOLD).
+# Any MS building without a GoB match above this IoU is "net-new".
+CROSS_SOURCE_IOU_THRESHOLD = 0.5
+# A site qualifies as "MS reveals materially more buildings" when MS adds
+# at least this many net-new buildings AND the gain is at least this
+# fraction of the GoB count. Both gates avoid noise on small sites.
+MS_REVEAL_MIN_NEW_BUILDINGS = 5
+MS_REVEAL_MIN_GAIN_FRACTION = 0.5
 
 # Both polygon sets are EPSG:4326. Reproject to UTM 50S for accurate area.
 PROJECTED_CRS = "EPSG:23830"
@@ -146,6 +157,17 @@ FLAG_DISPLAY: dict[str, dict[str, str]] = {
             "These sectors pass through unchecked."
         ),
         "fix": "Eyeball the values manually; defer until sector grows.",
+        "priority": "info",
+    },
+    "ms_gmlbf_reveals_buildings": {
+        "icon": "🟢",
+        "title": "RV7 FIX — MS GMLBF reveals buildings GoB missed",
+        "rule": (
+            "MS GMLBF added significantly more buildings than GoB v3 saw — "
+            "confirms the RV7 GoB-undercount pattern (Cemindo Bayah, "
+            "Hongshi, IWIP). Multi-source merge has filled the gap."
+        ),
+        "fix": "No action — informational. Validates the multi-source path.",
         "priority": "info",
     },
 }
@@ -369,6 +391,100 @@ def check_plant_area_band(
     return findings, n_covered, len(eligible)
 
 
+def check_cross_source_audit(
+    gob_path: Path | None = None,
+    ms_path: Path | None = None,
+    iou_threshold: float = CROSS_SOURCE_IOU_THRESHOLD,
+) -> list[dict[str, Any]]:
+    """Compare GoB v3 and MS GMLBF building parquets per site.
+
+    Flags sites where MS GMLBF reveals materially more buildings than GoB
+    saw — direct confirmation of the RV7 fix (Cemindo Bayah pattern).
+
+    Cleanly no-ops when MS parquet is absent (Phase 1 reality before the
+    download lands). Returns [] silently in that case so the eval still
+    runs end-to-end against single-source GoB data.
+
+    Methodology: per site, build STRtree on GoB polygons, then for each
+    MS polygon check whether any GoB neighbor has IoU > threshold. MS
+    rows with no match are "net-new". Site flagged when net-new count
+    exceeds both absolute (MS_REVEAL_MIN_NEW_BUILDINGS) and relative
+    (MS_REVEAL_MIN_GAIN_FRACTION) gates.
+    """
+    findings: list[dict[str, Any]] = []
+    # Resolve at call time so tests can monkeypatch the module-level paths.
+    if gob_path is None:
+        gob_path = GOB_PARQUET
+    if ms_path is None:
+        ms_path = MS_PARQUET
+    if not gob_path.exists() or not ms_path.exists():
+        return findings
+
+    # Lazy imports — these libs are heavy and only used by this check.
+    import geopandas as gpd  # noqa: PLC0415
+    import numpy as np  # noqa: PLC0415
+    from shapely.strtree import STRtree  # noqa: PLC0415
+
+    gob = gpd.read_parquet(gob_path)
+    ms = gpd.read_parquet(ms_path)
+
+    for site_id, ms_grp in ms.groupby("site_id"):
+        gob_grp = gob[gob["site_id"] == site_id]
+        gob_count = len(gob_grp)
+        ms_count = len(ms_grp)
+        if ms_count == 0:
+            continue
+
+        # Count MS buildings with no IoU match in GoB → net-new buildings.
+        if gob_count == 0:
+            net_new = ms_count
+        else:
+            gob_geoms = list(gob_grp.geometry.to_numpy())
+            gob_areas = np.array([g.area for g in gob_geoms])
+            tree = STRtree(gob_geoms)
+            net_new = 0
+            for sg in ms_grp.geometry.to_numpy():
+                sa = sg.area
+                if sa <= 0:
+                    continue
+                cand_idx = tree.query(sg)
+                matched = False
+                for j in cand_idx:
+                    pg = gob_geoms[int(j)]
+                    inter = sg.intersection(pg).area
+                    if inter <= 0:
+                        continue
+                    union = sa + gob_areas[int(j)] - inter
+                    if union > 0 and (inter / union) >= iou_threshold:
+                        matched = True
+                        break
+                if not matched:
+                    net_new += 1
+
+        # Two gates — absolute count + fractional gain — to cut noise.
+        gain_fraction = net_new / max(gob_count, 1)
+        if net_new >= MS_REVEAL_MIN_NEW_BUILDINGS and gain_fraction >= MS_REVEAL_MIN_GAIN_FRACTION:
+            site_name_match = ms_grp["site_id"].iloc[0]
+            findings.append(
+                {
+                    "check": "ms_gmlbf_reveals_buildings",
+                    "priority": "info",
+                    "site_id": site_id,
+                    "site_name": site_name_match,
+                    "gob_count": int(gob_count),
+                    "ms_count": int(ms_count),
+                    "net_new": int(net_new),
+                    "gain_fraction": round(gain_fraction, 2),
+                    "reason": (
+                        f"MS GMLBF added {net_new} buildings (×{gain_fraction:.1f} "
+                        f"of GoB count {gob_count}) that GoB v3 missed"
+                    ),
+                }
+            )
+
+    return findings
+
+
 def format_report(
     findings: list[dict[str, Any]],
     poly_coverage: tuple[int, int],
@@ -460,6 +576,9 @@ def main() -> int:
     findings.extend(check_sector_ratio_band(df))
     plant_findings, n_covered, n_total = check_plant_area_band(df, polygons)
     findings.extend(plant_findings)
+    # Phase 4 cross-source check (RV7 fix confirmation). No-ops when MS
+    # parquet is absent — single-source pipelines are unaffected.
+    findings.extend(check_cross_source_audit())
 
     print(format_report(findings, (n_covered, n_total)))
     append_history(findings)

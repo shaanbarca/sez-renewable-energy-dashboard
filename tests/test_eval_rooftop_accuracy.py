@@ -16,7 +16,7 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import pytest
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
 
 # Add scripts/ to path so the script is importable as a module under test.
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
@@ -467,3 +467,129 @@ def test_main_exit_code_one_when_high_finding(tmp_path, monkeypatch):
     monkeypatch.setattr(eval_rooftop, "EVAL_HIST_PATH", str(tmp_path / "history.jsonl"))
     rc = eval_rooftop.main()
     assert rc == 1
+
+
+# ─── check_cross_source_audit (Phase 4) ──────────────────────────────────
+
+
+def _write_buildings_parquet(path, rows: list[dict]):
+    """Write a tiny GeoDataFrame matching the spec §13.10 schema."""
+    gdf = gpd.GeoDataFrame(pd.DataFrame(rows), geometry="geometry", crs="EPSG:4326")
+    gdf.to_parquet(path, index=False)
+
+
+def _bldg(bid: str, site: str, source: str, geom) -> dict:
+    return {
+        "building_id": bid,
+        "site_id": site,
+        "source_name": source,
+        "source_vintage": "test",
+        "geometry": geom,
+    }
+
+
+def test_cross_source_audit_noops_when_ms_parquet_missing(tmp_path, monkeypatch):
+    """Phase 1 reality: only GoB exists. Check must return [] silently
+    so the eval still runs end-to-end against single-source data."""
+    monkeypatch.setattr(eval_rooftop, "GOB_PARQUET", tmp_path / "no_gob.parquet")
+    monkeypatch.setattr(eval_rooftop, "MS_PARQUET", tmp_path / "no_ms.parquet")
+    findings = eval_rooftop.check_cross_source_audit()
+    assert findings == []
+
+
+def test_cross_source_audit_flags_ms_only_site(tmp_path, monkeypatch):
+    """Site has 0 GoB buildings but MS sees 10 → confirms RV7 fix.
+
+    This is the Cemindo Bayah / Hongshi pattern — direct visual evidence
+    that multi-source ingestion closed a known undercount."""
+    gob_path = tmp_path / "gob.parquet"
+    ms_path = tmp_path / "ms.parquet"
+    # GoB has buildings at site-a only. Site-b is a zero-coverage site.
+    _write_buildings_parquet(
+        gob_path,
+        [_bldg("gob:1", "site-a", "gob_v3", box(0, 0, 1, 1))],
+    )
+    # MS sees site-b — 10 net-new buildings.
+    _write_buildings_parquet(
+        ms_path,
+        [_bldg(f"ms:{i}", "site-b", "ms_gmlbf", box(i, 0, i + 0.5, 0.5)) for i in range(10)],
+    )
+    monkeypatch.setattr(eval_rooftop, "GOB_PARQUET", gob_path)
+    monkeypatch.setattr(eval_rooftop, "MS_PARQUET", ms_path)
+    findings = eval_rooftop.check_cross_source_audit()
+    assert len(findings) == 1
+    assert findings[0]["site_id"] == "site-b"
+    assert findings[0]["check"] == "ms_gmlbf_reveals_buildings"
+    assert findings[0]["priority"] == "info"
+    assert findings[0]["net_new"] == 10
+    assert findings[0]["gob_count"] == 0
+
+
+def test_cross_source_audit_no_flag_when_high_iou_overlap(tmp_path, monkeypatch):
+    """GoB and MS both see the same buildings → no net-new → no flag.
+
+    The dedup logic confirms agreement; nothing surprising to surface."""
+    gob_path = tmp_path / "gob.parquet"
+    ms_path = tmp_path / "ms.parquet"
+    boxes = [box(i, 0, i + 1, 1) for i in range(10)]
+    _write_buildings_parquet(
+        gob_path,
+        [_bldg(f"gob:{i}", "site-a", "gob_v3", b) for i, b in enumerate(boxes)],
+    )
+    # MS sees the SAME boxes (high IoU) — no net-new.
+    _write_buildings_parquet(
+        ms_path,
+        [_bldg(f"ms:{i}", "site-a", "ms_gmlbf", b) for i, b in enumerate(boxes)],
+    )
+    monkeypatch.setattr(eval_rooftop, "GOB_PARQUET", gob_path)
+    monkeypatch.setattr(eval_rooftop, "MS_PARQUET", ms_path)
+    findings = eval_rooftop.check_cross_source_audit()
+    assert findings == []
+
+
+def test_cross_source_audit_below_min_new_buildings_no_flag(tmp_path, monkeypatch):
+    """MS adds 4 buildings (below MS_REVEAL_MIN_NEW_BUILDINGS=5) → no flag.
+
+    Avoids noise on tiny sites — single-digit gains aren't actionable."""
+    gob_path = tmp_path / "gob.parquet"
+    ms_path = tmp_path / "ms.parquet"
+    _write_buildings_parquet(
+        gob_path,
+        [_bldg(f"gob:{i}", "site-a", "gob_v3", box(i, 0, i + 1, 1)) for i in range(2)],
+    )
+    # MS adds 4 disjoint buildings — below the 5-building floor.
+    _write_buildings_parquet(
+        ms_path,
+        [_bldg(f"ms:{i}", "site-a", "ms_gmlbf", box(10 + i, 0, 11 + i, 1)) for i in range(4)],
+    )
+    monkeypatch.setattr(eval_rooftop, "GOB_PARQUET", gob_path)
+    monkeypatch.setattr(eval_rooftop, "MS_PARQUET", ms_path)
+    findings = eval_rooftop.check_cross_source_audit()
+    assert findings == []
+
+
+def test_cross_source_audit_below_gain_fraction_no_flag(tmp_path, monkeypatch):
+    """MS adds 6 buildings to a site with 100 GoB buildings → 6% gain,
+    below MS_REVEAL_MIN_GAIN_FRACTION=0.5 → no flag.
+
+    Big sites where the marginal addition is tiny shouldn't generate
+    noise — only material RV7 fixes are interesting."""
+    gob_path = tmp_path / "gob.parquet"
+    ms_path = tmp_path / "ms.parquet"
+    # 100 GoB buildings clustered tightly.
+    _write_buildings_parquet(
+        gob_path,
+        [
+            _bldg(f"gob:{i}", "site-a", "gob_v3", box(i % 10, i // 10, i % 10 + 0.5, i // 10 + 0.5))
+            for i in range(100)
+        ],
+    )
+    # MS adds 6 disjoint buildings far from any GoB row.
+    _write_buildings_parquet(
+        ms_path,
+        [_bldg(f"ms:{i}", "site-a", "ms_gmlbf", box(100 + i, 0, 101 + i, 1)) for i in range(6)],
+    )
+    monkeypatch.setattr(eval_rooftop, "GOB_PARQUET", gob_path)
+    monkeypatch.setattr(eval_rooftop, "MS_PARQUET", ms_path)
+    findings = eval_rooftop.check_cross_source_audit()
+    assert findings == []  # 6 / 100 = 6% gain, below 50% floor
