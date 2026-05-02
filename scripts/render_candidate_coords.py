@@ -38,28 +38,29 @@ MAPBOX_TOKEN = (
 # Current hunt (2026-04-30): Jakarta Prima Steel Industries — visual showed
 # centroid in residential, plant upper-left of frame. Two OSM candidates.
 CANDIDATES: dict[str, list[tuple[float, float, str]]] = {
-    # 2026-05-02 nickel polygon hunt — top 5 high-priority sites from
-    # polygon_coverage_priority.csv. IMIP found directly via Nominatim;
-    # the rest need visual verification of OSM candidates.
-    "ipip-vs-current": [
-        (-4.2912, 121.5584, "current-dimsites"),
-        (-4.1866, 121.6116, "ANTAM-Feronikel-osm"),
-    ],
+    # 2026-05-03 nickel polygon hunt round 2 — top remaining HIGH-priority
+    # sites from polygon_coverage_priority.csv after round 1 (IMIP/IPIP/Obi):
+    # VDNIP, NIS, IWIP, Bantaeng. All nickel; VDNIP/NIS may share a polygon.
     "vdnip-nis-konawe": [
         (-3.8902, 122.4379, "vdnip-current"),
         (-3.8352, 122.4034, "nis-current"),
         (-3.8255, 122.4788, "konawe-relation-14284935"),
-        (-3.8282, 122.4656, "delong-nickel-phase2"),
+        (-3.8282, 122.4656, "delong-nickel-phase2-way1168320730"),
     ],
-    "obi-candidates": [
-        (-1.5327, 127.4192, "obi-current"),
-        (-1.5451, 127.4328, "obi-2km-S-way150491132"),
-        (-1.5058, 127.3944, "obi-4km-NW-way150491120"),
-        (-1.5134, 127.4571, "obi-4km-E-way1282881067"),
+    "iwip-candidates": [
+        (0.4891, 128.0476, "iwip-current"),
+        (0.4765, 128.0014, "PLTU-Weda-Bay-way1152758557"),
+        (0.4860, 127.9914, "镍铁KJH-NickelIron-way1245573887"),
+        (0.4761, 127.9986, "电厂1-4-PowerPlant-way1245573862"),
+    ],
+    "bantaeng-candidates": [
+        (-5.5812, 120.0574, "bip-current"),
+        (-5.5738, 120.0650, "Huadi-Nickel-Alloy-way592275190"),
+        (-5.5669, 120.0627, "Hengsheng-New-Energy-way1155935996"),
     ],
 }
 
-ZOOM = 13  # higher = more zoomed in. Drop to 13 for region-scan, 17 for plant detail.
+ZOOM = 16  # higher = more zoomed in. Drop to 13 for region-scan, 17 for plant detail.
 
 
 def fetch_sat(lat: float, lon: float, zoom: int = ZOOM, w: int = 800, h: int = 600) -> Image.Image:

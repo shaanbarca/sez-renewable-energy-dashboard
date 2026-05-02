@@ -38,14 +38,14 @@ gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,standalone,steel,crude_steel,W
 master-steel-jakarta,Master Steel Jakarta,standalone,steel,crude_steel,DKI Jakarta,-6.18421,106.920067,,2000000 TPA,2000000.0,EAF,Master Steel MFG,iron_steel
 jakarta-prima-steel-industries,Jakarta Prima Steel Industries,standalone,steel,crude_steel,DKI Jakarta,-6.181643,106.932331,,900000 TPA,900000.0,EAF,Jakarta Prima Steel,iron_steel
 ispat-indo-sidoarjo,Ispat Indo Sidoarjo,standalone,steel,crude_steel,East Java,-7.35649,112.70311,,700000 TPA,700000.0,EAF,ArcelorMittal,iron_steel
-virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),cluster,nickel,mixed_nickel,,-3.890235466,122.4379273,,2000000 TPA,2000000.0,Ferro Nickel,,iron_steel
-bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),cluster,nickel,mixed_nickel,,-5.581220134,120.0574004,,263300 TPA,263300.0,Ferro Nickel,,iron_steel
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),cluster,nickel,mixed_nickel,,-3.8262,122.4779,,2000000 TPA,2000000.0,Ferro Nickel,,iron_steel
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),cluster,nickel,mixed_nickel,,-5.5746,120.0664,,263300 TPA,263300.0,Ferro Nickel,,iron_steel
 obi-island-industrial-park,Obi Island Industrial Park,cluster,nickel,mixed_nickel,,-1.5135,127.457,,1970000 TPA,1970000.0,Ferro Nickel,,iron_steel
 indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),cluster,nickel,mixed_nickel,,-4.186,121.6114,,2227000 TPA,2227000.0,Ferro Nickel,,iron_steel
 nusantara-industri-sejati,Nusantara Industri Sejati,cluster,nickel,mixed_nickel,,-3.835193078,122.4033594,,2000000 TPA,2000000.0,Ferro Nickel,,iron_steel
 indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),cluster,nickel,mixed_nickel,,-2.831769936,122.1651827,,6014929 TPA,6014929.0,Nickel Pig Iron,,iron_steel
 stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),cluster,nickel,mixed_nickel,,-1.935932805,121.6115391,,,,Mixed RKEF/HPAL,,iron_steel
-industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),cluster,nickel,mixed_nickel,,0.4890843334,128.0476444,,1741000 TPA,1741000.0,Nickel Pig Iron,,iron_steel
+industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),cluster,nickel,mixed_nickel,,0.4789,127.9984,,1741000 TPA,1741000.0,Nickel Pig Iron,,iron_steel
 buli-industrial-park,Buli Industrial Park,cluster,nickel,mixed_nickel,,0.8408315536,128.2559372,,40500 TPA,40500.0,Ferro Nickel,,iron_steel
 indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),cluster,nickel,mixed_nickel,,-3.016794486,121.8324283,,,,Mixed RKEF/HPAL,,iron_steel
 inalum-asahan,Inalum Asahan,standalone,aluminium,primary_aluminium,North Sumatra,2.703,99.243,,250000 TPA,250000.0,Hall-Heroult,Indonesia Asahan Aluminium (Inalum),aluminium
