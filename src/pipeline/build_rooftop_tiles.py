@@ -48,12 +48,14 @@ Tile generation per-building is a tight grid loop in shapely. Expect
 
 from __future__ import annotations
 
+import gzip
+import json
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import box
+from shapely.geometry import box, mapping
 from sklearn.cluster import DBSCAN
 
 from src.assumptions import (
@@ -75,6 +77,15 @@ from src.pipeline.build_fct_site_solar_potential import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_PROCESSED = REPO_ROOT / "data" / "processed"
 DEFAULT_OUTPUT = DATA_PROCESSED / "sites_rooftop_tiles.parquet"
+# Per-site pre-built GeoJSON files (gzipped) — the API endpoint streams
+# these directly instead of rebuilding the response from parquet on every
+# request. Cuts /api/site/<id>/rooftop-tiles latency from ~9 s to ~0.5 s
+# on the largest sites (Master Steel: 135 k tiles).
+DEFAULT_GEOJSON_DIR = DATA_PROCESSED / "rooftop_tiles_geojson"
+# Coordinate precision in the static GeoJSON. 6 decimal places ≈ 0.11 m
+# at the equator — well below 6 m × 4 m tile resolution. 14 dp (the
+# pandas default) is sub-nanometer and pure waste in the payload.
+GEOJSON_COORD_PRECISION = 6
 
 # Tile dimensions (visual rectangles drawn on the map). 6 panels per tile,
 # arranged 3 panels wide × 2 panels deep, plus walkway slack at the
@@ -277,7 +288,60 @@ def build_rooftop_tiles(
     print(f"  sites with tiles:   {n_sites} / 81")
     print(f"  unique clusters:    {n_clusters:,}")
     print(f"  total kW AC:        {total_kw_ac:,.0f}")
+
+    # Pre-build per-site .geojson.gz files. The API endpoint serves these
+    # directly — skips the per-request parquet filter + 135k iterrows()
+    # dict construction loop that dominated the previous ~9 s response time.
+    write_per_site_geojson(tiles_gdf)
+
     return tiles_gdf
+
+
+def write_per_site_geojson(
+    tiles_gdf: gpd.GeoDataFrame,
+    out_dir: Path = DEFAULT_GEOJSON_DIR,
+    coord_precision: int = GEOJSON_COORD_PRECISION,
+) -> None:
+    """Write one gzipped GeoJSON FeatureCollection per site_id.
+
+    Output: `{out_dir}/{site_id}.geojson.gz` ready to stream from the API.
+    Coordinates rounded to `coord_precision` dp (default 6 ≈ 0.11 m, plenty
+    for visual rendering at zoom ≥ 14 — pandas default is 14 dp = sub-nm).
+    """
+    if tiles_gdf.empty:
+        print("  (skipping per-site GeoJSON — tiles_gdf is empty)")
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+    keep = ["tile_idx", "cluster_id", "building_id", "panels_in_tile", "tile_kw_dc", "tile_kw_ac"]
+    total_bytes = 0
+    n_sites = 0
+    for site_id, site_grp in tiles_gdf.groupby("site_id"):
+        features = []
+        for row in site_grp.itertuples(index=False):
+            geom = mapping(row.geometry)
+            # Round coords in-place (geom["coordinates"] is a nested list of
+            # rings → rings of pts → [lng, lat] pairs).
+            geom["coordinates"] = [
+                [[round(c, coord_precision) for c in pt] for pt in ring]
+                for ring in geom["coordinates"]
+            ]
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": geom,
+                    "properties": {k: getattr(row, k) for k in keep},
+                }
+            )
+        fc = {"type": "FeatureCollection", "features": features}
+        out_path = out_dir / f"{site_id}.geojson.gz"
+        with gzip.open(out_path, "wt", compresslevel=6) as f:
+            json.dump(fc, f, separators=(",", ":"))
+        total_bytes += out_path.stat().st_size
+        n_sites += 1
+    print(
+        f"  per-site GeoJSON:   {n_sites} files in {out_dir.relative_to(REPO_ROOT)}, "
+        f"total {total_bytes / 1_000_000:.1f} MB gzipped"
+    )
 
 
 def main() -> None:
