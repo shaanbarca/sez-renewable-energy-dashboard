@@ -988,6 +988,26 @@ EVAL_HIST_PATH: str = "outputs/data/eval/rooftop-history.jsonl"
 # so it lands in the same place regardless of cwd.
 
 
+# ─── Multi-source building data fan-out (RV7 / spec §13.10 invariant 4) ────
+# When both GoB v3 and Microsoft GMLBF parquets are present,
+# load_buildings_for_pipeline() merges them with IoU-based spatial dedup.
+
+MS_DEDUP_IOU_THRESHOLD: float = 0.5
+# Two buildings from different sources are considered duplicates if their
+# polygon IoU exceeds this threshold. 0.5 is the conventional cutoff in
+# building-detection benchmarks (TUM / SpaceNet). Below 0.5 the buildings
+# are kept separate (different buildings). Above 0.5 the GoB row wins
+# (it has a confidence score and an established place in the §14
+# classifier output) and the MS source is dropped silently — both are
+# real, the row just doesn't double-count.
+
+MS_PREFERRED_SOURCE_DEFAULT: str = "gob_v3"
+# Per spec §13.10 invariant 3, dim_sites.preferred_building_source can
+# override on a per-site basis (post-2023 nickel IIA → "ms_gmlbf"). When
+# the column is null OR missing entirely (v4.1 reality), fall back to
+# this default — keeps existing GoB-only behavior intact.
+
+
 # ─── DERIVED (convenience) ────────────────────────────────────────────────────
 
 

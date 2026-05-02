@@ -59,6 +59,7 @@ from src.assumptions import (
     BUILDING_FOOTPRINT_IMAGERY_GAP_RATIO,
     BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH,
     BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW,
+    MS_DEDUP_IOU_THRESHOLD,
     RESIDENTIAL_AREA_MAX_M2,
     RESIDENTIAL_AREA_SIMILARITY_RATIO,
     RESIDENTIAL_MIN_NEIGHBORS,
@@ -76,6 +77,7 @@ DATA_PROCESSED = REPO_ROOT / "data" / "processed"
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
 
 DEFAULT_BUILDINGS_PARQUET = DATA_PROCESSED / "sites_buildings_filtered.parquet"
+DEFAULT_MS_BUILDINGS_PARQUET = DATA_PROCESSED / "sites_buildings_microsoft.parquet"
 DEFAULT_SITES_CSV = PROCESSED / "dim_sites.csv"
 DEFAULT_OUTPUT_CSV = PROCESSED / "fct_site_solar_potential.csv"
 DEFAULT_MISSING_CSV = PROCESSED / "sites_missing_buildings.csv"
@@ -176,23 +178,100 @@ def _clip_buildings_to_site_polygons(
 # ─── Forward-compat invariant #4: SINGLE entry point for buildings ─────────
 
 
+def merge_sources(
+    primary: gpd.GeoDataFrame,
+    secondary: gpd.GeoDataFrame,
+    *,
+    iou_threshold: float = MS_DEDUP_IOU_THRESHOLD,
+) -> gpd.GeoDataFrame:
+    """Spatial-dedup union of two source parquets, per-site.
+
+    Per spec §13.10 invariant 4 dedup strategy: two buildings from
+    different sources are duplicates when polygon IoU exceeds
+    `iou_threshold` (default 0.5). On collision, `primary` wins (it
+    typically has the confidence score and an established place in the
+    §14 classifier output) and the secondary row is dropped silently.
+    Buildings from only one source pass through unchanged.
+
+    Both inputs must share the §13.10 schema (building_id, site_id,
+    source_name, source_vintage, geometry). The output preserves all
+    columns from `primary`; `secondary`-only columns are dropped if they
+    don't exist on `primary`.
+
+    Complexity: O((P_s + S_s) log P_s) per site `s`, via STRtree on
+    primary polygons. ~150k + 50k buildings runs in ~1–2 seconds total.
+    """
+    if secondary is None or secondary.empty:
+        return primary
+    if primary is None or primary.empty:
+        return secondary
+
+    primary_cols = list(primary.columns)
+    parts: list[gpd.GeoDataFrame] = [primary]
+
+    # Process per-site so STRtree is small and dedup is local.
+    for site_id, sec_grp in secondary.groupby("site_id"):
+        prim_grp = primary[primary["site_id"] == site_id]
+        if prim_grp.empty:
+            # Site has no primary coverage — secondary fills it entirely.
+            parts.append(sec_grp.reindex(columns=primary_cols))
+            continue
+
+        prim_geoms = list(prim_grp.geometry.to_numpy())
+        prim_areas = np.array([g.area for g in prim_geoms])
+        tree = STRtree(prim_geoms)
+
+        keep_mask = np.ones(len(sec_grp), dtype=bool)
+        sec_geoms = sec_grp.geometry.to_numpy()
+        for i, sg in enumerate(sec_geoms):
+            sa = sg.area
+            if sa <= 0:
+                continue
+            # STRtree.query returns positional indices into prim_geoms.
+            cand_idx = tree.query(sg)
+            if len(cand_idx) == 0:
+                continue
+            for j in cand_idx:
+                pg = prim_geoms[int(j)]
+                inter = sg.intersection(pg).area
+                if inter <= 0:
+                    continue
+                union = sa + prim_areas[int(j)] - inter
+                if union > 0 and (inter / union) >= iou_threshold:
+                    keep_mask[i] = False
+                    break
+
+        kept = sec_grp.loc[keep_mask].reindex(columns=primary_cols)
+        if not kept.empty:
+            parts.append(kept)
+
+    merged = gpd.GeoDataFrame(
+        pd.concat(parts, ignore_index=True), geometry="geometry", crs=primary.crs
+    )
+    return merged
+
+
 def load_buildings_for_pipeline(
     parquet_path: Path = DEFAULT_BUILDINGS_PARQUET,
     *,
+    ms_parquet_path: Path = DEFAULT_MS_BUILDINGS_PARQUET,
     clip_to_site_polygons: bool = True,
+    enable_ms_gmlbf: bool = True,
 ) -> gpd.GeoDataFrame:
-    """The ONLY place in the pipeline that reads
-    `sites_buildings_filtered.parquet`. Per spec §13.10 invariant #4.
+    """The ONLY place in the pipeline that reads building parquets.
+    Per spec §13.10 invariant #4.
+
+    Loads GoB v3 (`parquet_path`) and, when present and `enable_ms_gmlbf`
+    is True, also Microsoft GMLBF (`ms_parquet_path`); merges via
+    `merge_sources()` with IoU dedup. When MS parquet is missing the
+    behavior is byte-identical to v4.1 (single-source GoB).
 
     `clip_to_site_polygons` (default True) drops buildings whose centroid
     falls outside the fence boundary for sites that have one. Sources:
     KEK polygons (25 sites) + OSM `landuse=industrial` / `man_made=works`
-    polygons captured for non-KEK industrial sites (9 sites as of
-    2026-04-28). Sites without a polygon pass through unchanged — their
-    2 km preprocess buffer remains the catchment.
-
-    v4.2 (L26) replaces this with a fan-out over multiple sources +
-    `merge_sources()`. Downstream callers don't change.
+    polygons captured for non-KEK industrial sites. Sites without a
+    polygon pass through unchanged — their 2 km preprocess buffer
+    remains the catchment.
     """
     if not parquet_path.exists():
         msg = f"Buildings parquet not found at {parquet_path}. Run preprocess_open_buildings.py first."
@@ -207,6 +286,25 @@ def load_buildings_for_pipeline(
             f"Re-run preprocess_open_buildings.py — schema may be stale."
         )
         raise ValueError(msg)
+
+    # Multi-source fan-out (RV7 / spec §13.10). Additive — no behavior
+    # change when MS parquet is absent (v4.1 reality before download).
+    if enable_ms_gmlbf and ms_parquet_path.exists():
+        ms_gdf = gpd.read_parquet(ms_parquet_path)
+        ms_missing = required - set(ms_gdf.columns)
+        if ms_missing:
+            msg = (
+                f"MS GMLBF parquet missing required columns {ms_missing}. "
+                f"Re-run preprocess_microsoft_buildings.py."
+            )
+            raise ValueError(msg)
+        before = len(gdf)
+        gdf = merge_sources(gdf, ms_gdf, iou_threshold=MS_DEDUP_IOU_THRESHOLD)
+        added = len(gdf) - before
+        print(
+            f"  Multi-source merge: GoB {before:,} + MS GMLBF {len(ms_gdf):,} → "
+            f"{len(gdf):,} (added {added:,} non-duplicate MS buildings)"
+        )
 
     if clip_to_site_polygons:
         site_polys = _load_site_polygons()
