@@ -38,14 +38,17 @@ MAPBOX_TOKEN = (
 # Current hunt (2026-04-30): Jakarta Prima Steel Industries — visual showed
 # centroid in residential, plant upper-left of frame. Two OSM candidates.
 CANDIDATES: dict[str, list[tuple[float, float, str]]] = {
-    "jakarta-prima-steel-candidates": [
-        (-6.181643, 106.932331, "current-dimsites"),
-        (-6.1824, 106.9244, "Hong-Xin-Steel-osm"),
-        (-6.1758, 106.9261, "Cakratunggal-Steel-osm"),
+    # 2026-05-02 hunt: Red Lion Hongshi Tonga (4 Mt/yr cement, post-2023 build).
+    # Zoom-16 showed jetty extending NW → SE through (0.76, 117.77). Plant
+    # building must be inland (NW end). Trace back along jetty.
+    "hongshi-jetty-inland": [
+        (0.770, 117.755, "NW-along-jetty-inland"),
+        (0.775, 117.748, "further-NW-inland"),
+        (0.765, 117.760, "midway-along-jetty"),
     ],
 }
 
-ZOOM = 15  # higher = more zoomed in. Drop to 13 for region-scan, 17 for plant detail.
+ZOOM = 16  # higher = more zoomed in. Drop to 13 for region-scan, 17 for plant detail.
 
 
 def fetch_sat(lat: float, lon: float, zoom: int = ZOOM, w: int = 800, h: int = 600) -> Image.Image:
