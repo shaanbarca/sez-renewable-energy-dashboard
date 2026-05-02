@@ -1039,9 +1039,9 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 ### 3.12 `outputs/data/processed/fct_site_solar_potential.csv`
 
 **Rows:** 81 (one per site)
-**Built from:** `data/processed/sites_buildings_filtered.parquet` (Google Open Buildings v3) via `load_buildings_for_pipeline()` with KEK polygon clip + §14 classifier
+**Built from:** `data/processed/sites_buildings_filtered.parquet` (Google Open Buildings v3) **+** `data/processed/sites_buildings_microsoft.parquet` (Microsoft GMLBF, optional) merged via `load_buildings_for_pipeline()` with per-site STRtree IoU dedup, fence-boundary polygon clip, RV11 residential filter, and §14 classifier
 **Pipeline:** `build_fct_site_solar_potential.py`
-**Companion artifact:** `data/processed/sites_rooftop_tiles.parquet` (~25 MB, 703k panel-tile polygons rendered as the map "Rooftop Solar Tiles" layer — produced by `build_rooftop_tiles.py` from the same loader)
+**Companion artifact:** `data/processed/sites_rooftop_tiles.parquet` (~37 MB after Phase 5 multi-source rebuild, panel-tile polygons rendered as the map "Rooftop Solar Tiles" layer — produced by `build_rooftop_tiles.py` from the same loader)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -1049,24 +1049,27 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `site_name` | str | Site display name |
 | `rooftop_kw_dc` | float | DC nameplate sum of `footprint × usability × layout_density × panel_density` (kW) |
 | `rooftop_kw_ac` | float | AC at meter, applies `THERMAL_DERATE_TROPICAL = 0.88` (kW) |
-| `rooftop_solar_mwp_potential` | float | `rooftop_kw_dc / 1000` — the headline rooftop ceiling (MWp) |
+| `rooftop_solar_mwp_potential` | float | `rooftop_kw_dc / 1000` — the headline rooftop ceiling (MWp). Post-Phase-5 fleet total: 2,743 MWp |
 | `total_building_footprint_m2` | float | Sum of all detected building footprints (m²) |
 | `usable_roof_area_m2` | float | Sum of `footprint × usability_multiplier` across classified buildings (m²) |
 | `type_filter_excluded_m2` | float | Footprint of buildings the §14 classifier rejected entirely (m²) |
-| `building_count_total` | int | Total buildings detected at the site (after KEK polygon clip) |
+| `building_count_total` | int | Total buildings detected at the site (after polygon clip + RV11 residential filter) |
 | `building_count_standard_roof` | int | Buildings classified as `standard_roof` (multiplier 1.0) |
 | `building_count_elongated` | int | Buildings classified as `elongated` (multiplier 0.6) |
 | `building_count_tank_silo` | int | Buildings classified as `tank_silo` (multiplier 0.0) |
 | `building_count_conveyor` | int | Buildings classified as `conveyor` (multiplier 0.1) |
+| `building_count_residential` | int | Buildings filtered by the RV11 residential-pattern rule (`footprint < 300 m² AND ≥5 similar-sized neighbors within 100 m`); excluded from solar potential aggregation |
 | `building_count_other_excluded` | int | Sum of `too_small + complex + possibly_round` |
 | `building_data_confidence` | str | `high` / `medium` / `low` per §4A.6 thresholds |
-| `building_data_reason_flagged` | str | Reason flag (`imagery_gap`, `partial`, or empty) for low/medium confidence |
-| `building_data_source` | str | Always `Google Open Buildings v3` for v4.1 |
-| `building_data_vintage` | str | Always `2023-05` for v4.1 |
+| `building_data_reason_flagged` | str | Reason flag (`no_buildings_detected`, `post_2023_imagery`, `polygon_imagery_gap`, `low_count_for_capacity`, `tourism_kek`) for low/medium confidence |
+| `building_data_source` | str | Primary source label — currently always `gob_v3` (the column is the *primary* source per row; MS GMLBF rows merged in by `load_buildings_for_pipeline()` are not separately reflected in this column, only in the parquet's per-row `source_name`/`source_vintage` columns) |
+| `building_data_vintage` | str | GoB cell vintage for that site — `2023-05` for original GoB v3 cells, `2026-02-23` for re-fetched cells |
 
-**Sites with no buildings detected** are written separately to `outputs/data/processed/sites_missing_buildings.csv` (18 sites in v4.1) — these still get a row in `fct_site_solar_potential.csv` with zero counts and a `low` confidence flag (spec §3.7 — flag, don't hide).
+**Sites with no buildings detected** are written separately to `outputs/data/processed/sites_missing_buildings.csv` (11 sites after Phase 5 multi-source merge, down from 18 GoB-only) — these still get a row in `fct_site_solar_potential.csv` with zero counts and a `low` confidence flag (spec §3.7 — flag, don't hide).
 
-**KEK polygon clip behavior:** `load_buildings_for_pipeline()` filters buildings whose centroid falls outside the KEK polygon for the 25 KEK sites (using `outputs/data/raw/kek_polygons.geojson`). Industrial sites pass through unchanged — their 2 km buffer from preprocess IS the intended catchment. See METHODOLOGY §4A.4.
+**Polygon clip behavior:** `load_buildings_for_pipeline()` filters buildings whose centroid falls outside the polygon for sites that have one — KEKs (via `outputs/data/raw/kek_polygons.geojson`) and the 9 standalone/cluster industrial sites with hand-drawn fences (via `data/industrial_sites/site_polygons.geojson`). Industrial sites without a polygon pass through unchanged — their 2 km buffer from preprocess IS the intended catchment. See METHODOLOGY §4A.4.
+
+**Multi-source merge:** GoB is primary (carries confidence score, feeds the §14 classifier). For each MS polygon, per-site STRtree finds overlapping GoB polygons; if max IoU > `MS_DEDUP_IOU_THRESHOLD = 0.5` (`src/assumptions.py`), the MS row is dropped; otherwise it's kept as net-new. Sites with no GoB rows but MS rows present (Cemindo Bayah, Pupuk Iskandar Muda, etc.) get full MS coverage. The `ms_gmlbf_reveals_buildings` info-tier flag in `eval_rooftop_accuracy.py` tracks which sites the multi-source path is materially helping. See METHODOLOGY §4A.7a.
 
 **Methodology:** see METHODOLOGY_CONSOLIDATED.md §4A and the v4.1 spec at `docs/rooftop_solar_potential_feature_spec.md`.
 

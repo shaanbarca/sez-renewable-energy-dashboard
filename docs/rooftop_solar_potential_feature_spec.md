@@ -1411,21 +1411,22 @@ Captured to prevent scope creep. **The big cuts from the v2 spec are in the top 
 | Test file | What it covers |
 |---|---|
 | `tests/test_rename_alias.py` | Prerequisite PR — `max_captive_capacity_mwp` deprecation alias returns same value as `regional_groundmount_potential_mwp_50km` |
-| `tests/test_eval_rooftop_accuracy.py` | The automated accuracy eval itself (16 tests covering all branches in §16.6 below) |
+| `tests/test_eval_rooftop_accuracy.py` | The automated accuracy eval itself (23 tests covering all branches in §16.6, including the cross-source MS GMLBF audit shipped 2026-05-02) |
 
 ### 16.6 Automated accuracy eval
 
-**Companion to §16's manual ±20% pass.** `scripts/eval_rooftop_accuracy.py` runs three statistical/physical sanity checks on every pipeline run:
+**Companion to §16's manual ±20% pass.** `scripts/eval_rooftop_accuracy.py` runs four statistical/physical/cross-source sanity checks on every pipeline run:
 
 1. **Per-sector capacity-vs-MWp z-score band** — flag |z| > 2σ for sectors with ≥4 sites. Direction-split: `sector_outlier_above` (>2σ over median, possible bleed) vs `sector_outlier_below` (<-2σ, possible undercount). Different fixes.
 2. **Zero-MWp-but-nonzero-capacity rule** — explicit catch for the RV7 GoB-undercount pattern (Cemindo Bayah, Hongshi, IWIP, etc.) that z-score misses because zero pulls the median.
 3. **Plant-area band** — for standalone/cluster sites with a fence-boundary polygon, footprint should be 5–30% of polygon area.
+4. **Cross-source MS GMLBF audit** (✅ shipped 2026-05-02 with multi-source fan-out per §13.10 invariant 4) — flags sites where Microsoft GMLBF surfaces net-new buildings GoB v3 missed. Info-tier (🟢 `ms_gmlbf_reveals_buildings`) — direct evidence that multi-source ingestion is closing GoB's structural gaps.
 
-Console output is grouped by flag type — each group has a header that names the issue (e.g. "ZERO ROOFTOP — operating plant has no detected buildings"), the rule that fired, and the suggested fix. No more vague HIGH/LOW priority labels. Severity is encoded by icon (🔴 actionable / 🟡 review / ℹ info). Exit code 1 when any actionable finding exists — CI-friendly.
+Console output is grouped by flag type — each group has a header that names the issue (e.g. "ZERO ROOFTOP — operating plant has no detected buildings"), the rule that fired, and the suggested fix. No more vague HIGH/LOW priority labels. Severity is encoded by icon (🔴 actionable / 🟡 review / ℹ pass-through / 🟢 multi-source info). Exit code 1 when any actionable finding exists — CI-friendly.
 
-JSONL trend log at `outputs/data/eval/rooftop-history.jsonl` — each record `{timestamp, counts, findings}`. Not a replacement for the §16 manual sample on 10 sites, but it surfaces the right sites for the manual sample to focus on, and the JSONL log lets us track signal quality over time as RV7 multi-source ingestion lands.
+**Seven flag types** total: `zero_mwp_with_capacity`, `sector_outlier_above`, `sector_outlier_below` (all 🔴 actionable), `footprint_below_band`, `footprint_above_band` (🟡 review), `sector_sample_too_small` (ℹ info), `ms_gmlbf_reveals_buildings` (🟢 info).
 
-Cross-source IoU agreement (between GoB v3 and Microsoft GMLBF / Overture / OSM) is the fourth planned check, deferred until §13.10 invariant 4 multi-source fan-out is built.
+JSONL trend log at `outputs/data/eval/rooftop-history.jsonl` — each record `{timestamp, counts, findings}`. Not a replacement for the §16 manual sample on 10 sites, but it surfaces the right sites for the manual sample to focus on, and the JSONL log lets us track signal quality over time as RV7 multi-source ingestion lands. Phase 5 trend (2026-05-02): actionable findings dropped 11 → 7 (-36%), zero-MWp findings 7 → 2 (-71%) once MS GMLBF was merged in.
 
 Constants: `EVAL_SECTOR_ZSCORE_THRESHOLD`, `EVAL_SECTOR_MIN_SAMPLE`, `EVAL_FOOTPRINT_RATIO_LOW`, `EVAL_FOOTPRINT_RATIO_HIGH` in `src/assumptions.py`. METHODOLOGY §4A.8 documents the rules.
 
