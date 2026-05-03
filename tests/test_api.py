@@ -119,6 +119,65 @@ def test_layers_nonexistent(client):
     assert resp.status_code == 404
 
 
+def test_layers_industrial_polygons(client):
+    """GET /api/layers/industrial_polygons returns valid FeatureCollection.
+
+    Drives the "Site Boundaries" composite toggle in the dashboard. If this
+    breaks, the orange industrial polygons stop loading on the map.
+    """
+    resp = client.get("/api/layers/industrial_polygons")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["type"] == "FeatureCollection"
+    feats = data["features"]
+    assert len(feats) > 0, "no industrial polygons in payload — geojson missing/empty?"
+
+    indonesia_lat = (-11.0, 6.0)
+    indonesia_lon = (95.0, 141.0)
+    site_ids: list[str] = []
+    for feat in feats:
+        sid = feat.get("properties", {}).get("site_id")
+        assert sid, f"feature missing site_id: {feat.get('properties')}"
+        site_ids.append(sid)
+
+        geom = feat["geometry"]
+        assert geom["type"] in {"Polygon", "MultiPolygon"}
+        rings = (
+            geom["coordinates"]
+            if geom["type"] == "Polygon"
+            else [r for poly in geom["coordinates"] for r in poly]
+        )
+        for ring in rings:
+            for lon, lat in ring:
+                assert indonesia_lat[0] <= lat <= indonesia_lat[1], (
+                    f"{sid}: lat {lat} outside Indonesia"
+                )
+                assert indonesia_lon[0] <= lon <= indonesia_lon[1], (
+                    f"{sid}: lon {lon} outside Indonesia"
+                )
+
+    # site_ids must be unique — frontend keys overlays by site_id.
+    assert len(site_ids) == len(set(site_ids)), f"duplicate site_id: {site_ids}"
+
+
+def test_layers_kek_polygons_aliased_to_site_polygons(client):
+    """GET /api/layers/kek_polygons returns same data as /api/layers/site_polygons.
+
+    The frontend uses kek_polygons as the layer key for KEK boundaries; both
+    the kek_polygons and industrial_polygons layers feed the combined
+    "Site Boundaries" toggle.
+    """
+    resp_kek = client.get("/api/layers/kek_polygons")
+    resp_site = client.get("/api/layers/site_polygons")
+    assert resp_kek.status_code == 200
+    assert resp_site.status_code == 200
+    kek = resp_kek.json()
+    site = resp_site.json()
+    assert kek["type"] == "FeatureCollection"
+    assert len(kek["features"]) == len(site["features"])
+    assert len(kek["features"]) >= 25, "expected at least 25 KEK polygons"
+
+
 def test_kek_polygon_valid(client):
     """6. GET /api/site/{valid_id}/polygon returns feature + bbox + center."""
     resp = client.get("/api/site/industropolis-batang/polygon")

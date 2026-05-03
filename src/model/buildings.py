@@ -51,6 +51,8 @@ from src.assumptions import (
     BUILDING_CIRCULARITY_TANK_THRESHOLD,
     BUILDING_HULL_RATIO_COMPLEX_THRESHOLD,
     BUILDING_MIN_AREA_M2,
+    BUILDING_SMALL_ROUND_AREA_THRESHOLD_M2,
+    BUILDING_SMALL_ROUND_CIRCULARITY_THRESHOLD,
     ROOFTOP_LAYOUT_DENSITY,
     ROOFTOP_PANEL_AREA_M2,
     ROOFTOP_PANEL_POWER_W_DC,
@@ -90,7 +92,7 @@ class BuildingClassification:
     hull_ratio: float
 
 
-def classify_building(
+def classify_building(  # noqa: PLR0913 — threshold-injection by design (see docstring)
     polygon: BaseGeometry,
     area_m2: float,
     *,
@@ -98,6 +100,8 @@ def classify_building(
     aspect_conveyor_threshold: float = BUILDING_ASPECT_CONVEYOR_THRESHOLD,
     min_area_m2: float = BUILDING_MIN_AREA_M2,
     hull_ratio_complex_threshold: float = BUILDING_HULL_RATIO_COMPLEX_THRESHOLD,
+    small_round_area_threshold_m2: float = BUILDING_SMALL_ROUND_AREA_THRESHOLD_M2,
+    small_round_circularity_threshold: float = BUILDING_SMALL_ROUND_CIRCULARITY_THRESHOLD,
 ) -> BuildingClassification:
     """Classify a single building polygon into a §14 category.
 
@@ -136,7 +140,14 @@ def classify_building(
 
     # Cascade — first match wins. Order matters: hard rejects (tank, conveyor,
     # complex) precede soft derates (possibly_round, elongated).
-    if circularity > circularity_tank_threshold:
+    is_small_round = (
+        area_m2 < small_round_area_threshold_m2 and circularity > small_round_circularity_threshold
+    )
+    if circularity > circularity_tank_threshold or is_small_round:
+        # Two paths into tank_silo:
+        #   1. circularity > 0.85 — clean circle, any size (existing behavior)
+        #   2. circularity > 0.80 AND area < 800 m² — small round building
+        #      caught even when GoB/MS edge noise drops measured circularity.
         category: BuildingCategory = "tank_silo"
         multiplier = 0.0
     elif aspect_ratio > aspect_conveyor_threshold:

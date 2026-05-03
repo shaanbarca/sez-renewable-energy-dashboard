@@ -643,8 +643,8 @@ export default function VectorOverlay() {
         </Popup>
       )}
 
-      {/* KEK Polygons */}
-      {layerVisibility.kek_polygons &&
+      {/* Site Boundaries — combined KEK (blue) + non-KEK industrial (orange) */}
+      {layerVisibility.site_boundaries &&
         layers.kek_polygons &&
         !layers.kek_polygons._loading &&
         (() => {
@@ -666,8 +666,7 @@ export default function VectorOverlay() {
           );
         })()}
 
-      {/* Industrial Plant Polygons (non-KEK, sourced from OSM) */}
-      {layerVisibility.industrial_polygons &&
+      {layerVisibility.site_boundaries &&
         layers.industrial_polygons &&
         !layers.industrial_polygons._loading &&
         (() => {

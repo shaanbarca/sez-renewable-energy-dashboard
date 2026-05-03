@@ -1,82 +1,82 @@
 site_id,site_name,sector,site_type,has_kek_polygon,has_industrial_polygon,effective_polygon_coverage,polygon_priority,capacity_annual_tonnes,area_ha,demand_proxy_mwh,demand_mwh_2030,rooftop_solar_mwp_potential,building_data_confidence
-indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),nickel,cluster,False,True,True,covered,6014929.0,,225559837.5,225559837.5,75.7536,medium
+indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),nickel,cluster,False,True,True,covered,6014929.0,,225559837.5,225559837.5,75.1491,medium
 indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),nickel,cluster,False,True,True,covered,2227000.0,,83512500.0,83512500.0,12.3056,medium
-virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),nickel,cluster,False,True,True,covered,2000000.0,,75000000.0,75000000.0,33.2339,medium
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),nickel,cluster,False,True,True,covered,2000000.0,,75000000.0,75000000.0,32.4636,medium
 obi-island-industrial-park,Obi Island Industrial Park,nickel,cluster,False,True,True,covered,1970000.0,,73875000.0,73875000.0,0.0,low
 industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),nickel,cluster,False,True,True,covered,1741000.0,,65287500.0,65287500.0,0.0,medium
-bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),nickel,cluster,False,True,True,covered,263300.0,,9873750.0,9873750.0,18.6993,medium
-freeport-smelter-gresik,Freeport Smelter Gresik,aluminium,standalone,False,True,True,covered,300000.0,,4500000.0,4500000.0,4.1465,medium
-petrokimia-gresik,Petrokimia Gresik,fertilizer,standalone,False,True,True,covered,3400000.0,,3400000.0,3400000.0,68.8171,medium
-industropolis-batang,Industropolis Batang,mixed,kek,True,False,True,covered,,2886.87,1948637.25,2124736.32,4.4163,low
-kek-arun-lhokseumawe,Arun Lhokseumawe,mixed,kek,True,False,True,covered,,2622.48,1770174.0,1730836.8,55.2932,medium
-kek-galang-batang,Galang Batang,mixed,kek,True,False,True,covered,,2333.6,1575180.0,1540176.0,11.2583,low
-kek-gresik,Gresik,mixed,kek,True,False,True,covered,,2167.0,1462725.0,1430220.0,16.4421,low
-kek-sei-mangkei,Sei Mangkei,mixed,kek,True,False,True,covered,,2002.77,1351869.75,1321828.2,8.8917,medium
-kek-palu,Palu,mixed,kek,True,False,True,covered,,1500.0,1012500.0,990000.0,6.1239,low
-kek-tanjung-lesung,Tanjung Lesung,mixed,kek,True,False,True,covered,,1500.0,1012500.0,756000.0,1.8124,low
-semen-padang-indarung,Semen Padang Indarung,cement,standalone,False,True,True,covered,8800000.0,,968000.0,968000.0,22.4387,medium
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),nickel,cluster,False,True,True,covered,263300.0,,9873750.0,9873750.0,18.0586,medium
+freeport-smelter-gresik,Freeport Smelter Gresik,aluminium,standalone,False,True,True,covered,300000.0,,4500000.0,4500000.0,2.7773,medium
+petrokimia-gresik,Petrokimia Gresik,fertilizer,standalone,False,True,True,covered,3400000.0,,3400000.0,3400000.0,68.5036,medium
+industropolis-batang,Industropolis Batang,mixed,kek,True,False,True,covered,,2886.87,1948637.25,2124736.32,2.7197,low
+kek-arun-lhokseumawe,Arun Lhokseumawe,mixed,kek,True,False,True,covered,,2622.48,1770174.0,1730836.8,42.4039,medium
+kek-galang-batang,Galang Batang,mixed,kek,True,False,True,covered,,2333.6,1575180.0,1540176.0,6.7494,low
+kek-gresik,Gresik,mixed,kek,True,False,True,covered,,2167.0,1462725.0,1430220.0,16.0416,low
+kek-sei-mangkei,Sei Mangkei,mixed,kek,True,False,True,covered,,2002.77,1351869.75,1321828.2,6.536,medium
+kek-palu,Palu,mixed,kek,True,False,True,covered,,1500.0,1012500.0,990000.0,4.238,low
+kek-tanjung-lesung,Tanjung Lesung,mixed,kek,True,False,True,covered,,1500.0,1012500.0,756000.0,0.0,low
+semen-padang-indarung,Semen Padang Indarung,cement,standalone,False,True,True,covered,8800000.0,,968000.0,968000.0,22.3355,medium
 gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,steel,standalone,False,True,True,covered,1820000.0,,910000.0,910000.0,53.9596,medium
 kek-morotai,Morotai,mixed,kek,True,False,True,covered,,1101.76,743688.0,555287.04,0.0,low
-kek-lido,Lido,mixed,kek,True,False,True,covered,,1040.0,702000.0,524160.0,8.3864,medium
-kek-mandalika,Mandalika,mixed,kek,True,False,True,covered,,1035.67,699077.25,521977.68000000005,5.0596,medium
-kek-kendal,Kendal,mixed,kek,True,False,True,covered,,1000.0,675000.0,660000.0,13.5979,medium
+kek-lido,Lido,mixed,kek,True,False,True,covered,,1040.0,702000.0,524160.0,1.242,medium
+kek-mandalika,Mandalika,mixed,kek,True,False,True,covered,,1035.67,699077.25,521977.68000000005,2.6865,medium
+kek-kendal,Kendal,mixed,kek,True,False,True,covered,,1000.0,675000.0,660000.0,13.4324,medium
 krakatau-posco-cilegon,Krakatau Posco Cilegon,steel,standalone,False,True,True,covered,3000000.0,,600000.0,600000.0,0.8207,medium
 semen-baturaja,Semen Baturaja,cement,standalone,False,True,True,covered,3850000.0,,423500.0,423500.0,6.0844,medium
-indocement-palimanan,Indocement Palimanan,cement,standalone,False,True,True,covered,3620000.0,,398200.0,398200.0,18.7005,medium
-cemindo-gemilang-bayah,Cemindo Gemilang Bayah,cement,standalone,False,True,True,covered,3500000.0,,385000.0,385000.0,10.7426,medium
-kek-maloy-batuta,Maloy Batuta Trans Kalimantan,mixed,kek,True,False,True,covered,,557.34,376204.5,367844.4,0.1599,low
-kek-bitung,Bitung,mixed,kek,True,False,True,covered,,534.0,360450.0,352440.0,18.9877,high
-kek-sorong,Sorong,mixed,kek,True,False,True,covered,,523.7,353497.50000000006,345642.00000000006,0.1714,low
-ispat-indo-sidoarjo,Ispat Indo Sidoarjo,steel,standalone,False,True,True,covered,700000.0,,350000.0,350000.0,10.0553,medium
-kek-kura-kura,Kura Kura Bali,mixed,kek,True,False,True,covered,,498.0,336150.0,250992.0,0.2743,medium
-kek-tanjung-kelayang,Tanjung Kelayang,mixed,kek,True,False,True,covered,,324.4,218969.99999999997,163497.59999999998,1.7429,medium
-kek-likupang,Likupang,mixed,kek,True,False,True,covered,,197.4,133245.0,99489.6,0.0389,medium
-kek-nongsa,Nongsa,mixed,kek,True,False,True,covered,,166.45,112353.74999999999,83890.79999999999,4.6767,high
-semen-gresik-city,Semen Gresik City,cement,standalone,False,True,True,covered,900000.0,,99000.0,99000.0,14.3859,medium
-kek-singhasari,Singhasari,mixed,kek,True,False,True,covered,,120.3,81202.5,60631.2,0.513,medium
-semen-kupang,Semen Kupang,cement,standalone,False,True,True,covered,500000.0,,55000.0,55000.0,8.0258,medium
-bumi-serpong-damai,"Banten International Education, Technology, and Health",mixed,kek,True,False,True,covered,,59.68,40284.0,47744.0,0.9555,medium
+indocement-palimanan,Indocement Palimanan,cement,standalone,False,True,True,covered,3620000.0,,398200.0,398200.0,17.8481,medium
+cemindo-gemilang-bayah,Cemindo Gemilang Bayah,cement,standalone,False,True,True,covered,3500000.0,,385000.0,385000.0,10.7144,medium
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,mixed,kek,True,False,True,covered,,557.34,376204.5,367844.4,0.0,low
+kek-bitung,Bitung,mixed,kek,True,False,True,covered,,534.0,360450.0,352440.0,13.9032,high
+kek-sorong,Sorong,mixed,kek,True,False,True,covered,,523.7,353497.50000000006,345642.00000000006,0.0,low
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,steel,standalone,False,True,True,covered,700000.0,,350000.0,350000.0,9.9565,medium
+kek-kura-kura,Kura Kura Bali,mixed,kek,True,False,True,covered,,498.0,336150.0,250992.0,0.0,medium
+kek-tanjung-kelayang,Tanjung Kelayang,mixed,kek,True,False,True,covered,,324.4,218969.99999999997,163497.59999999998,0.0,medium
+kek-likupang,Likupang,mixed,kek,True,False,True,covered,,197.4,133245.0,99489.6,0.0,medium
+kek-nongsa,Nongsa,mixed,kek,True,False,True,covered,,166.45,112353.74999999999,83890.79999999999,4.01,high
+semen-gresik-city,Semen Gresik City,cement,standalone,False,True,True,covered,900000.0,,99000.0,99000.0,14.1523,medium
+kek-singhasari,Singhasari,mixed,kek,True,False,True,covered,,120.3,81202.5,60631.2,0.0,medium
+semen-kupang,Semen Kupang,cement,standalone,False,True,True,covered,500000.0,,55000.0,55000.0,7.6627,medium
+bumi-serpong-damai,"Banten International Education, Technology, and Health",mixed,kek,True,False,True,covered,,59.68,40284.0,47744.0,0.8808,medium
 batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,mixed,kek,True,False,True,covered,,47.17,31839.75,37736.0,2.6361,high
-kek-sanur,Sanur,mixed,kek,True,False,True,covered,,41.2599625886,27850.474747304997,20795.0211446544,3.2004,high
+kek-sanur,Sanur,mixed,kek,True,False,True,covered,,41.2599625886,27850.474747304997,20795.0211446544,2.6591,high
 kek-batam-aero-technic,Batam Aero Technic,mixed,kek,True,False,True,covered,,30.0,20250.0,19800.0,5.0965,high
-setangga,Setangga,mixed,kek,True,False,True,covered,,,,376204.5,0.1463,medium
-tanjung-sauh,Tanjung Sauh,mixed,kek,True,False,True,covered,,,,376204.5,0.0218,medium
-nusantara-industri-sejati,Nusantara Industri Sejati,nickel,cluster,False,False,False,high,2000000.0,,75000000.0,75000000.0,0.7774,medium
-inalum-asahan,Inalum Asahan,aluminium,standalone,False,False,False,high,250000.0,,3750000.0,3750000.0,0.9094,medium
-pupuk-kaltim-bontang,Pupuk Kaltim Bontang,fertilizer,standalone,False,False,False,high,2400000.0,,2400000.0,2400000.0,47.658,medium
-krakatau-steel-cilegon,Krakatau Steel Cilegon,steel,standalone,False,False,False,high,4000000.0,,2000000.0,2000000.0,158.2111,medium
+setangga,Setangga,mixed,kek,True,False,True,covered,,,,376204.5,0.0,medium
+tanjung-sauh,Tanjung Sauh,mixed,kek,True,False,True,covered,,,,376204.5,0.0,medium
+nusantara-industri-sejati,Nusantara Industri Sejati,nickel,cluster,False,False,False,high,2000000.0,,75000000.0,75000000.0,0.0,medium
+inalum-asahan,Inalum Asahan,aluminium,standalone,False,False,False,high,250000.0,,3750000.0,3750000.0,0.0,medium
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,fertilizer,standalone,False,False,False,high,2400000.0,,2400000.0,2400000.0,47.2982,medium
+krakatau-steel-cilegon,Krakatau Steel Cilegon,steel,standalone,False,False,False,high,4000000.0,,2000000.0,2000000.0,150.8013,medium
 pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,fertilizer,standalone,False,False,False,high,2000000.0,,2000000.0,2000000.0,319.2908,medium
-semen-gresik-tuban,Semen Gresik Tuban,cement,standalone,False,False,False,high,15000000.0,,1650000.0,1650000.0,44.3733,medium
-buli-industrial-park,Buli Industrial Park,nickel,cluster,False,False,False,high,40500.0,,1518750.0,1518750.0,2.6267,medium
-dexin-steel-morowali,Dexin Steel Morowali,steel,standalone,False,False,False,high,7000000.0,,1400000.0,1400000.0,3.6124,medium
-indocement-citeureup,Indocement Citeureup,cement,standalone,False,False,False,high,11900000.0,,1309000.0,1309000.0,173.5831,medium
-pupuk-kujang-cikampek,Pupuk Kujang Cikampek,fertilizer,standalone,False,False,False,high,1140000.0,,1140000.0,1140000.0,171.9246,medium
-pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,fertilizer,standalone,False,False,False,high,1140000.0,,1140000.0,1140000.0,13.8415,medium
-sbi-tuban,SBI Tuban,cement,standalone,False,False,False,low,3730000.0,,410300.0,410300.0,20.1009,medium
-sbi-cilacap,SBI Cilacap,cement,standalone,False,False,False,low,3230000.0,,355300.0,355300.0,142.5068,medium
-semen-imasco-asiatic-jember,Semen Imasco Asiatic Jember,cement,standalone,False,False,False,low,3000000.0,,330000.0,330000.0,36.0349,medium
-si-gresik-rembang,SI Gresik Rembang,cement,standalone,False,False,False,low,3000000.0,,330000.0,330000.0,16.4608,medium
-semeru-surya-semen-kutai,Semeru Surya Semen Kutai,cement,standalone,False,False,False,low,3000000.0,,330000.0,330000.0,36.2455,medium
-indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun,cement,standalone,False,False,False,low,2600000.0,,286000.0,286000.0,28.8644,medium
-semen-grobogan,Semen Grobogan,cement,standalone,False,False,False,low,2500000.0,,275000.0,275000.0,22.2844,medium
-semen-garuda-bekasi,Semen Garuda Bekasi,cement,standalone,False,False,False,low,2500000.0,,275000.0,275000.0,32.0171,medium
-sbi-andalas-lhoknga,SBI Andalas Lhoknga,cement,standalone,False,False,False,low,1840000.0,,202400.0,202400.0,5.9371,medium
+semen-gresik-tuban,Semen Gresik Tuban,cement,standalone,False,False,False,high,15000000.0,,1650000.0,1650000.0,41.9697,medium
+buli-industrial-park,Buli Industrial Park,nickel,cluster,False,False,False,high,40500.0,,1518750.0,1518750.0,0.0,medium
+dexin-steel-morowali,Dexin Steel Morowali,steel,standalone,False,False,False,high,7000000.0,,1400000.0,1400000.0,0.5767,medium
+indocement-citeureup,Indocement Citeureup,cement,standalone,False,False,False,high,11900000.0,,1309000.0,1309000.0,169.8266,medium
+pupuk-kujang-cikampek,Pupuk Kujang Cikampek,fertilizer,standalone,False,False,False,high,1140000.0,,1140000.0,1140000.0,163.0039,medium
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,fertilizer,standalone,False,False,False,high,1140000.0,,1140000.0,1140000.0,11.309,medium
+sbi-tuban,SBI Tuban,cement,standalone,False,False,False,low,3730000.0,,410300.0,410300.0,15.4672,medium
+sbi-cilacap,SBI Cilacap,cement,standalone,False,False,False,low,3230000.0,,355300.0,355300.0,139.3855,medium
+semen-imasco-asiatic-jember,Semen Imasco Asiatic Jember,cement,standalone,False,False,False,low,3000000.0,,330000.0,330000.0,33.4579,medium
+si-gresik-rembang,SI Gresik Rembang,cement,standalone,False,False,False,low,3000000.0,,330000.0,330000.0,15.5722,medium
+semeru-surya-semen-kutai,Semeru Surya Semen Kutai,cement,standalone,False,False,False,low,3000000.0,,330000.0,330000.0,29.2418,medium
+indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun,cement,standalone,False,False,False,low,2600000.0,,286000.0,286000.0,21.9336,medium
+semen-grobogan,Semen Grobogan,cement,standalone,False,False,False,low,2500000.0,,275000.0,275000.0,10.681,medium
+semen-garuda-bekasi,Semen Garuda Bekasi,cement,standalone,False,False,False,low,2500000.0,,275000.0,275000.0,22.2391,medium
+sbi-andalas-lhoknga,SBI Andalas Lhoknga,cement,standalone,False,False,False,low,1840000.0,,202400.0,202400.0,5.0537,medium
 master-steel-jakarta,Master Steel Jakarta,steel,standalone,False,False,False,medium,2000000.0,,1000000.0,1000000.0,337.7276,medium
-semen-tonasa,Semen Tonasa,cement,standalone,False,False,False,medium,7400000.0,,814000.0,814000.0,49.0218,medium
-sbi-narogong,SBI Narogong,cement,standalone,False,False,False,medium,6060000.0,,666600.0,666600.0,12.2085,medium
-conch-cement-serang,Conch Cement Serang,cement,standalone,False,False,False,medium,4400000.0,,484000.0,484000.0,33.7282,medium
-conch-cement-north-sulawesi,Conch Cement North Sulawesi,cement,standalone,False,False,False,medium,4400000.0,,484000.0,484000.0,7.5737,medium
-semen-bosowa-maros,Semen Bosowa Maros,cement,standalone,False,False,False,medium,4200000.0,,462000.0,462000.0,9.4466,medium
-jakarta-prima-steel-industries,Jakarta Prima Steel Industries,steel,standalone,False,False,False,medium,900000.0,,450000.0,450000.0,251.1409,medium
-red-lion-hongshi-tonga,Red Lion Hongshi Tonga,cement,standalone,False,False,False,medium,4000000.0,,440000.0,440000.0,1.4856,medium
-semen-jawa-scg-sukabumi,Semen Jawa SCG Sukabumi,cement,standalone,False,False,False,minimal,1800000.0,,198000.0,198000.0,38.8648,medium
-semen-bosowa-banyuwangi,Semen Bosowa Banyuwangi,cement,standalone,False,False,False,minimal,1800000.0,,198000.0,198000.0,56.1475,medium
-cemindo-gemilang-ciwandan,Cemindo Gemilang Ciwandan,cement,standalone,False,False,False,minimal,1750000.0,,192500.0,192500.0,56.6437,medium
-conch-south-kalimantan,Conch South Kalimantan,cement,standalone,False,False,False,minimal,1500000.0,,165000.0,165000.0,0.4391,medium
-cemindo-gemilang-batam,Cemindo Gemilang Batam,cement,standalone,False,False,False,minimal,1200000.0,,132000.0,132000.0,41.9092,medium
-semen-bosowa-batam,Semen Bosowa Batam,cement,standalone,False,False,False,minimal,1200000.0,,132000.0,132000.0,12.0171,medium
-semen-jakarta,Semen Jakarta,cement,standalone,False,False,False,minimal,1000000.0,,110000.0,110000.0,30.0643,medium
-solusi-bangun-cilegon,Solusi Bangun Cilegon,cement,standalone,False,False,False,minimal,600000.0,,66000.0,66000.0,26.071,medium
-conch-west-kalimantan,Conch West Kalimantan,cement,standalone,False,False,False,minimal,500000.0,,55000.0,55000.0,21.6967,medium
+semen-tonasa,Semen Tonasa,cement,standalone,False,False,False,medium,7400000.0,,814000.0,814000.0,45.1331,medium
+sbi-narogong,SBI Narogong,cement,standalone,False,False,False,medium,6060000.0,,666600.0,666600.0,8.4745,medium
+conch-cement-serang,Conch Cement Serang,cement,standalone,False,False,False,medium,4400000.0,,484000.0,484000.0,25.7915,medium
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,cement,standalone,False,False,False,medium,4400000.0,,484000.0,484000.0,6.9034,medium
+semen-bosowa-maros,Semen Bosowa Maros,cement,standalone,False,False,False,medium,4200000.0,,462000.0,462000.0,5.7592,medium
+jakarta-prima-steel-industries,Jakarta Prima Steel Industries,steel,standalone,False,False,False,medium,900000.0,,450000.0,450000.0,251.0012,medium
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,cement,standalone,False,False,False,medium,4000000.0,,440000.0,440000.0,0.4613,medium
+semen-jawa-scg-sukabumi,Semen Jawa SCG Sukabumi,cement,standalone,False,False,False,minimal,1800000.0,,198000.0,198000.0,33.6788,medium
+semen-bosowa-banyuwangi,Semen Bosowa Banyuwangi,cement,standalone,False,False,False,minimal,1800000.0,,198000.0,198000.0,53.166,medium
+cemindo-gemilang-ciwandan,Cemindo Gemilang Ciwandan,cement,standalone,False,False,False,minimal,1750000.0,,192500.0,192500.0,55.8407,medium
+conch-south-kalimantan,Conch South Kalimantan,cement,standalone,False,False,False,minimal,1500000.0,,165000.0,165000.0,0.0,medium
+cemindo-gemilang-batam,Cemindo Gemilang Batam,cement,standalone,False,False,False,minimal,1200000.0,,132000.0,132000.0,39.5931,medium
+semen-bosowa-batam,Semen Bosowa Batam,cement,standalone,False,False,False,minimal,1200000.0,,132000.0,132000.0,11.4479,medium
+semen-jakarta,Semen Jakarta,cement,standalone,False,False,False,minimal,1000000.0,,110000.0,110000.0,15.2312,medium
+solusi-bangun-cilegon,Solusi Bangun Cilegon,cement,standalone,False,False,False,minimal,600000.0,,66000.0,66000.0,25.2317,medium
+conch-west-kalimantan,Conch West Kalimantan,cement,standalone,False,False,False,minimal,500000.0,,55000.0,55000.0,19.3561,medium
 stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),nickel,cluster,False,False,False,unknown,,,,,0.0,low
 indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),nickel,cluster,False,False,False,unknown,,,,,0.0,medium

@@ -6,8 +6,7 @@ import { useDashboardStore } from '../../store/dashboard';
 
 const LAYER_ITEMS = [
   { name: 'substations', label: 'Substations (PLN)' },
-  { name: 'kek_polygons', label: 'KEK Boundaries' },
-  { name: 'industrial_polygons', label: 'Industrial Plant Boundaries' },
+  { name: 'site_boundaries', label: 'Site Boundaries' },
   { name: 'pvout', label: 'Solar Potential (PVOUT)' },
   { name: 'wind', label: 'Wind Speed (100m)' },
   { name: 'buildable_polygons', label: 'Solar Buildable Areas' },

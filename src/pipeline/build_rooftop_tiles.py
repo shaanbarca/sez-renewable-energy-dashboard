@@ -70,6 +70,7 @@ from src.pipeline.build_fct_site_solar_potential import (
     PROJECTED_CRS,
     _load_exclusion_polygons,
     buildings_inside_exclusions,
+    detect_isolated_suitable_clusters,
     detect_residential_clusters,
     load_buildings_for_pipeline,
 )
@@ -232,6 +233,24 @@ def build_rooftop_tiles(
     keep_mask = np.array(keep_mask, dtype=bool)
     suitable = buildings_proj.loc[keep_mask].copy()
     print(f"  {keep_mask.sum():,} suitable buildings (standard_roof + elongated)")
+
+    # Factory-anchor cluster filter — drop suitable buildings whose spatial
+    # cluster lacks any building ≥ FACTORY_ANCHOR_MIN_AREA_M2. Mirrors the
+    # filter applied in build_fct_site_solar_potential so tile geometry stays
+    # in sync with the MWp totals in the CSV.
+    print("Applying factory-anchor cluster filter...")
+    drop_isolated_count = 0
+    keep_after_anchor = np.ones(len(suitable), dtype=bool)
+    for _site_id, group in suitable.groupby("site_id"):
+        geoms = list(group.geometry.values)
+        areas = group.geometry.area.to_numpy()
+        is_isolated = detect_isolated_suitable_clusters(geoms, areas)
+        global_idx = group.index.to_numpy()
+        keep_after_anchor_pos = suitable.index.get_indexer(global_idx)
+        keep_after_anchor[keep_after_anchor_pos] = ~is_isolated
+        drop_isolated_count += int(is_isolated.sum())
+    suitable = suitable.loc[keep_after_anchor].copy()
+    print(f"  {drop_isolated_count:,} isolated-cluster buildings dropped (no factory anchor)")
 
     # Cluster IDs per site (so cluster numbering doesn't span unrelated areas)
     print("Assigning DBSCAN clusters per site...")
