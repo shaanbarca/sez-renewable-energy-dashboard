@@ -60,7 +60,7 @@ krakatau-steel-cilegon,Krakatau Steel Cilegon,standalone,steel,crude_steel,Bante
 krakatau-posco-cilegon,Krakatau Posco Cilegon,standalone,steel,crude_steel,Banten,-6.00715,105.97126,,,,Active,,,0.9,JAVA_BALI,3000000 TPA,3000000.0,BF-BOF,POSCO / Krakatau Steel,iron_steel,,2026-05-03,
 dexin-steel-morowali,Dexin Steel Morowali,standalone,steel,crude_steel,Central Sulawesi,-2.829514,122.174896,,,,Active,,,0.9,SULAWESI,7000000 TPA,7000000.0,BF-BOF,Delong Holdings (China),iron_steel,,2026-05-03,
 gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,standalone,steel,crude_steel,West Java,-6.282658,107.117683,,,,Active,,,0.9,JAVA_BALI,1820000 TPA,1820000.0,EAF,Gunung Raja Paksi,iron_steel,,2026-05-03,
-master-steel-jakarta,Master Steel Jakarta,standalone,steel,crude_steel,DKI Jakarta,-6.18421,106.920067,,,,Active,,,0.9,JAVA_BALI,2000000 TPA,2000000.0,EAF,Master Steel MFG,iron_steel,,2026-05-03,
+master-steel-jakarta,Master Steel Jakarta,standalone,steel,crude_steel,DKI Jakarta,-6.17862,106.92044,,,,Active,,,0.9,JAVA_BALI,2000000 TPA,2000000.0,EAF,Master Steel MFG,iron_steel,,2026-05-03,
 jakarta-prima-steel-industries,Jakarta Prima Steel Industries,standalone,steel,crude_steel,DKI Jakarta,-6.181643,106.932331,,,,Active,,,0.9,JAVA_BALI,900000 TPA,900000.0,EAF,Jakarta Prima Steel,iron_steel,,2026-05-03,
 ispat-indo-sidoarjo,Ispat Indo Sidoarjo,standalone,steel,crude_steel,East Java,-7.35649,112.70311,,,,Active,,,0.9,JAVA_BALI,700000 TPA,700000.0,EAF,ArcelorMittal,iron_steel,,2026-05-03,
 virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),cluster,nickel,mixed_nickel,,-3.8262,122.4779,,,,Active,,,0.85,SULAWESI,2000000 TPA,2000000.0,Ferro Nickel,,iron_steel,,2026-05-03,

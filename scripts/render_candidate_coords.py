@@ -38,25 +38,27 @@ MAPBOX_TOKEN = (
 # Current hunt (2026-04-30): Jakarta Prima Steel Industries — visual showed
 # centroid in residential, plant upper-left of frame. Two OSM candidates.
 CANDIDATES: dict[str, list[tuple[float, float, str]]] = {
-    # 2026-05-03 nickel polygon hunt round 2 — top remaining HIGH-priority
-    # sites from polygon_coverage_priority.csv after round 1 (IMIP/IPIP/Obi):
-    # VDNIP, NIS, IWIP, Bantaeng. All nickel; VDNIP/NIS may share a polygon.
-    "vdnip-nis-konawe": [
-        (-3.8902, 122.4379, "vdnip-current"),
-        (-3.8352, 122.4034, "nis-current"),
-        (-3.8255, 122.4788, "konawe-relation-14284935"),
-        (-3.8282, 122.4656, "delong-nickel-phase2-way1168320730"),
+    # 2026-05-03 round 3 — vision audit of urban over-counter risks.
+    # All 6 sites have the highest current rooftop_MWp in the fleet but no
+    # fence-line polygon, so the 2 km buffer is bleeding in neighboring
+    # factories. Need to trace fence boundaries from satellite.
+    "master-steel-jakarta": [
+        (-6.184210, 106.920067, "current-dimsites"),
     ],
-    "iwip-candidates": [
-        (0.4891, 128.0476, "iwip-current"),
-        (0.4765, 128.0014, "PLTU-Weda-Bay-way1152758557"),
-        (0.4860, 127.9914, "镍铁KJH-NickelIron-way1245573887"),
-        (0.4761, 127.9986, "电厂1-4-PowerPlant-way1245573862"),
+    "pupuk-sriwidjaja-palembang": [
+        (-2.990000, 104.757000, "current-dimsites"),
     ],
-    "bantaeng-candidates": [
-        (-5.5812, 120.0574, "bip-current"),
-        (-5.5738, 120.0650, "Huadi-Nickel-Alloy-way592275190"),
-        (-5.5669, 120.0627, "Hengsheng-New-Energy-way1155935996"),
+    "jakarta-prima-steel-industries": [
+        (-6.181643, 106.932331, "current-dimsites"),
+    ],
+    "indocement-citeureup": [
+        (-6.479811, 106.899118, "current-dimsites"),
+    ],
+    "pupuk-kujang-cikampek": [
+        (-6.410000, 107.457000, "current-dimsites"),
+    ],
+    "krakatau-steel-cilegon": [
+        (-6.007021, 106.001766, "current-dimsites"),
     ],
 }
 
