@@ -95,6 +95,44 @@ DEFAULT_EXCLUSION_POLYGONS_GEOJSON = (
 PROJECTED_CRS = "EPSG:23830"
 
 
+def _load_polygon_source_tiers(
+    kek_path: Path = DEFAULT_KEK_POLYGONS_GEOJSON,
+    industrial_path: Path = DEFAULT_INDUSTRIAL_POLYGONS_GEOJSON,
+) -> dict[str, str]:
+    """Return {site_id → polygon_source_tier} for every polygon-covered site.
+
+    KEK polygons are tier `official_kek` by definition. Industrial polygons
+    are classified per `src.model.polygon_provenance` (osm_landuse_industrial
+    or claude_building_hull_estimate). Sites without a polygon get no entry —
+    callers should default to `none` for those.
+    """
+    import json as _json  # noqa: PLC0415 — local import keeps top of file uncluttered
+
+    from src.model.polygon_provenance import (  # noqa: PLC0415
+        classify_industrial_polygon_props,
+    )
+
+    tiers: dict[str, str] = {}
+    if kek_path.exists():
+        kek = _json.loads(kek_path.read_text())
+        for feat in kek.get("features", []):
+            sid = feat.get("properties", {}).get("slug")
+            if sid:
+                tiers[sid] = "official_kek"
+    if industrial_path.exists():
+        ind = _json.loads(industrial_path.read_text())
+        for feat in ind.get("features", []):
+            props = feat.get("properties", {})
+            sid = props.get("site_id")
+            if not sid:
+                continue
+            # Industrial entry overrides only if site doesn't already have a KEK polygon
+            # (KEK takes precedence — official > community-verified > estimated).
+            if sid not in tiers:
+                tiers[sid] = classify_industrial_polygon_props(props)
+    return tiers
+
+
 def _load_site_polygons(
     kek_path: Path = DEFAULT_KEK_POLYGONS_GEOJSON,
     industrial_path: Path = DEFAULT_INDUSTRIAL_POLYGONS_GEOJSON,
@@ -752,6 +790,12 @@ def build_fct_site_solar_potential(
     else:
         site_vintage_map = {}
 
+    # Polygon source provenance — official KEK / OSM / Claude-estimated / none.
+    # Surfaces in the dashboard ScoreDrawer so users can tell which rooftop
+    # estimates are grounded in government data vs. estimated by automated
+    # methods. See `src/model/polygon_provenance.py` for taxonomy.
+    polygon_source_tier_map = _load_polygon_source_tiers()
+
     # Aggregate per site
     rows = []
     for _, site in sites.iterrows():
@@ -822,6 +866,7 @@ def build_fct_site_solar_potential(
                 "building_data_reason_flagged": reason,
                 "building_data_source": site_vintage_map.get(site_id) and "gob_v3" or None,
                 "building_data_vintage": site_vintage_map.get(site_id),
+                "polygon_source_tier": polygon_source_tier_map.get(site_id, "none"),
             }
         )
 

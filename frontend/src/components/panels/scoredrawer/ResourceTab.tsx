@@ -196,6 +196,32 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               tip={`Derived from building count + footprint ratio + imagery vintage. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`}
             />
           )}
+          {row.polygon_source_tier && (
+            <StatRowWithTip
+              label="Polygon source"
+              value={
+                {
+                  official_kek: 'Official KEK',
+                  osm_landuse_industrial: 'OSM',
+                  claude_building_hull_estimate: 'Estimated',
+                  none: 'No polygon',
+                }[row.polygon_source_tier]
+              }
+              unit=""
+              tip={
+                {
+                  official_kek:
+                    'Government-published KEK boundary from the Indonesian OSS portal. High trust.',
+                  osm_landuse_industrial:
+                    'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued.',
+                  claude_building_hull_estimate:
+                    'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
+                  none:
+                    'No fence-line polygon yet. Rooftop estimate uses a 2 km centroid buffer, which can over-count adjacent factories.',
+                }[row.polygon_source_tier]
+              }
+            />
+          )}
         </StatCard>
       )}
 

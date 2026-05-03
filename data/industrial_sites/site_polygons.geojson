@@ -448,7 +448,10 @@
         "osm_type": "industrial",
         "osm_id": 905451146,
         "osm_display_name": "Indocement Tunggal Prakarsa, Kedungbunder, Kabupaten Cirebon, Jawa, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/905451146",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -814,7 +817,10 @@
         "osm_type": "industrial",
         "osm_id": 662722550,
         "osm_display_name": "Cemindo Gemilang, Bayah, Lebak, Banten, Jawa, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/662722550",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -1380,7 +1386,10 @@
         "osm_type": "industrial",
         "osm_id": 640066048,
         "osm_display_name": "Petrokimia Gresik, Lumpur, Gresik, Jawa Timur, Jawa, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/640066048",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -1646,7 +1655,10 @@
         "osm_type": "industrial",
         "osm_id": 654812621,
         "osm_display_name": "Ispat Indo, Kedungturi, Taman, Sidoarjo, Jawa Timur, Jawa, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/654812621",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -1720,7 +1732,10 @@
         "osm_type": "industrial",
         "osm_id": 794591533,
         "osm_display_name": "Freeport-McMoRan Smelter, Gresik, Jawa Timur, Jawa, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/794591533",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -1966,7 +1981,10 @@
         "osm_type": "industrial",
         "osm_id": 197358426,
         "osm_display_name": "PT Semen Padang, Indarung, Padang, Sumatra Barat, Sumatera, 25237, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/197358426",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -2024,7 +2042,10 @@
         "osm_type": "industrial",
         "osm_id": 306087148,
         "osm_display_name": "PT Semen Baturaja Tbk, PASAR BARU, Baturaja Barat, Ogan Komering Ulu, Sumatera Selatan, Sumatera, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/306087148",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -2086,7 +2107,10 @@
         "osm_type": "industrial",
         "osm_id": 967994503,
         "osm_display_name": "Cilegon Krakatau Posco Power Plant, Kubangsari, Cilegon, Banten, Jawa, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/967994503",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -2524,7 +2548,10 @@
         "osm_type": "works",
         "osm_id": 694792619,
         "osm_display_name": "Gunung Raja Paksi, Jalan Raya Imam Bonjol, Cibitung, Sukadanau, Kab Bekasi, Jawa Barat, Jawa, 17520, Indonesia",
-        "verified_date": "2026-04-28"
+        "verified_date": "2026-04-28",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/works/694792619",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -2802,7 +2829,10 @@
         "osm_type": "industrial",
         "osm_id": 1381564788,
         "osm_display_name": "Semen Gresik, Sidokumpul, Gresik, Jawa Timur, Jawa, Indonesia",
-        "verified_date": "2026-04-30"
+        "verified_date": "2026-04-30",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/1381564788",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -2920,7 +2950,10 @@
         "osm_type": "industrial",
         "osm_id": 141462830,
         "osm_display_name": "Kupang Sement, Alak, Kupang, Nusa Tenggara Timur, Nusa Tenggara, Indonesia",
-        "verified_date": "2026-04-30"
+        "verified_date": "2026-04-30",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/141462830",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -3618,7 +3651,10 @@
         "osm_type": "industrial",
         "osm_id": 299975400,
         "osm_display_name": "Indonesia Morowali Industrial Park, Bahodopi, Morowali, Sulawesi Tengah, Sulawesi, 94974, Indonesia",
-        "verified_date": "2026-05-02"
+        "verified_date": "2026-05-02",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/299975400",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -3728,7 +3764,10 @@
         "osm_type": "industrial",
         "osm_id": 299975398,
         "osm_display_name": "Pabrik Feronikel Unit Bisnis ANTAM, Blading, Kolaka, Sulawesi Tenggara, Sulawesi, Indonesia",
-        "verified_date": "2026-05-02"
+        "verified_date": "2026-05-02",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/299975398",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -3794,7 +3833,10 @@
         "osm_type": "industrial",
         "osm_id": 1282881067,
         "osm_display_name": "Harita Group / Halmahera Persada Lygend HPAL complex (untagged in OSM Nominatim; identified via Overpass + visual sanity check)",
-        "verified_date": "2026-05-02"
+        "verified_date": "2026-05-02",
+        "source_name": "OSM Nominatim (landuse=industrial / man_made=works)",
+        "source_url": "https://www.openstreetmap.org/industrial/1282881067",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -9656,7 +9698,8 @@
         "source_url": "https://www.openstreetmap.org/relation/14284935",
         "verified_date": "2026-05-03",
         "area_ha_osm": 349.2,
-        "notes": "Konawe industrial multipolygon covering Delong Nickel Phase II + adjacent smelter facilities. CGSP IIA centroid was 8 km S in farmland; this polygon is the actual operational complex visible at zoom 16."
+        "notes": "Konawe industrial multipolygon covering Delong Nickel Phase II + adjacent smelter facilities. CGSP IIA centroid was 8 km S in farmland; this polygon is the actual operational complex visible at zoom 16.",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -9824,7 +9867,8 @@
         "source_url": "https://www.openstreetmap.org/way/1152758557",
         "verified_date": "2026-05-03",
         "area_ha_osm": 116.6,
-        "notes": "Union of 7 IWIP sub-facility ways (Chinese-named smelters and power plants). No comprehensive single relation exists; this approximates the operational footprint. Some buildings are post-2023 and may not appear in GoB/MS imagery yet."
+        "notes": "Union of 7 IWIP sub-facility ways (Chinese-named smelters and power plants). No comprehensive single relation exists; this approximates the operational footprint. Some buildings are post-2023 and may not appear in GoB/MS imagery yet.",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -10606,7 +10650,8 @@
         "source_url": "https://www.openstreetmap.org/way/592275190",
         "verified_date": "2026-05-03",
         "area_ha_osm": 121.8,
-        "notes": "BIP main smelter (Huadi Nickel-Alloy Indonesia). Current dim_sites coord is 1 km W of polygon; coord override moves to polygon centroid."
+        "notes": "BIP main smelter (Huadi Nickel-Alloy Indonesia). Current dim_sites coord is 1 km W of polygon; coord override moves to polygon centroid.",
+        "polygon_source_tier": "osm_landuse_industrial"
       }
     },
     {
@@ -10727,7 +10772,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify to ~25-100 vertices",
-        "notes": "Anchor-relocated 546m E of dim_sites coord. 2 Mt/yr steel mill core; 23 buildings \u22651500m\u00b2 unioned + 60m dilation - 25m erode. Visual confirms it is the bounded factory complex (not residential)."
+        "notes": "Anchor-relocated 546m E of dim_sites coord. 2 Mt/yr steel mill core; 23 buildings \u22651500m\u00b2 unioned + 60m dilation - 25m erode. Visual confirms it is the bounded factory complex (not residential).",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -12806,7 +12852,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify to ~25-100 vertices",
-        "notes": "0.9 Mt/yr steel mill in Pulogadung district. 58 big-buildings within 400m of dim_sites unioned; clean rectangular operational footprint."
+        "notes": "0.9 Mt/yr steel mill in Pulogadung district. 58 big-buildings within 400m of dim_sites unioned; clean rectangular operational footprint.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -21629,7 +21676,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify to ~25-100 vertices",
-        "notes": "Indonesia largest cement plant (12 Mt/yr). 171 big-buildings within 1200m of dim_sites unioned; iconic round storage silos visible inside polygon. Bounded operational complex."
+        "notes": "Indonesia largest cement plant (12 Mt/yr). 171 big-buildings within 1200m of dim_sites unioned; iconic round storage silos visible inside polygon. Bounded operational complex.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -25968,7 +26016,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify to ~25-100 vertices",
-        "notes": "1.14 Mt/yr fertilizer plant (ammonia + urea). 36 big-buildings within 900m of dim_sites unioned; bounded chemical-process footprint."
+        "notes": "1.14 Mt/yr fertilizer plant (ammonia + urea). 36 big-buildings within 900m of dim_sites unioned; bounded chemical-process footprint.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -42349,7 +42398,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify to ~25-100 vertices",
-        "notes": "4 Mt/yr integrated steel mill \u2014 Indonesia largest. 201 big-buildings within 1500m of dim_sites unioned. No overlap with adjacent Krakatau Posco polygon. Polygon includes Krakatau Steel core mill + adjacent industrial estates."
+        "notes": "4 Mt/yr integrated steel mill \u2014 Indonesia largest. 201 big-buildings within 1500m of dim_sites unioned. No overlap with adjacent Krakatau Posco polygon. Polygon includes Krakatau Steel core mill + adjacent industrial estates.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -42608,7 +42658,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "3.23 Mt/yr cement plant. 20 buildings \u22651500m\u00b2 unioned within 600m of largest-building anchor."
+        "notes": "3.23 Mt/yr cement plant. 20 buildings \u22651500m\u00b2 unioned within 600m of largest-building anchor.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -42713,7 +42764,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "1.75 Mt/yr cement plant in Cilegon industrial corridor. 19 big-buildings unioned. Polygon may include adjacent warehouses."
+        "notes": "1.75 Mt/yr cement plant in Cilegon industrial corridor. 19 big-buildings unioned. Polygon may include adjacent warehouses.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -42798,7 +42850,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "1.8 Mt/yr coastal cement plant. 10 big-buildings unioned. Polygon undersized (5.3 ha) \u2014 captures operational core; visible auxiliary structures outside polygon."
+        "notes": "1.8 Mt/yr coastal cement plant. 10 big-buildings unioned. Polygon undersized (5.3 ha) \u2014 captures operational core; visible auxiliary structures outside polygon.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -43047,7 +43100,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "7.4 Mt/yr cement plant. 45 big-buildings unioned. Quarry correctly excluded."
+        "notes": "7.4 Mt/yr cement plant. 45 big-buildings unioned. Quarry correctly excluded.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -43318,7 +43372,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "15 Mt/yr cement plant \u2014 Indonesia largest by capacity. Has prior coord override (commit f7fadcd 2026-04-28). Building hull captures kiln + silo operational core; quarry/mine excluded."
+        "notes": "15 Mt/yr cement plant \u2014 Indonesia largest by capacity. Has prior coord override (commit f7fadcd 2026-04-28). Building hull captures kiln + silo operational core; quarry/mine excluded.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -43465,7 +43520,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "3 Mt/yr cement plant. 8 big-bldgs unioned within 600m of largest-bldg anchor. Clear coastal cement plant with kiln visible."
+        "notes": "3 Mt/yr cement plant. 8 big-bldgs unioned within 600m of largest-bldg anchor. Clear coastal cement plant with kiln visible.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -43590,7 +43646,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "3 Mt/yr cement plant. 16 big-bldgs unioned. Polygon covers production buildings + quarry approach road."
+        "notes": "3 Mt/yr cement plant. 16 big-bldgs unioned. Polygon covers production buildings + quarry approach road.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -43759,7 +43816,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "4.4 Mt/yr coastal cement plant. 17 big-bldgs unioned. Conservative polygon \u2014 additional infrastructure visible north of fence may belong to plant."
+        "notes": "4.4 Mt/yr coastal cement plant. 17 big-bldgs unioned. Conservative polygon \u2014 additional infrastructure visible north of fence may belong to plant.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -43922,7 +43980,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "3 Mt/yr cement plant. 22 big-bldgs unioned. Operational core captured; quarry to east correctly excluded."
+        "notes": "3 Mt/yr cement plant. 22 big-bldgs unioned. Operational core captured; quarry to east correctly excluded.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -44039,7 +44098,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "4.1 Mt/yr cement plant. 18 big-bldgs unioned. Clean rectangular fence trace."
+        "notes": "4.1 Mt/yr cement plant. 18 big-bldgs unioned. Clean rectangular fence trace.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -44128,7 +44188,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "1.14 Mt/yr fertilizer plant in Aceh (had prior coord override 2026-04-28). 5 big-bldgs unioned. Plant detected by GoB but undersized \u2014 likely Aceh imagery+detection gap."
+        "notes": "1.14 Mt/yr fertilizer plant in Aceh (had prior coord override 2026-04-28). 5 big-bldgs unioned. Plant detected by GoB but undersized \u2014 likely Aceh imagery+detection gap.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -44189,7 +44250,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "medium",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within proximity-of-anchor + 60m dilation, 25m erosion, simplify",
-        "notes": "1.8 Mt/yr cement plant in agricultural Sulawesi. 4 big-bldgs unioned. Conservative trace."
+        "notes": "1.8 Mt/yr cement plant in agricultural Sulawesi. 4 big-bldgs unioned. Conservative trace.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     },
     {
@@ -44520,7 +44582,8 @@
         "model_id": "claude-opus-4-7",
         "confidence": "high",
         "method": "union of GoB+MS buildings \u22651500m\u00b2 within 1200m of largest-bldg anchor + 60m dilation, 25m erosion. Required prior 5km coord override (-2.99,104.757 \u2192 -2.978,104.802 OSM PT Pusri anchor) + preprocessor rerun to get the correct buildings into the parquet.",
-        "notes": "2 Mt/yr urea/ammonia fertilizer plant. 79 big-bldgs unioned. Polygon spans the operational complex on the north bank of Musi River; river is natural S boundary, port + storage tanks visible inside polygon."
+        "notes": "2 Mt/yr urea/ammonia fertilizer plant. 79 big-bldgs unioned. Polygon spans the operational complex on the north bank of Musi River; river is natural S boundary, port + storage tanks visible inside polygon.",
+        "polygon_source_tier": "claude_building_hull_estimate"
       }
     }
   ]

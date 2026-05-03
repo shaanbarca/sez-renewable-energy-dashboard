@@ -370,9 +370,24 @@ Defaults: `ROOFTOP_PANEL_POWER_W_DC = 400 W`, `ROOFTOP_PANEL_AREA_M2 = 2.0`, `RO
 `preprocess_open_buildings.py` uses a 2 km buffer around each site centroid to assign buildings. For sites whose actual fence boundary is smaller, this over-includes adjacent residential structures, industrial parks, or open water. After preprocess, `load_buildings_for_pipeline()` applies a centroid-within-polygon filter against two polygon sources:
 
 1. **KEK polygons** (`outputs/data/raw/kek_polygons.geojson`, 25 sites). Boundaries from official OSS/KEK portal scrapes. Handles split-island KEKs (Tanjung Sauh has 6 fragments) by dissolving on `slug`.
-2. **Industrial site polygons** (`data/industrial_sites/site_polygons.geojson`, 11 sites as of 2026-04-30). OSM `landuse=industrial` and `man_made=works` polygons captured for non-KEK industrial plants where they exist: Indocement Palimanan, Cemindo Gemilang Bayah, Petrokimia Gresik, Ispat Indo Sidoarjo, Freeport Smelter Gresik, Semen Padang Indarung, Semen Baturaja, Krakatau Posco Cilegon, Gunung Raja Paksi Bekasi, Semen Gresik City, Semen Kupang. Last 2 added 2026-04-30 after RV-eval surfaced sector_outlier_above findings — heavy residential bleed surviving RV11; polygon clip dropped Gresik 99.66 → 10.12 MWp and Kupang 33.42 → 6.54 MWp.
+2. **Industrial site polygons** (`data/industrial_sites/site_polygons.geojson`, 35 sites as of 2026-05-03). Mix of OSM `landuse=industrial` polygons and Claude-traced building-footprint hulls — see §4A.4a for provenance.
 
-Sites without a polygon pass through unchanged — their 2 km preprocess buffer remains the catchment, with RV11 (residential-pattern filter) at the building level providing the additional precision lever. Side effect: when the OSM polygon centroid is materially off from the dim_sites centroid (Ispat Indo at 10 km, Freeport at 9.8 km, Krakatau Posco at 3 km), the polygon centroid is also captured as a coordinate override in `data/industrial_sites/coordinate_overrides.csv` — the same audit-trail layer used for the GEM tracker miscodes (Tuban, Palimanan, Narogong).
+Sites without a polygon pass through unchanged — their 2 km preprocess buffer remains the catchment, with RV11 (residential-pattern filter) at the building level providing the additional precision lever. Side effect: when the polygon centroid is materially off from the dim_sites centroid (Ispat Indo at 10 km, Freeport at 9.8 km, Krakatau Posco at 3 km, Master Steel at 0.5 km, Pupuk Sriwidjaja at 5 km), the polygon centroid is also captured as a coordinate override in `data/industrial_sites/coordinate_overrides.csv` — the same audit-trail layer used for the GEM tracker miscodes (Tuban, Palimanan, Narogong).
+
+### 4A.4a Polygon source provenance — methodological gap surfaced in the UI
+
+Not all polygons are equal in trust. The taxonomy lives in `src/model/polygon_provenance.py` and is surfaced as `polygon_source_tier` on every site row in `fct_site_solar_potential` and in the dashboard ScoreDrawer (Resource tab → Polygon source).
+
+| Tier | Trust | Source | What it means |
+|------|-------|--------|---------------|
+| `official_kek` | High | OSS/KEK national portal scrape (`outputs/data/raw/kek_polygons.geojson`) | Government-published Special Economic Zone boundary. The number you see is grounded in legal fence-lines. |
+| `osm_landuse_industrial` | Medium-high | OpenStreetMap `landuse=industrial` / `man_made=works` polygons captured via Nominatim or Overpass | Community-maintained, verified by OSM contributors. Quality varies by region (Java contributors > outer islands). |
+| `claude_building_hull_estimate` | Medium | Claude-traced in-session via union of GoB+MS detected buildings ≥1500 m² + 60 m dilation, 25 m erosion | Conservative rooftop number, but the polygon itself is an estimate. Verify visually before quoting in a report or making a site-selection call. |
+| `none` | Low | (no polygon) | Falls back to the 2 km centroid buffer. Risk of over-counting adjacent factories or residential blocks. |
+
+**Why this matters for users.** A 50 MWp rooftop estimate at a `claude_building_hull_estimate` site and a 50 MWp estimate at an `official_kek` site are not the same number — the first is "Claude thinks the fence sits roughly here," the second is "the government published this boundary." The dashboard now flags this distinction in the ScoreDrawer so policy makers and DFI investors can scale their confidence accordingly.
+
+**Roadmap.** When official polygons become available (e.g., from the Ministry of Industry's Kawasan Industri registry, or from individual companies publishing fence GeoJSONs), they should replace the corresponding `claude_building_hull_estimate` and `osm_landuse_industrial` entries in `data/industrial_sites/site_polygons.geojson`. Set `source_name` to the official source, drop the `claude_*` provenance, and re-run the rooftop pipeline. The downstream pipeline picks up the new tier automatically.
 
 ### 4A.5 Cluster aggregation (visual layer)
 

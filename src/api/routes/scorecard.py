@@ -312,6 +312,7 @@ def post_scorecard(req: ScorecardRequest):
                 "building_data_reason_flagged",
                 "building_data_source",
                 "building_data_vintage",
+                "polygon_source_tier",
             ],
         ),
     ]:

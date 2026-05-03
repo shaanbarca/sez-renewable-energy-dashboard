@@ -117,6 +117,11 @@ export interface ScorecardRow {
   building_data_reason_flagged?: string | null;
   building_data_source?: string | null;
   building_data_vintage?: string | null;
+  polygon_source_tier?:
+    | 'official_kek'
+    | 'osm_landuse_industrial'
+    | 'claude_building_hull_estimate'
+    | 'none';
 
   project_viable: boolean;
   best_re_technology: string;
