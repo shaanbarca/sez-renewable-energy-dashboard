@@ -8,7 +8,8 @@ interface SliderProps {
   max: number;
   step: number;
   label: string;
-  unit: string;
+  // Optional — some sliders display a unitless ratio (e.g., layout density 0–1).
+  unit?: string;
   description?: string;
   marks?: Record<string, string>;
 }

@@ -59,6 +59,8 @@ from src.assumptions import (
     BUILDING_FOOTPRINT_IMAGERY_GAP_RATIO,
     BUILDING_FOOTPRINT_TYPICAL_RATIO_HIGH,
     BUILDING_FOOTPRINT_TYPICAL_RATIO_LOW,
+    CLUSTER_NEIGHBOR_RADIUS_M,
+    FACTORY_ANCHOR_MIN_AREA_M2,
     MS_DEDUP_IOU_THRESHOLD,
     RESIDENTIAL_AREA_MAX_M2,
     RESIDENTIAL_AREA_SIMILARITY_RATIO,
@@ -91,6 +93,44 @@ DEFAULT_EXCLUSION_POLYGONS_GEOJSON = (
 
 # Indonesian National DGN95 / UTM 50S — accurate metric calc for classifier
 PROJECTED_CRS = "EPSG:23830"
+
+
+def _load_polygon_source_tiers(
+    kek_path: Path = DEFAULT_KEK_POLYGONS_GEOJSON,
+    industrial_path: Path = DEFAULT_INDUSTRIAL_POLYGONS_GEOJSON,
+) -> dict[str, str]:
+    """Return {site_id → polygon_source_tier} for every polygon-covered site.
+
+    KEK polygons are tier `official_kek` by definition. Industrial polygons
+    are classified per `src.model.polygon_provenance` (osm_landuse_industrial
+    or claude_building_hull_estimate). Sites without a polygon get no entry —
+    callers should default to `none` for those.
+    """
+    import json as _json  # noqa: PLC0415 — local import keeps top of file uncluttered
+
+    from src.model.polygon_provenance import (  # noqa: PLC0415
+        classify_industrial_polygon_props,
+    )
+
+    tiers: dict[str, str] = {}
+    if kek_path.exists():
+        kek = _json.loads(kek_path.read_text())
+        for feat in kek.get("features", []):
+            sid = feat.get("properties", {}).get("slug")
+            if sid:
+                tiers[sid] = "official_kek"
+    if industrial_path.exists():
+        ind = _json.loads(industrial_path.read_text())
+        for feat in ind.get("features", []):
+            props = feat.get("properties", {})
+            sid = props.get("site_id")
+            if not sid:
+                continue
+            # Industrial entry overrides only if site doesn't already have a KEK polygon
+            # (KEK takes precedence — official > community-verified > estimated).
+            if sid not in tiers:
+                tiers[sid] = classify_industrial_polygon_props(props)
+    return tiers
 
 
 def _load_site_polygons(
@@ -212,6 +252,16 @@ def merge_sources(
     if primary.crs is not None and secondary.crs is not None and primary.crs != secondary.crs:
         secondary = secondary.to_crs(primary.crs)
 
+    # Drop zero-area / null secondary geometries up front. Avoids the
+    # asymmetric handling where a zero-area row would skip the dedup
+    # check (continue) but still pass through into the output. Real
+    # building footprints are never 0 m² — these are upstream
+    # pre-processing corruption signals.
+    sec_areas = secondary.geometry.area.to_numpy()
+    secondary = secondary.loc[(sec_areas > 0) & secondary.geometry.notna()]
+    if secondary.empty:
+        return primary
+
     primary_cols = list(primary.columns)
     parts: list[gpd.GeoDataFrame] = [primary]
 
@@ -231,8 +281,6 @@ def merge_sources(
         sec_geoms = sec_grp.geometry.to_numpy()
         for i, sg in enumerate(sec_geoms):
             sa = sg.area
-            if sa <= 0:
-                continue
             # STRtree.query returns positional indices into prim_geoms.
             cand_idx = tree.query(sg)
             if len(cand_idx) == 0:
@@ -532,6 +580,63 @@ def detect_residential_clusters(
     return is_residential
 
 
+def detect_isolated_suitable_clusters(
+    suitable_geoms: list,
+    suitable_areas: np.ndarray,
+    *,
+    neighbor_radius_m: float = CLUSTER_NEIGHBOR_RADIUS_M,
+    factory_anchor_min_area_m2: float = FACTORY_ANCHOR_MIN_AREA_M2,
+) -> np.ndarray:
+    """Boolean mask: True if a suitable building's cluster lacks a factory anchor.
+
+    Groups suitable buildings into spatial clusters via union-find: two
+    buildings are in the same cluster if they're within `neighbor_radius_m`
+    of each other (chains transitively). A cluster is rejected if its
+    largest building is below `factory_anchor_min_area_m2`.
+
+    Closes the residential / commercial bleed pattern at high-rooftop sites
+    without polygons. Real factories always have at least one big production
+    hall; residential blocks and small commercial strips do not.
+
+    Buildings must already be in a metric CRS.
+    """
+    n = len(suitable_geoms)
+    is_isolated = np.zeros(n, dtype=bool)
+    if n == 0:
+        return is_isolated
+
+    tree = STRtree(suitable_geoms)
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for i, geom in enumerate(suitable_geoms):
+        candidate_idx = tree.query(geom.buffer(neighbor_radius_m))
+        for j in candidate_idx:
+            if j != i:
+                union(i, j)
+
+    # Group buildings by cluster root, find max area per cluster.
+    cluster_max_area: dict[int, float] = {}
+    for i in range(n):
+        root = find(i)
+        cluster_max_area[root] = max(cluster_max_area.get(root, 0.0), suitable_areas[i])
+
+    for i in range(n):
+        if cluster_max_area[find(i)] < factory_anchor_min_area_m2:
+            is_isolated[i] = True
+    return is_isolated
+
+
 def aggregate_site_buildings(
     site_buildings_proj: gpd.GeoDataFrame,  # buildings already in PROJECTED_CRS
     *,
@@ -541,6 +646,15 @@ def aggregate_site_buildings(
     """Classify every building, sum standard_roof × multipliers → MWp.
 
     Returns the row that goes into fct_site_solar_potential.csv.
+
+    Filter cascade (each runs only on buildings that survived earlier ones):
+      1. OSM exclusion polygons (tank / basin / water tags from OpenStreetMap)
+      2. Residential cluster detection (small + many similar small neighbors)
+      3. Per-building shape classifier (§14): too_small / tank_silo / conveyor
+         / complex / possibly_round / elongated / standard_roof
+      4. Factory-anchor cluster filter — drops suitable buildings whose
+         spatial cluster lacks any building ≥ FACTORY_ANCHOR_MIN_AREA_M2.
+         Catches residential / commercial bleed at sites without polygons.
     """
     counts = {
         "standard_roof": 0,
@@ -551,11 +665,10 @@ def aggregate_site_buildings(
         "conveyor": 0,
         "too_small": 0,
         "residential": 0,
+        "isolated_cluster": 0,
     }
-    total_kw_dc = 0.0
     total_footprint_m2 = 0.0
     type_filter_excluded_m2 = 0.0
-    usable_roof_area_m2 = 0.0
 
     is_residential = detect_residential_clusters(site_buildings_proj)
     is_in_exclusion = (
@@ -564,27 +677,63 @@ def aggregate_site_buildings(
         else np.zeros(len(site_buildings_proj), dtype=bool)
     )
 
+    # Pass 1: classify every surviving building. Track suitable ones for the
+    # cluster-anchor filter pass below.
+    classifications: list[tuple[int, float, float]] = []  # (idx, area, multiplier)
+    suitable: list[tuple[int, float]] = []  # (idx, area) — multiplier > 0
     for i, (_, b) in enumerate(site_buildings_proj.iterrows()):
-        area_m2 = b.geometry.area  # already in metres (UTM)
+        area_m2 = b.geometry.area
         total_footprint_m2 += area_m2
         if is_in_exclusion[i]:
-            # OSM tagged this as tank / basin / water → no roof to put panels on.
-            # Account as `tank_silo` for the existing UI category.
             counts["tank_silo"] += 1
             type_filter_excluded_m2 += area_m2
+            classifications.append((i, area_m2, 0.0))
             continue
         if is_residential[i]:
             counts["residential"] += 1
             type_filter_excluded_m2 += area_m2
+            classifications.append((i, area_m2, 0.0))
             continue
         cls = classify_building(b.geometry, area_m2)
         counts[cls.category] += 1
+        classifications.append((i, area_m2, cls.usability_multiplier))
         if cls.usability_multiplier > 0:
-            kw_dc = rooftop_kw_dc(area_m2, cls.usability_multiplier)
-            total_kw_dc += kw_dc
-            usable_roof_area_m2 += area_m2 * cls.usability_multiplier
+            suitable.append((i, area_m2))
         else:
             type_filter_excluded_m2 += area_m2
+
+    # Pass 2: factory-anchor cluster filter on suitable buildings.
+    isolated_idx_set: set[int] = set()
+    if suitable:
+        suitable_idxs, suitable_area_arr = zip(*suitable, strict=False)
+        suitable_geoms = [site_buildings_proj.geometry.iloc[i] for i in suitable_idxs]
+        suitable_areas_np = np.asarray(suitable_area_arr, dtype=float)
+        is_isolated_arr = detect_isolated_suitable_clusters(suitable_geoms, suitable_areas_np)
+        for k, idx in enumerate(suitable_idxs):
+            if is_isolated_arr[k]:
+                isolated_idx_set.add(idx)
+
+    # Pass 3: tally final outputs, skipping isolated-cluster buildings.
+    total_kw_dc = 0.0
+    usable_roof_area_m2 = 0.0
+    isolated_cluster_count = 0
+    for idx, area_m2, multiplier in classifications:
+        if multiplier <= 0:
+            continue
+        if idx in isolated_idx_set:
+            isolated_cluster_count += 1
+            type_filter_excluded_m2 += area_m2
+            continue
+        kw_dc = rooftop_kw_dc(area_m2, multiplier)
+        total_kw_dc += kw_dc
+        usable_roof_area_m2 += area_m2 * multiplier
+
+    # Adjust counts: isolated buildings shift OUT of standard_roof/elongated/etc.
+    # into isolated_cluster. We don't know the original category split here,
+    # so we keep the per-category counts unchanged — they reflect what the
+    # CLASSIFIER thought — and add isolated_cluster as a separate signal of
+    # "passed classifier but lacked a factory anchor."
+    counts["isolated_cluster"] = isolated_cluster_count
 
     return {
         "rooftop_kw_dc": round(total_kw_dc, 2),
@@ -593,12 +742,13 @@ def aggregate_site_buildings(
         "total_building_footprint_m2": round(total_footprint_m2, 2),
         "usable_roof_area_m2": round(usable_roof_area_m2, 2),
         "type_filter_excluded_m2": round(type_filter_excluded_m2, 2),
-        "building_count_total": int(sum(counts.values())),
+        "building_count_total": int(sum(counts.values())) - counts["isolated_cluster"],
         "building_count_standard_roof": counts["standard_roof"],
         "building_count_elongated": counts["elongated"],
         "building_count_tank_silo": counts["tank_silo"],
         "building_count_conveyor": counts["conveyor"],
         "building_count_residential": counts["residential"],
+        "building_count_isolated_cluster": counts["isolated_cluster"],
         "building_count_other_excluded": counts["too_small"]
         + counts["complex"]
         + counts["possibly_round"],
@@ -639,6 +789,12 @@ def build_fct_site_solar_potential(
         )
     else:
         site_vintage_map = {}
+
+    # Polygon source provenance — official KEK / OSM / Claude-estimated / none.
+    # Surfaces in the dashboard ScoreDrawer so users can tell which rooftop
+    # estimates are grounded in government data vs. estimated by automated
+    # methods. See `src/model/polygon_provenance.py` for taxonomy.
+    polygon_source_tier_map = _load_polygon_source_tiers()
 
     # Aggregate per site
     rows = []
@@ -710,6 +866,7 @@ def build_fct_site_solar_potential(
                 "building_data_reason_flagged": reason,
                 "building_data_source": site_vintage_map.get(site_id) and "gob_v3" or None,
                 "building_data_vintage": site_vintage_map.get(site_id),
+                "polygon_source_tier": polygon_source_tier_map.get(site_id, "none"),
             }
         )
 

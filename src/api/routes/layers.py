@@ -10,6 +10,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from src.assumptions import (
     BASE_WACC_DECIMAL,
@@ -159,6 +160,12 @@ def get_site_buildable(site_id: str):
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _BUILDINGS_PARQUET = _REPO_ROOT / "data" / "processed" / "sites_buildings_filtered.parquet"
 _TILES_PARQUET = _REPO_ROOT / "data" / "processed" / "sites_rooftop_tiles.parquet"
+# Phase 2 perf fix: pre-built per-site .geojson.gz files (one per site_id).
+# Built by `build_rooftop_tiles.py::write_per_site_geojson`. The endpoint
+# streams these directly — skips the per-request parquet filter +
+# 135k-row iterrows() dict construction that dominated the previous
+# ~9 s response time on Master Steel Jakarta.
+_TILES_GEOJSON_DIR = _REPO_ROOT / "data" / "processed" / "rooftop_tiles_geojson"
 
 
 @lru_cache(maxsize=1)
@@ -220,10 +227,29 @@ def get_site_rooftop_tiles(site_id: str):
         tile_kw_dc      — per-tile DC nameplate (default 2.4)
         tile_kw_ac      — per-tile AC after thermal derate (default 2.11)
 
+    Phase 2 perf: serves pre-built `<site_id>.geojson.gz` if available
+    (built by `build_rooftop_tiles.py::write_per_site_geojson`). Falls
+    back to live parquet build for sites without the cache (graceful
+    degradation during pipeline transition; not the steady state).
+
     Frontend should render at zoom ≥ 14 only — under that, fall back to the
     building outline layer. See spec §3.6 F9 + §3.9 (responsive: outlines-only
     on mobile).
     """
+    static_path = _TILES_GEOJSON_DIR / f"{site_id}.geojson.gz"
+    if static_path.exists():
+        # Stream the pre-gzipped file directly. The browser's
+        # `Accept-Encoding: gzip` (always sent) negotiates this end-to-end;
+        # we just hand back the bytes with the right Content-Encoding header
+        # so the framework's GZipMiddleware doesn't try to re-compress.
+        return FileResponse(
+            static_path,
+            media_type="application/json",
+            headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=300"},
+        )
+
+    # Fallback path — live build from parquet. Slow on big sites but
+    # keeps the endpoint working when the static cache is missing.
     gdf = _load_tiles_parquet()
     if gdf is None:
         return {"type": "FeatureCollection", "features": []}

@@ -165,6 +165,10 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       // user sees the headline visualization. Subsequent selections respect
       // whatever the user toggled (so we only set it when undefined).
       if (lv.rooftop_tiles === undefined) lv.rooftop_tiles = true;
+      // Same for site boundaries — first selection turns them on so users
+      // immediately see the fence polygon (KEK blue / industrial orange) and
+      // can sanity-check the rooftop number against the actual plant area.
+      if (lv.site_boundaries === undefined) lv.site_boundaries = true;
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;
         lv.wind = true;

@@ -38,13 +38,27 @@ MAPBOX_TOKEN = (
 # Current hunt (2026-04-30): Jakarta Prima Steel Industries — visual showed
 # centroid in residential, plant upper-left of frame. Two OSM candidates.
 CANDIDATES: dict[str, list[tuple[float, float, str]]] = {
-    # 2026-05-02 hunt: Red Lion Hongshi Tonga (4 Mt/yr cement, post-2023 build).
-    # Zoom-16 showed jetty extending NW → SE through (0.76, 117.77). Plant
-    # building must be inland (NW end). Trace back along jetty.
-    "hongshi-jetty-inland": [
-        (0.770, 117.755, "NW-along-jetty-inland"),
-        (0.775, 117.748, "further-NW-inland"),
-        (0.765, 117.760, "midway-along-jetty"),
+    # 2026-05-03 round 3 — vision audit of urban over-counter risks.
+    # All 6 sites have the highest current rooftop_MWp in the fleet but no
+    # fence-line polygon, so the 2 km buffer is bleeding in neighboring
+    # factories. Need to trace fence boundaries from satellite.
+    "master-steel-jakarta": [
+        (-6.184210, 106.920067, "current-dimsites"),
+    ],
+    "pupuk-sriwidjaja-palembang": [
+        (-2.990000, 104.757000, "current-dimsites"),
+    ],
+    "jakarta-prima-steel-industries": [
+        (-6.181643, 106.932331, "current-dimsites"),
+    ],
+    "indocement-citeureup": [
+        (-6.479811, 106.899118, "current-dimsites"),
+    ],
+    "pupuk-kujang-cikampek": [
+        (-6.410000, 107.457000, "current-dimsites"),
+    ],
+    "krakatau-steel-cilegon": [
+        (-6.007021, 106.001766, "current-dimsites"),
     ],
 }
 

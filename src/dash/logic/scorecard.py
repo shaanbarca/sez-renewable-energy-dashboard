@@ -743,10 +743,15 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
     """
     # Build demand lookup first — compute_lcoe_live needs it to size the
     # effective project MWp (meaningful_share_pct slider + target override).
+    # Skip rows with NaN demand_mwh (sector_intensity_missing_inputs sites
+    # like Stardust SEI / IKIP where capacity_annual_tonnes is unknown);
+    # otherwise the NaN propagates into capex sizing and crashes lcoe_solar.
     demand_by_site: dict[str, float] = {}
     if demand_df is not None and not demand_df.empty:
         for _, d_row in demand_df.iterrows():
-            demand_by_site[d_row["site_id"]] = float(d_row["demand_mwh"])
+            d_val = d_row["demand_mwh"]
+            if pd.notna(d_val):
+                demand_by_site[d_row["site_id"]] = float(d_val)
 
     # Shared setup (computed once, indexed for fast per-row lookup)
     lcoe_df = compute_lcoe_live(resource_df, assumptions, demand_by_site=demand_by_site)

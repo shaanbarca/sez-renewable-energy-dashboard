@@ -9,6 +9,7 @@ import pandas as pd
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from src.assumptions import THERMAL_DERATE_TROPICAL
 from src.dash.constants import (
     TIER1_SLIDERS,
     TIER2_SLIDERS,
@@ -81,6 +82,25 @@ class AssumptionsInput(BaseModel):
         ge=0.5,
         le=2.0,
         description="EUR/USD exchange rate for CBAM cost conversion. Default 1.10.",
+    )
+    # V4.1 RV15: rooftop §5.3 footprint→MWp parameters (F10 sliders).
+    rooftop_panel_power_w_dc: float = Field(
+        default=400.0,
+        ge=300.0,
+        le=600.0,
+        description="Per-panel DC nameplate (W). Range 300-600 covers mono → bifacial.",
+    )
+    rooftop_panel_area_m2: float = Field(
+        default=2.0,
+        ge=1.6,
+        le=2.6,
+        description="Per-panel area (m²). Range 1.6-2.6 covers compact residential → utility-scale.",
+    )
+    rooftop_layout_density: float = Field(
+        default=0.50,
+        ge=0.40,
+        le=0.65,
+        description="Layout density (panels per m² of usable roof). Range 0.40-0.65.",
     )
 
 
@@ -158,6 +178,43 @@ def get_defaults():
                 "default": WACC_DEFAULT,
                 "marks": WACC_MARKS,
                 "description": WACC_DESCRIPTION,
+            },
+            # V4.1 RV15: rooftop §5.3 sliders (F10). Driven directly by the
+            # AssumptionsInput Pydantic field bounds — kept in sync there.
+            "rooftop": {
+                "panel_power_w_dc": {
+                    "min": 300.0,
+                    "max": 600.0,
+                    "step": 25.0,
+                    "default": 400.0,
+                    "label": "Panel power (W DC)",
+                    "description": (
+                        "Per-panel DC nameplate. 400 W matches typical mono-Si; "
+                        "bifacials run 500-600 W."
+                    ),
+                },
+                "panel_area_m2": {
+                    "min": 1.6,
+                    "max": 2.6,
+                    "step": 0.1,
+                    "default": 2.0,
+                    "label": "Panel area (m²)",
+                    "description": (
+                        "Per-panel footprint. 2.0 m² is standard 144-cell. "
+                        "Compact residential modules go to 1.6; utility-scale to 2.6."
+                    ),
+                },
+                "layout_density": {
+                    "min": 0.40,
+                    "max": 0.65,
+                    "step": 0.05,
+                    "default": 0.50,
+                    "label": "Layout density",
+                    "description": (
+                        "Fraction of usable roof actually covered by panels (after "
+                        "spacing for shading, walkways, equipment). 0.50 is industrial default."
+                    ),
+                },
             },
         },
     }
@@ -255,6 +312,7 @@ def post_scorecard(req: ScorecardRequest):
                 "building_data_reason_flagged",
                 "building_data_source",
                 "building_data_vintage",
+                "polygon_source_tier",
             ],
         ),
     ]:
@@ -278,6 +336,21 @@ def post_scorecard(req: ScorecardRequest):
                     on="grid_region_id",
                     how="left",
                 )
+
+    # V4.1 RV15: rooftop §5.3 recompute from user sliders. The fct CSV stores
+    # `usable_roof_area_m2` (post-§14-classifier weighted area, pre-density
+    # and pre-panel-density). Apply the user's panel power, panel area, and
+    # layout density to derive interactive rooftop_kw_dc / rooftop_kw_ac /
+    # rooftop_solar_mwp_potential at request time.
+    if "usable_roof_area_m2" in scorecard_df.columns:
+        usable = scorecard_df["usable_roof_area_m2"].astype(float)
+        panel_density_w_per_m2 = (
+            assumptions.rooftop_panel_power_w_dc / assumptions.rooftop_panel_area_m2
+        )
+        kw_dc = usable * assumptions.rooftop_layout_density * panel_density_w_per_m2 / 1000.0
+        scorecard_df["rooftop_kw_dc"] = kw_dc.round(2)
+        scorecard_df["rooftop_kw_ac"] = (kw_dc * THERMAL_DERATE_TROPICAL).round(2)
+        scorecard_df["rooftop_solar_mwp_potential"] = (kw_dc / 1000.0).round(4)
 
     # Rename columns to match frontend type names
     rename_map = {

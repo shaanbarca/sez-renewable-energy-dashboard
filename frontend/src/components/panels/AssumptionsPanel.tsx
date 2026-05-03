@@ -488,6 +488,59 @@ export default function AssumptionsPanel() {
               </Accordion.Content>
             </Accordion.Item>
 
+            {/* V4.1 RV15: Rooftop solar §5.3 sliders. Recompute happens in
+                /api/scorecard against usable_roof_area_m2 from the rooftop
+                fct, so changes here propagate to rooftop_solar_mwp_potential
+                without re-running the build pipeline. */}
+            {sliderConfigs.rooftop && (
+              <Accordion.Item
+                value="rooftop"
+                className="border-t"
+                style={{ borderColor: 'var(--border-subtle)' }}
+              >
+                <Accordion.Header>
+                  <AccordionTrigger>Rooftop Solar (V4.1)</AccordionTrigger>
+                </Accordion.Header>
+                <Accordion.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                  <Slider
+                    value={assumptions.rooftop_panel_power_w_dc}
+                    onChange={(v) =>
+                      setAssumptions({ rooftop_panel_power_w_dc: v } as Partial<UserAssumptions>)
+                    }
+                    min={sliderConfigs.rooftop.panel_power_w_dc.min}
+                    max={sliderConfigs.rooftop.panel_power_w_dc.max}
+                    step={sliderConfigs.rooftop.panel_power_w_dc.step}
+                    label={sliderConfigs.rooftop.panel_power_w_dc.label}
+                    unit="W"
+                    description={sliderConfigs.rooftop.panel_power_w_dc.description}
+                  />
+                  <Slider
+                    value={assumptions.rooftop_panel_area_m2}
+                    onChange={(v) =>
+                      setAssumptions({ rooftop_panel_area_m2: v } as Partial<UserAssumptions>)
+                    }
+                    min={sliderConfigs.rooftop.panel_area_m2.min}
+                    max={sliderConfigs.rooftop.panel_area_m2.max}
+                    step={sliderConfigs.rooftop.panel_area_m2.step}
+                    label={sliderConfigs.rooftop.panel_area_m2.label}
+                    unit="m²"
+                    description={sliderConfigs.rooftop.panel_area_m2.description}
+                  />
+                  <Slider
+                    value={assumptions.rooftop_layout_density}
+                    onChange={(v) =>
+                      setAssumptions({ rooftop_layout_density: v } as Partial<UserAssumptions>)
+                    }
+                    min={sliderConfigs.rooftop.layout_density.min}
+                    max={sliderConfigs.rooftop.layout_density.max}
+                    step={sliderConfigs.rooftop.layout_density.step}
+                    label={sliderConfigs.rooftop.layout_density.label}
+                    description={sliderConfigs.rooftop.layout_density.description}
+                  />
+                </Accordion.Content>
+              </Accordion.Item>
+            )}
+
             <Accordion.Item
               value="thresholds"
               className="border-t"

@@ -78,6 +78,10 @@ export default function MapView() {
   // 14+ OOMs the GeoJSON worker (black-screen WebGL context loss). We keep
   // the full set here, then memoize a viewport-clipped subset for the Source.
   const [rooftopTiles, setRooftopTiles] = useState<GeoJSON.FeatureCollection | null>(null);
+  // True from the moment a site is selected until both rooftop fetches
+  // resolve. Drives the "Loading rooftop tiles…" badge so the user
+  // doesn't think the map is broken on slow networks / huge sites.
+  const [rooftopLoading, setRooftopLoading] = useState(false);
   const [viewportBounds, setViewportBounds] = useState<{
     minLng: number;
     minLat: number;
@@ -250,8 +254,10 @@ export default function MapView() {
     if (!selectedSite) {
       setSiteBuildings(null);
       setRooftopTiles(null);
+      setRooftopLoading(false);
       return;
     }
+    setRooftopLoading(true);
     fetchSiteBuildings(selectedSite)
       .then((data) => setSiteBuildings(data.features?.length ? data : null))
       .catch(() => setSiteBuildings(null));
@@ -282,7 +288,8 @@ export default function MapView() {
         }
         setRooftopTiles(data);
       })
-      .catch(() => setRooftopTiles(null));
+      .catch(() => setRooftopTiles(null))
+      .finally(() => setRooftopLoading(false));
     // Dismiss any stale cluster popup when the user switches sites
     setTilePopup(null);
   }, [selectedSite]);
@@ -791,6 +798,48 @@ export default function MapView() {
           </Popup>
         )}
       </Map>
+
+      {/* Rooftop tile loading badge — fires the moment a site is selected,
+          clears when the static .geojson.gz arrives. Bottom-left so it
+          doesn't clash with NavigationControl (bottom-right). Hidden when
+          the user has the rooftop layer toggled off via LayerControl. */}
+      {rooftopLoading && showRooftopTiles && (
+        <div
+          className="absolute bottom-4 left-4 z-40 flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium"
+          style={{
+            backdropFilter: 'var(--blur)',
+            WebkitBackdropFilter: 'var(--blur)',
+            background: 'var(--glass)',
+            border: '1px solid var(--glass-border-bright)',
+            boxShadow: 'var(--panel-shadow)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          <svg
+            className="h-3.5 w-3.5 animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeOpacity="0.25"
+              strokeWidth="3"
+            />
+            <path
+              d="M22 12a10 10 0 0 1-10 10"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+          Loading rooftop tiles…
+        </div>
+      )}
 
       {/* Back to National View button — sits below the legend strip. Header
           is 61px (measured), strip is 62-94, so button at 106 leaves a 12px

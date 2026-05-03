@@ -897,6 +897,30 @@ BUILDING_MIN_AREA_M2: float = 200.0
 # which are almost always real equipment clusters.
 BUILDING_HULL_RATIO_COMPLEX_THRESHOLD: float = 0.55
 
+# ─── Small-round-tank filter (v4.1 Phase 2 — bleed reduction) ──────────────
+# A perfect circle has circularity = 1.0; a square has 0.785; a regular
+# hexagon 0.91. Tank-like polygons that GoB/MS edge-traced with noise can
+# slip past the strict 0.85 tank threshold (typical water tank: clean
+# circ ~0.95, noisy ~0.81-0.87). This second filter catches them with a
+# size guard (<800 m²) so we don't accidentally reject a real 30×30 m
+# square commercial building (circ 0.785, area 900 m² → above size cap,
+# stays standard_roof).
+BUILDING_SMALL_ROUND_AREA_THRESHOLD_M2: float = 800.0
+BUILDING_SMALL_ROUND_CIRCULARITY_THRESHOLD: float = 0.80
+
+# ─── Factory-anchor cluster filter (v4.1 Phase 2 — bleed reduction) ────────
+# Real factories always have at least one big production hall / warehouse
+# / silo cluster — typically 1500+ m². Residential blocks and small
+# commercial strips lack that anchor even when they have many adjacent
+# small buildings. After per-building classification, group remaining
+# suitable buildings into spatial clusters (DBSCAN-style, eps =
+# CLUSTER_NEIGHBOR_RADIUS_M); drop entire clusters whose largest single
+# building is below FACTORY_ANCHOR_MIN_AREA_M2. Closes the residential-
+# bleed pattern at high-rooftop sites without polygons (Master Steel
+# Jakarta, Pupuk Sriwidjaja, Indocement Citeureup, etc.).
+FACTORY_ANCHOR_MIN_AREA_M2: float = 1500.0
+CLUSTER_NEIGHBOR_RADIUS_M: float = 80.0
+
 # ─── F4 Confidence flag thresholds (derived signals, no hard-coded sites) ──
 # Typical industrial site has 5-40% of polygon area as building footprint.
 # Outside this band suggests undercount (low) or implausibly dense (also low).

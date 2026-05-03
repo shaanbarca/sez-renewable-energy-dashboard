@@ -1,0 +1,82 @@
+site_id,site_name,sector,current_rooftop_mwp,has_polygon,verdict,confidence,primary_issue,recommended_action,notes
+indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),nickel,75.1,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),nickel,12.3,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),nickel,32.5,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+obi-island-industrial-park,Obi Island Industrial Park,nickel,0.0,True,undercount,medium,post_imagery_buildout,rerun_after_imagery_refresh,Polygon (10ha core) added round 1 but Harita Group HPAL complex extends well beyond OSM-tagged area. Rooftop signal will improve as imagery refreshes.
+industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),nickel,0.0,True,undercount,high,post_imagery_buildout,rerun_after_imagery_refresh,Polygon (116ha union of sub-facility ways) added 2026-05-03 but rooftop still 0 MWp. Both GoB v3 and MS GMLBF imagery predate IWIP buildout (2018-2024).
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),nickel,18.1,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+freeport-smelter-gresik,Freeport Smelter Gresik,aluminium,2.8,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+petrokimia-gresik,Petrokimia Gresik,fertilizer,68.5,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+industropolis-batang,Industropolis Batang,mixed,2.7,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-arun-lhokseumawe,Arun Lhokseumawe,mixed,42.4,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-galang-batang,Galang Batang,mixed,6.7,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-gresik,Gresik,mixed,16.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-sei-mangkei,Sei Mangkei,mixed,6.5,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-palu,Palu,mixed,4.2,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-tanjung-lesung,Tanjung Lesung,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+semen-padang-indarung,Semen Padang Indarung,cement,22.3,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,steel,54.0,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+kek-morotai,Morotai,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-lido,Lido,mixed,1.2,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-mandalika,Mandalika,mixed,2.7,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-kendal,Kendal,mixed,13.4,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+krakatau-posco-cilegon,Krakatau Posco Cilegon,steel,0.8,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+semen-baturaja,Semen Baturaja,cement,6.1,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+indocement-palimanan,Indocement Palimanan,cement,17.8,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+cemindo-gemilang-bayah,Cemindo Gemilang Bayah,cement,10.7,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-bitung,Bitung,mixed,13.9,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-sorong,Sorong,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,steel,10.0,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+kek-kura-kura,Kura Kura Bali,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-tanjung-kelayang,Tanjung Kelayang,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-likupang,Likupang,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-nongsa,Nongsa,mixed,4.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+semen-gresik-city,Semen Gresik City,cement,14.2,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+kek-singhasari,Singhasari,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+semen-kupang,Semen Kupang,cement,7.7,True,ok,medium,,accept,Has industrial polygon; no audit flag.
+bumi-serpong-damai,"Banten International Education, Technology, and Health",mixed,0.9,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,mixed,2.6,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-sanur,Sanur,mixed,2.7,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+kek-batam-aero-technic,Batam Aero Technic,mixed,5.1,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+setangga,Setangga,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+tanjung-sauh,Tanjung Sauh,mixed,0.0,True,ok,low,,accept,"KEK polygon-covered; default-trusted, not individually visually audited in this round."
+nusantara-industri-sejati,Nusantara Industri Sejati,nickel,0.0,False,undercount,medium,shared_complex_with_vdnip,manual_override,DEFERRED: Motui village location is INSIDE the VDNIP polygon — same Konawe industrial complex per Kompas/nusantaratv. Splitting NIS from VDNIP without double-counting requires more data.
+inalum-asahan,Inalum Asahan,aluminium,0.0,False,undercount,medium,missing_buildings,rerun_after_imagery_refresh,Operating site (cap 250 kt/yr) with 0 rooftop — likely RV7 (post-imagery buildout or Aceh data gap).
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,fertilizer,47.3,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+krakatau-steel-cilegon,Krakatau Steel Cilegon,steel,150.8,False,overcount,medium,neighboring_factories,add_polygon,Polygon added 2026-05-03 (264ha) covering integrated steel mill core. No overlap with adjacent Krakatau Posco polygon.
+pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,fertilizer,319.3,False,overcount,high,wrong_centroid,manual_override,"DEFERRED: dim_sites coord 5km W of actual OSM PT Pusri location (-2.978, 104.802). Buildings parquet keyed on wrong center. Needs coord override + preprocessor rerun in next round."
+semen-gresik-tuban,Semen Gresik Tuban,cement,42.0,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+buli-industrial-park,Buli Industrial Park,nickel,0.0,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+dexin-steel-morowali,Dexin Steel Morowali,steel,0.6,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+indocement-citeureup,Indocement Citeureup,cement,169.8,False,overcount,high,neighboring_factories,add_polygon,Polygon added 2026-05-03 (158ha) covering operational core including iconic round storage silos.
+pupuk-kujang-cikampek,Pupuk Kujang Cikampek,fertilizer,163.0,False,overcount,high,neighboring_factories,add_polygon,Polygon added 2026-05-03 (40ha) covering chemical-process footprint. Cikampek industrial estate has many factories within 2km.
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,fertilizer,11.3,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+sbi-tuban,SBI Tuban,cement,15.5,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+sbi-cilacap,SBI Cilacap,cement,139.4,False,overcount,medium,neighboring_factories,add_polygon,"Uncovered, current 139 MWp likely includes 2km-buffer bleed. Polygon hunt required."
+semen-imasco-asiatic-jember,Semen Imasco Asiatic Jember,cement,33.5,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+si-gresik-rembang,SI Gresik Rembang,cement,15.6,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semeru-surya-semen-kutai,Semeru Surya Semen Kutai,cement,29.2,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun,cement,21.9,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semen-grobogan,Semen Grobogan,cement,10.7,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semen-garuda-bekasi,Semen Garuda Bekasi,cement,22.2,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+sbi-andalas-lhoknga,SBI Andalas Lhoknga,cement,5.1,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+master-steel-jakarta,Master Steel Jakarta,steel,337.7,False,overcount,high,neighboring_factories,add_polygon,Polygon added 2026-05-03 (24ha) + coord override moved 546m to actual plant. Re-evaluate after pipeline rebuild — expect rooftop drops from 337 to <80 MWp.
+semen-tonasa,Semen Tonasa,cement,45.1,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+sbi-narogong,SBI Narogong,cement,8.5,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+conch-cement-serang,Conch Cement Serang,cement,25.8,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,cement,6.9,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semen-bosowa-maros,Semen Bosowa Maros,cement,5.8,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+jakarta-prima-steel-industries,Jakarta Prima Steel Industries,steel,251.0,False,overcount,high,neighboring_factories,add_polygon,Polygon added 2026-05-03 (26ha). Pulogadung industrial district overlap with Master Steel + Hong Xin neighbors.
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,cement,0.5,False,undercount,high,post_imagery_buildout,rerun_after_imagery_refresh,"Coord override added (Desa Selangkau, cemnet.com) but plant commissioned late 2023, post-GoB v3 + MS GMLBF cutoffs."
+semen-jawa-scg-sukabumi,Semen Jawa SCG Sukabumi,cement,33.7,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semen-bosowa-banyuwangi,Semen Bosowa Banyuwangi,cement,53.2,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+cemindo-gemilang-ciwandan,Cemindo Gemilang Ciwandan,cement,55.8,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+conch-south-kalimantan,Conch South Kalimantan,cement,0.0,False,undercount,medium,missing_buildings,rerun_after_imagery_refresh,Operating site (cap 1500 kt/yr) with 0 rooftop — likely RV7 (post-imagery buildout or Aceh data gap).
+cemindo-gemilang-batam,Cemindo Gemilang Batam,cement,39.6,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semen-bosowa-batam,Semen Bosowa Batam,cement,11.4,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+semen-jakarta,Semen Jakarta,cement,15.2,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+solusi-bangun-cilegon,Solusi Bangun Cilegon,cement,25.2,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+conch-west-kalimantan,Conch West Kalimantan,cement,19.4,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),nickel,0.0,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.
+indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),nickel,0.0,False,uncertain,low,,accept,Smaller site or low-priority; not individually audited.

@@ -1268,26 +1268,76 @@ class TestFctSiteDemand:
         dim_sites = pd.read_csv(PROCESSED / "dim_sites.csv")
         assert set(demand["site_id"]) == set(dim_sites["site_id"])
 
-    def test_demand_positive_for_all_rows(self, demand):
-        assert (demand["demand_mwh"] > 0).all(), "Every KEK must have demand_mwh > 0"
+    def test_demand_positive_for_resolved_rows(self, demand):
+        """Resolved rows (any source ≠ sector_intensity_missing_inputs) must
+        have demand_mwh > 0. Sites with NaN capacity_annual_tonnes legitimately
+        produce NaN demand and are flagged separately."""
+        resolved = demand[demand["demand_source"] != "sector_intensity_missing_inputs"]
+        assert (resolved["demand_mwh"] > 0).all(), (
+            "Every site with resolved inputs must have demand_mwh > 0"
+        )
 
-    def test_demand_mwh_equals_area_times_intensity(self, demand):
-        """Core arithmetic: demand_mwh = area_ha × energy_intensity_mwh_per_ha_yr."""
-        expected = demand["area_ha"] * demand["energy_intensity_mwh_per_ha_yr"]
-        assert np.allclose(demand["demand_mwh"], expected, rtol=1e-6)
+    def test_area_based_arithmetic(self, demand):
+        """KEK / KI rows: demand_mwh = area_ha × energy_intensity_mwh_per_ha_yr."""
+        area_rows = demand[
+            demand["demand_source"].isin(("area_x_intensity", "area_fallback_median"))
+        ]
+        expected = area_rows["area_ha"] * area_rows["energy_intensity_mwh_per_ha_yr"]
+        assert np.allclose(area_rows["demand_mwh"], expected, rtol=1e-6)
 
-    def test_energy_intensity_matches_assumptions(self, demand):
+    def test_sector_intensity_arithmetic(self, demand):
+        """Standalone / cluster rows with resolved inputs:
+        demand_mwh = capacity_annual_tonnes × sector_intensity_mwh_per_tonne."""
+        sector_rows = demand[demand["demand_source"] == "sector_intensity"]
+        if not sector_rows.empty:
+            expected = (
+                sector_rows["capacity_annual_tonnes"]
+                * sector_rows["sector_intensity_mwh_per_tonne"]
+            )
+            assert np.allclose(sector_rows["demand_mwh"], expected, rtol=1e-6)
+
+    def test_dispatch_matches_site_type_registry(self, demand):
+        """Each row's demand_source must match SITE_TYPES[site_type].demand_method.
+        This is the regression-fix lock: ensures we never silently revert to
+        single-mode area-only dispatch."""
+        from src.model.site_types import SITE_TYPES, SiteType
+
+        sites = pd.read_csv(PROCESSED / "dim_sites.csv")[["site_id", "site_type"]]
+        merged = demand.merge(sites, on="site_id", how="left")
+        for _, row in merged.iterrows():
+            try:
+                method = SITE_TYPES[SiteType(row["site_type"])].demand_method
+            except (ValueError, KeyError):
+                continue
+            if method == "area_based":
+                assert row["demand_source"] in (
+                    "area_x_intensity",
+                    "area_fallback_median",
+                ), f"{row['site_id']}: area_based but demand_source={row['demand_source']}"
+            elif method == "sector_intensity":
+                assert row["demand_source"] in (
+                    "sector_intensity",
+                    "sector_intensity_missing_inputs",
+                ), f"{row['site_id']}: sector_intensity but demand_source={row['demand_source']}"
+
+    def test_energy_intensity_matches_assumptions_for_kek(self, demand):
+        """Same as the original test but scoped to the area_based subset only —
+        non-KEK rows have NaN energy_intensity_mwh_per_ha_yr by design."""
         from src.assumptions import (
             ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR,
             ENERGY_INTENSITY_MWH_PER_HA_YR,
         )
 
-        for _, row in demand.iterrows():
+        area_rows = demand[
+            demand["demand_source"].isin(("area_x_intensity", "area_fallback_median"))
+        ]
+        for _, row in area_rows.iterrows():
             expected = ENERGY_INTENSITY_MWH_PER_HA_YR.get(
                 row["zone_classification"], ENERGY_INTENSITY_DEFAULT_MWH_PER_HA_YR
             )
             assert row["energy_intensity_mwh_per_ha_yr"] == pytest.approx(expected), (
-                f"{row['site_id']}: expected intensity {expected}, got {row['energy_intensity_mwh_per_ha_yr']}"
+                f"{row['site_id']}: expected intensity {expected}, "
+                f"got {row['energy_intensity_mwh_per_ha_yr']}"
             )
 
     def test_all_provisional(self, demand):
@@ -1298,9 +1348,18 @@ class TestFctSiteDemand:
         fallback = demand[demand["demand_source"] == "area_fallback_median"]
         assert len(fallback) >= 1, "Expected at least one fallback row (setangga, tanjung-sauh)"
 
-    def test_no_null_demand(self, demand):
-        assert demand["demand_mwh"].notna().all()
-        assert demand["area_ha"].notna().all()
+    def test_resolved_rows_have_demand_value(self, demand):
+        """Every site with a resolved source must publish a non-null demand_mwh.
+        sector_intensity_missing_inputs sites legitimately have NaN — they're
+        the documented data-error path (e.g. nickel IIA clusters where no
+        Processing children fell within the 20 km aggregation window)."""
+        resolved = demand[demand["demand_source"] != "sector_intensity_missing_inputs"]
+        assert resolved["demand_mwh"].notna().all()
+        # area_ha is NaN by design for non-KEK rows; only check area_based subset.
+        area_rows = resolved[
+            resolved["demand_source"].isin(("area_x_intensity", "area_fallback_median"))
+        ]
+        assert area_rows["area_ha"].notna().all()
 
     def test_year_column_is_target_year(self, demand):
         from src.assumptions import DEMAND_TARGET_YEAR
