@@ -12,11 +12,11 @@ PYTHONPATH=. uv run python scripts/generate_polygon_coverage_md.py
 
 ## Summary
 
-- **Sites covered:** 47 / 81 (58%)
+- **Sites covered:** 52 / 81 (64%)
   - KEK polygons: 25 / 25
-  - Industrial polygons: 22 / 56
-- **Demand covered:** 566.1 TWh / 662.4 TWh (**85.5%**)
-- **Demand uncovered:** 96.3 TWh (14.5%)
+  - Industrial polygons: 27 / 56
+- **Demand covered:** 569.4 TWh / 662.4 TWh (**86.0%**)
+- **Demand uncovered:** 93.0 TWh (14.0%)
 
 Demand is `capacity_annual_tonnes × SECTOR_ELECTRICITY_ONLY_MWH_PER_TONNE` for industrial sites and `area_ha × intensity_per_ha` for KEKs (same formula `fct_site_demand` uses). NaN-demand rows excluded from totals.
 
@@ -30,21 +30,21 @@ Add a polygon to these in order, biggest impact first.
 | 2 | Inalum Asahan | aluminium | 3.8 TWh | 11.9% |
 | 3 | Pupuk Kaltim Bontang | fertilizer | 2.4 TWh | 12.3% |
 | 4 | Pupuk Sriwidjaja Palembang | fertilizer | 2.0 TWh | 12.6% |
-| 5 | Semen Gresik Tuban | cement | 1.6 TWh | 12.8% |
-| 6 | Buli Industrial Park | nickel | 1.5 TWh | 13.0% |
-| 7 | Dexin Steel Morowali | steel | 1.4 TWh | 13.2% |
-| 8 | Pupuk Iskandar Muda Lhokseumawe | fertilizer | 1.1 TWh | 13.4% |
-| 9 | Semen Tonasa | cement | 814 GWh | 13.5% |
-| 10 | SBI Narogong | cement | 667 GWh | 13.6% |
-| 11 | Conch Cement North Sulawesi | cement | 484 GWh | 13.7% |
-| 12 | Conch Cement Serang | cement | 484 GWh | 13.8% |
-| 13 | Semen Bosowa Maros | cement | 462 GWh | 13.9% |
-| 14 | Red Lion Hongshi Tonga | cement | 440 GWh | 13.9% |
-| 15 | SBI Tuban | cement | 410 GWh | 14.0% |
+| 5 | Buli Industrial Park | nickel | 1.5 TWh | 12.8% |
+| 6 | Dexin Steel Morowali | steel | 1.4 TWh | 13.0% |
+| 7 | Pupuk Iskandar Muda Lhokseumawe | fertilizer | 1.1 TWh | 13.2% |
+| 8 | SBI Narogong | cement | 667 GWh | 13.3% |
+| 9 | Conch Cement Serang | cement | 484 GWh | 13.3% |
+| 10 | Conch Cement North Sulawesi | cement | 484 GWh | 13.4% |
+| 11 | Semen Bosowa Maros | cement | 462 GWh | 13.5% |
+| 12 | Red Lion Hongshi Tonga | cement | 440 GWh | 13.5% |
+| 13 | SBI Tuban | cement | 410 GWh | 13.6% |
+| 14 | SI Gresik Rembang | cement | 330 GWh | 13.7% |
+| 15 | Semeru Surya Semen Kutai | cement | 330 GWh | 13.7% |
 
 After the top 5, marginal lift drops below 1 percentage point per site.
 
-## Covered (47 sites)
+## Covered (52 sites)
 
 | Site | Sector | Type | Polygon | Demand | Rooftop MWp |
 |------|--------|------|---------|--------|-------------|
@@ -59,6 +59,7 @@ After the top 5, marginal lift drops below 1 percentage point per site.
 | Krakatau Steel Cilegon | steel | standalone | industrial | 2.0 TWh | 87.5 |
 | Industropolis Batang | mixed | kek | KEK | 1.9 TWh | 2.7 |
 | Arun Lhokseumawe | mixed | kek | KEK | 1.8 TWh | 42.4 |
+| Semen Gresik Tuban | cement | standalone | industrial | 1.6 TWh | 14.3 |
 | Galang Batang | mixed | kek | KEK | 1.6 TWh | 6.7 |
 | Gresik | mixed | kek | KEK | 1.5 TWh | 16.0 |
 | Sei Mangkei | mixed | kek | KEK | 1.4 TWh | 6.5 |
@@ -69,6 +70,7 @@ After the top 5, marginal lift drops below 1 percentage point per site.
 | Master Steel Jakarta | steel | standalone | industrial | 1.0 TWh | 11.8 |
 | Semen Padang Indarung | cement | standalone | industrial | 968 GWh | 22.3 |
 | Gunung Raja Paksi Bekasi | steel | standalone | industrial | 910 GWh | 54.0 |
+| Semen Tonasa | cement | standalone | industrial | 814 GWh | 21.0 |
 | Morotai | mixed | kek | KEK | 744 GWh | 0.0 |
 | Lido | mixed | kek | KEK | 702 GWh | 1.2 |
 | Mandalika | mixed | kek | KEK | 699 GWh | 2.7 |
@@ -80,10 +82,13 @@ After the top 5, marginal lift drops below 1 percentage point per site.
 | Cemindo Gemilang Bayah | cement | standalone | industrial | 385 GWh | 10.7 |
 | Maloy Batuta Trans Kalimantan | mixed | kek | KEK | 376 GWh | 0.0 |
 | Bitung | mixed | kek | KEK | 360 GWh | 13.9 |
+| SBI Cilacap | cement | standalone | industrial | 355 GWh | 10.2 |
 | Sorong | mixed | kek | KEK | 353 GWh | 0.0 |
 | Ispat Indo Sidoarjo | steel | standalone | industrial | 350 GWh | 10.0 |
 | Kura Kura Bali | mixed | kek | KEK | 336 GWh | 0.0 |
 | Tanjung Kelayang | mixed | kek | KEK | 219 GWh | 0.0 |
+| Semen Bosowa Banyuwangi | cement | standalone | industrial | 198 GWh | 2.1 |
+| Cemindo Gemilang Ciwandan | cement | standalone | industrial | 192 GWh | 2.6 |
 | Likupang | mixed | kek | KEK | 133 GWh | 0.0 |
 | Nongsa | mixed | kek | KEK | 112 GWh | 4.0 |
 | Semen Gresik City | cement | standalone | industrial | 99 GWh | 14.2 |
@@ -96,7 +101,7 @@ After the top 5, marginal lift drops below 1 percentage point per site.
 | Setangga | mixed | kek | KEK | — | 0.0 |
 | Tanjung Sauh | mixed | kek | KEK | — | 0.0 |
 
-## Uncovered (34 sites — sorted by demand)
+## Uncovered (29 sites — sorted by demand)
 
 | Site | Sector | Type | Polygon | Demand | Rooftop MWp |
 |------|--------|------|---------|--------|-------------|
@@ -104,28 +109,23 @@ After the top 5, marginal lift drops below 1 percentage point per site.
 | Inalum Asahan | aluminium | standalone | — | 3.8 TWh | 0.0 |
 | Pupuk Kaltim Bontang | fertilizer | standalone | — | 2.4 TWh | 47.3 |
 | Pupuk Sriwidjaja Palembang | fertilizer | standalone | — | 2.0 TWh | 319.3 |
-| Semen Gresik Tuban | cement | standalone | — | 1.6 TWh | 42.0 |
 | Buli Industrial Park | nickel | cluster | — | 1.5 TWh | 0.0 |
 | Dexin Steel Morowali | steel | standalone | — | 1.4 TWh | 0.6 |
 | Pupuk Iskandar Muda Lhokseumawe | fertilizer | standalone | — | 1.1 TWh | 11.3 |
-| Semen Tonasa | cement | standalone | — | 814 GWh | 45.1 |
 | SBI Narogong | cement | standalone | — | 667 GWh | 8.5 |
-| Conch Cement North Sulawesi | cement | standalone | — | 484 GWh | 6.9 |
 | Conch Cement Serang | cement | standalone | — | 484 GWh | 25.8 |
+| Conch Cement North Sulawesi | cement | standalone | — | 484 GWh | 6.9 |
 | Semen Bosowa Maros | cement | standalone | — | 462 GWh | 5.8 |
 | Red Lion Hongshi Tonga | cement | standalone | — | 440 GWh | 0.5 |
 | SBI Tuban | cement | standalone | — | 410 GWh | 15.5 |
-| SBI Cilacap | cement | standalone | — | 355 GWh | 139.4 |
-| Semeru Surya Semen Kutai | cement | standalone | — | 330 GWh | 29.2 |
 | SI Gresik Rembang | cement | standalone | — | 330 GWh | 15.6 |
+| Semeru Surya Semen Kutai | cement | standalone | — | 330 GWh | 29.2 |
 | Semen Imasco Asiatic Jember | cement | standalone | — | 330 GWh | 33.5 |
 | Indocement Kotabaru Tarjun | cement | standalone | — | 286 GWh | 21.9 |
-| Semen Garuda Bekasi | cement | standalone | — | 275 GWh | 22.2 |
 | Semen Grobogan | cement | standalone | — | 275 GWh | 10.7 |
+| Semen Garuda Bekasi | cement | standalone | — | 275 GWh | 22.2 |
 | SBI Andalas Lhoknga | cement | standalone | — | 202 GWh | 5.1 |
-| Semen Bosowa Banyuwangi | cement | standalone | — | 198 GWh | 53.2 |
 | Semen Jawa SCG Sukabumi | cement | standalone | — | 198 GWh | 33.7 |
-| Cemindo Gemilang Ciwandan | cement | standalone | — | 192 GWh | 55.8 |
 | Conch South Kalimantan | cement | standalone | — | 165 GWh | 0.0 |
 | Cemindo Gemilang Batam | cement | standalone | — | 132 GWh | 39.6 |
 | Semen Bosowa Batam | cement | standalone | — | 132 GWh | 11.4 |
