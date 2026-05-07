@@ -29,3 +29,13 @@ data/wind/*.tif
 data/kawasan_hutan_092017/
 data/industrial_data/
 data/captive_power/
+
+# Raw building footprint downloads (13 GB + 4.6 GB) — pipeline inputs only.
+# Runtime API reads data/processed/sites_buildings_filtered.parquet, which is
+# the merged output of these. Without these excluded, the image was ~24 GB.
+data/open_buildings/
+data/microsoft_buildings/
+data/processed/sites_buildings_microsoft.parquet
+
+# Pipeline inputs that have cached outputs in outputs/ — runtime-redundant.
+data/*.html
