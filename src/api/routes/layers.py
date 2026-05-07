@@ -10,7 +10,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from src.assumptions import (
     BASE_WACC_DECIMAL,
@@ -168,21 +168,56 @@ _TILES_PARQUET = _REPO_ROOT / "data" / "processed" / "sites_rooftop_tiles.parque
 _TILES_GEOJSON_DIR = _REPO_ROOT / "data" / "processed" / "rooftop_tiles_geojson"
 
 
-@lru_cache(maxsize=1)
-def _load_buildings_parquet() -> gpd.GeoDataFrame | None:
-    """Cached load of the Layer 2 buildings parquet. Returns None if missing
-    (graceful degradation — endpoint returns empty FeatureCollection)."""
+# Tier 1A (2026-05-07): replaced full-parquet lru_cache with per-site filtered
+# loader. The previous _load_buildings_parquet() materialized the entire 325k-row
+# GeoDataFrame on first hit (~+400 MB RSS), which OOM-killed Render's instance.
+# The pyarrow filter pushdown + per-site lru_cache loads only the matching rows
+# (typically <5k for most sites) and caches the slim per-site GDF.
+_BUILDINGS_KEEP_COLS = ("building_id", "area_in_meters", "confidence", "source_name", "geometry")
+_TILES_KEEP_COLS = (
+    "tile_idx",
+    "cluster_id",
+    "building_id",
+    "panels_in_tile",
+    "tile_kw_dc",
+    "tile_kw_ac",
+    "geometry",
+)
+
+
+@lru_cache(maxsize=64)
+def _load_site_buildings(site_id: str) -> gpd.GeoDataFrame | None:
+    """Load only one site's buildings via pyarrow filter pushdown.
+
+    Caches up to 64 most-recently-clicked sites. Per-site rows are typically
+    <5k (vs. 325k full-parquet), so peak memory stays under ~30 MB per cache
+    entry instead of ~400 MB for the full GDF.
+    """
     if not _BUILDINGS_PARQUET.exists():
         return None
-    return gpd.read_parquet(_BUILDINGS_PARQUET)
+    gdf = gpd.read_parquet(
+        _BUILDINGS_PARQUET,
+        columns=list(_BUILDINGS_KEEP_COLS),
+        filters=[("site_id", "==", site_id)],
+    )
+    return gdf if not gdf.empty else None
 
 
-@lru_cache(maxsize=1)
-def _load_tiles_parquet() -> gpd.GeoDataFrame | None:
-    """Cached load of the Layer 2.5 tiles parquet."""
+@lru_cache(maxsize=64)
+def _load_site_tiles(site_id: str) -> gpd.GeoDataFrame | None:
+    """Per-site rooftop-tiles loader with pyarrow filter pushdown.
+
+    Same memory pattern as _load_site_buildings; only used when the
+    pre-built per-site .geojson.gz cache is absent (fallback path).
+    """
     if not _TILES_PARQUET.exists():
         return None
-    return gpd.read_parquet(_TILES_PARQUET)
+    gdf = gpd.read_parquet(
+        _TILES_PARQUET,
+        columns=list(_TILES_KEEP_COLS),
+        filters=[("site_id", "==", site_id)],
+    )
+    return gdf if not gdf.empty else None
 
 
 @router.get("/site/{site_id}/buildings")
@@ -194,25 +229,15 @@ def get_site_buildings(site_id: str):
     KEK) — frontend should show the missing-data tooltip from the
     fct_site_solar_potential row's `building_data_reason_flagged`.
     """
-    gdf = _load_buildings_parquet()
+    gdf = _load_site_buildings(site_id)
     if gdf is None:
-        return {"type": "FeatureCollection", "features": []}
-    site_buildings = gdf[gdf["site_id"] == site_id]
-    if site_buildings.empty:
-        return {"type": "FeatureCollection", "features": []}
-    # Slim payload — drop columns the frontend doesn't render
-    keep = ["building_id", "area_in_meters", "confidence", "source_name"]
-    return {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": row.geometry.__geo_interface__,
-                "properties": {k: row[k] for k in keep},
-            }
-            for _, row in site_buildings.iterrows()
-        ],
-    }
+        return Response(
+            content='{"type":"FeatureCollection","features":[]}',
+            media_type="application/json",
+        )
+    # gdf.to_json() handles geometry → GeoJSON serialization without the
+    # iterrows() Python-list-of-dicts allocation that compounded the OOM.
+    return Response(content=gdf.to_json(), media_type="application/json")
 
 
 @router.get("/site/{site_id}/rooftop-tiles")
@@ -248,33 +273,16 @@ def get_site_rooftop_tiles(site_id: str):
             headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=300"},
         )
 
-    # Fallback path — live build from parquet. Slow on big sites but
-    # keeps the endpoint working when the static cache is missing.
-    gdf = _load_tiles_parquet()
+    # Fallback path — per-site filter from parquet (Tier 1A: pyarrow pushdown
+    # + gdf.to_json() instead of the iterrows + 135k-row dict-build that
+    # compounded the OOM).
+    gdf = _load_site_tiles(site_id)
     if gdf is None:
-        return {"type": "FeatureCollection", "features": []}
-    site_tiles = gdf[gdf["site_id"] == site_id]
-    if site_tiles.empty:
-        return {"type": "FeatureCollection", "features": []}
-    keep = [
-        "tile_idx",
-        "cluster_id",
-        "building_id",
-        "panels_in_tile",
-        "tile_kw_dc",
-        "tile_kw_ac",
-    ]
-    return {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": row.geometry.__geo_interface__,
-                "properties": {k: row[k] for k in keep},
-            }
-            for _, row in site_tiles.iterrows()
-        ],
-    }
+        return Response(
+            content='{"type":"FeatureCollection","features":[]}',
+            media_type="application/json",
+        )
+    return Response(content=gdf.to_json(), media_type="application/json")
 
 
 @router.get("/site/{site_id}/substations")

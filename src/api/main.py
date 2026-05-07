@@ -125,8 +125,8 @@ async def health_memory():
     import psutil  # noqa: PLC0415
 
     from src.api.routes.layers import (  # noqa: PLC0415
-        _load_buildings_parquet,
-        _load_tiles_parquet,
+        _load_site_buildings,
+        _load_site_tiles,
     )
 
     proc = psutil.Process(os.getpid())
@@ -151,11 +151,12 @@ async def health_memory():
         else:
             layer_inventory[name] = {"type": type(data).__name__}
 
-    # lru_cache state — currsize > 0 means the parquet was loaded into RAM
-    # at some point and is still there (these caches never evict).
+    # lru_cache state — currsize counts distinct site_ids cached. Each entry is
+    # one site's slim GeoDataFrame (~30 MB peak vs. ~400 MB for the full parquet
+    # before Tier 1A). maxsize=64 means up to 64 most-recently-clicked sites stay warm.
     parquet_caches = {
-        "buildings_parquet": _load_buildings_parquet.cache_info()._asdict(),
-        "tiles_parquet": _load_tiles_parquet.cache_info()._asdict(),
+        "site_buildings": _load_site_buildings.cache_info()._asdict(),
+        "site_tiles": _load_site_tiles.cache_info()._asdict(),
     }
 
     return {
