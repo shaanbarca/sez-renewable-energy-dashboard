@@ -70,27 +70,30 @@ v4.1 is the foundation refactor — every subsequent release builds on it. This 
 
 ## Table of Contents
 
-| § | Section | Skip for Claude Code? |
-|---|---|---|
-| 1 | Strategic Context | Yes (reference) |
-| 2 | Cost Comparison Framework | **No (foundational)** |
-| 3 | Site Classification Schema | **No (build)** |
-| 4 | Captive Coal Economics | **No (build)** |
-| 5 | Captive Gas Economics | **No (build)** |
-| 6 | Marginal Cost Methodology | **No (build)** |
-| 6A | Hydro in the Hybrid Optimizer (Refined — was v4.1 §6A.8 reserved) | **No (build)** |
-| 7 | Destination-Weighted CBAM Exposure (Refined — was single-EU-share) | **No (build)** |
-| 8 | Storage and Firm LCOE Methodology | **No (build)** |
-| 9 | Confidence and Provenance Tracking | **No (build)** |
-| 10 | Output Schema (fct_site_scorecard.csv changes) | **No (build)** |
-| 11 | Data Compilation Tasks | **No (data work)** |
-| 12 | To-Do List | **No (tasks)** |
-| 13 | Validation Strategy | **No (test cases)** |
-| 14 | Success Criteria | **No (definition of done)** |
-| 15 | Migration and Backwards Compatibility | **No (build)** |
-| Appendix A | Geothermal NCG handling (preventive) | **No (1-line fix)** |
-| Appendix B | What's NOT in v4.1 | Yes (reference) |
-| Appendix C | Six-scenario coverage cross-reference (JETP-style analysis) | Yes (reference) |
+(Refined 2026-05-07: "Phase" column maps each section to v4.1a or v4.1b per §1.5 release split. Sections marked `a+b` carry a phase-aware structure with subsections per phase.)
+
+| § | Section | Phase | Skip for Claude Code? |
+|---|---|---|---|
+| 1 | Strategic Context | both | Yes (reference) |
+| 1.5 | Release split: v4.1a + v4.1b (Refined) | both | **No (sequencing)** |
+| 2 | Cost Comparison Framework (incl. IEA rename §2.6) | **v4.1a** | **No (foundational)** |
+| 3 | Site Classification Schema (3.1–3.2 v4.1a, 3.3–3.5 v4.1b) | a+b | **No (build)** |
+| 4 | Captive Coal Economics | **v4.1a** | **No (build)** |
+| 5 | Captive Gas Economics | **v4.1a** | **No (build)** |
+| 6 | Marginal Cost Methodology (incl. daytime/nighttime split §6.2) | **v4.1a** | **No (build)** |
+| 6A | Hydro in the Hybrid Optimizer (Refined — was v4.1 §6A.8 reserved) | **v4.1b** | **No (build)** |
+| 7 | Destination-Weighted CBAM Exposure (Refined — was single-EU-share) | **v4.1b** | **No (build)** |
+| 8 | Storage and Firm LCOE Methodology (LCOS at 4h/8h) | **v4.1a** | **No (build)** |
+| 9 | Confidence and Provenance Tracking | **v4.1a (used by both)** | **No (build)** |
+| 10 | Output Schema (a-columns and b-columns split) | a+b | **No (build)** |
+| 11 | Data Compilation Tasks (11.1–11.7 v4.1a, 11.8 v4.1b) | a+b | **No (data work)** |
+| 12 | To-Do List (with §12.0 phase-routing table) | a+b | **No (tasks)** |
+| 13 | Validation Strategy | a+b | **No (test cases)** |
+| 14 | Success Criteria (split into 14.1a, 14.1b, 14.2a, 14.2b, 14.3, 14.4) | a+b | **No (definition of done)** |
+| 15 | Migration and Backwards Compatibility (IEA rename in v4.1a only) | **v4.1a** | **No (build)** |
+| Appendix A | Geothermal NCG handling (preventive) | **v4.1b** | **No (1-line fix)** |
+| Appendix B | What's NOT in v4.1 | both | Yes (reference) |
+| Appendix C | Six-scenario coverage cross-reference (JETP-style analysis) | **v4.1b** | Yes (reference) |
 
 ---
 
@@ -109,6 +112,65 @@ The v4.0 dashboard outputs a single solar LCOE value per site and compares it to
 **Gap 5: The hybrid optimizer is missing hydro.** Solar + hydro + gas is the JETP-modelled cost-optimal architecture for hydro-rich Sumatra and Kalimantan industrial sites — often beating captive coal even before carbon pricing. v4.1 baseline reserves hydro as "future extensibility"; the refined spec pulls it forward.
 
 This release fixes all five gaps as the foundation for v4.2 onwards.
+
+---
+
+## 1.5 Release split: v4.1a + v4.1b (Refined 2026-05-07)
+
+Per the /plan-eng-review (2026-05-07) decision, v4.1 ships in **two independently-shippable phases** rather than one bundled release. Both phases share this spec; the split is enforced at the implementation level via the section map below.
+
+### Why split
+
+Five major features in one release is the failure mode the dashboard_roadmap_v4_v5.md explicitly warns against (§1.1, "scope creep"). Splitting reduces blast radius per release: if v4.1a's IEA rename produces unexpected scorecard drift, that's debugged in isolation before the destination-weighted CBAM data + hydro optimizer changes land on top.
+
+### Section map
+
+| Phase | Theme | Sections | Realistic effort |
+|---|---|---|---|
+| **v4.1a** — *Foundation: incumbents + IEA rename + provenance* | Multi-tier LCOE outputs with IEA names, multi-incumbent references with daytime/nighttime split, captive coal/gas economics, provenance plumbing, LCOS at 4h/8h | §2 (all), §3.1–3.2, §4, §5, §6 (incl. 6.2), §8, §9, §10 (the v4.1a column subset), §11.1–11.7, §15 | ~6–7 focused work days |
+| **v4.1b** — *Foundation: destination-weighted CBAM + hydro hybrid + geothermal NCG pre-empt* | Per-market export share dict, per-market carbon-price trajectory, destination-weighted CBAM exposure, hydro 3-way hybrid optimizer, OEM scope-3 dataset, geothermal NCG handling, six-scenario cross-reference | §3.3–3.5, §6A, §7, §10 (the v4.1b column subset), §11.8, Appendix A, Appendix C | ~5–6 focused work days |
+
+Per-phase to-do lists, validation strategies, and success criteria are separated in §12, §13, §14 below.
+
+### Cross-phase dependencies
+
+- **§9 Provenance** is built once in v4.1a and used by both phases. v4.1b's new fields (e.g. `cbam_destination_weighted_*`) carry the standard `_source/_vintage/_confidence` pattern from day one.
+- **§3 Site Classification** spans both. v4.1a needs §3.1–3.2 (electricity arrangement + captive fuel type) for captive cost matching; v4.1b needs §3.3–3.5 (export market shares + per-market carbon prices) for destination-weighted CBAM. Both write to `fct_site_classifications.csv` — v4.1a creates the table with the columns it needs, v4.1b extends it with the export-share columns.
+- **§10 Output schema** has a column subset per phase. The v4.1a column block (multi-tier LCOE, incumbents, captive cost) is locked when v4.1a ships; v4.1b appends the destination-weighted-CBAM columns and hydro proximity columns without modifying v4.1a's columns.
+- **§15 Migration** applies to v4.1a only (the IEA rename + bare `lcoe_usd_per_mwh` deprecation alias). v4.1b is purely additive — no breaking changes vs v4.1a.
+
+### Sequencing
+
+```
+v4.0 (current)
+   │
+   ├── v4.0.5 (methodological fixes — separate release, ships first)
+   │
+   ├── v4.1a (incumbents + IEA rename + provenance)
+   │     │
+   │     ├── locked golden v4.0 baseline already captured (tests/fixtures/scorecard_v4_0_baseline.csv)
+   │     ├── locks v4.1a baseline before v4.1b branches
+   │     │
+   │     └── ships independently with its own Zenodo DOI
+   │
+   └── v4.1b (CBAM + hydro)
+         │
+         ├── builds on v4.1a (depends on lcoe_generation_usd_per_mwh, multi-incumbent refs)
+         │
+         └── ships independently with its own Zenodo DOI
+
+v4.2 (project finance) only branches after v4.1b ships.
+```
+
+Strict sequencing: v4.1a branches and ships before v4.1b branches. Parallel branches on the same scorecard schema are the merge nightmare the eng review flagged.
+
+### Per-phase Zenodo DOIs
+
+Both phases publish their own DOI for citation continuity:
+- v4.1a → "v4.1a Foundation: incumbents and IEA rename"
+- v4.1b → "v4.1b Foundation: destination-weighted CBAM and hydro hybrid"
+
+The dashboard's CHANGELOG.md entries are also split per phase.
 
 ---
 
@@ -1125,6 +1187,55 @@ Replaced by §11.9. Original entry kept as the v4.1 baseline reference.
 
 ## 12. To-Do List
 
+### 12.0 Phase routing (Refined 2026-05-07)
+
+Per the §1.5 release split, every task below is routed to v4.1a or v4.1b. Tasks in **bold** are shared infrastructure built once in v4.1a and consumed by v4.1b.
+
+| Task # | Title (abbrev) | Phase |
+|---|---|---|
+| 1 | BPP refresh | v4.1a |
+| 2 | Grid emission factor update | v4.1a |
+| 3 | Captive site classification dataset | v4.1a |
+| 4 | Captive cost overrides | v4.1a |
+| 5 | Industrial tariff schedule | v4.1a |
+| 6 | Export market share defaults + overrides | **v4.1b** |
+| 7 | OEM scope-3 commitment dataset | **v4.1b** |
+| 8 | `src/utils/provenance.py` | **v4.1a (used by both)** |
+| 9 | `src/model/cost_framework.py` (multi-tier LCOE) | v4.1a |
+| 10 | `src/model/incumbent_costs.py` | v4.1a |
+| 11 | `src/model/storage_lcos.py` | v4.1a |
+| 12 | `src/model/cbam_destination_weighted.py` | **v4.1b** |
+| 13 | Daytime/nighttime marginal cost factors | v4.1a |
+| 14 | Hydro proximity matching pipeline | **v4.1b** |
+| 15 | 3-way hybrid optimizer (solar × wind × hydro) | **v4.1b** |
+| 16 | Scorecard schema migration | v4.1a (a-columns), v4.1b (b-columns appended) |
+| 17 | `fct_site_classifications.csv` pipeline | **v4.1a (extended in v4.1b)** |
+| 18 | `fct_site_export_market_shares.csv` + `dim_carbon_price_by_market.csv` | **v4.1b** |
+| 19 | `build_fct_site_scorecard.py` updates | both phases — additive |
+| 20 | Comparison flags | v4.1a |
+| 21 | Backwards-compat aliases (lcoe rename) | v4.1a |
+| 22 | Integration test | both phases — per-phase test |
+| 23 | Regression test against v4.0 baseline | v4.1a (locks the IEA rename) |
+| 24 | Cross-validate captive coal vs IESR/Berkeley | v4.1a |
+| 25 | Cross-validate storage LCOS vs IRENA/Lazard | v4.1a |
+| 26 | Cross-validate destination-weighted CBAM | **v4.1b** |
+| 27 | Cross-validate hydro hybrid vs JETP Annex 2.1 | **v4.1b** |
+| 28 | Spot-check 5 sites | both phases — different site mix per phase |
+| 29 | Update METHODOLOGY_CONSOLIDATED.md | both phases — per-phase doc updates |
+| 30 | CHANGELOG.md entry | both phases — separate entries |
+| 31 | Zenodo DOI publish | both phases — separate DOIs |
+| 32 | Publish `fct_site_classifications.csv` standalone | v4.1a (initial), v4.1b (re-publish with export-share columns) |
+
+### v4.1a effort total
+
+Tasks 1, 2, 3, 4, 5, 8, 9, 10, 11, 13, 16 (a-columns), 17 (initial), 19 (a-features), 20, 21, 22 (a-test), 23, 24, 25, 28 (a-sites), 29 (a-update), 30 (a-entry), 31 (a-DOI), 32 (a-publish) → **~6–7 focused work days**.
+
+### v4.1b effort total
+
+Tasks 6, 7, 12, 14, 15, 16 (b-columns), 17 (extension), 18, 19 (b-features), 22 (b-test), 26, 27, 28 (b-sites), 29 (b-update), 30 (b-entry), 31 (b-DOI), 32 (b-republish) → **~5–6 focused work days**.
+
+Combined v4.1a + v4.1b: **~11–13 focused work days** (vs the bundled v4.1 estimate of ~9 days). The 2–4 day premium buys per-phase release independence: v4.1a's IEA rename can ship and be debugged in isolation before destination-weighted CBAM data + hydro optimizer changes layer on top.
+
 ### Day 1–2: Data foundations
 
 | # | Task | Effort | Type |
@@ -1253,45 +1364,64 @@ For each, verify:
 
 ## 14. Success Criteria
 
-### 14.1 Functional
+(Refined 2026-05-07: each criterion tagged with its phase per §1.5 release split. v4.1a must hit all `[a]` criteria before v4.1b branches. v4.1b additionally hits all `[b]` criteria. Criteria tagged `[a+b]` are evaluated independently per phase.)
 
-- [ ] All 81 sites have 4 solar LCOE variants computed (generation, delivered, firm partial, firm baseload)
-- [ ] All 81 sites have applicable incumbent costs computed (BPP, marginal-daytime, marginal-nighttime, industrial tariff, captive where applicable)
-- [ ] All 81 sites have site classification populated (electricity_arrangement, captive_fuel_type, export_market_shares_json)
-- [ ] All numeric outputs have provenance fields populated
-- [ ] Destination-weighted and full CBAM incumbent variants computed for all CBAM-exposed sites
-- [ ] (Refined) China-only stress-test variant computed for all CBAM-exposed sites
-- [ ] Marginal cost computed using daytime/nighttime regional adjustment factors
-- [ ] Storage LCOS computed for partial and baseload firming levels
-- [ ] (Refined) Hydro proximity columns populated for all 81 sites
-- [ ] (Refined) Hybrid 3-way optimizer (solar × wind × hydro) runs for all 81 sites
-- [ ] Comparison flags populated correctly
+### 14.1a Functional — v4.1a (incumbents + IEA rename)
 
-### 14.2 Validation
+- [ ] All 81 sites have 4 solar LCOE variants computed (generation, delivered, firm partial, firm baseload) `[a]`
+- [ ] All 81 sites have applicable incumbent costs computed (BPP, marginal-daytime, marginal-nighttime, industrial tariff, captive where applicable) `[a]`
+- [ ] All 81 sites have site classification populated for v4.1a fields (electricity_arrangement, captive_fuel_type) `[a]`
+- [ ] All numeric outputs in v4.1a have provenance fields populated (the §9 plumbing built once and reused by v4.1b) `[a]`
+- [ ] Marginal cost computed using daytime/nighttime regional adjustment factors `[a]`
+- [ ] Storage LCOS computed for partial and baseload firming levels `[a]`
+- [ ] Comparison flags populated correctly for v4.1a fields `[a]`
+- [ ] `lcoe_generation_usd_per_mwh` populated for all 81 sites; v4.0 `lcoe_usd_per_mwh` alias preserves delivered semantics with deprecation header `[a]`
 
-- [ ] Regression test: v4.0 LCOE values reproducible via aliases
-- [ ] Captive coal defaults validate within ±20% of IESR/Berkeley benchmarks
-- [ ] Storage LCOS validates within ±20% of IRENA/Lazard benchmarks
-- [ ] (Refined) Destination-weighted CBAM matches [[Powering 24-7 Industrial Loads in Indonesia]] worked example within ±$10/t
-- [ ] (Refined) Hybrid 3-way optimizer matches JETP Annex 2.1 cases within ±$5/MWh
-- [ ] 5 spot-check sites manually validated
-- [ ] All sanity checks pass
+### 14.1b Functional — v4.1b (CBAM + hydro)
 
-### 14.3 Documentation
+- [ ] All 81 sites have export_market_shares_json populated (sectoral default or site override) `[b]`
+- [ ] Destination-weighted and full CBAM incumbent variants computed for all CBAM-exposed sites `[b]`
+- [ ] China-only stress-test variant computed for all CBAM-exposed sites `[b]`
+- [ ] Hydro proximity columns populated for all 81 sites `[b]`
+- [ ] Hybrid 3-way optimizer (solar × wind × hydro) runs for all 81 sites `[b]`
 
-- [ ] `METHODOLOGY_CONSOLIDATED.md` updated with new sections covering all framework changes (multi-tier LCOE, multi-incumbent including marginal split, destination-weighted CBAM, hydro hybrid)
-- [ ] CHANGELOG.md entry for v4.1
-- [ ] `fct_site_classifications.csv` published with documentation
-- [ ] (Refined) `fct_site_export_market_shares.csv` published as part of v4.1 release
-- [ ] (Refined) `dim_carbon_price_by_market.csv` published as part of v4.1 release
-- [ ] Zenodo v4.1 DOI published
+### 14.2a Validation — v4.1a
 
-### 14.4 Data publication
+- [ ] Regression test: v4.0 `lcoe_usd_per_mwh` (delivered) values reproducible via deprecation alias within ±0.01 USD/MWh `[a]`
+- [ ] New `lcoe_generation_usd_per_mwh` column populated for all 81 sites and equals (delivered − transmission) within ±0.01 USD/MWh `[a]`
+- [ ] Captive coal defaults validate within ±20% of IESR/Berkeley benchmarks `[a]`
+- [ ] Storage LCOS validates within ±20% of IRENA/Lazard benchmarks `[a]`
+- [ ] Spot-check sites for v4.1a (Krakatau Steel Cilegon, Petrokimia Gresik, IMIP Morowali, Indocement Citeureup, KEK Sei Mangkei) manually validated `[a]`
+- [ ] Sanity checks pass for v4.1a column subset (LCOE ordering, LCOS monotone, marginal ≥ BPP, captive populated for pure_captive sites) `[a]`
+- [ ] 81-site shift report against `tests/fixtures/scorecard_v4_0_baseline.csv` written; any per-site shift >5% on action_flag/economic_tier/delivered_cost documented in changelog `[a]`
 
-- [ ] `fct_site_classifications.csv` is itself a publishable research artifact with its own methodology note
-- [ ] Sources cited for every classification decision
-- [ ] Confidence flags on every assignment
-- [ ] (Refined) Per-site export-mix data has source attribution; sectoral defaults flagged `confidence='medium'`, site overrides flagged `confidence='high'`
+### 14.2b Validation — v4.1b
+
+- [ ] Destination-weighted CBAM matches [[Powering 24-7 Industrial Loads in Indonesia]] worked example (IMIP nickel ~$35/t 2025, ~$70/t 2030) within ±$10/t `[b]`
+- [ ] Hybrid 3-way optimizer matches JETP Annex 2.1 cases (Sulawesi Tengah aluminium $80/MWh, Kalimantan Barat alumina $61/MWh, Kalimantan Utara nickel $59/MWh) within ±$5/MWh `[b]`
+- [ ] Sanity checks pass for v4.1b column subset (cbam_full ≥ destination_weighted, 2025 < 2030 < 2034 trajectories rise, hybrid shares sum to 1.0, hydro_share = 0 when adjacency_tier = none, export_market_shares sum to 1.0) `[b]`
+- [ ] 81-site shift report against the v4.1a-locked baseline written; document where v4.1b's CBAM + hydro changes shift action_flag/economic_tier `[b]`
+
+### 14.3 Documentation `[a+b]`
+
+- [ ] `METHODOLOGY_CONSOLIDATED.md` updated with v4.1a sections (multi-tier LCOE, multi-incumbent, marginal split, captive economics) before v4.1a ships `[a]`
+- [ ] `METHODOLOGY_CONSOLIDATED.md` updated with v4.1b sections (destination-weighted CBAM, hydro hybrid, geothermal NCG) before v4.1b ships `[b]`
+- [ ] CHANGELOG.md entry for v4.1a (with breaking-change flag for the IEA rename) `[a]`
+- [ ] CHANGELOG.md entry for v4.1b (additive, no breaking changes vs v4.1a) `[b]`
+- [ ] `fct_site_classifications.csv` published with v4.1a column documentation `[a]`
+- [ ] `fct_site_classifications.csv` republished extended with v4.1b export-share columns `[b]`
+- [ ] `fct_site_export_market_shares.csv` published as part of v4.1b release `[b]`
+- [ ] `dim_carbon_price_by_market.csv` published as part of v4.1b release `[b]`
+- [ ] Zenodo v4.1a DOI published `[a]`
+- [ ] Zenodo v4.1b DOI published `[b]`
+
+### 14.4 Data publication `[a+b]`
+
+- [ ] `fct_site_classifications.csv` is itself a publishable research artifact with its own methodology note `[a]`
+- [ ] Sources cited for every v4.1a classification decision (electricity arrangement, captive fuel type, captive cost overrides) `[a]`
+- [ ] Confidence flags on every v4.1a assignment `[a]`
+- [ ] Per-site export-mix data has source attribution; sectoral defaults flagged `confidence='medium'`, site overrides flagged `confidence='high'` `[b]`
+- [ ] OEM scope-3 commitment dataset has source attribution per OEM (URL of public commitment, retrieval date, methodology for $/t Ni inference) `[b]`
 
 ---
 

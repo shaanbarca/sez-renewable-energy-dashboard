@@ -302,7 +302,8 @@ Time estimates assume Claude Code as implementation partner. "Calendar weeks" re
 |---|---|---|---|---|---|
 | **v4.0** ✓ | Existing dashboard | Shipped | — | — | Baseline |
 | **v4.0.5** *(Refined — new)* | Current-dashboard methodological fixes | 5–7 days | 1.5 weeks | Mid-May 2026 | All ↑ |
-| **v4.1** | Foundation refactor + destination-weighted CBAM + hydro hybrid | 7–9 days | 2–2.5 weeks | End May 2026 | All |
+| **v4.1a** *(Refined 2026-05-07 — split from v4.1)* | Foundation: incumbents + IEA rename + provenance | 6–7 days | ~2 weeks | Late May 2026 | All |
+| **v4.1b** *(Refined 2026-05-07 — split from v4.1)* | Foundation: destination-weighted CBAM + hydro hybrid | 5–6 days | ~1.5 weeks | Early June 2026 | All |
 | **v4.2** | Project finance module (Tier 1+2) with COD-year + flat-tariff refinements | 7–11 days | 2–2.5 weeks | Mid-June 2026 | P5 (Investor) ↑↑ |
 | **v4.3** *(Refined — CCS retrofit scenarios scope)* | Multi-pathway analysis (regulatory + CCS retrofit overlays: captive power and process stacks) | 12–15 days | 3–3.5 weeks | Mid-July 2026 | P3, P5, P6 ↑↑ |
 | **v4.3.5** *(Refined — extended with two-ceiling output)* | Architecture-menu primacy + two-ceiling decomposition | 4.5–5.5 days | 1.5 weeks | Late July 2026 | All ↑ |
@@ -312,7 +313,7 @@ Time estimates assume Claude Code as implementation partner. "Calendar weeks" re
 | **v5.0 Full** *(Refined — absorbs Phase 1 PoC)* | PyPSA dispatch full implementation (PoC + multi-site) | 12–18 days | 3.5–4 weeks | Feb–Mar 2027 | All |
 | **v5.1+** | Future possibilities (industrial demand expansion, rooftop solar, IDX Carbon, climate physical risk — all speculative) | TBD | 2027+ | — | — |
 
-**Total v4.x effort (Refined May 2026 — anchor cases + slim v4.4):** **~38–53 focused work days** *(was 43–58 prior; v4.4 slim saves 3 days)*. Completable in **11–14 calendar weeks** (mid-May to mid-August 2026). Application essay buffer **4–5 weeks** before Sloan/HKS deadlines. Lower risk profile than prior version (PyPSA deferred + v4.4 slimmed). Tighter scope discipline (CCS retrofit overlay only, process chemistry change out and flagged). **Three anchor cases (Pupuk Kaltim Bontang, IMIP Morowali, Indocement Palimanan) thread through every release as the cross-cutting validation set.**
+**Total v4.x effort (Refined 2026-05-07 — v4.1 split + anchor cases + slim v4.4):** **~40–55 focused work days** *(v4.1 split adds ~2–4 days for per-phase release independence; v4.4 slim still saves 3 days)*. Completable in **12–15 calendar weeks** (mid-May to mid-August 2026). Application essay buffer **4 weeks** before Sloan/HKS deadlines. Lower risk profile than the bundled v4.1 (per-phase release de-risks the IEA rename). Tighter scope discipline (CCS retrofit overlay only, process chemistry change out and flagged). **Three anchor cases (Pupuk Kaltim Bontang, IMIP Morowali, Indocement Palimanan) thread through every release as the cross-cutting validation set.**
 
 **The pre-MIT v4.x narrative arc:** v4.0.5 + v4.1 = methodologically sound foundation with destination-weighted CBAM and hydro hybrid; v4.2 = investor-grade project finance; v4.3 = multi-pathway analysis with regulatory dimension and CCS retrofit overlays (captive power + process stacks, all gated by storage proximity); v4.3.5 = architecture-menu primacy + two-ceiling decomposition output; v4.4 = captive deep dive + RUPTL feedback (without PyPSA risk); v4.5 = buyer pressure layer. Six independently-shipped releases with paired Substack posts. Dashboard scope is power-side decarbonization for 81 Indonesian industrial sites; process chemistry change pathways flagged with cross-reference to MPP/IEA/ETC.
 
@@ -391,7 +392,9 @@ Time estimates assume Claude Code as implementation partner. "Calendar weeks" re
 
 **Why first:** Every subsequent release builds on this. If v4.2 hardcodes the BPP comparison, v4.3 has to rewrite it. Refactor first.
 
-**Spec:** `dashboard/refinement/v4_1_foundation_spec.md`
+**Refined 2026-05-07: ships in two phases (v4.1a + v4.1b).** Per the /plan-eng-review (2026-05-07) decision, v4.1 is split into two independently-shippable releases rather than one bundled release with 5 features. v4.1a covers incumbents + IEA rename + provenance (~6–7 days). v4.1b covers destination-weighted CBAM + hydro hybrid (~5–6 days). Strict sequencing: v4.1a branches and ships before v4.1b branches. Each gets its own Zenodo DOI. Full mapping in `docs/refinement/v4_1_foundation_spec.md` §1.5.
+
+**Spec:** `dashboard/refinement/v4_1_foundation_spec.md` (single file; phase routing in §1.5, §12.0, §14)
 
 ### 5.1 Scope (Refined)
 
