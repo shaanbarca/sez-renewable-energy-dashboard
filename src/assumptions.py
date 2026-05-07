@@ -776,6 +776,46 @@ CBAM_RE_ADDRESSABLE_FRACTION: dict[str, float] = {
     "cement": 0.12,  # 0.11 / 0.9 — kiln thermal dominates; only grinding + aux are electric
 }
 
+# ─── F9 (2026-05-07): Scope 1 abatement pathways ─────────────────────────────
+# The CBAM_RE_ADDRESSABLE_FRACTION constants above are right for *today's*
+# technology stack — what fraction of CBAM exposure can be addressed by RE
+# electricity alone. But green-H2 DRI, alt fuels, electric kilns, inert anodes,
+# and SCM substitution are emerging. Without flagging these, the dashboard
+# creates a false static-ceiling impression: cement at 12% relief looks
+# permanent when it's actually a ~30% additional Scope 1 pathway via alt fuels
+# + SCM that the dashboard doesn't model the cost of.
+#
+# These constants are QUALITATIVE pathway flags. They surface the existence
+# of a Scope 1 reduction path, not its cost. Full cost modeling deferred to
+# v5.x sectoral decarbonization release.
+
+SCOPE1_ABATEMENT_PATHWAYS_BY_PRODUCT: dict[str, tuple[str, float]] = {
+    # (comma-separated pathway names, indicative additional addressable fraction)
+    "cement": ("alt_fuels,scm_substitution,electric_kiln", 0.30),
+    "ammonia": ("green_h2_smr", 0.50),
+    "fertilizer": ("green_h2_smr", 0.50),
+    "steel_bfbof": ("hydrogen_dri,scrap_substitution", 0.70),
+    "steel_eaf": ("scrap_substitution", 0.10),
+    "aluminium": ("inert_anodes", 0.10),
+    "nickel_rkef": ("", 0.0),  # process chemistry can't be electrified
+}
+# Sources for the addressable fractions:
+#   cement 0.30: IEA Cement Roadmap 2018 — alt fuels (waste-derived) up to 30%
+#               of kiln thermal, SCM substitution up to 35-50% by clinker mass.
+#   ammonia/fertilizer 0.50: IRENA Innovation Outlook for Renewable Ammonia 2022.
+#   steel_bfbof 0.70: IEA Iron and Steel Roadmap 2020 — hydrogen DRI + scrap can
+#               displace ~70% of BF-BOF Scope 1 emissions long-term.
+#   steel_eaf 0.10: marginal upside via scrap quality + electrification.
+#   aluminium 0.10: inert anode tech still in pilot at Elysis JV (Rio Tinto / Alcoa).
+#   nickel_rkef 0.0: RKEF emissions are reductant chemistry (carbon needed to
+#                    reduce ore); not addressable without process change.
+
+SCOPE1_ABATEMENT_METHODOLOGY_NOTE: str = (
+    "Indicative — full cost modeling deferred to v5.x. Pathway availability is "
+    "qualitative; the dashboard does not model the levelized cost of these "
+    "abatement paths today."
+)
+
 # ─── SECTOR DEMAND & RELIABILITY (Industrial Parks Expansion) ────────────────
 
 # Electricity-only consumption for RE demand sizing (MWh per tonne of product).

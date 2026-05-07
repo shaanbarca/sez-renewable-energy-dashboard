@@ -200,3 +200,66 @@ def test_cost_unchanged_by_re_fraction() -> None:
     # Cost 2034 = 1.24 × 80 × 1.10 = 109.12 USD/t
     cost_2034 = out["cbam_cost_2034_usd_per_tonne"]
     assert 105 <= cost_2034 <= 115
+
+
+# ─── F9 (2026-05-07): Scope 1 abatement pathway flags ───────────────────────
+
+
+def test_f9_cement_has_alt_fuels_pathway() -> None:
+    """Cement: alt fuels + SCM + electric kiln, ~30% additional Scope 1 addressable."""
+    out = compute_cbam_trajectory(
+        ["cement"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert "alt_fuels" in out["scope1_abatement_pathways"]
+    assert "scm_substitution" in out["scope1_abatement_pathways"]
+    assert "electric_kiln" in out["scope1_abatement_pathways"]
+    assert out["scope1_abatement_indicative_addressable_pct"] == 0.30
+    assert "Indicative" in out["scope1_abatement_methodology_note"]
+
+
+def test_f9_ammonia_has_green_h2_pathway() -> None:
+    """Ammonia: green-H2 SMR retrofit, ~50% additional Scope 1 addressable."""
+    out = compute_cbam_trajectory(
+        ["ammonia"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["scope1_abatement_pathways"] == "green_h2_smr"
+    assert out["scope1_abatement_indicative_addressable_pct"] == 0.50
+
+
+def test_f9_steel_bfbof_has_hydrogen_dri_pathway() -> None:
+    """Steel BF-BOF: hydrogen DRI + scrap substitution, ~70% additional addressable."""
+    out = compute_cbam_trajectory(
+        ["steel_bfbof"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert "hydrogen_dri" in out["scope1_abatement_pathways"]
+    assert "scrap_substitution" in out["scope1_abatement_pathways"]
+    assert out["scope1_abatement_indicative_addressable_pct"] == 0.70
+
+
+def test_f9_nickel_rkef_has_no_pathway() -> None:
+    """Nickel RKEF: process chemistry can't be electrified — no Scope 1 abatement."""
+    out = compute_cbam_trajectory(
+        ["nickel_rkef"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["scope1_abatement_pathways"] is None
+    assert out["scope1_abatement_indicative_addressable_pct"] is None
+    assert out["scope1_abatement_methodology_note"] is None
+
+
+def test_f9_no_cbam_exposure_no_abatement_flags() -> None:
+    """Empty cbam_types → all Scope 1 abatement fields null."""
+    out = compute_cbam_trajectory([], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10)
+    assert out["scope1_abatement_pathways"] is None
+    assert out["scope1_abatement_indicative_addressable_pct"] is None
+    assert out["scope1_abatement_methodology_note"] is None
+
+
+def test_f9_methodology_note_is_explicit_about_indicative_status() -> None:
+    """Methodology note must signal that pathway availability is qualitative."""
+    out = compute_cbam_trajectory(
+        ["cement"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    note = out["scope1_abatement_methodology_note"]
+    assert note is not None
+    assert "Indicative" in note
+    assert "deferred" in note.lower()
