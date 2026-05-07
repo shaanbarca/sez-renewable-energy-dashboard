@@ -396,81 +396,92 @@ Time estimates assume Claude Code as implementation partner. "Calendar weeks" re
 
 **Spec:** `dashboard/refinement/v4_1_foundation_spec.md` (single file; phase routing in §1.5, §12.0, §14)
 
-### 5.1 Scope (Refined)
+### 5.1 Scope (Refined 2026-05-07 — split per phase)
+
+#### v4.1a: Foundation — incumbents + IEA rename + provenance
 
 **Core refactor:**
-- Multi-tier solar LCOE outputs (generation, delivered, firm partial, firm baseload)
+- Multi-tier solar LCOE outputs (`lcoe_generation_usd_per_mwh`, `full_system_lcoe_delivered_*`, `full_system_lcoe_firm_4h/8h_*`) with IEA-aligned names. Hard-rename strategy: `lcoe_usd_per_mwh` stays as a one-release deprecation alias for delivered semantics, removed in v4.2.
 - Multi-incumbent cost references (BPP, marginal-daytime, marginal-nighttime, industrial tariff, captive)
 - Captive arrangement classification per site (4 buckets)
 - Captive fuel type classification (coal, gas, oil, hybrid)
-- Confidence and provenance tracking on all numeric outputs
+- Confidence and provenance tracking on all numeric outputs (built once in v4.1a, used by v4.1b)
+- LCOS methodology at 4h and 8h durations as separate IEA columns
 
-**Methodology refinements (Refined — expanded):**
+**v4.1a methodology refinements:**
 - Marginal cost / merit order estimation per region with daytime/nighttime split
 - Captive coal cost defaults by region and plant age
 - Captive gas cost methodology
 - Storage LCOS methodology (for firm LCOE variants)
+
+**v4.1a data work:**
+- BPP refresh to PLN Statistik 2024
+- Grid emission factor update
+- Captive site classification dataset compilation
+- Industrial tariff data per customer class
+- **Daytime vs nighttime marginal cost calibration**
+
+**v4.1a deliverables:**
+- Refactored cost comparison framework with IEA column schema
+- `fct_site_classifications.csv` v4.1a edition published as standalone Zenodo artifact (electricity arrangement + captive fuel type)
+- Locked v4.1a baseline fixture before v4.1b branches
+- 81-site shift report against `tests/fixtures/scorecard_v4_0_baseline.csv` (per /plan-eng-review decision #3)
+- v4.1a Zenodo DOI
+
+#### v4.1b: Foundation — destination-weighted CBAM + hydro hybrid
+
+**v4.1b refinements (depend on v4.1a's incumbent + provenance plumbing):**
 - **Destination-weighted CBAM** (per-market shares × per-market carbon prices) — replaces single-EU-share
 - **Hydro in the hybrid optimizer** (3-way solar × wind × hydro) — replaces "future extensibility"
 - **Geothermal NCG handling pre-emption** (when geothermal lands, treat as 42–73 g/kWh not zero)
 - **OEM scope-3 commitment dataset** (pulled forward from v4.5 to enable destination-weighted CBAM)
 
-**Data work (Refined — expanded):**
-- BPP refresh to PLN Statistik 2024
-- Grid emission factor update
-- Captive site classification dataset compilation
+**v4.1b data work:**
 - **Per-site export market share defaults + 4–6 priority site overrides** (replaces simple sectoral table)
-- Industrial tariff data per customer class
-- **Daytime vs nighttime marginal cost calibration**
 - **Hydro operating + pipeline geocoding**
 - **OEM scope-3 commitment dataset**
 
-**Deliverables:**
-- Refactored cost comparison framework
-- New `fct_site_classifications.csv` published as standalone Zenodo artifact
-- New `fct_site_export_market_shares.csv` published alongside
-- New `dim_carbon_price_by_market.csv` published alongside
-- Updated methodology documentation
-- Regression tests ensuring v4.0 numbers preserved (where applicable)
-- v4.1 Zenodo DOI
+**v4.1b deliverables:**
+- Destination-weighted CBAM trajectory columns + hybrid 3-way optimizer columns appended to v4.1a's scorecard schema (additive, no `[a]` columns modified)
+- `fct_site_classifications.csv` republished extended with export-share columns
+- `fct_site_export_market_shares.csv` published as a new dataset
+- `dim_carbon_price_by_market.csv` published as a new dataset
+- 81-site shift report against the v4.1a-locked baseline (per /plan-eng-review decision #3)
+- v4.1b Zenodo DOI
 
-### 5.2 Effort estimate (Refined)
+### 5.2 Effort estimate (Refined 2026-05-07 — per-phase)
 
-7–9 focused work days. Roughly 2–2.5 calendar weeks with normal interruptions.
+| Phase | Code work | Data compilation | Docs + Zenodo | Total focused days |
+|---|---|---|---|---|
+| **v4.1a** | ~3 days (Claude Code-accelerated): multi-tier LCOE logic, multi-incumbent module with daytime/nighttime split, captive arrangement classification, LCOS module, provenance plumbing, schema migration, regression test (golden + 81-site shift report) | ~2–3 days (1x speed): BPP refresh, captive classifications, industrial tariff schedule, daytime/nighttime calibration | ~1 day: methodology doc updates for v4.1a sections, CHANGELOG entry with deprecation flag, v4.1a Zenodo publish | **6–7 days** |
+| **v4.1b** | ~2–3 days: destination-weighted CBAM module, hydro proximity pipeline, 3-way hybrid optimizer extension, schema migration (b-columns appended), regression test (against v4.1a-locked baseline) | ~2–3 days: per-site export market shares with overrides, OEM scope-3 commitment dataset, hydro geocoding | ~0.5–1 day: methodology doc updates for v4.1b sections, CHANGELOG entry, v4.1b Zenodo publish | **5–6 days** |
+| **Combined v4.1a + v4.1b** | ~5–6 days | ~4–6 days | ~1.5–2 days | **~11–13 days, ~3 calendar weeks** |
 
-**Code work (~4–5 days with Claude Code):**
-- Multi-tier LCOE calculation logic
-- Multi-incumbent reference framework with daytime/nighttime split
-- Captive arrangement classification schema
-- Provenance tracking infrastructure
-- Schema migrations for new fields
-- **Destination-weighted CBAM module**
-- **Hydro proximity matching pipeline**
-- **3-way hybrid optimizer (solar × wind × hydro)**
-- Regression tests
-
-**Data compilation (~3 days, can't be accelerated):**
-- BPP refresh from PLN Statistik 2024
-- Captive site classification dataset
-- **Per-site export market shares with priority overrides**
-- Industrial tariff data
-- Captive cost defaults by region
-- **OEM scope-3 commitment dataset**
-- **Hydro operating + pipeline geocoding**
-
-**Methodology and documentation (~1 day):**
-- Updated methodology doc
-- Confidence flagging guidance
-- Zenodo publication
+The combined estimate is ~2–4 days higher than the bundled v4.1 baseline (7–9 days) — that delta buys per-phase release independence: v4.1a's IEA rename can ship and be debugged in isolation against the locked v4.0 baseline before v4.1b's destination-weighted CBAM and hydro optimizer changes layer on top.
 
 ### 5.3 Success criteria
 
-- All 81 sites have multi-tier LCOE and applicable incumbents computed
+#### v4.1a (must hit before v4.1b branches)
+
+- All 81 sites have 4 solar LCOE variants computed (generation, delivered, firm 4h, firm 8h) under IEA-aligned column names
+- All 81 sites have applicable incumbent costs computed (BPP, marginal-daytime, marginal-nighttime, industrial tariff, captive where applicable)
 - Captive arrangement classification covers all sites
-- Methodology document explains every comparison option
-- v4.0 single-LCOE numbers reproducible from new framework (regression test)
-- (Refined) Destination-weighted CBAM matches [[Powering 24-7 Industrial Loads in Indonesia]] worked example for IMIP nickel within ±$10/t
-- (Refined) Hybrid 3-way optimizer matches JETP Annex 2.1 cases within ±$5/MWh
+- Provenance fields populated for all v4.1a numeric outputs
+- v4.0 `lcoe_usd_per_mwh` (delivered) values reproducible via deprecation alias within ±0.01 USD/MWh
+- New `lcoe_generation_usd_per_mwh` column populated for all 81 sites
+- 81-site shift report against `scorecard_v4_0_baseline.csv` written; any per-site shift >5% on action_flag/economic_tier/delivered_cost documented in v4.1a CHANGELOG entry
+- Captive coal defaults validate within ±20% of IESR/Berkeley benchmarks
+- Storage LCOS validates within ±20% of IRENA/Lazard benchmarks
+- v4.1a Zenodo DOI published
+
+#### v4.1b (additive — must not break v4.1a)
+
+- All 81 sites have export_market_shares_json populated (sectoral default or site override)
+- Destination-weighted CBAM matches [[Powering 24-7 Industrial Loads in Indonesia]] worked example for IMIP nickel within ±$10/t
+- All 81 sites have hydro proximity columns populated
+- Hybrid 3-way optimizer (solar × wind × hydro) runs for all 81 sites and matches JETP Annex 2.1 cases within ±$5/MWh
+- 81-site shift report against the v4.1a-locked baseline written
+- v4.1b Zenodo DOI published, with `fct_site_export_market_shares.csv` and `dim_carbon_price_by_market.csv` as standalone datasets
 
 ---
 

@@ -312,6 +312,13 @@ captive_capacity_mw                  # nameplate of captive plant if applicable
 captive_share_estimated              # 0.0 to 1.0; share of facility electricity from captive
 
 # Export market shares (Refined — replaces single eu_export_share)
+# ⚠ Phase: v4.1b only. Per §1.5 release split, §3.1 splits into:
+#   - 3.1a (v4.1a): site_id, site_name, sector, subsector, region, grid_region,
+#     electricity_arrangement, captive_fuel_type, captive_capacity_mw,
+#     captive_share_estimated, last_updated, classification_confidence, notes
+#   - 3.1b (v4.1b): the 4 export-share fields below + cbam_exposed
+# fct_site_classifications.csv ships in v4.1a with the 3.1a columns; v4.1b
+# extends it with the 3.1b columns (additive, no migration of existing rows).
 export_market_shares_json            # JSON: {"china_stainless": 0.70, "battery_supply_chain_eu": 0.20, "direct_eu_uk_us": 0.10}
 export_market_shares_source          # public_disclosure | sectoral_default | comtrade | unknown
 export_market_shares_confidence      # high | medium | low
@@ -998,81 +1005,83 @@ Use this consistently across the cost framework. Don't retrofit later.
 
 ## 10. Output Schema (fct_site_scorecard.csv changes)
 
-### 10.1 New fields added (Refined — IEA-aligned column names)
+### 10.1 New fields added (Refined — IEA-aligned column names; phase-tagged 2026-05-07)
+
+Per the §1.5 release split, every column below is tagged `[a]` (v4.1a, ships first), `[b]` (v4.1b, ships second), or `[a→b]` (v4.1a creates, v4.1b extends additively). v4.1a's scorecard contains only `[a]` columns; v4.1b appends `[b]` columns to the existing schema without modifying any `[a]` column.
 
 ```
-# Solar cost variants — IEA-aligned naming convention (§2.6)
-lcoe_generation_usd_per_mwh                       # IEA LCOE (base, generation only) — Refined 2026-05-07: explicit name, not bare lcoe_usd_per_mwh
-full_system_lcoe_delivered_usd_per_mwh            # IEA Full System LCOE (delivered, no storage)
-full_system_lcoe_firm_4h_usd_per_mwh              # IEA Full System LCOE (firm 4h)
-full_system_lcoe_firm_8h_usd_per_mwh              # IEA Full System LCOE (firm 8h)
+# Solar cost variants — IEA-aligned naming convention (§2.6)  [v4.1a]
+lcoe_generation_usd_per_mwh                       # [a] IEA LCOE (base, generation only) — Refined 2026-05-07: explicit name, not bare lcoe_usd_per_mwh
+full_system_lcoe_delivered_usd_per_mwh            # [a] IEA Full System LCOE (delivered, no storage)
+full_system_lcoe_firm_4h_usd_per_mwh              # [a] IEA Full System LCOE (firm 4h)
+full_system_lcoe_firm_8h_usd_per_mwh              # [a] IEA Full System LCOE (firm 8h)
 
-# LCOS — IEA standard
-lcos_4h_usd_per_mwh                               # IEA LCOS at 4h duration
-lcos_8h_usd_per_mwh                               # IEA LCOS at 8h duration
+# LCOS — IEA standard  [v4.1a]
+lcos_4h_usd_per_mwh                               # [a] IEA LCOS at 4h duration
+lcos_8h_usd_per_mwh                               # [a] IEA LCOS at 8h duration
 
-# Incumbent costs (Refined — daytime/nighttime split)
-incumbent_pln_bpp_usd_per_mwh                     # renamed/clarified from existing bpp
-incumbent_pln_marginal_daytime_usd_per_mwh        # NEW (VALCOE time-of-day component)
-incumbent_pln_marginal_nighttime_usd_per_mwh      # NEW (VALCOE time-of-day component)
-incumbent_industrial_tariff_usd_per_mwh           # NEW
-incumbent_captive_usd_per_mwh                     # NEW (null for grid-only sites)
-incumbent_captive_fuel_type                       # NEW
+# Incumbent costs (Refined — daytime/nighttime split)  [v4.1a]
+incumbent_pln_bpp_usd_per_mwh                     # [a] renamed/clarified from existing bpp
+incumbent_pln_marginal_daytime_usd_per_mwh        # [a] NEW (VALCOE time-of-day component)
+incumbent_pln_marginal_nighttime_usd_per_mwh      # [a] NEW (VALCOE time-of-day component)
+incumbent_industrial_tariff_usd_per_mwh           # [a] NEW
+incumbent_captive_usd_per_mwh                     # [a] NEW (null for grid-only sites)
+incumbent_captive_fuel_type                       # [a] NEW
 
-# CBAM destination-weighted (Refined — replaces single eu_export_share)
-cbam_destination_weighted_incumbent_2025_usd_per_mwh
-cbam_destination_weighted_incumbent_2030_usd_per_mwh
-cbam_destination_weighted_incumbent_2034_usd_per_mwh
-cbam_full_incumbent_2025_usd_per_mwh              # 100% stress test
-cbam_full_incumbent_2030_usd_per_mwh
-cbam_china_only_incumbent_2025_usd_per_mwh        # NEW: 100% China stress test
-cbam_china_only_incumbent_2030_usd_per_mwh
+# CBAM destination-weighted (Refined — replaces single eu_export_share)  [v4.1b]
+cbam_destination_weighted_incumbent_2025_usd_per_mwh    # [b]
+cbam_destination_weighted_incumbent_2030_usd_per_mwh    # [b]
+cbam_destination_weighted_incumbent_2034_usd_per_mwh    # [b]
+cbam_full_incumbent_2025_usd_per_mwh              # [b] 100% stress test
+cbam_full_incumbent_2030_usd_per_mwh              # [b]
+cbam_china_only_incumbent_2025_usd_per_mwh        # [b] 100% China stress test
+cbam_china_only_incumbent_2030_usd_per_mwh        # [b]
 
-# Hydro proximity (Refined — new)
-nearest_hydro_operating_id
-nearest_hydro_operating_km
-nearest_hydro_operating_mw
-nearest_hydro_pipeline_id
-nearest_hydro_pipeline_km
-nearest_hydro_pipeline_mw
-nearest_hydro_pipeline_target_year
-hydro_adjacency_tier
-hydro_transmission_feasibility
+# Hydro proximity (Refined — new)  [v4.1b]
+nearest_hydro_operating_id                        # [b]
+nearest_hydro_operating_km                        # [b]
+nearest_hydro_operating_mw                        # [b]
+nearest_hydro_pipeline_id                         # [b]
+nearest_hydro_pipeline_km                         # [b]
+nearest_hydro_pipeline_mw                         # [b]
+nearest_hydro_pipeline_target_year                # [b]
+hydro_adjacency_tier                              # [b]
+hydro_transmission_feasibility                    # [b]
 
-# Hybrid optimizer 3-way (Refined — adds hydro, IEA-aligned naming)
-hybrid_solar_share
-hybrid_wind_share
-hybrid_hydro_share
-hybrid_lcoe_usd_per_mwh                           # IEA Hybrid LCOE (blended generation)
-hybrid_bess_hours
-hybrid_lcos_usd_per_mwh                           # IEA Hybrid LCOS (reduced storage)
-hybrid_full_system_lcoe_usd_per_mwh               # IEA Hybrid Full System LCOE (blended + LCOS)
-hybrid_supply_coverage_pct
-hybrid_nighttime_coverage_pct
-hybrid_bess_reduction_pct
-hybrid_carbon_breakeven_usd_per_tco2
+# Hybrid optimizer 3-way (Refined — adds hydro, IEA-aligned naming)  [v4.1b]
+hybrid_solar_share                                # [b]
+hybrid_wind_share                                 # [b]
+hybrid_hydro_share                                # [b]
+hybrid_lcoe_usd_per_mwh                           # [b] IEA Hybrid LCOE (blended generation)
+hybrid_bess_hours                                 # [b]
+hybrid_lcos_usd_per_mwh                           # [b] IEA Hybrid LCOS (reduced storage)
+hybrid_full_system_lcoe_usd_per_mwh               # [b] IEA Hybrid Full System LCOE (blended + LCOS)
+hybrid_supply_coverage_pct                        # [b]
+hybrid_nighttime_coverage_pct                     # [b]
+hybrid_bess_reduction_pct                         # [b]
+hybrid_carbon_breakeven_usd_per_tco2              # [b]
 
-# Site classification (joined from fct_site_classifications)
-electricity_arrangement
-captive_capacity_mw
-captive_share_estimated
-export_market_shares_json                         # JSON string of per-market dict
-export_market_shares_source
-export_market_shares_confidence
-cbam_exposed
+# Site classification (joined from fct_site_classifications — see §3.1 phase split)
+electricity_arrangement                           # [a]
+captive_capacity_mw                               # [a]
+captive_share_estimated                           # [a]
+export_market_shares_json                         # [b] JSON string of per-market dict
+export_market_shares_source                       # [b]
+export_market_shares_confidence                   # [b]
+cbam_exposed                                      # [b]
 
 # Comparison flags
-solar_below_pln_bpp                               # bool
-solar_below_industrial_tariff                     # bool
-solar_below_captive                               # bool (where applicable)
-firm_solar_below_captive                          # bool (where applicable)
-solar_below_marginal_daytime                      # bool (Refined — was single solar_below_marginal)
-hybrid_below_captive                              # bool (NEW)
+solar_below_pln_bpp                               # [a] bool
+solar_below_industrial_tariff                     # [a] bool
+solar_below_captive                               # [a] bool (where applicable)
+firm_solar_below_captive                          # [a] bool (where applicable)
+solar_below_marginal_daytime                      # [a] bool (Refined — was single solar_below_marginal)
+hybrid_below_captive                              # [b] bool (NEW)
 
-# v4.0 backwards-compatibility read aliases (Refined 2026-05-07: hard-rename strategy)
-lcoe_usd_per_mwh                                  # ⚠ DEPRECATED in v4.1, REMOVED in v4.2. Aliases full_system_lcoe_delivered_usd_per_mwh — keeps v4.0's delivered semantics until consumers migrate. Header carries deprecation warning.
+# v4.0 backwards-compatibility read aliases (Refined 2026-05-07: hard-rename strategy)  [v4.1a]
+lcoe_usd_per_mwh                                  # [a] ⚠ DEPRECATED in v4.1, REMOVED in v4.2. Aliases full_system_lcoe_delivered_usd_per_mwh — keeps v4.0's delivered semantics until consumers migrate. Header carries deprecation warning.
 
-# Provenance fields (one set per major numeric output)
+# Provenance fields (one set per major numeric output)  [v4.1a — built once, used by both phases]
 <field>_source, <field>_vintage, <field>_confidence, <field>_citation
 ```
 
@@ -1347,7 +1356,7 @@ For each, verify:
 
 ### 13.4 Sanity checks (IEA-aligned column names)
 
-- `lcoe_usd_per_mwh < full_system_lcoe_delivered_usd_per_mwh < full_system_lcoe_firm_4h_usd_per_mwh < full_system_lcoe_firm_8h_usd_per_mwh` for every site (cost rises as more system effects are layered in)
+- `lcoe_generation_usd_per_mwh < full_system_lcoe_delivered_usd_per_mwh < full_system_lcoe_firm_4h_usd_per_mwh < full_system_lcoe_firm_8h_usd_per_mwh` for every site (cost rises as more system effects are layered in). Note: bare `lcoe_usd_per_mwh` (the v4.0 deprecation alias) equals `full_system_lcoe_delivered_usd_per_mwh` by definition for v4.1, so the IEA generation-only check uses the explicit `lcoe_generation_usd_per_mwh` column.
 - `lcos_4h_usd_per_mwh < lcos_8h_usd_per_mwh` for every site (longer storage costs more per MWh delivered)
 - `incumbent_pln_marginal_daytime_usd_per_mwh >= incumbent_pln_bpp_usd_per_mwh` for every site (marginal at least equals average during peak)
 - `incumbent_pln_marginal_nighttime_usd_per_mwh >= incumbent_pln_bpp_usd_per_mwh` for every site
@@ -1489,13 +1498,13 @@ def get_legacy_marginal(scorecard_row):
     return scorecard_row['incumbent_pln_marginal_daytime_usd_per_mwh']
 ```
 
-**CSV-level read alias.** The pipeline output CSV writes a `lcoe_v40_legacy_usd_per_mwh` column (just a rename of `full_system_lcoe_delivered_usd_per_mwh`) for one release, so existing v4.0 frontend or external consumers reading the CSV continue to find the data they expect under a non-conflicting name.
+**CSV-level deprecation alias (Refined 2026-05-07 — hard-rename strategy).** The v4.1 pipeline keeps `lcoe_usd_per_mwh` as a one-release deprecation alias pointing at the same data as `full_system_lcoe_delivered_usd_per_mwh` (i.e. v4.0's delivered-LCOE semantics, unchanged). The new IEA generation-only LCOE ships as a separate column `lcoe_generation_usd_per_mwh` — same name is NOT reused with a different meaning. The bare `lcoe_usd_per_mwh` is removed entirely in v4.2.
 
-Mark all aliases as deprecated. Plan removal in v4.3.
+Mark all aliases as deprecated in the CSV header comment. Plan removal in v4.2.
 
-**CHANGELOG entry must flag this clearly:**
+**CHANGELOG entry must flag this clearly (Refined 2026-05-07):**
 
-> ⚠ **BREAKING:** column `lcoe_usd_per_mwh` redefines from delivered LCOE (v4.0) to generation-only LCOE (v4.1, IEA standard). The v4.0 delivered-LCOE data is preserved under `full_system_lcoe_delivered_usd_per_mwh` and aliased one release as `lcoe_v40_legacy_usd_per_mwh`. Frontend/API consumers must update to the IEA-aligned column names by v4.3.
+> ⚠ **DEPRECATION (not breaking) in v4.1, BREAKING in v4.2:** column `lcoe_usd_per_mwh` is preserved in v4.1 with its v4.0 delivered-LCOE semantics (now an alias for `full_system_lcoe_delivered_usd_per_mwh`) and is removed in v4.2. The new IEA generation-only LCOE ships under a NEW column name `lcoe_generation_usd_per_mwh` to avoid silent miscalibration of v4.0 CSVs already in stakeholder spreadsheets. Frontend/API consumers should migrate from `lcoe_usd_per_mwh` to `full_system_lcoe_delivered_usd_per_mwh` (for delivered-LCOE reads) or to `lcoe_generation_usd_per_mwh` (for IEA generation-only) by v4.2. v4.1 reads of the old column return delivered-LCOE values unchanged.
 
 ### 15.2 Frontend compatibility
 
