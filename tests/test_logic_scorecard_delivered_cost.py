@@ -30,10 +30,30 @@ def _make_ctx(
     gc_lcoe: float | None = 65.0,
     grid_cost: float = 80.0,
     eff_cov: float | None = 0.5,
+    disp_re_cov: float | None = None,  # F1: dispatchable RE coverage (geothermal/hydro)
+    disp_re_lcoe: float | None = None,  # F1: dispatchable RE LCOE
 ) -> SiteContext:
     """Construct a minimal SiteContext with only the fields the enricher reads."""
-    wb_row = None if wb_lcoe is None else pd.Series({"lcoe_mid_usd_mwh": wb_lcoe})
-    gc_row = None if gc_lcoe is None else pd.Series({"lcoe_mid_usd_mwh": gc_lcoe})
+    wb_fields: dict[str, Any] = {}
+    if wb_lcoe is not None:
+        wb_fields["lcoe_mid_usd_mwh"] = wb_lcoe
+    if disp_re_cov is not None:
+        wb_fields["dispatchable_re_coverage_pct"] = disp_re_cov
+    if disp_re_lcoe is not None:
+        wb_fields["dispatchable_re_lcoe_usd_mwh"] = disp_re_lcoe
+    wb_row = (
+        None if wb_lcoe is None and not wb_fields else pd.Series(wb_fields) if wb_fields else None
+    )
+
+    gc_fields: dict[str, Any] = {}
+    if gc_lcoe is not None:
+        gc_fields["lcoe_mid_usd_mwh"] = gc_lcoe
+    # If wb_row absent, mirror dispatchable_re fields on gc_row so the layer still works.
+    if wb_row is None and disp_re_cov is not None:
+        gc_fields["dispatchable_re_coverage_pct"] = disp_re_cov
+    if wb_row is None and disp_re_lcoe is not None:
+        gc_fields["dispatchable_re_lcoe_usd_mwh"] = disp_re_lcoe
+    gc_row = pd.Series(gc_fields) if gc_fields else None
 
     grid_out: dict[str, Any] = {
         "within_boundary_coverage_effective_pct": eff_cov,
@@ -198,3 +218,116 @@ def test_cascade_bpp_mode_uses_resolved_grid_cost():
     assert out["delivered_cost_grid_rate_used_usd_mwh"] == 55.0
     # delivered = 0.3 × 40 + 0.7 × 55 = 12 + 38.5 = 50.5
     assert out["delivered_cost_usd_mwh"] == pytest.approx(50.5)
+
+
+# ─── F1: dispatchable RE layer tests (2026-05-07) ───────────────────────────
+
+
+def test_f1_no_dispatchable_re_data_preserves_v40_cascade():
+    """When dispatchable_re columns don't exist, cascade behaves bit-identically to v4.0.
+
+    Critical invariant: F1 ships the structural layer in v4.0.5 BEFORE F2 populates the
+    underlying data. Sites with no dispatchable_re_coverage_pct must produce the exact
+    same delivered_cost as the pre-F1 cascade.
+    """
+    ctx = _make_ctx(wb_lcoe=40.0, gc_lcoe=60.0, grid_cost=80.0, eff_cov=0.2)
+    out = enrich_delivered_cost(ctx, {})
+
+    # No dispatchable_re fraction surfaced when columns are absent
+    assert out["delivered_cost_dispatchable_re_fraction"] is None
+    assert out["delivered_cost_dispatchable_re_lcoe_used_usd_mwh"] is None
+    # Cascade matches the original v4.0 three-layer formula exactly
+    expected = 0.2 * 40.0 + (DAYTIME_CAP - 0.2) * 60.0 + (1 - DAYTIME_CAP) * 80.0
+    assert out["delivered_cost_usd_mwh"] == pytest.approx(expected, abs=0.01)
+
+
+def test_f1_dispatchable_re_fills_overnight_gap():
+    """Dispatchable RE (geothermal-style 24h) reduces grid backfill, not solar share."""
+    # Site has 30% wb solar, 50% dispatchable RE coverage at $90/MWh, grid at $120/MWh.
+    # Geothermal runs 24h, so it competes for both daytime and overnight demand.
+    ctx = _make_ctx(
+        wb_lcoe=40.0,
+        gc_lcoe=None,  # no remote IPP, simplifies the math
+        grid_cost=120.0,
+        eff_cov=0.30,
+        disp_re_cov=0.50,
+        disp_re_lcoe=90.0,
+    )
+    out = enrich_delivered_cost(ctx, {})
+
+    # Layer 1: f_wb = min(0.30, daytime_cap) = 0.30 (below cap)
+    # Layer 2: f_disp_re = min(0.50, 1 - 0.30) = 0.50
+    # Layer 4: f_grid = 1 - 0.30 - 0.50 = 0.20 (overnight + un-siteable)
+    assert out["captive_fraction"] == pytest.approx(0.30, abs=1e-4)
+    assert out["delivered_cost_dispatchable_re_fraction"] == pytest.approx(0.50, abs=1e-4)
+    assert out["delivered_cost_dispatchable_re_lcoe_used_usd_mwh"] == 90.0
+    assert out["grid_fraction"] == pytest.approx(0.20, abs=1e-4)
+
+    expected = 0.30 * 40.0 + 0.50 * 90.0 + 0.20 * 120.0
+    assert out["delivered_cost_usd_mwh"] == pytest.approx(expected, abs=0.01)
+
+
+def test_f1_dispatchable_re_capped_by_remaining_demand():
+    """If wb covers a lot, dispatchable_re is capped at remaining demand."""
+    # Site has 40% wb (near daytime cap), 70% disp_re *available* but only 60% room left.
+    ctx = _make_ctx(
+        wb_lcoe=50.0,
+        gc_lcoe=None,
+        grid_cost=110.0,
+        eff_cov=0.40,
+        disp_re_cov=0.70,  # would over-fill if not capped
+        disp_re_lcoe=85.0,
+    )
+    out = enrich_delivered_cost(ctx, {})
+
+    # Layer 2 cap: f_disp_re = min(0.70, 1 - 0.40) = 0.60
+    assert out["delivered_cost_dispatchable_re_fraction"] == pytest.approx(0.60, abs=1e-4)
+    # Total wb + disp_re = 1.0 → no grid
+    assert out["grid_fraction"] == pytest.approx(0.0, abs=1e-4)
+
+
+def test_f1_dispatchable_re_with_remote_ipp_competes_for_daytime():
+    """When remote IPP also exists, disp_re's daytime share competes with remote solar."""
+    # f_wb = 0.20, disp_re = 0.30 (24h) → disp_re_daytime_share = 0.30 × 0.4167 ≈ 0.125
+    # daytime_headroom = 0.4167 - 0.20 - 0.125 ≈ 0.092 → f_remote = 0.092
+    # f_grid = 1 - 0.20 - 0.30 - 0.092 ≈ 0.408
+    ctx = _make_ctx(
+        wb_lcoe=40.0,
+        gc_lcoe=55.0,  # remote IPP available
+        grid_cost=100.0,
+        eff_cov=0.20,
+        disp_re_cov=0.30,
+        disp_re_lcoe=80.0,
+    )
+    out = enrich_delivered_cost(ctx, {})
+
+    expected_disp_daytime = 0.30 * DAYTIME_CAP
+    expected_remote = max(DAYTIME_CAP - 0.20 - expected_disp_daytime, 0.0)
+    expected_grid = 1.0 - 0.20 - 0.30 - expected_remote
+
+    assert out["captive_fraction"] == pytest.approx(0.20, abs=1e-4)
+    assert out["delivered_cost_dispatchable_re_fraction"] == pytest.approx(0.30, abs=1e-4)
+    assert out["delivered_cost_remote_fraction"] == pytest.approx(expected_remote, abs=1e-4)
+    assert out["grid_fraction"] == pytest.approx(expected_grid, abs=1e-4)
+
+    expected_total = 0.20 * 40.0 + 0.30 * 80.0 + expected_remote * 55.0 + expected_grid * 100.0
+    assert out["delivered_cost_usd_mwh"] == pytest.approx(expected_total, abs=0.01)
+
+
+def test_f1_dispatchable_re_lcoe_only_no_coverage_is_no_op():
+    """Coverage column missing/zero -> layer stays a no-op even if LCOE is present."""
+    ctx = _make_ctx(
+        wb_lcoe=40.0,
+        gc_lcoe=60.0,
+        grid_cost=80.0,
+        eff_cov=0.2,
+        disp_re_cov=0.0,  # explicit zero
+        disp_re_lcoe=85.0,
+    )
+    out = enrich_delivered_cost(ctx, {})
+
+    # Layer is no-op when coverage is 0
+    assert out["delivered_cost_dispatchable_re_fraction"] is None
+    # Cascade matches v4.0 three-layer
+    expected = 0.2 * 40.0 + (DAYTIME_CAP - 0.2) * 60.0 + (1 - DAYTIME_CAP) * 80.0
+    assert out["delivered_cost_usd_mwh"] == pytest.approx(expected, abs=0.01)

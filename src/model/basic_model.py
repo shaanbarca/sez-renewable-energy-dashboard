@@ -992,19 +992,30 @@ class CostBasis(StrEnum):
     User-selectable toggle (TAXONOMY §6.5, §7.3). Parallel to EnergyMode and
     BenchmarkMode on the frontend. Resolution matrix:
 
-        | EnergyMode | raw (T1)                   | firmed (T2)                    | delivered (T3)              |
-        | solar      | lcoe_mid_usd_mwh           | lcoe_with_battery_usd_mwh      | delivered_cost_usd_mwh      |
-        | wind       | lcoe_wind_mid_usd_mwh      | lcoe_wind_allin_mid_usd_mwh    | (empty)                     |
-        | hybrid     | hybrid_lcoe_usd_mwh        | hybrid_allin_usd_mwh           | (empty)                     |
-        | overall    | (empty)                    | best_re_lcoe_mid_usd_mwh       | (empty)                     |
+        | EnergyMode | raw (T1)                   | firmed (T2)                    | delivered (T3)              | firmed_24_7_solar_only      |
+        | solar      | lcoe_mid_usd_mwh           | lcoe_with_battery_usd_mwh      | delivered_cost_usd_mwh      | lcoe_with_battery_usd_mwh   |
+        | wind       | lcoe_wind_mid_usd_mwh      | lcoe_wind_allin_mid_usd_mwh    | (empty)                     | (empty — solar-only basis)  |
+        | hybrid     | hybrid_lcoe_usd_mwh        | hybrid_allin_usd_mwh           | (empty)                     | (empty — solar-only basis)  |
+        | overall    | (empty)                    | best_re_lcoe_mid_usd_mwh       | (empty)                     | lcoe_with_battery_usd_mwh   |
 
     Empty cells → toggle option disabled on the UI. Default CostBasis:
     firmed for overall, raw otherwise.
+
+    FIRMED_24_7_SOLAR_ONLY (F1, 2026-05-07): explicit "scenario 3 sanity-check"
+    basis that forces the comparator to be solar+12h-battery LCOE regardless of
+    energy mode. This is the wiki's six-scenario sanity-check baseline (~3× the
+    cost of captive coal for 24/7 industrial loads), surfaced as a deliberate
+    user toggle rather than a default. The default `firmed` basis routes to the
+    HYBRID firmed cost (solar + wind + storage at the optimal mix) for `overall`
+    mode, which is the recommended cost-min path. `firmed_24_7_solar_only` is
+    the "what if I really did pure solar + 12h battery?" view — useful for
+    showing why a hybrid mix wins on cost, not as a recommendation.
     """
 
     RAW = "raw"  # T1: generation LCOE, no firming
-    FIRMED = "firmed"  # T2: + BESS / storage adder
+    FIRMED = "firmed"  # T2: + BESS / storage adder (hybrid mix at optimum for overall mode)
     DELIVERED = "delivered"  # T3: captive + grid-import blend (tenant view)
+    FIRMED_24_7_SOLAR_ONLY = "firmed_24_7_solar_only"  # F1: scenario-3 sanity-check baseline
 
 
 def economic_tier(

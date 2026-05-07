@@ -108,16 +108,35 @@ def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str
 
 
 def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
-    """V3.11: cascaded delivered cost (tenant view) — METHODOLOGY §5.4.
+    """V3.11 + F1 (2026-05-07): cascaded delivered cost (tenant view) — METHODOLOGY §5.4.
 
-    Three-layer cascade: within-boundary solar first, then remote captive
-    (grid-connected IPP with gentie) for the daytime headroom, grid for the rest.
+    Four-layer cascade: within-boundary solar → dispatchable RE (geothermal/hydro,
+    F1) → remote captive (grid-connected IPP with gentie) → grid backfill.
 
-        f_wb      = min(wb_coverage_effective, daytime_cap)
-        headroom  = daytime_cap - f_wb
-        f_remote  = headroom if gc_row exists else 0
-        f_grid    = 1 - f_wb - f_remote
-        delivered = f_wb × wb_LCOE + f_remote × gc_LCOE + f_grid × grid_rate
+        f_wb        = min(wb_coverage_effective, daytime_cap)
+        f_disp_re   = min(dispatchable_re_coverage_pct, 1 - f_wb)              [F1, NEW]
+        headroom    = max(0, daytime_cap - f_wb - f_disp_re × daytime_cap)
+        f_remote    = headroom if gc_row exists else 0
+        f_grid      = 1 - f_wb - f_disp_re - f_remote
+        delivered   = f_wb·LCOE_wb + f_disp_re·LCOE_disp_re + f_remote·LCOE_gc + f_grid·grid_rate
+
+    F1 rationale: dispatchable RE (geothermal full-uniform, hydro near-uniform) sits
+    between within-boundary solar and grid backfill in the cost stack — cheaper than
+    grid for sites with reachable resource, and unlike intermittent solar it can run
+    overnight. This makes the wiki's Scenario 5 (solar+hydro+gas) and Scenario 6
+    (solar+geothermal+battery) reachable from the cascade for the first time.
+
+    The new layer's coverage % and LCOE are read from `dispatchable_re_coverage_pct`
+    and `dispatchable_re_lcoe_usd_mwh` columns on `wb_row` / `gc_row`. These columns
+    are populated by F2 geothermal proximity matching (and v4.1b hydro extensions).
+    Until F2 ships, the columns don't exist → defensive reads return None → the layer
+    is a no-op for every site. Existing v4.0 behavior is preserved bit-identically.
+
+    Daytime-portion approximation: f_disp_re·daytime_cap assumes uniform 24h dispatchable
+    output, true for geothermal and approximately true for run-of-river hydro. The
+    daytime portion competes with intermittent solar for daytime hours, so the cap on
+    f_remote subtracts both. Refinement deferred to v5.0 PyPSA where hourly dispatch
+    handles seasonal/diurnal hydro flow patterns explicitly.
 
     Physical ceiling: without storage only daytime-produced solar can be consumed
     in real time. For a flat 24/7 industrial load that caps combined solar share
@@ -139,9 +158,27 @@ def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, A
     wb_lcoe = float(wb_lcoe_raw) if wb_lcoe_raw is not None and not pd.isna(wb_lcoe_raw) else None
     gc_lcoe = float(gc_lcoe_raw) if gc_lcoe_raw is not None and not pd.isna(gc_lcoe_raw) else None
 
+    # F1: dispatchable RE coverage / LCOE (populated by F2 geothermal + v4.1b hydro).
+    # Defensive reads — columns don't exist in v4.0; falls through to None → 0 contribution.
+    src_row = ctx.wb_row if ctx.wb_row is not None else ctx.gc_row
+    disp_re_cov_raw = src_row.get("dispatchable_re_coverage_pct") if src_row is not None else None
+    disp_re_lcoe_raw = src_row.get("dispatchable_re_lcoe_usd_mwh") if src_row is not None else None
+    disp_re_cov = (
+        float(disp_re_cov_raw)
+        if disp_re_cov_raw is not None and not pd.isna(disp_re_cov_raw) and disp_re_cov_raw > 0
+        else None
+    )
+    disp_re_lcoe = (
+        float(disp_re_lcoe_raw)
+        if disp_re_lcoe_raw is not None and not pd.isna(disp_re_lcoe_raw)
+        else None
+    )
+
     null_out = {
         "delivered_cost_usd_mwh": None,
         "captive_fraction": None,
+        "delivered_cost_dispatchable_re_fraction": None,  # F1: NEW
+        "delivered_cost_dispatchable_re_lcoe_used_usd_mwh": None,  # F1: NEW
         "delivered_cost_remote_fraction": None,
         "grid_fraction": None,
         "delivered_cost_grid_rate_used_usd_mwh": None,
@@ -159,21 +196,33 @@ def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, A
         eff_cov = 0.0
 
     daytime_cap = SOLAR_PRODUCTION_HOURS / 24.0
-    # Layer 1: within-boundary — only if wb LCOE exists.
+    # Layer 1: within-boundary solar — capped at daytime hours (intermittent).
     f_wb = min(float(eff_cov), daytime_cap) if wb_lcoe is not None else 0.0
-    # Layer 2: remote captive fills daytime headroom if a grid-connected siting exists.
-    headroom = max(daytime_cap - f_wb, 0.0)
-    f_remote = headroom if gc_lcoe is not None else 0.0
-    # Layer 3: grid covers the overnight + any un-siteable daytime share.
-    f_grid = max(1.0 - f_wb - f_remote, 0.0)
+    # Layer 2 (F1, NEW): dispatchable RE — geothermal/hydro, runs 24h. Capped at remaining demand.
+    if disp_re_cov is not None and disp_re_lcoe is not None:
+        f_disp_re = min(disp_re_cov, max(1.0 - f_wb, 0.0))
+    else:
+        f_disp_re = 0.0
+    # Layer 3: remote captive solar — fills daytime headroom AFTER disp_re takes its
+    # daytime share (proportional). disp_re's daytime portion competes with solar.
+    disp_re_daytime_share = f_disp_re * daytime_cap
+    daytime_headroom = max(daytime_cap - f_wb - disp_re_daytime_share, 0.0)
+    f_remote = daytime_headroom if gc_lcoe is not None else 0.0
+    # Layer 4: grid backfill covers the overnight + any un-siteable daytime share.
+    f_grid = max(1.0 - f_wb - f_disp_re - f_remote, 0.0)
 
     wb_contrib = f_wb * wb_lcoe if wb_lcoe is not None else 0.0
+    disp_re_contrib = f_disp_re * disp_re_lcoe if disp_re_lcoe is not None else 0.0
     remote_contrib = f_remote * gc_lcoe if gc_lcoe is not None else 0.0
-    delivered = wb_contrib + remote_contrib + f_grid * float(grid_rate)
+    delivered = wb_contrib + disp_re_contrib + remote_contrib + f_grid * float(grid_rate)
 
     return {
         "delivered_cost_usd_mwh": _round(delivered),
         "captive_fraction": round(f_wb, 4),
+        "delivered_cost_dispatchable_re_fraction": round(f_disp_re, 4) if f_disp_re > 0 else None,
+        "delivered_cost_dispatchable_re_lcoe_used_usd_mwh": (
+            _round(disp_re_lcoe) if (f_disp_re > 0 and disp_re_lcoe is not None) else None
+        ),
         "delivered_cost_remote_fraction": round(f_remote, 4),
         "grid_fraction": round(f_grid, 4),
         "delivered_cost_grid_rate_used_usd_mwh": _round(float(grid_rate)),

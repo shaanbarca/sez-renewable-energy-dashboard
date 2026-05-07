@@ -537,12 +537,16 @@ The `within_boundary` gate (§8.2) is binary: a site either clears the `meaningf
 daytime_cap = SOLAR_PRODUCTION_HOURS / 24         (default 10h / 24h ≈ 0.417)
 
 f_wb        = min(within_boundary_coverage_effective_pct, daytime_cap)
-headroom    = daytime_cap − f_wb
+f_disp_re   = min(dispatchable_re_coverage_pct, 1 − f_wb)               # F1, NEW (2026-05-07)
+headroom    = max(0, daytime_cap − f_wb − f_disp_re × daytime_cap)
 f_remote    = headroom  if gc_row exists else 0
-f_grid      = 1 − f_wb − f_remote
+f_grid      = 1 − f_wb − f_disp_re − f_remote
 
-delivered_cost_usd_mwh = f_wb × LCOE_wb + f_remote × LCOE_gc + f_grid × grid_rate
+delivered_cost_usd_mwh = f_wb × LCOE_wb + f_disp_re × LCOE_disp_re
+                       + f_remote × LCOE_gc + f_grid × grid_rate
 ```
+
+**F1 (2026-05-07): dispatchable RE layer.** Geothermal (full-uniform 24h) and run-of-river hydro (near-uniform) sit between within-boundary solar and grid backfill in the cost stack. Cheaper than grid for sites with reachable resource, and unlike intermittent solar they can run overnight. This makes the wiki's Scenario 5 (solar+hydro+gas) and Scenario 6 (solar+geothermal+battery) reachable from the cascade. Read from `dispatchable_re_coverage_pct` and `dispatchable_re_lcoe_usd_mwh` (populated by F2 geothermal and v4.1b hydro). Until F2 ships, both columns are absent → defensive reads return None → layer is a no-op for every site, preserving v4.0 cascade behavior bit-identically. Daytime-portion approximation: `f_disp_re × daytime_cap` assumes uniform 24h dispatchable output, exact for geothermal and approximately true for hydro. Refinement deferred to v5.0 PyPSA hourly dispatch.
 
 **Physical cap rationale.** Without BESS, solar can only serve load during daylight hours. For a flat 24/7 industrial load that caps real-time *total* solar share (on-site plus remote) at `SOLAR_PRODUCTION_HOURS / 24` ≈ 42% (10h/24h). Oversizing solar beyond daytime demand curtails the excess — it cannot roll over to overnight consumption. The remaining ~58% of annual demand is served by the grid regardless of how much solar is built. Supply Blend is *inherently* a partial blend with no storage. Full 24/7 RE coverage is the job of the Solar 24/7 basis (T2 — see §7.3 and TAXONOMY.md), which adds a BESS storage adder to bridge the overnight gap.
 
