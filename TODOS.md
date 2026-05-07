@@ -1,9 +1,28 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-05-06 (rooftop solar v4.1 Phase 2 merged to main as PR #22; RV-pipeline-demand-regression closed, regression test in place).
+Last updated: 2026-05-07 (8 commits shipped: prod OOM fixed via Tier 1A per-site parquet filter, Docker image slimmed 24 GB → ~1 GB, v4.0 scorecard baseline locked, refinement spec docs tracked + eng-reviewed + codex-reviewed; v4.1 split into v4.1a + v4.1b per /plan-eng-review decision; auth gate temporarily disabled at user direction).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
+
+---
+
+## Today's deltas (2026-05-07)
+
+8 commits on `main`, all pushed to `private` (Render) and `origin` (public mirror):
+
+| Commit | What |
+|---|---|
+| `cc75414` | `feat(api)`: `/api/health/memory` diagnostic endpoint (RSS + cache state) |
+| `b6b057d` | `fix(docker)`: exclude `data/open_buildings/` (13 GB) + `data/microsoft_buildings/` (4.6 GB) from image. Image went from 24 GB to ~1 GB. |
+| `7aebcd1` | `chore(auth)`: comment out auth middleware + LoginPage gate. Code preserved; re-enable is a 1-block uncomment + 1 env var (user-controlled, not a Claude TODO). |
+| `bda949e` | `test`: lock v4.0 scorecard baseline at `tests/fixtures/scorecard_v4_0_baseline.csv` (SHA-256 ca31cee1...). Lock test in `tests/test_v4_0_baseline_locked.py`. Per /plan-eng-review decision #3. |
+| `5df365c` | `fix(api)`: per-site parquet filter for `/api/site/{id}/buildings` (Tier 1A). Previous full-parquet `lru_cache` materialized all 325k rows on first request and OOM-killed Render. Verified in prod: cold 296 MB → warm 483 MB (+187 MB), OOM gone. |
+| `7ec48a0` | `docs(refinement)`: track 4 strategic specs (`dashboard_roadmap_v4_v5.md`, `v4_0_dashboard_fixes_spec.md`, `v4_1_foundation_spec.md`, `v4_2_project_finance_spec.md`). 4,894 lines. Includes /plan-eng-review decision #1: hard-rename `lcoe_usd_per_mwh` → `lcoe_generation_usd_per_mwh` instead of same-name semantic swap. |
+| `ab0afd9` | `docs(refinement)`: split v4.1 into v4.1a + v4.1b release phases per /plan-eng-review decision #2. v4.1a covers incumbents + IEA rename + provenance (~6–7 days). v4.1b covers destination-weighted CBAM + hydro hybrid (~5–6 days). |
+| `fc8378a` | `docs(refinement)`: fix 5 codex-review findings (2 P1 contradictions, 3 P2 gaps in IEA-rename + phase-split application). Outside-voice review via `/codex review` (gpt-5.5). |
+
+**Tier 1A confirmed in prod.** OOM no longer triggers on `/api/site/{id}/buildings` requests. Render memory headroom now ~2 GB after warm.
 
 ---
 
@@ -11,7 +30,23 @@ Last updated: 2026-05-06 (rooftop solar v4.1 Phase 2 merged to main as PR #22; R
 
 | Plan doc | Target | Phase | Branch | Status |
 |---|---|---|---|---|
+| `docs/refinement/dashboard_roadmap_v4_v5.md` + 3 spec docs | **v4.0.5 → v4.5** | Roadmap finalized 2026-05-07 (eng-reviewed + codex-reviewed) | not branched yet | Specs all committed to main. /plan-eng-review (2026-05-07) locked 3 decisions: (1) hard-rename `lcoe_usd_per_mwh` → `lcoe_generation_usd_per_mwh`, (2) split v4.1 into v4.1a + v4.1b, (3) locked golden fixture + 81-site shift report per release. /codex review confirmed strategy + caught 5 execution bugs (all closed in `fc8378a`). v4.0.5 is the next release to branch — see `v4_0_dashboard_fixes_spec.md`. |
 | [docs/rooftop_solar_potential_feature_spec.md](docs/rooftop_solar_potential_feature_spec.md) | **v4.1** | Phase 1 ✅ merged / Phase 2 in progress / Phase 4 ⏳ | `feat/v4.1-rooftop-phase-2` | Phase 1 (PR #21, commit `6c49302`) shipped: MS GMLBF multi-source merge + RV-eval framework + 686 tests. Phase 2 active items: F10 sliders (RV15), polygon hunts (RV-eval-triage continuation), tourism KEK tightening (RV1), fragmented detection merge (RV9), Phase 4 manual validation (RV16). |
+
+### Refinement releases — sequencing (v4.0.5 → v4.1a → v4.1b → v4.2)
+
+| Release | Spec | Effort | Headline | Dependency |
+|---|---|---|---|---|
+| **v4.0.5** ⏳ next | `docs/refinement/v4_0_dashboard_fixes_spec.md` | 5–7 focused days | 13 methodological fixes to current v4.0 (geothermal proximity, Perpres 112 as variable, curtailment cost, Scope 1 abatement flags, RUPTL §V.11 feasibility, hybrid binding-constraint signal, etc.) | None — branches off `main` directly |
+| **v4.1a** ⏳ blocked | `docs/refinement/v4_1_foundation_spec.md` (§1.5 phase routing) | 6–7 focused days | Foundation: multi-tier IEA-aligned LCOE columns + multi-incumbent refs (BPP, marginal day/night, industrial, captive) + provenance plumbing + LCOS at 4h/8h | Strict — blocked on v4.0.5 shipping (per §1.5 sequencing diagram). v4.1a's 81-site shift report uses the v4.0 baseline already locked in `bda949e`. |
+| **v4.1b** ⏳ blocked | `docs/refinement/v4_1_foundation_spec.md` (§1.5 phase routing) | 5–6 focused days | Foundation: destination-weighted CBAM (per-market shares × per-market prices) + hydro 3-way hybrid optimizer + OEM scope-3 dataset + geothermal NCG pre-empt | Strict — blocked on v4.1a shipping. Additive append to v4.1a's scorecard schema (no `[a]` columns modified). |
+| **v4.2** ⏳ blocked | `docs/refinement/v4_2_project_finance_spec.md` | 7–11 focused days | Project finance metrics (NPV/IRR/DSCR/LLCR) with COD-year-aware CBAM trajectory + flat-real tariff default. Cirata IRR validation target ±1pp. | Blocked on v4.1b shipping (depends on `lcoe_generation_usd_per_mwh` + multi-incumbent refs as offtake-price source) |
+
+### Deferred from /plan-eng-review (2026-05-07)
+
+| # | Item | Effort | Why deferred |
+|---|---|---|---|
+| ER-D1 | **v4.1 version-collision rename** — refinement docs use "v4.1" for the foundation refactor while rooftop solar already shipped as v4.1 in PR #22. Either rename refinement-spec versions (v4.1 → v4.2 etc., ~570 mechanical refs across 4 files, ~2 hours) OR add a 5-line callout at the top of each spec disambiguating ("v4.1 foundation" vs "v4.1 rooftop"). Easy version: ~5 min. | small (callout) or 2 hours (full renumber) | Mechanical; no architectural value either way. Pick the easy version when next touching the specs. |
 
 ### Rooftop solar v4.1 — phase-by-phase progress
 
