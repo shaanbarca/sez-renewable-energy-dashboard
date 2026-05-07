@@ -103,6 +103,69 @@ async def health():
     return {"status": "ok", "sites": len(tables.get("dim_sites", []))}
 
 
+@app.get("/api/health/memory")
+async def health_memory():
+    """Memory diagnostic for OOM debugging on Render.
+
+    Public (no auth) so it can be hit from a browser. Returns process RSS,
+    the eager-loaded layer/table inventory, and the lru_cache state of the
+    two big parquet caches in routes/layers.py — the prime suspects for
+    runtime memory growth after warming.
+    """
+    import gc  # noqa: PLC0415 — only needed here
+    import os  # noqa: PLC0415
+
+    import psutil  # noqa: PLC0415
+
+    from src.api.routes.layers import (  # noqa: PLC0415
+        _load_buildings_parquet,
+        _load_tiles_parquet,
+    )
+
+    proc = psutil.Process(os.getpid())
+    mi = proc.memory_info()
+    mem_mb = {
+        "rss_mb": round(mi.rss / 1024 / 1024, 1),
+        "vms_mb": round(mi.vms / 1024 / 1024, 1),
+    }
+
+    # Layer presence + crude size proxies (number of features for geojson,
+    # number of points for point layers, presence flag for rasters)
+    layer_inventory: dict[str, object] = {}
+    for name, data in layers.items():
+        if data is None:
+            layer_inventory[name] = None
+        elif isinstance(data, list):
+            layer_inventory[name] = {"type": "points", "count": len(data)}
+        elif isinstance(data, dict) and "features" in data:
+            layer_inventory[name] = {"type": "geojson", "features": len(data["features"])}
+        elif isinstance(data, tuple):
+            layer_inventory[name] = {"type": "raster", "loaded": True}
+        else:
+            layer_inventory[name] = {"type": type(data).__name__}
+
+    # lru_cache state — currsize > 0 means the parquet was loaded into RAM
+    # at some point and is still there (these caches never evict).
+    parquet_caches = {
+        "buildings_parquet": _load_buildings_parquet.cache_info()._asdict(),
+        "tiles_parquet": _load_tiles_parquet.cache_info()._asdict(),
+    }
+
+    return {
+        "memory": mem_mb,
+        "process": {
+            "pid": proc.pid,
+            "num_threads": proc.num_threads(),
+            "open_files": len(proc.open_files()),
+        },
+        "tables": {name: {"rows": len(df), "cols": len(df.columns)} for name, df in tables.items()},
+        "layers": layer_inventory,
+        "parquet_caches": parquet_caches,
+        "infrastructure_sites": len(infrastructure),
+        "gc": {f"gen_{i}": c for i, c in enumerate(gc.get_count())},
+    }
+
+
 # ---------------------------------------------------------------------------
 # Auth middleware — protect /api routes (except /api/auth/*)
 # ---------------------------------------------------------------------------
