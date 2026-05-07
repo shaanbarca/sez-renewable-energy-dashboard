@@ -13,3 +13,9 @@ repos:
         entry: bash -c 'cd frontend && npx biome check --write --no-errors-on-unmatched "$@"' --
         types_or: [javascript, jsx, ts, tsx]
         pass_filenames: true
+      - id: finding-issue-links
+        name: F-findings in refinement specs must link to GitHub issues
+        language: system
+        entry: uv run python scripts/check_finding_issue_links.py
+        files: ^docs/refinement/.*\.md$
+        pass_filenames: true

@@ -4,7 +4,7 @@
 
 **Why this ships in parallel with v4.1:** Several fixes carry forward into v4.1 multi-tier outputs (geothermal proximity, regulatory variable, curtailment cost), so closing them now avoids methodological debt. Several others are 1-line corrections that don't need to wait. v4.1 lands cleaner if v4.0 is methodologically consistent first.
 
-**Effort:** ~5–7 focused work days aggregate. Several findings are 1-line or half-day changes; the heavier ones are the geothermal proximity dataset (Finding 2) and the RUPTL §V.11 feasibility check (Finding 5).
+**Effort:** ~5–7 focused work days aggregate. Several findings are 1-line or half-day changes; the heavier ones are the geothermal proximity dataset (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4)) and the RUPTL §V.11 feasibility check (Finding 5, [#7](https://github.com/shaanbarca/eez/issues/7)).
 
 **Status:** Ready for implementation in parallel with v4.1.
 
@@ -115,7 +115,7 @@ Against these wins, [Indonesia Dashboard Methodology Review] surfaces 13 methodo
 - **Gaps** (Findings 5–10): findings the methodology doesn't address — no grid-extension feasibility check, regulatory pathway as static string only, RUPTL→demand feedback loop ignored, no curtailment cost in the supply blend, no Scope 1 abatement signal, no hybrid binding-constraint output.
 - **Refinements** (Findings 11–13): findings that are basically right but could be sharper — MacKay citation, captive matching radius, GEAS proportional allocation idealised.
 
-This spec covers all 13 fixes. Items deferred to later releases (Finding 7) are documented but not implemented in v4.0; the rest land in this release.
+This spec covers all 13 fixes. Items deferred to later releases (Finding 7, [#9](https://github.com/shaanbarca/eez/issues/9)) are documented but not implemented in v4.0; the rest land in this release.
 
 **Architectural principle:** every fix should be backwards-compatible at the schema level. New columns added; existing columns preserved. v4.1 builds on top of a methodologically consistent v4.0; no breaking changes to action flags, economic tier, or 2D classification.
 
@@ -123,7 +123,7 @@ This spec covers all 13 fixes. Items deferred to later releases (Finding 7) are 
 
 ## 2. Methodological Errors
 
-### 2.1 Reframe pure solar+12hr battery as sanity-check baseline (Finding 1)
+### 2.1 Reframe pure solar+12hr battery as sanity-check baseline (Finding 1, [#3](https://github.com/shaanbarca/eez/issues/3))
 
 **Why this matters.** §6.3 computes `lcoe_with_battery = solar + 14h BESS adder` and surfaces a `bess_competitive` boolean flagging when this exceeds grid cost. The math is correct as a lower bound. But for Indonesian industrial loads, pure solar + 12hr battery is the **sanity-check baseline** (scenario 3 in the wiki framework), not a candidate architecture. Modeling it as a primary signal will mislead users into thinking solar+battery is the headline solar question, when in reality the question is "what's the cost-optimal hybrid architecture for this site, with what mix of solar / dispatchable RE / grid backfill?"
 
@@ -151,7 +151,7 @@ The Supply Blend cascade (§5.4) is the right shape for delivered cost — withi
 3. **Document explicitly** in METHODOLOGY_CONSOLIDATED §5.4 and §6.3 that pure solar+battery is the sanity-check baseline, not the recommended path. Add a paragraph to §5.4 referencing the wiki's six-scenario architecture menu with the specific note that Scenario 3 (pure solar + 12hr battery) loses on cost everywhere except diesel-replacement sites.
 
 **Implementation.**
-- `src/dash/logic/scorecard.py::enrich_delivered_cost()` — extend cascade with `f_dispatchable_re` layer. Reads from new columns `geothermal_adjacency_tier` (Finding 2) and `hydro_adjacency_tier` (v4.1 extension).
+- `src/dash/logic/scorecard.py::enrich_delivered_cost()` — extend cascade with `f_dispatchable_re` layer. Reads from new columns `geothermal_adjacency_tier` (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4)) and `hydro_adjacency_tier` (v4.1 extension).
 - `src/dash/logic/cost_basis.py` — add `firmed_24_7_solar_only` to the CostBasis enum; default to `firmed` for `EnergyMode = overall`, `raw` otherwise (unchanged from current).
 - METHODOLOGY_CONSOLIDATED.md update.
 
@@ -161,7 +161,7 @@ The Supply Blend cascade (§5.4) is the right shape for delivered cost — withi
 
 ---
 
-### 2.2 Geothermal proximity matching (Finding 2)
+### 2.2 Geothermal proximity matching (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4))
 
 **Why this matters.** §13 matches captive coal and nickel within 50km but doesn't surface geothermal proximity. Per the wiki, ~60% of unbuilt geothermal potential sits on islands not grid-connected to demand centres, and Sulawesi (3 GW potential, 124 MW installed, 4% utilisation) is the worst-mismatched. For Morowali-class sites, the wiki's recipe is: build solar+battery now (scenario 4), parallel-track geothermal exploration (scenario 6 by 2032+). That recipe is unreachable from the dashboard because the spatial signal isn't computed.
 
@@ -219,7 +219,7 @@ Provenance: each feature carries `source_name`, `source_url`, `retrieved_date`. 
 
 ---
 
-### 2.3 Wind nighttime fraction tiered by region (Finding 3)
+### 2.3 Wind nighttime fraction tiered by region (Finding 3, [#5](https://github.com/shaanbarca/eez/issues/5))
 
 **Why this matters.** §6A.2 sets wind `nighttime_fraction = 14/24 ≈ 0.583` uniformly. For Indonesia specifically, this is too pessimistic for the few wind-resource sites (NTT, sea-breeze regions where afternoon wind strengthens) and too generous for the equatorial-doldrums majority. The hybrid optimizer's "wind reduces BESS by X" output is structurally biased.
 
@@ -250,7 +250,7 @@ WIND_NIGHTTIME_FRACTION_BY_REGION = {
 
 ---
 
-### 2.4 Apply solar lifecycle emissions correction (Finding 4)
+### 2.4 Apply solar lifecycle emissions correction (Finding 4, [#6](https://github.com/shaanbarca/eez/issues/6))
 
 **Why this matters.** §9.2 caveats that the carbon-breakeven formula assumes zero solar lifecycle emissions when actual is ~40 gCO₂/MWh per IPCC AR6. The methodology says breakeven prices are "5–8% too optimistic" but doesn't apply the correction. Currently documenting an error rather than fixing it.
 
@@ -284,7 +284,7 @@ def carbon_breakeven_price(lcoe, grid_cost, grid_emission_factor, technology="so
 
 ## 3. Structural Gaps
 
-### 3.1 RUPTL §V.11 grid-extension feasibility check (Finding 5)
+### 3.1 RUPTL §V.11 grid-extension feasibility check (Finding 5, [#7](https://github.com/shaanbarca/eez/issues/7))
 
 **Why this matters.** §8 computes infrastructure costs (gen-tie, new transmission, substation upgrade) on the *solar* side and compares to PLN BPP / I-4 tariff. But the wiki's grid synthesis identifies the ~5–6× grid-investment gap (RUPTL plans $2.4B/y on transmission; IEA APS implies need for ~$15B/y). The comparator grid the dashboard assumes won't always be there.
 
@@ -330,7 +330,7 @@ For sites where the link is in V.11.2 (under study) with no committed COD year, 
 
 ---
 
-### 3.2 Perpres 112/2022 as regulatory variable (Finding 6)
+### 3.2 Perpres 112/2022 as regulatory variable (Finding 6, [#8](https://github.com/shaanbarca/eez/issues/8))
 
 **Why this matters.** §13.3 surfaces compliance as a status string (`perpres_112_status = "Subject to 2050 phase-out"`) but doesn't model the regulatory variable. The grid synthesis identifies this exemption as *the policy gap through which most of Indonesia's new industrial-scale fossil capacity flows*. v4.3 will add Perpres 112 reform as a pathway dimension; v4.0 should put the data structure in place so v4.3 can compose on top.
 
@@ -370,7 +370,7 @@ Override with site-specific data where public legal disclosure exists (e.g., IMI
 
 ---
 
-### 3.3 RUPTL → demand → RUPTL feedback loop (Finding 7) — deferred to v4.4
+### 3.3 RUPTL → demand → RUPTL feedback loop (Finding 7, [#9](https://github.com/shaanbarca/eez/issues/9)) — deferred to v4.4
 
 **Why this matters.** The grid feedback loop where captive coal demand reduces PLN's geothermal additions is methodologically real but deferred to v4.4 captive deep dive (per [Indonesia Dashboard Methodology Review] §Adjustments needed, finding 22). v4.0 should at least flag the static-RUPTL assumption explicitly in the methodology document so users don't read the long-horizon scenario 6 availability as static fact.
 
@@ -386,7 +386,7 @@ Add a paragraph to METHODOLOGY_CONSOLIDATED §13 (Captive Power Context) and §A
 
 ---
 
-### 3.4 Curtailment cost in supply blend (Finding 8)
+### 3.4 Curtailment cost in supply blend (Finding 8, [#10](https://github.com/shaanbarca/eez/issues/10))
 
 **Why this matters.** The wiki's energy storage page identifies curtailment as a major flexibility lever in IEA APS — providing ~25% of Indonesia's seasonal flexibility by 2050. For high-VRE-penetration grid-connected sites in low-demand regions (Maluku/Papua), curtailment is a real $/MWh cost. §9.5's `firm_solar_coverage_pct` handles overproduction *physically* (caps at daytime_demand) but doesn't price the curtailed energy.
 
@@ -441,7 +441,7 @@ Apply as effective CF haircut: `effective_cf = cf × (1 - curtailment_loss_pct)`
 
 ---
 
-### 3.5 Scope 1 abatement options surfaced (Finding 9)
+### 3.5 Scope 1 abatement options surfaced (Finding 9, [#11](https://github.com/shaanbarca/eez/issues/11))
 
 **Why this matters.** §14.2 correctly says solar can't address Scope 1 (cement calcination, ammonia SMR feedstock, BF-BOF coke). RE-addressable fractions (cement 0.12, ammonia 0.10, steel BF-BOF 0.80) are right for *today's* technology stack. But abatement options exist (alt fuels, green H₂ DRI, green ammonia) that can take cement/ammonia/BFBOF sites from 10–12% relief to 50%+. The dashboard currently shows a static ceiling.
 
@@ -477,7 +477,7 @@ Apply as effective CF haircut: `effective_cf = cf × (1 - curtailment_loss_pct)`
 
 ---
 
-### 3.6 Hybrid binding-constraint signal (Finding 10)
+### 3.6 Hybrid binding-constraint signal (Finding 10, [#12](https://github.com/shaanbarca/eez/issues/12))
 
 **Why this matters.** §6A.5 sweeps `solar_share` 0–100% and picks the cost-minimum hybrid. The natural follow-up question for any user is: *what does it take to flip the optimum?* (Lower BESS cost? Higher wind CF? Different storage hours?) v4.3 multi-pathway analysis will compute this implicitly across the whole site set; surface it explicitly per-site too.
 
@@ -536,7 +536,7 @@ def compute_hybrid_binding_constraint(site_inputs):
 
 ## 4. Refinements
 
-### 4.1 MacKay citation correction (Finding 11)
+### 4.1 MacKay citation correction (Finding 11, [#13](https://github.com/shaanbarca/eez/issues/13))
 
 **Why this matters.** §6.3 cites MacKay Ch. 26 as the physical basis for the 14h bridge-hours model. MacKay Ch. 26 covers UK-style 5-day winter lulls, EV-as-storage, pumped-hydro economics — it doesn't endorse a 14h bridge-hours model for tropical industrial loads. The math is right; the citation is a stretch.
 
@@ -552,7 +552,7 @@ with:
 
 ---
 
-### 4.2 Captive matching: contractual + spatial (Finding 12)
+### 4.2 Captive matching: contractual + spatial (Finding 12, [#14](https://github.com/shaanbarca/eez/issues/14))
 
 **Why this matters.** §13.2 uses 50 km haversine for matching captive coal and nickel. Sumatran mine-mouth coal plants > 50 km from the smelter they supply are common. Pure spatial matching misses contractual mine-to-smelter relationships — relevant for the captive-cost reference (v4.1) and for stranded-asset analysis (v4.4).
 
@@ -578,7 +578,7 @@ with:
 
 ---
 
-### 4.3 GEAS empirical allocation alternative (Finding 13)
+### 4.3 GEAS empirical allocation alternative (Finding 13, [#15](https://github.com/shaanbarca/eez/issues/15))
 
 **Why this matters.** §11 assumes proportional-to-demand GEAS allocation:
 
@@ -695,11 +695,11 @@ geas_allocation_used
 Total: 26 new columns. All nullable; existing rows unaffected if data is missing.
 
 New separate tables:
-- `data/raw/geothermal_operating.geojson` (Finding 2)
-- `data/raw/geothermal_pipeline.geojson` (Finding 2)
-- `data/raw/ruptl_v11_transmission_links.csv` (Finding 5)
-- `data/raw/site_perpres_112_classification.csv` (Finding 6)
-- `data/raw/captive_coal_contractual_overrides.csv` (Finding 12)
+- `data/raw/geothermal_operating.geojson` (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4))
+- `data/raw/geothermal_pipeline.geojson` (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4))
+- `data/raw/ruptl_v11_transmission_links.csv` (Finding 5, [#7](https://github.com/shaanbarca/eez/issues/7))
+- `data/raw/site_perpres_112_classification.csv` (Finding 6, [#8](https://github.com/shaanbarca/eez/issues/8))
+- `data/raw/captive_coal_contractual_overrides.csv` (Finding 12, [#14](https://github.com/shaanbarca/eez/issues/14))
 
 New pipeline files:
 - `src/pipeline/build_fct_geothermal_proximity.py`
@@ -740,9 +740,9 @@ New pipeline files:
 
 ### 6.3 Cross-validation against external benchmarks
 
-- Geothermal NCG emission factors (Finding 2): cross-validate Wayang Windu 73, Kamojang 73, Ulubelu 43 against ESDM 2024 §1 published values.
-- Curtailment estimates (Finding 8): cross-validate Maluku/Papua range (20–35%) against IEA SEA Outlook 2024 Figure 5.7 and IRENA SE Asia VRE flexibility report.
-- Solar lifecycle EF (Finding 4): cross-validate 40 gCO₂/MWh against IPCC AR6 Annex III median.
+- Geothermal NCG emission factors (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4)): cross-validate Wayang Windu 73, Kamojang 73, Ulubelu 43 against ESDM 2024 §1 published values.
+- Curtailment estimates (Finding 8, [#10](https://github.com/shaanbarca/eez/issues/10)): cross-validate Maluku/Papua range (20–35%) against IEA SEA Outlook 2024 Figure 5.7 and IRENA SE Asia VRE flexibility report.
+- Solar lifecycle EF (Finding 4, [#6](https://github.com/shaanbarca/eez/issues/6)): cross-validate 40 gCO₂/MWh against IPCC AR6 Annex III median.
 
 ### 6.4 Sanity checks
 
@@ -760,17 +760,17 @@ For every site:
 
 ### 7.1 Functional
 
-- [ ] All 81 sites have geothermal proximity columns populated (Finding 2)
-- [ ] All 81 sites have RUPTL §V.11 feasibility check (Finding 5)
-- [ ] All 81 sites have Perpres 112/2022 regulatory classification (Finding 6)
-- [ ] All 81 sites have curtailment loss estimate (Finding 8)
-- [ ] All 81 sites have Scope 1 abatement pathway flag (Finding 9)
-- [ ] All 81 sites have hybrid binding-constraint signal (Finding 10)
-- [ ] Wind nighttime fraction tiered by region (Finding 3)
-- [ ] Solar lifecycle correction applied (Finding 4)
-- [ ] GEAS empirical allocation computed alongside proportional (Finding 13)
-- [ ] Supply Blend cascade extended with dispatchable RE layer (Finding 1)
-- [ ] Captive matching uses contractual overrides where available (Finding 12)
+- [ ] All 81 sites have geothermal proximity columns populated (Finding 2, [#4](https://github.com/shaanbarca/eez/issues/4))
+- [ ] All 81 sites have RUPTL §V.11 feasibility check (Finding 5, [#7](https://github.com/shaanbarca/eez/issues/7))
+- [ ] All 81 sites have Perpres 112/2022 regulatory classification (Finding 6, [#8](https://github.com/shaanbarca/eez/issues/8))
+- [ ] All 81 sites have curtailment loss estimate (Finding 8, [#10](https://github.com/shaanbarca/eez/issues/10))
+- [ ] All 81 sites have Scope 1 abatement pathway flag (Finding 9, [#11](https://github.com/shaanbarca/eez/issues/11))
+- [ ] All 81 sites have hybrid binding-constraint signal (Finding 10, [#12](https://github.com/shaanbarca/eez/issues/12))
+- [ ] Wind nighttime fraction tiered by region (Finding 3, [#5](https://github.com/shaanbarca/eez/issues/5))
+- [ ] Solar lifecycle correction applied (Finding 4, [#6](https://github.com/shaanbarca/eez/issues/6))
+- [ ] GEAS empirical allocation computed alongside proportional (Finding 13, [#15](https://github.com/shaanbarca/eez/issues/15))
+- [ ] Supply Blend cascade extended with dispatchable RE layer (Finding 1, [#3](https://github.com/shaanbarca/eez/issues/3))
+- [ ] Captive matching uses contractual overrides where available (Finding 12, [#14](https://github.com/shaanbarca/eez/issues/14))
 
 ### 7.2 Validation
 
@@ -782,7 +782,7 @@ For every site:
 ### 7.3 Documentation
 
 - [ ] METHODOLOGY_CONSOLIDATED.md updated for findings 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
-- [ ] Static-RUPTL assumption explicitly flagged in §13 and §A.1 (Finding 7)
+- [ ] Static-RUPTL assumption explicitly flagged in §13 and §A.1 (Finding 7, [#9](https://github.com/shaanbarca/eez/issues/9))
 - [ ] CHANGELOG.md entry for v4.0.5 (this release)
 - [ ] Methodology review cross-reference matrix updated
 

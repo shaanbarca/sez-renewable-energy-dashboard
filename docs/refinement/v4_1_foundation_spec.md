@@ -191,6 +191,47 @@ Per site, output four solar cost variants. **Column names follow the IEA cost-te
 
 **⚠ Breaking-change note for v4.0 consumers (Refined — 2026-05-07 hard-rename decision).** v4.0's `lcoe_usd_per_mwh` column means *delivered* LCOE (LCOE + transmission). v4.1 introduces a NEW column `lcoe_generation_usd_per_mwh` for IEA generation-only semantics — does NOT reuse the `lcoe_usd_per_mwh` name. The original `lcoe_usd_per_mwh` column survives one release with a deprecation warning (now points at `full_system_lcoe_delivered_usd_per_mwh`), then is removed in v4.2. This eliminates the silent-miscalibration risk where same-name-different-value would have broken any v4.0 number already in a spreadsheet. See §15.1.
 
+#### 2.1.1 Cost-stack progression and UI toggle alignment (Refined 2026-05-07)
+
+The four IEA-aligned solar cost columns form a strict cost stack — each tier adds one cost layer to the previous:
+
+```
+   $/MWh                       Cost layer added              Stakeholder question
+  ──────────────────────────────────────────────────────────────────────────────
+  lcoe_generation_usd_per_mwh           ← CAPEX + OPEX + financing                  "How cheap is the
+   IEA LCOE (base)                        No transmission, no storage                generation tech itself?"
+       │                                  Pure technology benchmark
+       │   + transmission (gen-tie + connection cost: ~$10-25/MWh)
+       ▼
+  full_system_lcoe_delivered_usd_per_mwh ← LCOE + transmission, no storage          "What does grid-connected
+   IEA Full System LCOE (delivered)       Daytime hours only effective               solar cost the offtaker?
+       │                                                                             PLN IPP screening."
+       │   + 4h storage at 20% nameplate (~$30-50/MWh adder)
+       ▼
+  full_system_lcoe_firm_4h_usd_per_mwh   ← LCOE + transmission + LCOS_4h            "Daily peak shifting;
+   IEA Full System LCOE (firm 4h)         Covers evening peak                        partial firm capability."
+       │
+       │   + 8h storage at 50% nameplate (~$80-130/MWh adder)
+       ▼
+  full_system_lcoe_firm_8h_usd_per_mwh   ← LCOE + transmission + LCOS_8h            "Can solar replace
+   IEA Full System LCOE (firm 8h)         Near-baseload                              captive coal? Compete
+                                                                                     for 24/7 industrial loads?"
+```
+
+Typical Indonesian site progression: $50 LCOE → $70 Delivered → $100 Firm 4h → $150 Firm 8h.
+
+**Frontend toggle mapping.** The dashboard's existing 3-button cost-basis toggle (Solar LCOE / Solar 24/7 / Supply Blend in `frontend/src/lib/costBasis.ts`) maps to the IEA columns as follows:
+
+| UI label | `CostBasis` enum | IEA column the toggle reads | Notes |
+|---|---|---|---|
+| **Solar LCOE** | `raw` | `lcoe_generation_usd_per_mwh` | v4.1a redefines this cleanly as IEA generation-only. v4.0's `lcoe_mid_usd_mwh` (which mixed transmission in) deprecates. |
+| **Solar 24/7** | `firmed` | `full_system_lcoe_firm_8h_usd_per_mwh` | Replaces today's `lcoe_with_battery_usd_mwh` 14h-bridge approximation with the IEA firm 8h tier. |
+| **Supply Blend** | `delivered` | `delivered_cost_usd_mwh` | **Different beast — not part of the stack.** Tenant cascade: weighted average of within-boundary captive + remote IPP + grid backfill. Lands $80-110/MWh typical for an Indonesian site because grid backfill drags the mix down. |
+
+**Optional 4th toggle (deferred to v4.2 polish):** A `Solar Delivered` toggle reading `full_system_lcoe_delivered_usd_per_mwh` would expose the full system LCOE without storage — useful for DFI investors evaluating grid-connected IPP screening. Today this number is computed but buried inside `lcoe_grid_connected_usd_mwh`. v4.1a does the back-end column work; the UI option can ship later.
+
+**Why this ordering matters for the eng review.** The cost-stack progression is what makes the "hard-rename" strategy load-bearing: today's `lcoe_mid_usd_mwh` quietly straddles "LCOE" and "Delivered" semantics. v4.1a separates them cleanly so the stack is monotone-rising and each toggle answers a distinct stakeholder question. The deprecation alias on the bare `lcoe_usd_per_mwh` name (= `full_system_lcoe_delivered_usd_per_mwh` for one release) keeps v4.0 CSV consumers reading the same numbers they read before the rename.
+
 ### 2.2 Multi-incumbent cost references
 
 Per site, identify applicable incumbent cost references. Different sites have different relevant incumbents:
