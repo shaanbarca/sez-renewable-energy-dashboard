@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import MapHint from './components/map/MapHint';
 import MapView from './components/map/MapView';
 import RasterLegend from './components/map/RasterLegend';
@@ -6,7 +6,7 @@ import AssumptionsPanel from './components/panels/AssumptionsPanel';
 import ScoreDrawer from './components/panels/ScoreDrawer';
 import BottomPanel from './components/ui/BottomPanel';
 import Header from './components/ui/Header';
-import LoginPage from './components/ui/LoginPage';
+// import LoginPage from './components/ui/LoginPage'; // re-enable when auth is re-enabled
 import WalkthroughModal from './components/ui/WalkthroughModal';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useDashboardStore } from './store/dashboard';
@@ -65,22 +65,22 @@ function Dashboard() {
 }
 
 function App() {
-  const [authed, setAuthed] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    fetch('/api/auth/check')
-      .then((r) => r.json())
-      .then((data) => setAuthed(data.authenticated))
-      .catch(() => setAuthed(false));
-  }, []);
-
-  if (authed === null) {
-    return <div className="h-screen w-screen bg-[#0a0a0c]" />;
-  }
-
-  if (!authed) {
-    return <LoginPage onSuccess={() => setAuthed(true)} />;
-  }
+  // Auth disabled 2026-05-07 — open access for now. Re-enable by restoring
+  // the /api/auth/check fetch + LoginPage gate below, and uncommenting the
+  // auth middleware in src/api/main.py + setting ACCESS_CODE on Render.
+  // const [authed, setAuthed] = useState<boolean | null>(null);
+  // useEffect(() => {
+  //   fetch('/api/auth/check')
+  //     .then((r) => r.json())
+  //     .then((data) => setAuthed(data.authenticated))
+  //     .catch(() => setAuthed(false));
+  // }, []);
+  // if (authed === null) {
+  //   return <div className="h-screen w-screen bg-[#0a0a0c]" />;
+  // }
+  // if (!authed) {
+  //   return <LoginPage onSuccess={() => setAuthed(true)} />;
+  // }
 
   return <Dashboard />;
 }

@@ -12,10 +12,17 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI, Request
+from fastapi import (  # noqa: F401 — Request used by auth middleware (currently commented out)
+    FastAPI,
+    Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import (  # noqa: F401 — JSONResponse used by auth middleware (currently commented out)
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+)
 from fastapi.staticfiles import StaticFiles
 
 from src.dash.data_loader import (
@@ -84,7 +91,7 @@ app.add_middleware(
 # Mount route modules
 # ---------------------------------------------------------------------------
 
-from src.api.auth import is_authenticated  # noqa: E402
+# When re-enabling auth, also: from src.api.auth import is_authenticated
 from src.api.auth import router as auth_router  # noqa: E402
 from src.api.routes.layers import router as layers_router  # noqa: E402
 from src.api.routes.scorecard import router as scorecard_router  # noqa: E402
@@ -169,23 +176,26 @@ async def health_memory():
 # ---------------------------------------------------------------------------
 # Auth middleware — protect /api routes (except /api/auth/*)
 # ---------------------------------------------------------------------------
+# DISABLED 2026-05-07 — dashboard is open access for now. Re-enable by
+# uncommenting the @app.middleware block below and setting ACCESS_CODE in
+# the Render env. Auth code (src/api/auth.py + LoginPage.tsx) is left in
+# place so re-enabling is a 1-block uncomment + 1 env var.
 
-
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    path = request.url.path
-    # Allow auth endpoints, static assets, and the root page through
-    if (
-        path.startswith("/api/auth/")
-        or path == "/api/health"
-        or path.startswith("/assets/")
-        or not path.startswith("/api/")
-    ):
-        return await call_next(request)
-    # All other /api routes require auth
-    if not is_authenticated(request):
-        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
-    return await call_next(request)
+# @app.middleware("http")
+# async def auth_middleware(request: Request, call_next):
+#     path = request.url.path
+#     # Allow auth endpoints, static assets, and the root page through
+#     if (
+#         path.startswith("/api/auth/")
+#         or path.startswith("/api/health")
+#         or path.startswith("/assets/")
+#         or not path.startswith("/api/")
+#     ):
+#         return await call_next(request)
+#     # All other /api routes require auth
+#     if not is_authenticated(request):
+#         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+#     return await call_next(request)
 
 
 @app.get("/api/methodology", response_class=PlainTextResponse)
