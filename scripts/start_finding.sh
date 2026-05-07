@@ -26,10 +26,11 @@ fi
 ISSUE="$1"
 REPO="shaanbarca/eez"
 
-# 1. Verify clean working tree
-if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: working tree not clean. Commit, stash, or discard changes first." >&2
-  git status --short >&2
+# 1. Verify no uncommitted modifications to tracked files (untracked files are fine).
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "ERROR: working tree has uncommitted modifications to tracked files." >&2
+  echo "Commit, stash, or discard them first. (Untracked files are OK.)" >&2
+  git status --short --untracked-files=no >&2
   exit 1
 fi
 
