@@ -604,6 +604,25 @@ GRID_EMISSION_FACTOR_DEFAULT: float = 0.77
 # Source: Sumatera interconnected OM from KESDM 2019 (0.77 tCO2/MWh) — used as a
 # mid-range national default. All active KEK grid_region_ids are explicitly mapped above.
 
+# ─── F4 (2026-05-07): Renewable lifecycle emissions ──────────────────────────
+# Solar PV and wind generation are not zero-emission. Manufacturing the panels /
+# turbines, transporting them, building the plant, and end-of-life disposal all
+# carry embodied carbon. The carbon-breakeven calculation in
+# carbon_breakeven_price() previously assumed zero — biased breakeven prices
+# 5-8% optimistic. F4 corrects by subtracting lifecycle EF from grid EF in the
+# denominator: delta_ef = max(grid_ef − lifecycle_ef, 1e-3).
+
+SOLAR_LIFECYCLE_EF_TCO2_PER_MWH: float = 0.040
+# Source: IPCC AR6 Working Group III (2022), Annex III: Lifecycle GHG emission
+# factors. Median lifecycle for crystalline silicon solar PV = ~40 gCO2/kWh =
+# 0.040 tCO2/MWh. Range across LCAs: 30-60 gCO2/kWh; median is the central
+# estimate used here.
+
+WIND_LIFECYCLE_EF_TCO2_PER_MWH: float = 0.013
+# Source: IPCC AR6 Annex III. Median lifecycle for onshore wind = ~13 gCO2/kWh
+# = 0.013 tCO2/MWh. Lower than solar because turbine steel + concrete amortize
+# over higher annual generation per nameplate kW.
+
 # ─── RUPTL ANALYSIS ───────────────────────────────────────────────────────────
 
 RUPTL_PRE2030_END: int = 2030

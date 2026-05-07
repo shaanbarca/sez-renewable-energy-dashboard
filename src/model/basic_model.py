@@ -54,6 +54,7 @@ from src.assumptions import (
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
     RUPTL_PRE2030_END,
     SOLAR_DEGRADATION_ANNUAL_PCT,
+    SOLAR_LIFECYCLE_EF_TCO2_PER_MWH,
     SOLAR_PRODUCTION_HOURS,
     SOLAR_TO_SUBSTATION_THRESHOLD_KM,
     SUBSTATION_MIN_CAPACITY_MVA,
@@ -67,6 +68,7 @@ from src.assumptions import (
     TRANSMISSION_LINE_COST_USD_PER_KM,
     WIND_CF_MAX,
     WIND_CF_MIN,
+    WIND_LIFECYCLE_EF_TCO2_PER_MWH,
 )
 
 # ---------------------------------------------------------------------------
@@ -1161,30 +1163,46 @@ def carbon_breakeven_price(
     lcoe_mid_usd_mwh: float,
     grid_cost_usd_mwh: float,
     grid_emission_factor_t_co2_mwh: float,
+    technology: str = "solar",
 ) -> float | None:
-    """Return the carbon price (USD/tCO2) at which solar becomes cost-competitive with the grid.
+    """Return the carbon price (USD/tCO2) at which the renewable becomes cost-competitive.
 
     Interpretation: if Indonesia (or a buyer) prices carbon at or above this level,
-    solar LCOE + carbon cost of grid electricity cross — solar wins on adjusted cost.
+    renewable LCOE + carbon cost of grid electricity cross — renewable wins.
 
-    Returns 0.0 if solar is already competitive (LCOE ≤ grid cost).
-    Returns None if the emission factor is missing or zero (cannot compute).
+    F4 (2026-05-07): now subtracts the renewable's lifecycle emission factor from
+    the grid EF before dividing. Previous version treated solar/wind as zero
+    lifecycle emissions, biasing breakeven prices 5-8% optimistic. The IPCC AR6
+    median lifecycle EFs (0.040 tCO2/MWh solar, 0.013 wind) are baked into the
+    denominator. METHODOLOGY §9.2.
+
+    Returns 0.0 if renewable is already competitive (LCOE ≤ grid cost).
+    Returns None if grid EF is missing or zero (cannot compute).
 
     Parameters
     ----------
     lcoe_mid_usd_mwh:
-        Solar LCOE mid estimate (USD/MWh).
+        Renewable LCOE mid estimate (USD/MWh).
     grid_cost_usd_mwh:
         Grid reference cost (USD/MWh).
     grid_emission_factor_t_co2_mwh:
         Grid emission intensity (tCO2/MWh). Use GRID_EMISSION_FACTOR_T_CO2_MWH[region].
+    technology:
+        F4: "solar" (default), "wind", or "hybrid". "hybrid" uses solar's EF as a
+        conservative approximation since solar typically dominates the mix.
     """
     if grid_emission_factor_t_co2_mwh <= 0:
         return None
     lcoe_gap = lcoe_mid_usd_mwh - grid_cost_usd_mwh
     if lcoe_gap <= 0:
         return 0.0
-    return round(lcoe_gap / grid_emission_factor_t_co2_mwh, 1)
+    # F4: subtract lifecycle EF; floor at 1e-3 to avoid divide-by-zero when grid
+    # EF is near-zero (a future hypothetical, not today's Indonesian grid).
+    lifecycle_ef = (
+        WIND_LIFECYCLE_EF_TCO2_PER_MWH if technology == "wind" else SOLAR_LIFECYCLE_EF_TCO2_PER_MWH
+    )
+    delta_ef = max(grid_emission_factor_t_co2_mwh - lifecycle_ef, 1e-3)
+    return round(lcoe_gap / delta_ef, 1)
 
 
 # ---------------------------------------------------------------------------
