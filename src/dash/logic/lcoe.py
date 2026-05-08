@@ -200,11 +200,22 @@ def compute_lcoe_live(
             eff_c = capex_c + conn_cost + land_cost + trans_cost + upgrade_cost
             eff_l = capex_l + conn_cost + land_cost + trans_cost + upgrade_cost
             eff_h = capex_h + conn_cost + land_cost + trans_cost + upgrade_cost
-            lcoe_c_gc = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc)
-            lcoe_l_gc = lcoe_solar(eff_l, fom, wacc, lifetime, cf_gc)
-            lcoe_h_gc = lcoe_solar(eff_h, fom, wacc, lifetime, cf_gc)
+            # F8: pre-curtailment LCOE uses raw cf_gc; surfaced as
+            # `lcoe_grid_connected_pre_curtailment_usd_mwh` for transparency.
+            lcoe_c_gc_pre = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc)
+            # CF haircut for grid-connected scenarios: in low-demand/island grids
+            # the surplus daytime solar gets curtailed, so the effective CF is
+            # lower than the physical CF. Within-boundary captive bypasses this.
+            curtailment_pct = kek.get("curtailment_loss_pct")
+            curtailment_pct = float(curtailment_pct) if pd.notna(curtailment_pct) else 0.0
+            cf_gc_post = cf_gc * (1.0 - curtailment_pct) if curtailment_pct > 0 else cf_gc
+            lcoe_c_gc = lcoe_solar(eff_c, fom, wacc, lifetime, cf_gc_post)
+            lcoe_l_gc = lcoe_solar(eff_l, fom, wacc, lifetime, cf_gc_post)
+            lcoe_h_gc = lcoe_solar(eff_h, fom, wacc, lifetime, cf_gc_post)
         else:
             cf_gc = lcoe_c_gc = lcoe_l_gc = lcoe_h_gc = np.nan
+            cf_gc_post = lcoe_c_gc_pre = np.nan
+            curtailment_pct = 0.0
             conn_cost = 0.0
             trans_cost = 0.0
             upgrade_cost = 0.0
@@ -217,11 +228,13 @@ def compute_lcoe_live(
                 "lcoe_low_usd_mwh": _round(lcoe_l_gc),
                 "lcoe_mid_usd_mwh": _round(lcoe_c_gc),
                 "lcoe_high_usd_mwh": _round(lcoe_h_gc),
+                "lcoe_grid_connected_pre_curtailment_usd_mwh": _round(lcoe_c_gc_pre),
+                "curtailment_loss_pct": _round(curtailment_pct, 4),
                 "connection_cost_per_kw": _round(conn_cost, 1),
                 "transmission_cost_per_kw": _round(trans_cost, 1),
                 "substation_upgrade_cost_per_kw": _round(upgrade_cost, 1),
                 "effective_capacity_mwp": _round(effective_mwp, 1),
-                "cf": _round(cf_gc, 4),
+                "cf": _round(cf_gc_post, 4),  # post-haircut CF (what LCOE uses)
                 "pvout_used": pvout_gc,
             }
         )

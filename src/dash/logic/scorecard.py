@@ -279,9 +279,25 @@ def enrich_anchor_and_regime(ctx: SiteContext, row: dict[str, Any]) -> dict[str,
     else:
         live_scale = _round(float(live_scale), 2)
 
+    # F8: surface the per-site curtailment haircut and pre-curtailment LCOE
+    # so users can see how much of the grid-connected LCOE delta comes from
+    # curtailment vs grid infra costs.
+    curtailment_pct = ctx.gc_row.get("curtailment_loss_pct") if ctx.gc_row is not None else None
+    pre_curtailment_lcoe = (
+        ctx.gc_row.get("lcoe_grid_connected_pre_curtailment_usd_mwh")
+        if ctx.gc_row is not None
+        else None
+    )
+
     return {
         "solar_regime": regime,
         "lcoe_grid_connected_capped_usd_mwh": _round(capped),
+        "lcoe_grid_connected_pre_curtailment_usd_mwh": _round(pre_curtailment_lcoe)
+        if pre_curtailment_lcoe is not None and pd.notna(pre_curtailment_lcoe)
+        else None,
+        "curtailment_loss_pct": float(curtailment_pct)
+        if curtailment_pct is not None and pd.notna(curtailment_pct)
+        else None,
         "solar_search_method": _val("solar_search_method"),
         "chosen_anchor_substation_name": _val("chosen_anchor_substation_name"),
         "solar_supply_share_pct": _val("solar_supply_share_pct"),
@@ -404,6 +420,23 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
 
     out["demand_2030_gwh"] = round(ctx.demand_mwh / 1000, 1) if ctx.demand_mwh > 0 else None
     out["green_share_geas"] = round(ctx.green_share, 4)
+
+    # F13: surface the proportional / empirical allocation pair from
+    # build_fct_site_scorecard (passed through resource_df). The default
+    # `geas_allocation_used = "proportional"` keeps the action grid behaviour
+    # unchanged; users can compare both views in the UI.
+    for col in (
+        "geas_alloc_proportional_gwh",
+        "geas_alloc_empirical_gwh",
+        "green_share_geas_proportional_pct",
+        "green_share_geas_empirical_pct",
+        "geas_allocation_used",
+    ):
+        v = kek.get(col)
+        if v is not None and not (isinstance(v, float) and pd.isna(v)):
+            out[col] = float(v) if col != "geas_allocation_used" else str(v)
+        else:
+            out[col] = None
 
     if ctx.solar_data_valid:
         out["max_solar_generation_gwh"] = _round(ctx.solar_gen_mwh / 1000)

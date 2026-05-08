@@ -122,6 +122,13 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         "within_boundary_coverage_pct",
         "solar_regime",
         "lcoe_grid_connected_capped_usd_mwh",
+        # F13: empirical GEAS allocation alongside the proportional baseline.
+        # Already pre-computed by build_fct_site_scorecard at pipeline build time.
+        "geas_alloc_proportional_gwh",
+        "geas_alloc_empirical_gwh",
+        "green_share_geas_proportional_pct",
+        "green_share_geas_empirical_pct",
+        "geas_allocation_used",
     ]:
         if col not in resource.columns and col in scorecard.columns:
             scorecard_cols.append(col)
@@ -230,6 +237,56 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
                 wind_cols.append(col)
         if len(wind_cols) > 1:
             resource = resource.merge(wind_res[wind_cols], on="site_id", how="left")
+
+    # F8 (2026-05-08): per-site curtailment loss estimate, stamped on every
+    # resource row so live LCOE can apply a CF haircut to the grid-connected
+    # scenario. Computed once here from grid-region BPP (proxy for grid
+    # maturity), inter-substation connectivity, and a representative solar
+    # generation vs local-grid demand ratio. Within-boundary captive bypasses
+    # this — see compute_lcoe_live.
+    if "fct_grid_cost_proxy" in tables and "fct_site_demand" in tables:
+        from src.model.basic_model import (  # noqa: PLC0415 — local import keeps module-level deps light
+            estimate_curtailment_loss_pct,
+        )
+
+        grid_df = tables["fct_grid_cost_proxy"]
+        demand_df = tables["fct_site_demand"]
+
+        # Sum demand per grid_region, joined via dim_sites.
+        if "grid_region_id" in dim_sites.columns:
+            demand_with_region = demand_df.merge(
+                dim_sites[["site_id", "grid_region_id"]], on="site_id", how="left"
+            )
+            region_demand = (
+                demand_with_region.groupby("grid_region_id")["demand_mwh"].sum().to_dict()
+            )
+        else:
+            region_demand = {}
+
+        bpp_by_region = (
+            grid_df.set_index("grid_region_id")["bpp_usd_mwh"].to_dict()
+            if "bpp_usd_mwh" in grid_df.columns
+            else {}
+        )
+
+        def _curtail(row: pd.Series) -> float:
+            region = row.get("grid_region_id")
+            mwp = row.get("regional_groundmount_potential_mwp_50km", 0)
+            cf = row.get("pvout_centroid", 1700) / 8760  # rough CF from PVOUT
+            if pd.isna(mwp) or mwp <= 0:
+                return 0.05
+            solar_gen_mwh = float(mwp) * float(cf) * 8760  # MW × hours
+            local_demand = float(region_demand.get(region, 0))
+            inter_conn = bool(row.get("inter_substation_connected", False))
+            bpp = float(bpp_by_region.get(region, 100.0))
+            return estimate_curtailment_loss_pct(
+                solar_generation_mwh=solar_gen_mwh,
+                local_grid_demand_mwh=local_demand,
+                inter_substation_connected=inter_conn,
+                grid_region_bpp_usd_mwh=bpp,
+            )
+
+        resource["curtailment_loss_pct"] = resource.apply(_curtail, axis=1)
 
     return resource
 

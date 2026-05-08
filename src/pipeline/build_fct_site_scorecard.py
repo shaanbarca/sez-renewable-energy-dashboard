@@ -40,11 +40,19 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.assumptions import CAPTIVE_REGIME_MAX_KM, PERPRES_112_CEILING_USD_MWH
+from src.assumptions import (
+    CAPTIVE_REGIME_MAX_KM,
+    HOURS_PER_YEAR,
+    PERPRES_112_CEILING_USD_MWH,
+    REGION_CF_DEFAULT,
+    REGION_LOAD_CENTRE_LATLON,
+    RUPTL_PRE2030_END,
+)
 from src.model.basic_model import (
     action_flags,
     carbon_breakeven_price,
     firm_solar_metrics,
+    geas_alloc_empirical,
     geas_baseline_allocation,
     invest_resilience,
     resolve_demand,
@@ -56,6 +64,7 @@ from src.pipeline.build_fct_site_resource import (
     BUILDABILITY_DIR,
     _available_build_files,
 )
+from src.pipeline.geo_utils import haversine_km
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
@@ -373,7 +382,70 @@ def build_fct_site_scorecard(
     )
     geas_df = geas_baseline_allocation(demand_yr, ruptl)
     # geas_df has site_id + green_share_geas columns
-    df = df.merge(geas_df[["site_id", "green_share_geas"]], on="site_id", how="left")
+    df = df.merge(
+        geas_df[["site_id", "green_share_geas", "geas_alloc_mwh"]], on="site_id", how="left"
+    )
+
+    # F13 (2026-05-08): empirical GEAS allocation alongside the proportional
+    # baseline. PLN's actual allocation is urban-anchored / slower-rural — the
+    # proportional view over-credits remote KEKs. We compute both per site so
+    # users can compare; the proportional value remains the default that
+    # drives action flags (geas_allocation_used = "proportional").
+    pre2030 = ruptl[ruptl["year"] <= RUPTL_PRE2030_END].copy()
+    region_supply_mwh = (
+        pre2030.groupby("grid_region_id")["plts_new_mw_re_base"].sum()
+        * HOURS_PER_YEAR
+        * REGION_CF_DEFAULT
+    ).to_dict()
+    region_demand_mwh = demand_yr.groupby("grid_region_id")["demand_mwh"].sum().to_dict()
+
+    def _empirical_alloc(row: pd.Series) -> float:
+        region = row.get("grid_region_id")
+        load_centre = REGION_LOAD_CENTRE_LATLON.get(region)
+        site_lat = row.get("latitude")
+        site_lon = row.get("longitude")
+        if load_centre is None or pd.isna(site_lat) or pd.isna(site_lon):
+            return 0.0
+        dist_km = haversine_km(float(site_lat), float(site_lon), load_centre[0], load_centre[1])
+        return geas_alloc_empirical(
+            green_energy_regional_mwh=region_supply_mwh.get(region, 0.0),
+            demand_kek_mwh=float(row.get("demand_mwh", 0)),
+            demand_total_region_mwh=region_demand_mwh.get(region, 0.0),
+            distance_to_load_centre_km=dist_km,
+            region=region,
+        )
+
+    demand_with_coords = demand_yr.merge(
+        dim_sites[["site_id", "latitude", "longitude"]], on="site_id", how="left"
+    )
+    demand_with_coords["geas_alloc_empirical_gwh"] = (
+        demand_with_coords.apply(_empirical_alloc, axis=1) / 1000.0
+    )
+    demand_with_coords["green_share_geas_empirical_pct"] = np.where(
+        demand_with_coords["demand_mwh"] > 0,
+        np.minimum(
+            1.0,
+            demand_with_coords["geas_alloc_empirical_gwh"]
+            * 1000
+            / demand_with_coords["demand_mwh"],
+        ),
+        0.0,
+    )
+    df = df.merge(
+        demand_with_coords[
+            ["site_id", "geas_alloc_empirical_gwh", "green_share_geas_empirical_pct"]
+        ],
+        on="site_id",
+        how="left",
+    )
+    # Surface the proportional-vs-empirical pair with explicit naming so users
+    # know which is which. Default `geas_allocation_used` = "proportional"; UI
+    # toggle (deferred to a follow-up) flips the action-flag basis.
+    df["geas_alloc_proportional_gwh"] = df["geas_alloc_mwh"].fillna(0) / 1000.0
+    df["green_share_geas_proportional_pct"] = df["green_share_geas"].fillna(0)
+    df["geas_alloc_empirical_gwh"] = df["geas_alloc_empirical_gwh"].fillna(0)
+    df["green_share_geas_empirical_pct"] = df["green_share_geas_empirical_pct"].fillna(0)
+    df["geas_allocation_used"] = "proportional"
 
     # 2030 demand — join for persona/dashboard use (PPA sizing, green share context)
     demand_2030 = demand_yr[["site_id", "demand_mwh"]].rename(
@@ -679,6 +751,12 @@ def build_fct_site_scorecard(
             "invest_resilience",
             "plan_late",
             "green_share_geas",
+            # F13 (2026-05-08): proportional vs empirical GEAS allocation
+            "geas_alloc_proportional_gwh",
+            "geas_alloc_empirical_gwh",
+            "green_share_geas_proportional_pct",
+            "green_share_geas_empirical_pct",
+            "geas_allocation_used",
             "pre2030_solar_mw",
             "post2030_share",
             "grid_upgrade_pre2030",
