@@ -10,7 +10,7 @@ import RooftopPotentialTable from '../table/RooftopPotentialTable';
 
 const TAB_ITEMS: { value: BottomTab; label: string }[] = [
   { value: 'table', label: 'Ranked Table' },
-  { value: 'rooftop', label: 'Solar Potential' },
+  { value: 'rooftop', label: 'Renewable Resource' },
   { value: 'ruptl', label: 'RUPTL Context' },
   { value: 'sector', label: 'Sector Summary' },
   { value: 'compare', label: 'Scenario Compare' },
