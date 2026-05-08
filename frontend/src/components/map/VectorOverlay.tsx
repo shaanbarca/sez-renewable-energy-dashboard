@@ -809,11 +809,39 @@ export default function VectorOverlay() {
               color: 'var(--text-primary)',
               fontSize: 11,
               lineHeight: 1.5,
+              minWidth: 160,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 2 }}>{subHover.name}</div>
-            {subHover.voltage && <div>{subHover.voltage}</div>}
-            {subHover.capacity_mva && <div>{subHover.capacity_mva} MVA</div>}
+            <div
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                color: 'var(--text-secondary)',
+                marginBottom: 2,
+              }}
+            >
+              Substation
+            </div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              {subHover.name || '—'}
+            </div>
+            {subHover.voltage && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Voltage</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {subHover.voltage}
+                </span>
+              </div>
+            )}
+            {subHover.capacity_mva && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Capacity</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {subHover.capacity_mva} MVA
+                </span>
+              </div>
+            )}
           </div>
         </Popup>
       )}
