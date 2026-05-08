@@ -20,6 +20,8 @@ const LAYER_ITEMS = [
   { name: 'captive_coal', label: 'Captive Coal Plants (GEM)' },
   { name: 'steel_plants', label: 'Steel Plants (GEM)' },
   { name: 'cement_plants', label: 'Cement Plants (GEM)' },
+  { name: 'geothermal_operating', label: 'Geothermal — Operating (PLTP)' },
+  { name: 'geothermal_pipeline', label: 'Geothermal — RUPTL Pipeline' },
 ] as const;
 
 const STYLE_KEYS = Object.keys(MAP_STYLES) as MapStyleKey[];

@@ -558,6 +558,23 @@ def enrich_captive_context(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, 
     else:
         out["has_captive_coal"] = False
         out["perpres_112_status"] = None
+
+    # F2: surface geothermal adjacency on the scorecard so the frontend can
+    # render the tier card + nearest-plant info. Source columns are merged into
+    # resource_df by data_loader from fct_geothermal_proximity.csv.
+    out["geothermal_adjacency_tier"] = _opt_str(k, "geothermal_adjacency_tier")
+    out["nearest_geothermal_operating_id"] = _opt_str(k, "nearest_geothermal_operating_id")
+    out["nearest_geothermal_operating_km"] = _opt_float(k, "nearest_geothermal_operating_km")
+    out["nearest_geothermal_operating_mw"] = _opt_float(k, "nearest_geothermal_operating_mw")
+    out["nearest_geothermal_operating_emission_factor_g_per_kwh"] = _opt_float(
+        k, "nearest_geothermal_operating_emission_factor_g_per_kwh"
+    )
+    out["nearest_geothermal_pipeline_id"] = _opt_str(k, "nearest_geothermal_pipeline_id")
+    out["nearest_geothermal_pipeline_km"] = _opt_float(k, "nearest_geothermal_pipeline_km")
+    out["nearest_geothermal_pipeline_mw"] = _opt_float(k, "nearest_geothermal_pipeline_mw")
+    out["nearest_geothermal_pipeline_target_year"] = _opt_int(
+        k, "nearest_geothermal_pipeline_target_year"
+    )
     return out
 
 

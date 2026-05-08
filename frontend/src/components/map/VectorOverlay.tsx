@@ -1282,6 +1282,125 @@ export default function VectorOverlay() {
           </div>
         </Popup>
       )}
+
+      {/* F2: Geothermal — Operating PLTPs.
+          Red ring (steam plumes vibe) so they read as "live dispatchable RE". */}
+      {layerVisibility.geothermal_operating &&
+        layers.geothermal_operating &&
+        !(layers.geothermal_operating as LayerData)._loading &&
+        (() => {
+          const points =
+            (layers.geothermal_operating as LayerData).points ?? layers.geothermal_operating;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                name?: string;
+                capacity_mw?: number;
+                emission_factor_g_per_kwh?: number;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  name: p.name ?? '',
+                  capacity_mw: p.capacity_mw ?? 0,
+                  ef: p.emission_factor_g_per_kwh ?? 0,
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-geothermal-operating" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-geothermal-operating-circles"
+                type="circle"
+                paint={{
+                  'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'capacity_mw'],
+                    0,
+                    4,
+                    100,
+                    6,
+                    400,
+                    9,
+                  ],
+                  'circle-color': '#E53935',
+                  'circle-stroke-color': '#FFCDD2',
+                  'circle-stroke-width': 1.2,
+                  'circle-opacity': 0.85,
+                }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* F2: Geothermal — RUPTL pipeline projects.
+          Hollow amber ring; pre-2030 brighter than post-2030 to telegraph
+          decision-horizon relevance at a glance. */}
+      {layerVisibility.geothermal_pipeline &&
+        layers.geothermal_pipeline &&
+        !(layers.geothermal_pipeline as LayerData)._loading &&
+        (() => {
+          const points =
+            (layers.geothermal_pipeline as LayerData).points ?? layers.geothermal_pipeline;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                name?: string;
+                capacity_mw?: number;
+                target_year?: number;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  name: p.name ?? '',
+                  capacity_mw: p.capacity_mw ?? 0,
+                  target_year: p.target_year ?? 0,
+                  is_pre2030: (p.target_year ?? 0) < 2030,
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-geothermal-pipeline" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-geothermal-pipeline-circles"
+                type="circle"
+                paint={{
+                  'circle-radius': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'capacity_mw'],
+                    0,
+                    4,
+                    100,
+                    6,
+                    400,
+                    9,
+                  ],
+                  'circle-color': 'rgba(0,0,0,0)',
+                  'circle-stroke-color': [
+                    'case',
+                    ['get', 'is_pre2030'],
+                    '#FFB300',
+                    '#9E9E9E',
+                  ],
+                  'circle-stroke-width': 2,
+                  'circle-opacity': 0.95,
+                }}
+              />
+            </Source>
+          );
+        })()}
     </>
   );
 }
