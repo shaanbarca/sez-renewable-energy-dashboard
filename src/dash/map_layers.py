@@ -147,6 +147,36 @@ def load_nickel_smelters() -> list[dict]:
     return results
 
 
+def _load_geothermal_geojson_points(path: Path) -> list[dict]:
+    """Internal helper: read a GeoJSON Point FeatureCollection into dicts."""
+    if not path.exists():
+        return []
+    with open(path) as f:
+        gj = json.load(f)
+    out: list[dict] = []
+    for feat in gj.get("features", []):
+        coords = (feat.get("geometry") or {}).get("coordinates") or []
+        if len(coords) < 2:  # noqa: PLR2004 — Point geometry needs [lon, lat]
+            continue
+        props = dict(feat.get("properties") or {})
+        out.append({"lon": float(coords[0]), "lat": float(coords[1]), **props})
+    return out
+
+
+def load_geothermal_operating() -> list[dict]:
+    """Load operating PLTPs (18 plants, 2,460 MW) for the map layer."""
+    return _load_geothermal_geojson_points(
+        REPO_ROOT / "data" / "raw" / "geothermal_operating.geojson"
+    )
+
+
+def load_geothermal_pipeline() -> list[dict]:
+    """Load RUPTL 2025-2034 pipeline PLTPs for the map layer."""
+    return _load_geothermal_geojson_points(
+        REPO_ROOT / "data" / "raw" / "geothermal_pipeline.geojson"
+    )
+
+
 def load_captive_coal() -> list[dict]:
     """Load GEM captive coal plant points from processed CSV.
 
@@ -844,6 +874,20 @@ def get_all_layers() -> dict:
     except Exception as e:
         print(f"    Cement plants: failed ({e})")
         layers["cement_plants"] = []
+
+    try:
+        layers["geothermal_operating"] = load_geothermal_operating()
+        print(f"    Geothermal (operating): {len(layers['geothermal_operating'])} points")
+    except Exception as e:
+        print(f"    Geothermal (operating): failed ({e})")
+        layers["geothermal_operating"] = []
+
+    try:
+        layers["geothermal_pipeline"] = load_geothermal_pipeline()
+        print(f"    Geothermal (pipeline): {len(layers['geothermal_pipeline'])} points")
+    except Exception as e:
+        print(f"    Geothermal (pipeline): failed ({e})")
+        layers["geothermal_pipeline"] = []
 
     _LAYERS_CACHE = layers
     return layers

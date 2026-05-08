@@ -126,11 +126,12 @@ def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, A
     overnight. This makes the wiki's Scenario 5 (solar+hydro+gas) and Scenario 6
     (solar+geothermal+battery) reachable from the cascade for the first time.
 
-    The new layer's coverage % and LCOE are read from `dispatchable_re_coverage_pct`
-    and `dispatchable_re_lcoe_usd_mwh` columns on `wb_row` / `gc_row`. These columns
-    are populated by F2 geothermal proximity matching (and v4.1b hydro extensions).
-    Until F2 ships, the columns don't exist → defensive reads return None → the layer
-    is a no-op for every site. Existing v4.0 behavior is preserved bit-identically.
+    The new layer's coverage % and LCOE come from `ctx.dispatchable_re_coverage_pct`
+    and `ctx.dispatchable_re_lcoe_usd_mwh`, populated in `build_site_context` from
+    the geothermal adjacency tier (F2) and — when v4.1b lands — hydro adjacency.
+    When `fct_geothermal_proximity.csv` hasn't been generated, the resource_df
+    merge is a no-op, the tier is None, and the translator returns (0.0, None) →
+    the layer cleanly degenerates to the v4.0 3-layer cascade.
 
     Daytime-portion approximation: f_disp_re·daytime_cap assumes uniform 24h dispatchable
     output, true for geothermal and approximately true for run-of-river hydro. The
@@ -158,21 +159,11 @@ def enrich_delivered_cost(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, A
     wb_lcoe = float(wb_lcoe_raw) if wb_lcoe_raw is not None and not pd.isna(wb_lcoe_raw) else None
     gc_lcoe = float(gc_lcoe_raw) if gc_lcoe_raw is not None and not pd.isna(gc_lcoe_raw) else None
 
-    # F1: dispatchable RE coverage / LCOE (populated by F2 geothermal + v4.1b hydro).
-    # Defensive reads — columns don't exist in v4.0; falls through to None → 0 contribution.
-    src_row = ctx.wb_row if ctx.wb_row is not None else ctx.gc_row
-    disp_re_cov_raw = src_row.get("dispatchable_re_coverage_pct") if src_row is not None else None
-    disp_re_lcoe_raw = src_row.get("dispatchable_re_lcoe_usd_mwh") if src_row is not None else None
-    disp_re_cov = (
-        float(disp_re_cov_raw)
-        if disp_re_cov_raw is not None and not pd.isna(disp_re_cov_raw) and disp_re_cov_raw > 0
-        else None
-    )
-    disp_re_lcoe = (
-        float(disp_re_lcoe_raw)
-        if disp_re_lcoe_raw is not None and not pd.isna(disp_re_lcoe_raw)
-        else None
-    )
+    # F1+F2: dispatchable RE coverage/LCOE come from the geothermal adjacency
+    # translator (and v4.1b hydro extension). When fct_geothermal_proximity isn't
+    # available, the translator returns (0.0, None) and this layer is a no-op.
+    disp_re_cov = ctx.dispatchable_re_coverage_pct if ctx.dispatchable_re_coverage_pct > 0 else None
+    disp_re_lcoe = ctx.dispatchable_re_lcoe_usd_mwh
 
     null_out = {
         "delivered_cost_usd_mwh": None,

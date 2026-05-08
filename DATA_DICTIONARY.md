@@ -46,6 +46,7 @@ Contract for the data pipeline. Three parts:
   - [3.10 fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv)
   - [3.11 fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv)
   - [3.12 fct_site_solar_potential](#312-outputsdataprocessedfct_site_solar_potentialcsv)
+  - [3.13 fct_geothermal_proximity](#313-outputsdataprocessedfct_geothermal_proximitycsv)
 - [Open Questions](#open-questions)
 
 ---
@@ -71,6 +72,7 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_captive_steel_summary](#39-outputsdataprocessedfct_captive_steel_summarycsv) | fact | variable | Per-site steel plant aggregation — dual-mode | `dim_sites` · GEM Steel Tracker | CBAM-exposed steel plants. EAF/BF-BOF technology, Chinese ownership. Feeds Industry tab + sector summary. | ✅ |
 | [fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv) | fact | variable | Per-site cement plant aggregation — dual-mode | `dim_sites` · GEM Cement Tracker | CBAM-exposed cement plants. High process emissions (0.52 tCO₂/t calcination). Feeds Industry tab + sector summary. | ✅ |
 | [fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv) | fact | 81 | Wind speed, capacity factor, and buildability per site (centroid + best 50km + buildable-area metrics) | `dim_sites` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_site_resource`. Answers "how much wind does each site get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
+| [fct_geothermal_proximity](#313-outputsdataprocessedfct_geothermal_proximitycsv) | fact | 81 | Nearest operating + pipeline PLTP per site, plus the adjacency tier that drives F1's Supply Blend dispatchable-RE layer | `dim_sites` · `data/raw/geothermal_operating.geojson` · `data/raw/geothermal_pipeline.geojson` | F2 (v4.0.5): activates the dispatchable-RE layer of the Supply Blend cascade for sites within reach of geothermal. Tier translator in `src/model/geothermal_adjacency.py` produces (coverage_pct, LCOE) inputs that F1 reads off `SiteContext`. | ✅ |
 
 ---
 
@@ -1074,6 +1076,33 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 **Multi-source merge:** GoB is primary (carries confidence score, feeds the §14 classifier). For each MS polygon, per-site STRtree finds overlapping GoB polygons; if max IoU > `MS_DEDUP_IOU_THRESHOLD = 0.5` (`src/assumptions.py`), the MS row is dropped; otherwise it's kept as net-new. Sites with no GoB rows but MS rows present (Cemindo Bayah, Pupuk Iskandar Muda, etc.) get full MS coverage. The `ms_gmlbf_reveals_buildings` info-tier flag in `eval_rooftop_accuracy.py` tracks which sites the multi-source path is materially helping. See METHODOLOGY §4A.7a.
 
 **Methodology:** see METHODOLOGY_CONSOLIDATED.md §4A and the v4.1 spec at `docs/rooftop_solar_potential_feature_spec.md`.
+
+---
+
+### 3.13 `outputs/data/processed/fct_geothermal_proximity.csv`
+
+**Rows:** 81 (one per site)
+**Built from:** `data/raw/geothermal_operating.geojson` (18 operating PLTPs, 2,460 MW) **+** `data/raw/geothermal_pipeline.geojson` (22 RUPTL 2025–2034 named projects, 2,191 MW) **+** `outputs/data/processed/dim_sites.csv`
+**Pipeline:** `build_fct_geothermal_proximity.py` (depends on `dim_sites`)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `site_id` | str | Site identifier (join key) |
+| `nearest_geothermal_operating_id` | str | ID of closest operating PLTP (e.g., `pltp_salak`) |
+| `nearest_geothermal_operating_km` | float | Haversine distance to nearest operating PLTP (km) |
+| `nearest_geothermal_operating_mw` | float | Capacity at that PLTP (MW) |
+| `nearest_geothermal_operating_emission_factor_g_per_kwh` | float | Per-plant NCG emissions (Wayang Windu 73, Kamojang 73, Ulubelu 43, default 50). Consumed by v4.1b CBAM Scope 2 correction (METHODOLOGY Appendix A). |
+| `nearest_geothermal_pipeline_id` | str | ID of closest RUPTL pipeline addition |
+| `nearest_geothermal_pipeline_km` | float | Haversine distance to that pipeline plant (km) |
+| `nearest_geothermal_pipeline_mw` | float | Capacity (MW) |
+| `nearest_geothermal_pipeline_target_year` | int | RUPTL-listed COD year (2026–2033) |
+| `geothermal_adjacency_tier` | str | `operating_within_50km` / `operating_within_200km` / `pipeline_within_200km_pre2030` / `pipeline_within_200km_post2030` / `none` |
+
+**Tier translator → F1 cascade.** `src/model/geothermal_adjacency.py::dispatchable_re_from_geothermal_tier()` converts the tier into the (`dispatchable_re_coverage_pct`, `dispatchable_re_lcoe_usd_mwh`) pair that activates F1's Supply Blend dispatchable-RE layer (METHODOLOGY §5.4): 30% / 15% / 10% / 0% coverage at $90/MWh (ESDM 2024 §1 fleet-mid PPA proxy). When the file is absent, the resource_df merge is a no-op and the cascade falls through to the v4.0 three-layer behaviour. See `docs/refinement/v4_0_dashboard_fixes_spec.md` §2.2 (Finding 2).
+
+**Tier distribution at v4.0.5 (81 sites):** `none` 38 / `operating_within_200km` 23 / `pipeline_within_200km_post2030` 10 / `operating_within_50km` 9 / `pipeline_within_200km_pre2030` 1.
+
+**Deferred:** `geothermal_transmission_feasibility` (same_island_connected / grid_first / cross_island_unconnected) lands when v4.1b adds the broader dispatchable-RE adjacency model — needs site/plant `regpln` plus `inter_substation_connected` from `fct_substation_proximity`.
 
 ---
 

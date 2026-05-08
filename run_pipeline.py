@@ -58,6 +58,7 @@ from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
 from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
 from src.pipeline.build_fct_captive_coal import build_captive_coal_summary
 from src.pipeline.build_fct_captive_nickel import build_captive_nickel_summary
+from src.pipeline.build_fct_geothermal_proximity import build_fct_geothermal_proximity
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
 from src.pipeline.build_fct_lcoe import build_fct_lcoe
 from src.pipeline.build_fct_lcoe_wind import build_fct_lcoe_wind
@@ -134,6 +135,12 @@ PIPELINE: list[Step] = [
         "fct_captive_nickel_summary",
         build_captive_nickel_summary,
         "fct_captive_nickel_summary.csv",
+        depends_on=["dim_sites"],
+    ),
+    Step(
+        "fct_geothermal_proximity",
+        build_fct_geothermal_proximity,
+        "fct_geothermal_proximity.csv",
         depends_on=["dim_sites"],
     ),
     # Stage 3: Computed

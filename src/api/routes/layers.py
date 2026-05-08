@@ -47,6 +47,8 @@ _POINT_LAYERS = {
     "captive_coal",
     "steel_plants",
     "cement_plants",
+    "geothermal_operating",
+    "geothermal_pipeline",
 }
 _GEOJSON_LAYERS = {
     "site_polygons",
