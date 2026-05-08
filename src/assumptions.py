@@ -623,6 +623,97 @@ WIND_LIFECYCLE_EF_TCO2_PER_MWH: float = 0.013
 # = 0.013 tCO2/MWh. Lower than solar because turbine steel + concrete amortize
 # over higher annual generation per nameplate kW.
 
+# ─── F8 (2026-05-08): Curtailment loss thresholds ────────────────────────────
+# §9.5's `firm_solar_coverage_pct` caps overproduction physically (limits
+# generation to daytime_demand) but doesn't *price* the curtailed energy. For
+# small-island grid-connected sites in low-demand regions (Maluku/Papua), the
+# local grid can't absorb the surplus and the curtailed MWh is real $/MWh
+# foregone. F8 adds a curtailment haircut to grid-connected scenario CFs.
+# Within-boundary captive bypasses curtailment (it's behind-the-meter — the
+# captive load takes whatever the panels make).
+
+CURTAILMENT_BROAD_GRID_DEFAULT_PCT: float = 0.05
+# Curtailment loss for sites on broad interconnected grids (Java, Sumatera) —
+# these have enough demand and inter-substation connectivity that surplus can
+# always find a load. Source: IEA SEA Outlook 2024 Figure 5.7.
+
+CURTAILMENT_LOW_OVERSUPPLY_PCT: float = 0.05
+# Solar generation < 50% of local grid demand → effectively no curtailment.
+
+CURTAILMENT_MID_OVERSUPPLY_PCT: float = 0.10
+# Solar 50-100% of local demand → ~10% curtailment as load follows daytime peak.
+
+CURTAILMENT_HIGH_OVERSUPPLY_PCT: float = 0.20
+# Solar 100-200% of local demand → ~20% curtailment, partial overproduction.
+
+CURTAILMENT_EXTREME_OVERSUPPLY_PCT: float = 0.35
+# Solar > 200% of local demand → ~35% curtailment. Maluku/Papua small-island
+# scenario where a large solar farm has nowhere to send midday surplus.
+
+CURTAILMENT_BROAD_GRID_BPP_THRESHOLD_USD_MWH: float = 100.0
+# Sites whose grid_region BPP is below this AND have inter_substation_connected
+# = True are treated as "on a broad grid" — curtailment defaults to
+# CURTAILMENT_BROAD_GRID_DEFAULT_PCT regardless of local oversupply ratio.
+
+CURTAILMENT_OVERSUPPLY_LOW_RATIO: float = 0.5
+CURTAILMENT_OVERSUPPLY_MID_RATIO: float = 1.0
+CURTAILMENT_OVERSUPPLY_HIGH_RATIO: float = 2.0
+# Tiered thresholds for solar_generation / local_grid_demand. See
+# estimate_curtailment_loss_pct() in basic_model.py.
+
+# ─── F13 (2026-05-08): GEAS empirical allocation multipliers ─────────────────
+# §11's proportional GEAS allocation (green_energy × demand_share) doesn't
+# match how PLN actually allocates green generation. Empirically, allocation
+# is urban-anchored and slower-rural — Java industrial customers get more than
+# their proportional share; remote eastern KEKs get less. F13 adds an
+# empirical scenario alongside the proportional baseline.
+
+REGION_GEAS_MULT: dict[str, float] = {
+    # Multiplier applied to proportional GEAS allocation under the empirical
+    # scenario. Calibrated against PLN's published 2024 generation-mix split
+    # by region: Java-Bali oversupplied with grid solar pipeline projects,
+    # Maluku/Papua undersupplied per land area + demand.
+    "JAVA_BALI": 1.2,
+    "SUMATERA": 1.0,
+    "BATAM": 1.0,  # Riau Islands grid connects via Sumatera; same multiplier
+    "KALIMANTAN": 0.7,
+    "SULAWESI": 0.6,
+    "NTB": 0.5,  # Lombok, scattered island grid
+    "MALUKU": 0.4,
+    "PAPUA": 0.4,
+}
+
+REGION_GEAS_MULT_DEFAULT: float = 0.7
+# Fallback for grid_region_ids not in REGION_GEAS_MULT (defensive).
+
+REGION_LOAD_CENTRE_LATLON: dict[str, tuple[float, float]] = {
+    # Approximate "load centre" coords per grid region — used by F13 empirical
+    # GEAS allocation to compute distance-decay. Picked as the largest
+    # industrial / urban consumer in each region; haversine to this point is a
+    # reasonable proxy for "how rural is this site relative to PLN's allocation
+    # pattern?". Refinement: derive from PLN substation MVA-weighted centroid.
+    "JAVA_BALI": (-6.20, 106.85),  # Jakarta
+    "SUMATERA": (3.59, 98.67),  # Medan
+    "BATAM": (1.07, 104.04),  # Batam (regional centre)
+    "KALIMANTAN": (-3.32, 114.59),  # Banjarmasin
+    "SULAWESI": (-5.13, 119.41),  # Makassar
+    "NTB": (-8.65, 116.32),  # Mataram
+    "MALUKU": (-3.65, 128.18),  # Ambon
+    "PAPUA": (-2.53, 140.72),  # Jayapura
+}
+
+GEAS_DISTANCE_DECAY_FLOOR: float = 0.4
+# Minimum value of the distance-decay factor — beyond ~500 km from a load
+# centre, allocation doesn't drop to zero (some baseline trickle persists).
+
+GEAS_DISTANCE_DECAY_NEAR_KM: float = 100.0
+# Within this distance from a load centre, distance-decay factor = 1.0
+# (no penalty). Source: PLN substation density studies, §11 footnote.
+
+GEAS_DISTANCE_DECAY_FAR_KM: float = 500.0
+# Beyond this distance, distance-decay factor = GEAS_DISTANCE_DECAY_FLOOR.
+# Linearly interpolates between NEAR and FAR.
+
 # ─── RUPTL ANALYSIS ───────────────────────────────────────────────────────────
 
 RUPTL_PRE2030_END: int = 2030

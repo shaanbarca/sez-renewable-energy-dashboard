@@ -1219,6 +1219,19 @@ storage_required_mwh = nighttime_demand / BESS_ROUND_TRIP_EFFICIENCY
 
 **Implementation:** `firm_solar_metrics()` in `basic_model.py`. Output fields: `firm_solar_coverage_pct`, `nighttime_demand_mwh`, `storage_required_mwh`, `storage_gap_pct`.
 
+### 9.5.2 Curtailment loss (F8, 2026-05-08)
+
+§9.5 caps overproduction *physically* (limits dispatchable solar to daytime demand) but doesn't price the curtailed energy. For grid-connected scenarios in low-demand regions (Maluku/Papua small-island grids) the curtailed MWh is real $/MWh foregone — the panels are built and paid for, but the surplus daytime energy can't find a load. F8 adds a `curtailment_loss_pct` per site applied as a CF haircut to the grid-connected scenario LCOE only. Within-boundary captive bypasses this layer — captive load is behind-the-meter and absorbs whatever the panels make.
+
+**Buckets** (`estimate_curtailment_loss_pct()` in `basic_model.py`):
+- **Broad-grid override** (5%): inter-substation connected AND grid_region BPP < $100/MWh — Java/Sumatera regional grids absorb surplus regardless of local oversupply.
+- **Oversupply < 0.5×** (5%): local demand far exceeds project size; effectively no curtailment.
+- **Oversupply 0.5–1.0×** (10%): solar load-following daytime peak.
+- **Oversupply 1.0–2.0×** (20%): partial midday overproduction with no export path.
+- **Oversupply > 2.0×** (35%): Maluku/Papua scenario. Large solar farm on a small-island grid, no path to broader system.
+
+Output fields on `fct_site_scorecard`: `curtailment_loss_pct`, `lcoe_grid_connected_pre_curtailment_usd_mwh` (pre-haircut LCOE for transparency). Sources: IEA SEA Outlook 2024 Figure 5.7 (regional curtailment under APS), Bali Energy Vision case study, Sumba MEG case study.
+
 ### 9.6 Wind supply coverage
 
 Same formula as solar supply coverage (§9.4), using wind buildability data:
@@ -1385,6 +1398,27 @@ Prioritizes zones with both high demand and high solar resource.
 - green_share < 30% -> captive solar is the only path to renewable coverage
 
 GEAS and captive solar are substitutes. The dashboard uses `green_share_geas` to determine which lever a KEK needs.
+
+### 11.B Empirical allocation alternative (F13, 2026-05-08)
+
+The proportional baseline above gives every site `green_energy × demand_share`. PLN's actual allocation pattern is urban-anchored and slower-rural — Java industrial customers get more than their pro-rata share, remote eastern KEKs get less. F13 surfaces both views so users can compare what *should* happen (proportional, equity baseline) vs what *likely will* happen (empirical, observed pattern).
+
+**Empirical formula** (`geas_alloc_empirical()` in `basic_model.py`):
+
+$$\text{GEAS}_{\text{empirical}}^{i} = E_{\text{green}}^{r} \times \frac{D^{i}}{D^{r}_{\text{total}}} \times \delta(d_i) \times \mu_r$$
+
+Where:
+- $\delta(d_i)$ — distance-decay factor: $1.0$ within 100 km of regional load centre, linearly down to floor of $0.4$ at 500 km.
+- $\mu_r$ — region multiplier: JAVA_BALI 1.2, SUMATERA / BATAM 1.0, KALIMANTAN 0.7, SULAWESI 0.6, NTB 0.5, MALUKU / PAPUA 0.4. Calibrated against PLN 2024 generation-mix split.
+
+**New columns** on `fct_site_scorecard`:
+- `geas_alloc_proportional_gwh` — existing baseline (renamed from `geas_alloc_mwh / 1000`)
+- `geas_alloc_empirical_gwh` — empirical alternative
+- `green_share_geas_proportional_pct` — existing
+- `green_share_geas_empirical_pct` — empirical share
+- `geas_allocation_used` — enum (`proportional` default; `empirical` flips action-flag basis when toggled)
+
+**Validation.** Remote eastern KEKs (Sorong, Morotai) show empirical 30–50%+ lower than proportional. Java sites near Jakarta show empirical roughly equal to or above proportional (1.2× JAVA_BALI multiplier compensates distance decay for sites within ~150 km).
 
 ---
 

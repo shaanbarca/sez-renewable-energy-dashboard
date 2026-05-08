@@ -35,10 +35,22 @@ from src.assumptions import (
     CAPEX_USD_PER_KW_MAX,
     CAPEX_USD_PER_KW_MIN,
     CONNECTION_COST_PER_KW_KM,
+    CURTAILMENT_BROAD_GRID_BPP_THRESHOLD_USD_MWH,
+    CURTAILMENT_BROAD_GRID_DEFAULT_PCT,
+    CURTAILMENT_EXTREME_OVERSUPPLY_PCT,
+    CURTAILMENT_HIGH_OVERSUPPLY_PCT,
+    CURTAILMENT_LOW_OVERSUPPLY_PCT,
+    CURTAILMENT_MID_OVERSUPPLY_PCT,
+    CURTAILMENT_OVERSUPPLY_HIGH_RATIO,
+    CURTAILMENT_OVERSUPPLY_LOW_RATIO,
+    CURTAILMENT_OVERSUPPLY_MID_RATIO,
     FIRMING_ADDER_HIGH_USD_MWH,
     FIRMING_ADDER_LOW_USD_MWH,
     FIRMING_ADDER_MID_USD_MWH,
     FIRMING_RELIABILITY_REQ_THRESHOLD,
+    GEAS_DISTANCE_DECAY_FAR_KM,
+    GEAS_DISTANCE_DECAY_FLOOR,
+    GEAS_DISTANCE_DECAY_NEAR_KM,
     GEAS_GREEN_SHARE_SOLAR_NOW_THRESHOLD,
     # V1 aliases — kept for backward compatibility
     GENTIE_COST_PER_KW_KM,
@@ -51,6 +63,8 @@ from src.assumptions import (
     PVOUT_ANNUAL_MAX,
     PVOUT_ANNUAL_MIN,
     REGION_CF_DEFAULT,
+    REGION_GEAS_MULT,
+    REGION_GEAS_MULT_DEFAULT,
     RESILIENCE_LCOE_GAP_THRESHOLD_PCT,
     RUPTL_PRE2030_END,
     SOLAR_DEGRADATION_ANNUAL_PCT,
@@ -144,6 +158,127 @@ def capacity_factor_from_pvout(pvout_kwh_per_kwp_yr: float) -> float:
         Capacity factor (0–1). Typical Indonesia solar: 0.17–0.21.
     """
     return float(pvout_kwh_per_kwp_yr) / HOURS_PER_YEAR
+
+
+def estimate_curtailment_loss_pct(
+    solar_generation_mwh: float,
+    local_grid_demand_mwh: float,
+    inter_substation_connected: bool,
+    grid_region_bpp_usd_mwh: float,
+) -> float:
+    """Estimate the fraction of grid-connected solar generation that gets curtailed.
+
+    Background (METHODOLOGY §9.5.2 — F8). §9.5's `firm_solar_coverage_pct` caps
+    overproduction *physically* (limits dispatchable solar to daytime demand)
+    but the curtailed energy still costs money to build. For grid-connected
+    scenarios in low-demand regions (Maluku/Papua) where local grids can't
+    absorb daytime surplus, that's a real $/MWh haircut. Within-boundary
+    captive bypasses curtailment because the load is behind-the-meter — the
+    captive offtaker takes whatever the panels make.
+
+    Logic (matches v4.0 fixes spec §3.4):
+      • Broad interconnected grid (inter-substation connected AND BPP <
+        threshold, i.e. Java/Sumatera) → flat 5% baseline. Surplus finds a
+        load somewhere in the system.
+      • Local grid sized for the project (oversupply < 0.5×) → 5%.
+      • Solar 50-100% of demand → 10%.
+      • Solar 100-200% of demand → 20%.
+      • Solar > 200% (small-island, large solar) → 35% (Maluku/Papua case).
+
+    Parameters
+    ----------
+    solar_generation_mwh:
+        Annual solar generation, MWh. Typically `cf × HOURS_PER_YEAR × MWp`.
+    local_grid_demand_mwh:
+        Annual demand on the local grid system the site connects into, MWh.
+        Use the grid_region demand sum, not just the site's own demand.
+    inter_substation_connected:
+        From `fct_substation_proximity` — does the site's solar substation
+        connect (geometrically or via PLN region) to the broader grid?
+    grid_region_bpp_usd_mwh:
+        Regional cost-of-supply ($/MWh) — used as a proxy for grid maturity.
+        Low BPP (<$100/MWh) signals dense, high-utilization grid; high BPP
+        signals diesel-dominant island grid with poor surplus absorption.
+
+    Returns
+    -------
+    float
+        Curtailment loss fraction in [0, 1]. Apply as
+        `effective_cf = cf × (1 - curtailment_loss_pct)`.
+
+    Sources
+    -------
+    - IEA SEA Outlook 2024 Figure 5.7 — regional curtailment under APS.
+    - Bali Energy Vision case study — VRE flexibility.
+    - Sumba MEG case study — small-island grid absorption limits.
+    """
+    if (
+        inter_substation_connected
+        and grid_region_bpp_usd_mwh < CURTAILMENT_BROAD_GRID_BPP_THRESHOLD_USD_MWH
+    ):
+        return CURTAILMENT_BROAD_GRID_DEFAULT_PCT
+
+    oversupply_ratio = solar_generation_mwh / max(local_grid_demand_mwh, 1.0)
+    if oversupply_ratio < CURTAILMENT_OVERSUPPLY_LOW_RATIO:
+        return CURTAILMENT_LOW_OVERSUPPLY_PCT
+    if oversupply_ratio < CURTAILMENT_OVERSUPPLY_MID_RATIO:
+        return CURTAILMENT_MID_OVERSUPPLY_PCT
+    if oversupply_ratio < CURTAILMENT_OVERSUPPLY_HIGH_RATIO:
+        return CURTAILMENT_HIGH_OVERSUPPLY_PCT
+    return CURTAILMENT_EXTREME_OVERSUPPLY_PCT
+
+
+def geas_alloc_empirical(
+    green_energy_regional_mwh: float,
+    demand_kek_mwh: float,
+    demand_total_region_mwh: float,
+    distance_to_load_centre_km: float,
+    region: str,
+) -> float:
+    """PLN-empirical GEAS allocation (METHODOLOGY §11.B — F13).
+
+    The proportional baseline (`geas_baseline_allocation`) gives every site
+    `green_energy × demand_share`. PLN's actual allocation is urban-anchored
+    and slower-rural — Java industrial tenants get more than their pro-rata
+    share, remote eastern KEKs get less. F13 surfaces both views so users
+    can see what *should* happen vs what *likely will* happen.
+
+    Formula:
+        empirical = green_energy
+                  × (demand_kek / demand_region)
+                  × distance_decay
+                  × region_multiplier
+
+      • distance_decay: 1.0 within `GEAS_DISTANCE_DECAY_NEAR_KM` (100 km),
+        linearly falling to `GEAS_DISTANCE_DECAY_FLOOR` (0.4) at
+        `GEAS_DISTANCE_DECAY_FAR_KM` (500 km).
+      • region_multiplier: from `REGION_GEAS_MULT` — 1.2 for JAVA_BALI down
+        to 0.4 for MALUKU / PAPUA.
+
+    Returns
+    -------
+    float
+        Empirical GEAS allocation in MWh. May be lower than proportional for
+        remote KEKs; ~equal for sites near load centres on Java.
+
+    Sources
+    -------
+    - PLN 2024 generation-mix split by region (urban vs. rural pattern).
+    - METHODOLOGY §11 footnote on substation density.
+    """
+    if demand_total_region_mwh <= 0:
+        return 0.0
+    proportional_share = demand_kek_mwh / demand_total_region_mwh
+
+    # Distance decay: linear interpolation between NEAR and FAR distance
+    # thresholds, floored at GEAS_DISTANCE_DECAY_FLOOR.
+    excess_km = max(0.0, distance_to_load_centre_km - GEAS_DISTANCE_DECAY_NEAR_KM)
+    span_km = GEAS_DISTANCE_DECAY_FAR_KM - GEAS_DISTANCE_DECAY_NEAR_KM
+    decay_drop = (1.0 - GEAS_DISTANCE_DECAY_FLOOR) * min(1.0, excess_km / span_km)
+    distance_decay = 1.0 - decay_drop
+
+    region_mult = REGION_GEAS_MULT.get(region, REGION_GEAS_MULT_DEFAULT)
+    return green_energy_regional_mwh * proportional_share * distance_decay * region_mult
 
 
 def wind_speed_to_cf(speed_ms: float) -> float:
