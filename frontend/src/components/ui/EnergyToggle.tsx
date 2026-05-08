@@ -1,3 +1,4 @@
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { EnergyMode } from '../../lib/types';
@@ -79,33 +80,83 @@ export default function EnergyToggle() {
   };
 
   return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-        style={{
-          color: 'var(--text-primary)',
-          background: open ? 'var(--selected-bg)' : 'var(--toggle-on-bg)',
-          border: `1px solid ${open ? 'var(--glass-border-bright)' : 'var(--glass-border-bright)'}`,
-        }}
-      >
-        <span>{activeLabel(energyMode)}</span>
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 12 12"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ opacity: 0.6 }}
+    <Tooltip.Provider delayDuration={300}>
+      <div className="flex items-center gap-1">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+          style={{
+            color: 'var(--text-primary)',
+            background: open ? 'var(--selected-bg)' : 'var(--toggle-on-bg)',
+            border: `1px solid ${open ? 'var(--glass-border-bright)' : 'var(--glass-border-bright)'}`,
+          }}
         >
-          <path d="M3 4.5L6 7.5L9 4.5" />
-        </svg>
-      </button>
+          <span>{activeLabel(energyMode)}</span>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ opacity: 0.6 }}
+          >
+            <path d="M3 4.5L6 7.5L9 4.5" />
+          </svg>
+        </button>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type="button"
+              aria-label="What is Source?"
+              className="cursor-help transition-colors"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                <text
+                  x="8"
+                  y="12"
+                  textAnchor="middle"
+                  fill="currentColor"
+                  fontSize="10"
+                  fontWeight="600"
+                >
+                  ?
+                </text>
+              </svg>
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="bottom"
+              sideOffset={8}
+              className="max-w-[260px] px-3 py-2 rounded text-xs leading-relaxed z-50"
+              style={{
+                background: 'var(--glass-heavy)',
+                backdropFilter: 'var(--blur-heavy)',
+                WebkitBackdropFilter: 'var(--blur-heavy)',
+                border: '1px solid var(--glass-border-bright)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <div className="font-medium mb-1">Renewable energy source</div>
+              <div style={{ color: 'var(--text-secondary)' }}>
+                Pick which technology drives the cost columns and map layers.
+                Single-source modes show one tech at a time. Hybrid sweeps the
+                optimal solar+wind mix; Overall picks the cheapest RE per site.
+              </div>
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+      </div>
 
       {open &&
         pos &&
@@ -194,6 +245,6 @@ export default function EnergyToggle() {
           </div>,
           document.body,
         )}
-    </>
+    </Tooltip.Provider>
   );
 }

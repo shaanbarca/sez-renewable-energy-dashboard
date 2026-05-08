@@ -21,6 +21,7 @@ export default function CostBasisToggle() {
 
   return (
     <Tooltip.Provider delayDuration={200}>
+      <div className="flex items-center gap-1">
       <ToggleGroup.Root
         type="single"
         value={costBasis}
@@ -86,6 +87,67 @@ export default function CostBasisToggle() {
           );
         })}
       </ToggleGroup.Root>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type="button"
+              aria-label="What is Cost basis?"
+              className="cursor-help transition-colors"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                <text
+                  x="8"
+                  y="12"
+                  textAnchor="middle"
+                  fill="currentColor"
+                  fontSize="10"
+                  fontWeight="600"
+                >
+                  ?
+                </text>
+              </svg>
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="bottom"
+              sideOffset={8}
+              className="max-w-[300px] px-3 py-2 rounded text-xs leading-relaxed z-50"
+              style={{
+                background: 'var(--glass-heavy)',
+                backdropFilter: 'var(--blur-heavy)',
+                WebkitBackdropFilter: 'var(--blur-heavy)',
+                border: '1px solid var(--glass-border-bright)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <div className="font-medium mb-1">Cost basis (IEA terminology)</div>
+              <div style={{ color: 'var(--text-secondary)' }}>
+                Picks which slice of the cost stack feeds the action grid:
+                <ul className="mt-1.5 space-y-0.5 list-none">
+                  <li>
+                    <span style={{ color: 'var(--text-primary)' }}>LCOE</span> —
+                    bare generation cost.
+                  </li>
+                  <li>
+                    <span style={{ color: 'var(--text-primary)' }}>24/7 LCOE</span>{' '}
+                    — generation + BESS firming (IEA: Full System LCOE).
+                  </li>
+                  <li>
+                    <span style={{ color: 'var(--text-primary)' }}>Supply Blend</span>{' '}
+                    — cascade of on-site, remote, and grid backfill (delivered cost).
+                  </li>
+                </ul>
+              </div>
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+      </div>
     </Tooltip.Provider>
   );
 }

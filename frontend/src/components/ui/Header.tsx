@@ -22,22 +22,6 @@ function GuideButton() {
   );
 }
 
-/** Tiny uppercase caption above a header control so users can see what axis
- *  it's on at a glance. Pairs with EnergyToggle ("Source") and CostBasisToggle
- *  ("Cost basis"). Visual style matches the LayerControl section headers. */
-function LabeledControl({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div
-        className="text-[9px] font-semibold uppercase tracking-wider"
-        style={{ color: 'var(--text-muted)', lineHeight: 1, paddingLeft: 4 }}
-      >
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
 
 export default function Header() {
   const scorecard = useDashboardStore((s) => s.scorecard);
@@ -67,12 +51,8 @@ export default function Header() {
           </h1>
           <ActionFlagLegend />
           <LayerControl />
-          <LabeledControl label="Source">
-            <EnergyToggle />
-          </LabeledControl>
-          <LabeledControl label="Cost basis">
-            <CostBasisToggle />
-          </LabeledControl>
+          <EnergyToggle />
+          <CostBasisToggle />
         </div>
 
         <div className="flex items-center gap-3">
