@@ -755,8 +755,16 @@ export default function VectorOverlay() {
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
-                  'icon-image': 'bolt-png',
-                  'icon-size': 0.55,
+                  // Try PNG first; fall back to canvas-rendered bolt-icon if
+                  // the PNG hasn't loaded yet. MapLibre's expression resolves
+                  // 'bolt-png' once registered, otherwise renders 'bolt-icon'
+                  // immediately. Both are yellow bolts at the same scale.
+                  'icon-image': [
+                    'coalesce',
+                    ['image', 'bolt-png'],
+                    ['image', 'bolt-icon'],
+                  ],
+                  'icon-size': 0.85,
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
