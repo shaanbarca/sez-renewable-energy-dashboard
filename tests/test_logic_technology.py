@@ -40,6 +40,7 @@ HYBRID_KEYS = {
     "hybrid_nighttime_coverage_pct",
     "hybrid_bess_reduction_pct",
     "hybrid_carbon_breakeven_usd_tco2",
+    "hybrid_wind_nighttime_fraction",
 }
 
 
@@ -117,3 +118,51 @@ def test_compute_hybrid_metrics_shape() -> None:
     )
     assert set(out.keys()) == HYBRID_KEYS
     assert 0.0 <= out["hybrid_solar_share"] <= 1.0
+
+
+def _hybrid_with_region(grid_region_id: str | None) -> dict:
+    return compute_hybrid_metrics(
+        solar_lcoe=60.0,
+        wind_lcoe=55.0,
+        solar_gen_mwh=500_000.0,
+        wind_gen_mwh=400_000.0,
+        primary_cf=0.18,
+        wind_cf_best=0.35,
+        solar_capacity_mwp=300.0,
+        wind_capacity_mwp=150.0,
+        demand_mwh=1_000_000.0,
+        assumptions=get_default_assumptions(),
+        grid_cost=100.0,
+        emission_factor=0.8,
+        grid_region_id=grid_region_id,
+    )
+
+
+def test_compute_hybrid_metrics_wind_nighttime_fraction_tiered() -> None:
+    """F3: wind nighttime fraction varies by grid_region_id."""
+    # NTT (sea-breeze): lowest nighttime fraction
+    ntt = _hybrid_with_region("NUSA_TENGGARA")
+    assert ntt["hybrid_wind_nighttime_fraction"] == 0.42
+    # Sulawesi
+    sul = _hybrid_with_region("SULAWESI")
+    assert sul["hybrid_wind_nighttime_fraction"] == 0.50
+    # Java + Sumatra (same value)
+    jav = _hybrid_with_region("JAVA_BALI")
+    sum_ = _hybrid_with_region("SUMATERA")
+    assert jav["hybrid_wind_nighttime_fraction"] == sum_["hybrid_wind_nighttime_fraction"] == 0.55
+    # Kalimantan: highest nighttime fraction (doldrums)
+    kal = _hybrid_with_region("KALIMANTAN")
+    assert kal["hybrid_wind_nighttime_fraction"] == 0.60
+    # Maluku/Papua + None: fall back to uniform 14/24 ≈ 0.583
+    pap = _hybrid_with_region("PAPUA")
+    none = _hybrid_with_region(None)
+    assert pap["hybrid_wind_nighttime_fraction"] == 14.0 / 24.0
+    assert none["hybrid_wind_nighttime_fraction"] == 14.0 / 24.0
+    # Ordering invariant: NTT < Sulawesi < Java/Sumatra < default < Kalimantan
+    assert (
+        ntt["hybrid_wind_nighttime_fraction"]
+        < sul["hybrid_wind_nighttime_fraction"]
+        < jav["hybrid_wind_nighttime_fraction"]
+        < none["hybrid_wind_nighttime_fraction"]
+        < kal["hybrid_wind_nighttime_fraction"]
+    )

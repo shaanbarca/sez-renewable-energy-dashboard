@@ -785,10 +785,25 @@ Each renewable technology is represented as an `RESource` dataclass:
 | `lcoe_usd_mwh` | float | Standalone LCOE | Standalone LCOE | Standalone LCOE |
 | `generation_mwh` | float | Annual generation | Annual generation | Annual generation |
 | `cf` | float | Capacity factor | Capacity factor | Capacity factor |
-| `nighttime_fraction` | float | 0.0 | 14/24 ≈ 0.583 | 1.0 (dispatchable) |
+| `nighttime_fraction` | float | 0.0 | tiered by region (see below) | 1.0 (dispatchable) |
 | `capacity_mwp` | float | Buildable capacity | Buildable capacity | Installed capacity |
 
-Solar has `nighttime_fraction = 0.0` (zero production at night). Wind uses `14/24` (conservative: assumes uniform CF across all hours, so 14 of 24 hours fall at night). Hydro will use `1.0` (fully dispatchable baseload).
+Solar has `nighttime_fraction = 0.0` (zero production at night). Hydro will use `1.0` (fully dispatchable baseload).
+
+**Wind nighttime fraction — tiered by region (F3, 2026-05-08).** The prior uniform `14/24 ≈ 0.583` value was structurally biased: too pessimistic for sea-breeze regions (NTT, Sulawesi) where afternoon wind strengthens, too generous for the equatorial-doldrums majority. The hybrid optimizer's "wind reduces BESS by X%" output was therefore biased.
+
+| Region (`grid_region_id`) | Nighttime fraction | Rationale |
+|---|---|---|
+| `NUSA_TENGGARA` | 0.42 | NTT sea-breeze: afternoon wind strengthens, less nighttime availability |
+| `SULAWESI` | 0.50 | Mixed sea-breeze + monsoon influence |
+| `JAVA_BALI` | 0.55 | Diurnal land-sea breeze with slight day-bias |
+| `SUMATERA` | 0.55 | Similar diurnal pattern to Java-Bali |
+| `KALIMANTAN` | 0.60 | Doldrums-dominated, some nighttime monsoon |
+| `MALUKU`, `PAPUA`, fallback | 0.583 | Uniform-distribution assumption (no tiered value) |
+
+**Calibration source.** Literature defaults for Southeast Asia: IEA Wind Annex 80 reanalysis benchmarks; Global Wind Atlas v3 mesoscale where licensed access is available. The mapping is implemented as `WIND_NIGHTTIME_FRACTION_BY_REGION` + `wind_nighttime_fraction_for(grid_region_id)` in `src/assumptions.py`. Threaded through `compute_hybrid_metrics` via `grid_region_id`; surfaced on the scorecard as `hybrid_wind_nighttime_fraction` for traceability.
+
+**Sensitivity.** A 0.1 shift in nighttime fraction maps to roughly a 1–3% shift in the optimal solar-share for sites with meaningful wind resource (CF > 0.20). Sites with CF < 0.15 see negligible impact because wind is already dominated by solar in the optimisation.
 
 ### 6A.3 Blended LCOE
 

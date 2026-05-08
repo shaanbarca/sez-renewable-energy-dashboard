@@ -863,6 +863,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `hybrid_nighttime_coverage_pct` | float | Live | Fraction of nighttime demand covered by wind. |
 | `hybrid_bess_reduction_pct` | float | Live | `1 - hybrid_bess_hours / 14`. 0% = no reduction, 100% = no BESS needed. |
 | `hybrid_carbon_breakeven_usd_tco2` | float | Live | Carbon price at which hybrid all-in beats grid cost. Same formula as solar (§9.2). |
+| `hybrid_wind_nighttime_fraction` | float | Live | F3, 2026-05-08. Region-tiered wind nighttime fraction used in this site's hybrid optimisation (NTT 0.42 → Kalimantan 0.60, default 0.583 for Maluku/Papua). See METHODOLOGY §6A.2. |
 
 **Data quality column:**
 

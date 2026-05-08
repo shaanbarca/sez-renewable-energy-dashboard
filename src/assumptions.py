@@ -532,9 +532,31 @@ HYBRID_OPTIMIZATION_STEP: float = 0.05
 # Solar share sweep granularity (5% = 21 evaluations per KEK).
 
 HYBRID_WIND_NIGHTTIME_FRACTION: float = 14.0 / 24.0
-# Conservative assumption: wind output is uniformly distributed across hours,
-# so the fraction available during solar's nighttime gap (14h/24h) = 0.583.
-# Future: replace with hourly TMY data when available.
+# Default uniform-distribution assumption (14h nighttime / 24h day = 0.583).
+# Used as fallback for regions without a tiered value (Maluku, Papua) and as
+# the explicit knob the optimizer can fall back on. The tiered values below
+# (F3, 2026-05-08) supersede this for the regions they cover.
+
+WIND_NIGHTTIME_FRACTION_BY_REGION: dict[str, float] = {
+    # F3 (2026-05-08): replace uniform 0.583 with region-specific fractions
+    # calibrated against literature defaults for SE Asia (IEA Wind Annex 80
+    # reanalysis benchmarks; Global Wind Atlas v3 mesoscale where available).
+    # See METHODOLOGY_CONSOLIDATED.md §6A.2 for calibration source detail.
+    "NUSA_TENGGARA": 0.42,  # NTT sea-breeze: afternoon wind strengthens
+    "SULAWESI": 0.50,  # Mixed sea-breeze + monsoon influence
+    "JAVA_BALI": 0.55,  # Diurnal land-sea breeze, slight day-bias
+    "SUMATERA": 0.55,  # Similar diurnal pattern to Java
+    "KALIMANTAN": 0.60,  # Doldrums-dominated, some nighttime monsoon
+    # MALUKU + PAPUA: no tiered value, falls back to HYBRID_WIND_NIGHTTIME_FRACTION
+}
+
+
+def wind_nighttime_fraction_for(grid_region_id: str | None) -> float:
+    """Return the regional wind nighttime fraction, or the uniform default."""
+    if grid_region_id and grid_region_id in WIND_NIGHTTIME_FRACTION_BY_REGION:
+        return WIND_NIGHTTIME_FRACTION_BY_REGION[grid_region_id]
+    return HYBRID_WIND_NIGHTTIME_FRACTION
+
 
 # ─── ACTION FLAG THRESHOLDS ───────────────────────────────────────────────────
 

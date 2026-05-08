@@ -553,6 +553,7 @@ def enrich_hybrid(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
         assumptions=ctx.assumptions,
         grid_cost=ctx.grid_cost,
         emission_factor=ctx.emission_factor,
+        grid_region_id=ctx.grid_region_id if isinstance(ctx.grid_region_id, str) else None,
     )
 
 
