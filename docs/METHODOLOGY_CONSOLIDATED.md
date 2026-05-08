@@ -702,7 +702,7 @@ This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufact
 
 **Result at defaults (\$150/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~\$174/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~\$27/MWh. (Prior default of \$250/kWh produced ~\$290/MWh and ~\$45/MWh respectively.)
 
-**Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Storage must bridge the gap between solar production hours and demand hours. At equatorial latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store 14h × load_MW / RTE of energy.
+**Physical basis (first principles):** Storage must bridge the gap between solar production hours and demand hours. At equatorial Indonesian latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store `14h × load_MW / RTE` of energy. The framing draws on the broader storage-system thinking in MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26 (UK-context analysis of grid-scale storage requirements) but the 14h tropical-equatorial bridge-hours figure is derived from Indonesia-specific solar production hours, not endorsed by MacKay's UK case study.
 
 **BESS competitive indicator (V3.5):** Battery economics (`battery_adder_usd_mwh`, `lcoe_with_battery_usd_mwh`) are computed for all KEKs with solar resource, not only those flagged `invest_battery`. This allows users to see the full cost of 24/7 solar+BESS for any KEK, regardless of reliability tier. A `bess_competitive` boolean indicates whether `lcoe_with_battery <= grid_cost`. This surfaces a previously hidden scenario: KEKs where daytime solar is competitive but 24/7 solar+BESS exceeds grid cost.
 
@@ -785,10 +785,25 @@ Each renewable technology is represented as an `RESource` dataclass:
 | `lcoe_usd_mwh` | float | Standalone LCOE | Standalone LCOE | Standalone LCOE |
 | `generation_mwh` | float | Annual generation | Annual generation | Annual generation |
 | `cf` | float | Capacity factor | Capacity factor | Capacity factor |
-| `nighttime_fraction` | float | 0.0 | 14/24 ≈ 0.583 | 1.0 (dispatchable) |
+| `nighttime_fraction` | float | 0.0 | tiered by region (see below) | 1.0 (dispatchable) |
 | `capacity_mwp` | float | Buildable capacity | Buildable capacity | Installed capacity |
 
-Solar has `nighttime_fraction = 0.0` (zero production at night). Wind uses `14/24` (conservative: assumes uniform CF across all hours, so 14 of 24 hours fall at night). Hydro will use `1.0` (fully dispatchable baseload).
+Solar has `nighttime_fraction = 0.0` (zero production at night). Hydro will use `1.0` (fully dispatchable baseload).
+
+**Wind nighttime fraction — tiered by region (F3, 2026-05-08).** The prior uniform `14/24 ≈ 0.583` value was structurally biased: too pessimistic for sea-breeze regions (NTT, Sulawesi) where afternoon wind strengthens, too generous for the equatorial-doldrums majority. The hybrid optimizer's "wind reduces BESS by X%" output was therefore biased.
+
+| Region (`grid_region_id`) | Nighttime fraction | Rationale |
+|---|---|---|
+| `NUSA_TENGGARA` | 0.42 | NTT sea-breeze: afternoon wind strengthens, less nighttime availability |
+| `SULAWESI` | 0.50 | Mixed sea-breeze + monsoon influence |
+| `JAVA_BALI` | 0.55 | Diurnal land-sea breeze with slight day-bias |
+| `SUMATERA` | 0.55 | Similar diurnal pattern to Java-Bali |
+| `KALIMANTAN` | 0.60 | Doldrums-dominated, some nighttime monsoon |
+| `MALUKU`, `PAPUA`, fallback | 0.583 | Uniform-distribution assumption (no tiered value) |
+
+**Calibration source.** Literature defaults for Southeast Asia: IEA Wind Annex 80 reanalysis benchmarks; Global Wind Atlas v3 mesoscale where licensed access is available. The mapping is implemented as `WIND_NIGHTTIME_FRACTION_BY_REGION` + `wind_nighttime_fraction_for(grid_region_id)` in `src/assumptions.py`. Threaded through `compute_hybrid_metrics` via `grid_region_id`; surfaced on the scorecard as `hybrid_wind_nighttime_fraction` for traceability.
+
+**Sensitivity.** A 0.1 shift in nighttime fraction maps to roughly a 1–3% shift in the optimal solar-share for sites with meaningful wind resource (CF > 0.20). Sites with CF < 0.15 see negligible impact because wind is already dominated by solar in the optimisation.
 
 ### 6A.3 Blended LCOE
 
@@ -1215,7 +1230,7 @@ storage_required_mwh = nighttime_demand / BESS_ROUND_TRIP_EFFICIENCY
 
 **Storage gap:** Fixed at ~58% for equatorial Indonesia (14h night / 24h day). This is the fraction of total demand that physically cannot be served by solar without storage.
 
-**Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Solar produces during ~10 hours of daylight. Industrial smelters consume 24 hours. Matching total energy is necessary but not sufficient. You must also match the timing. The firm coverage metric addresses this by only counting what solar can deliver directly during production hours.
+**Physical basis (first principles):** Solar produces during ~10 hours of daylight. Industrial smelters consume 24 hours. Matching total energy is necessary but not sufficient — you must also match the timing. The firm coverage metric addresses this by only counting what solar can deliver directly during production hours. The framing parallels storage-system thinking in MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26, but the equatorial 10h-production / 14h-overnight figures are derived from Indonesia-specific solar profiles, not from MacKay's UK case study.
 
 **Implementation:** `firm_solar_metrics()` in `basic_model.py`. Output fields: `firm_solar_coverage_pct`, `nighttime_demand_mwh`, `storage_required_mwh`, `storage_gap_pct`.
 

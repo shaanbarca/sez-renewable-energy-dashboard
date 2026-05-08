@@ -20,7 +20,7 @@ import pandas as pd
 from src.assumptions import (
     BESS_BRIDGE_HOURS_ENABLED,
     BESS_SIZING_HOURS,
-    HYBRID_WIND_NIGHTTIME_FRACTION,
+    wind_nighttime_fraction_for,
 )
 from src.dash.logic.assumptions import UserAssumptions, UserThresholds
 from src.model.basic_model import (
@@ -132,8 +132,15 @@ def compute_hybrid_metrics(  # noqa: PLR0913 — pure helper; kwarg-only for cla
     assumptions: UserAssumptions,
     grid_cost: float,
     emission_factor: float,
+    grid_region_id: str | None = None,
 ) -> dict:
-    """Optimal solar+wind mix + reduced-BESS all-in LCOE + hybrid carbon breakeven."""
+    """Optimal solar+wind mix + reduced-BESS all-in LCOE + hybrid carbon breakeven.
+
+    `grid_region_id` (F3, 2026-05-08): selects the region-specific wind
+    nighttime fraction. Falls back to uniform 0.583 when None or for
+    Maluku/Papua (no tiered value).
+    """
+    wind_nighttime_frac = wind_nighttime_fraction_for(grid_region_id)
     solar_source = RESource(
         technology="solar",
         lcoe_usd_mwh=float(solar_lcoe) if pd.notna(solar_lcoe) else np.nan,
@@ -147,7 +154,7 @@ def compute_hybrid_metrics(  # noqa: PLR0913 — pure helper; kwarg-only for cla
         lcoe_usd_mwh=float(wind_lcoe) if pd.notna(wind_lcoe) else np.nan,
         generation_mwh=wind_gen_mwh,
         cf=wind_cf_best,
-        nighttime_fraction=HYBRID_WIND_NIGHTTIME_FRACTION,
+        nighttime_fraction=wind_nighttime_frac,
         capacity_mwp=wind_capacity_mwp,
     )
     hybrid = hybrid_lcoe_optimized(
@@ -181,4 +188,5 @@ def compute_hybrid_metrics(  # noqa: PLR0913 — pure helper; kwarg-only for cla
         "hybrid_nighttime_coverage_pct": hybrid["hybrid_nighttime_coverage_pct"],
         "hybrid_bess_reduction_pct": reduction_pct,
         "hybrid_carbon_breakeven_usd_tco2": carbon_breakeven,
+        "hybrid_wind_nighttime_fraction": wind_nighttime_frac,
     }
