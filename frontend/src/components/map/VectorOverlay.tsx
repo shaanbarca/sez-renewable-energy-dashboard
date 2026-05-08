@@ -76,47 +76,65 @@ const STEEL_PATH = 'M2 18h20v2H2v-2zm1-2h18l-2-4H5L3 16zm4-6h10v2H7v-2zm2-4h6v2H
 const CEMENT_PATH = 'M4 20h16v-6H4v6zm2-14h2v6H6V6zm4 0h4v6h-4V6zm6 0h2v6h-2V6zM5 4h14v1H5V4z';
 
 /**
- * Geothermal icon — triangle (volcano peak) with three steam plumes rising.
- * Distinctly non-circular so it doesn't read like a site / plant marker.
- * `filled=false` produces a hollow outline (used for pipeline-stage projects).
+ * Geothermal icon — universal hot-springs glyph (semicircle "bowl" + 3 steam
+ * plumes rising). Same shape used on Japanese maps and ISO 9008 — instantly
+ * reads as "geothermal resource", clearly distinct from circular site markers.
+ *
+ * Renders at 2× the requested logical size and pairs with `pixelRatio: 2` on
+ * `map.addImage`, so the icon stays crisp on retina without the canvas rasterizer
+ * upsampling at draw time.
  */
 function createGeothermalIcon(color: string, size: number, filled: boolean): ImageData {
+  const PR = 2;
+  const px = size * PR;
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = px;
+  canvas.height = px;
   const ctx = canvas.getContext('2d')!;
+  ctx.scale(PR, PR);
   const s = size;
 
-  // Steam plumes (3 short squiggles, top third of icon)
+  // ── Steam plumes (3 wavy curls, top half) ────────────────────────────────
+  // Strokes use round caps + joins so the plumes don't terminate in jagged ends.
   ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1.4, s / 18);
+  ctx.lineWidth = Math.max(1.6, s / 14);
   ctx.lineCap = 'round';
-  for (let i = 0; i < 3; i++) {
-    const x = s * (0.32 + i * 0.18);
+  ctx.lineJoin = 'round';
+  const plumeYTop = s * 0.08;
+  const plumeYBottom = s * 0.5;
+  const plumeXs = [s * 0.28, s * 0.5, s * 0.72];
+  for (const x of plumeXs) {
     ctx.beginPath();
-    ctx.moveTo(x, s * 0.05);
-    ctx.bezierCurveTo(x - s * 0.04, s * 0.12, x + s * 0.04, s * 0.18, x, s * 0.27);
+    ctx.moveTo(x, plumeYBottom);
+    // S-curl: bend right then left as we rise
+    ctx.bezierCurveTo(
+      x + s * 0.08,
+      s * 0.4,
+      x - s * 0.08,
+      s * 0.25,
+      x,
+      plumeYTop,
+    );
     ctx.stroke();
   }
 
-  // Volcano peak triangle (lower two-thirds)
+  // ── Hot-springs "bowl" (semicircle, bottom third) ────────────────────────
   ctx.beginPath();
-  ctx.moveTo(s * 0.5, s * 0.32);
-  ctx.lineTo(s * 0.95, s * 0.92);
-  ctx.lineTo(s * 0.05, s * 0.92);
+  ctx.arc(s * 0.5, s * 0.62, s * 0.4, 0, Math.PI, false);
+  ctx.lineTo(s * 0.1, s * 0.62);
   ctx.closePath();
   if (filled) {
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.4;
     ctx.stroke();
   } else {
     ctx.strokeStyle = color;
-    ctx.lineWidth = Math.max(1.6, s / 14);
+    ctx.lineWidth = Math.max(1.8, s / 12);
     ctx.stroke();
   }
-  return ctx.getImageData(0, 0, size, size);
+  return ctx.getImageData(0, 0, px, px);
 }
 
 /**
@@ -646,20 +664,23 @@ export default function VectorOverlay() {
         map.addImage('cement-icon', createIconImage(CEMENT_PATH, '#78909C', 28), { sdf: false });
       }
       if (!map.hasImage('geo-op-icon')) {
-        map.addImage('geo-op-icon', createGeothermalIcon('#E53935', 32, true), { sdf: false });
+        map.addImage('geo-op-icon', createGeothermalIcon('#E53935', 32, true), {
+          sdf: false,
+          pixelRatio: 2,
+        });
       }
       if (!map.hasImage('geo-pipeline-pre2030-icon')) {
         map.addImage(
           'geo-pipeline-pre2030-icon',
           createGeothermalIcon('#FFB300', 32, false),
-          { sdf: false },
+          { sdf: false, pixelRatio: 2 },
         );
       }
       if (!map.hasImage('geo-pipeline-post2030-icon')) {
         map.addImage(
           'geo-pipeline-post2030-icon',
           createGeothermalIcon('#9E9E9E', 32, false),
-          { sdf: false },
+          { sdf: false, pixelRatio: 2 },
         );
       }
     };
@@ -1493,11 +1514,11 @@ export default function VectorOverlay() {
                     ['linear'],
                     ['get', 'capacity_mw'],
                     0,
-                    0.55,
-                    100,
                     0.7,
+                    100,
+                    0.85,
                     400,
-                    0.95,
+                    1.05,
                   ],
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
@@ -1566,11 +1587,11 @@ export default function VectorOverlay() {
                     ['linear'],
                     ['get', 'capacity_mw'],
                     0,
-                    0.55,
-                    100,
                     0.7,
+                    100,
+                    0.85,
                     400,
-                    0.95,
+                    1.05,
                   ],
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,

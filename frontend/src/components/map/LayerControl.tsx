@@ -4,25 +4,57 @@ import { MAP_STYLES } from '../../lib/constants';
 import type { MapStyleKey } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
-const LAYER_ITEMS = [
-  { name: 'substations', label: 'Substations (PLN)' },
-  { name: 'site_boundaries', label: 'Site Boundaries' },
-  { name: 'pvout', label: 'Solar Potential (PVOUT)' },
-  { name: 'wind', label: 'Wind Speed (100m)' },
-  { name: 'buildable_polygons', label: 'Solar Buildable Areas' },
-  { name: 'wind_buildable_polygons', label: 'Wind Buildable Areas' },
-  { name: 'rooftop_tiles', label: 'Rooftop Solar Tiles' },
-  { name: 'peatland', label: 'Peatland' },
-  { name: 'protected_forest', label: 'Protected Forest' },
-  { name: 'industrial', label: 'Industrial Facilities' },
-  { name: 'grid_lines', label: 'PLN Grid Lines' },
-  { name: 'nickel_smelters', label: 'Nickel Smelters (CGSP)' },
-  { name: 'captive_coal', label: 'Captive Coal Plants (GEM)' },
-  { name: 'steel_plants', label: 'Steel Plants (GEM)' },
-  { name: 'cement_plants', label: 'Cement Plants (GEM)' },
-  { name: 'geothermal_operating', label: 'Geothermal — Operating (PLTP)' },
-  { name: 'geothermal_pipeline', label: 'Geothermal — RUPTL Pipeline' },
-] as const;
+type LayerItem = { name: string; label: string; comingSoon?: boolean };
+
+const LAYER_SECTIONS: { title: string; items: readonly LayerItem[] }[] = [
+  {
+    title: 'Renewable resources',
+    items: [
+      { name: 'pvout', label: 'Solar potential (PVOUT)' },
+      { name: 'wind', label: 'Wind speed (100m)' },
+      { name: 'geothermal_operating', label: 'Geothermal — operating (PLTP)' },
+      { name: 'geothermal_pipeline', label: 'Geothermal — RUPTL pipeline' },
+      { name: 'hydro_operating', label: 'Hydro — operating', comingSoon: true },
+      { name: 'hydro_pipeline', label: 'Hydro — RUPTL pipeline', comingSoon: true },
+      { name: 'biomass', label: 'Biomass / waste-to-energy', comingSoon: true },
+    ],
+  },
+  {
+    title: 'Buildable land',
+    items: [
+      { name: 'buildable_polygons', label: 'Solar buildable areas' },
+      { name: 'wind_buildable_polygons', label: 'Wind buildable areas' },
+      { name: 'rooftop_tiles', label: 'Rooftop solar tiles' },
+    ],
+  },
+  {
+    title: 'Grid',
+    items: [
+      { name: 'substations', label: 'Substations (PLN)' },
+      { name: 'grid_lines', label: 'PLN grid lines' },
+    ],
+  },
+  {
+    title: 'Land use',
+    items: [
+      { name: 'site_boundaries', label: 'Site boundaries' },
+      { name: 'peatland', label: 'Peatland' },
+      { name: 'protected_forest', label: 'Protected forest' },
+    ],
+  },
+  {
+    title: 'Industrial demand',
+    items: [
+      { name: 'industrial', label: 'Industrial facilities' },
+      { name: 'nickel_smelters', label: 'Nickel smelters (CGSP)' },
+      { name: 'captive_coal', label: 'Captive coal plants (GEM)' },
+      { name: 'steel_plants', label: 'Steel plants (GEM)' },
+      { name: 'cement_plants', label: 'Cement plants (GEM)' },
+    ],
+  },
+];
+
+const LAYER_ITEMS = LAYER_SECTIONS.flatMap((s) => s.items.filter((i) => !i.comingSoon));
 
 const STYLE_KEYS = Object.keys(MAP_STYLES) as MapStyleKey[];
 
@@ -175,21 +207,59 @@ export default function LayerControl() {
                 </button>
               </div>
             </div>
-            <div className="space-y-1">
-              {LAYER_ITEMS.map(({ name, label }) => (
-                <label
-                  key={name}
-                  className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!layerVisibility[name]}
-                    onChange={() => toggleLayer(name)}
-                    className="accent-blue-500 w-3.5 h-3.5"
-                  />
-                  {label}
-                </label>
+            <div className="space-y-2.5">
+              {LAYER_SECTIONS.map((section) => (
+                <div key={section.title}>
+                  <div
+                    className="text-[9px] font-semibold uppercase tracking-wider mb-1"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {section.title}
+                  </div>
+                  <div className="space-y-1">
+                    {section.items.map(({ name, label, comingSoon }) =>
+                      comingSoon ? (
+                        <div
+                          key={name}
+                          title="Coming soon"
+                          className="flex items-center gap-2 text-xs py-0.5 cursor-not-allowed"
+                          style={{ color: 'var(--text-muted)', opacity: 0.55 }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={false}
+                            disabled
+                            className="w-3.5 h-3.5"
+                          />
+                          <span style={{ flex: 1 }}>{label}</span>
+                          <span
+                            className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded"
+                            style={{
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--text-muted)',
+                            }}
+                          >
+                            Soon
+                          </span>
+                        </div>
+                      ) : (
+                        <label
+                          key={name}
+                          className="flex items-center gap-2 cursor-pointer text-xs transition-colors py-0.5"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!layerVisibility[name]}
+                            onChange={() => toggleLayer(name)}
+                            className="accent-blue-500 w-3.5 h-3.5"
+                          />
+                          {label}
+                        </label>
+                      ),
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
 
