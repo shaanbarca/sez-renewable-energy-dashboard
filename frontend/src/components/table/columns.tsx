@@ -20,6 +20,13 @@ declare module '@tanstack/react-table' {
   interface FilterFns {
     inRange: FilterFn<unknown>;
   }
+  // First leaf column inside each col.group(...). DataTable.tsx reads this and
+  // adds a left border to header + data cells, so the section dividers travel
+  // all the way down through the rows.
+  interface ColumnMeta<TData, TValue> {
+    groupStart?: boolean;
+    _phantom?: [TData, TValue];
+  }
 }
 
 /* ---------- Column header tooltips ---------- */
@@ -113,8 +120,8 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 function GroupHeader({ label }: { label: string }) {
   return (
     <span
-      className="text-[9px] font-semibold uppercase tracking-wider"
-      style={{ color: 'var(--text-muted)' }}
+      className="text-[10px] font-semibold uppercase"
+      style={{ color: 'var(--text-secondary)', letterSpacing: '0.12em' }}
     >
       {label}
     </span>
@@ -345,6 +352,7 @@ export const columns = [
           />
         ),
         filterFn: 'inRange',
+        meta: { groupStart: true },
         cell: (info) => {
           const v = info.getValue();
           return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
@@ -391,6 +399,7 @@ export const columns = [
         header: () => (
           <HeaderWithTooltip label="Grid Integration" columnId="grid_integration_category" />
         ),
+        meta: { groupStart: true },
         cell: (info) => <GridIntegrationCell info={info} />,
       }),
       col.display({
@@ -439,6 +448,7 @@ export const columns = [
       col.accessor('dashboard_rate_usd_mwh', {
         header: () => <GridRateHeader />,
         filterFn: 'inRange',
+        meta: { groupStart: true },
         cell: (info) => <GridRateCell info={info} />,
       }),
       col.accessor('lcoe_mid_usd_mwh', {
@@ -493,8 +503,9 @@ export const columns = [
     columns: [
       col.display({
         id: 'industry',
-    header: () => <HeaderWithTooltip label="Industry" columnId="industry" />,
-    enableColumnFilter: true,
+        header: () => <HeaderWithTooltip label="Industry" columnId="industry" />,
+        enableColumnFilter: true,
+        meta: { groupStart: true },
     filterFn: (row, _columnId, filterValue: string) => {
       const r = row.original;
       const types: string[] = [];

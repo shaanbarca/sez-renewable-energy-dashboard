@@ -456,26 +456,40 @@ export default function DataTable() {
               const isGroupRow = hgIdx < hgArr.length - 1;
               return (
                 <tr key={hg.id}>
-                  {hg.headers.map((header) => {
+                  {hg.headers.map((header, colIdx) => {
                     const isPlaceholder = header.isPlaceholder;
                     const isGroupCell = isGroupRow && !isPlaceholder;
                     const colSpan = header.colSpan;
+                    // Section divider: a left border on this cell IF it begins a
+                    // new group. For group cells: any group cell after the first.
+                    // For leaf cells: the leaf marked with `meta.groupStart`.
+                    const isLeafGroupStart =
+                      !isGroupRow &&
+                      colIdx > 0 &&
+                      Boolean(header.column.columnDef.meta?.groupStart);
+                    const isGroupCellGroupStart = isGroupCell && colIdx > 0;
+                    const showLeftDivider = isLeafGroupStart || isGroupCellGroupStart;
                     return (
                       <th
                         key={header.id}
                         colSpan={colSpan > 1 ? colSpan : undefined}
-                        className={`text-left px-2 py-1.5 font-medium select-none overflow-visible ${
-                          isGroupCell || isPlaceholder ? '' : 'cursor-pointer'
-                        }`}
+                        className={`px-2 select-none overflow-visible ${
+                          isGroupCell ? 'py-2 text-center' : 'py-1.5 text-left font-medium'
+                        } ${isGroupCell || isPlaceholder ? '' : 'cursor-pointer'}`}
                         style={{
                           color: 'var(--text-secondary)',
                           borderBottom: isGroupCell
                             ? '1px solid var(--glass-border-bright)'
                             : '1px solid var(--tab-border)',
-                          borderLeft: isGroupCell
-                            ? '1px solid var(--glass-border)'
+                          borderLeft: showLeftDivider
+                            ? '1px solid var(--glass-border-bright)'
                             : undefined,
-                          background: isGroupCell ? 'var(--glass-heavy)' : undefined,
+                          background: isGroupCell
+                            ? 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
+                            : undefined,
+                          boxShadow: isGroupCell
+                            ? 'inset 0 -1px 0 rgba(255,255,255,0.04)'
+                            : undefined,
                         }}
                         onClick={
                           isGroupCell || isPlaceholder
@@ -484,7 +498,11 @@ export default function DataTable() {
                         }
                       >
                         {isPlaceholder ? null : (
-                          <span className="flex items-center gap-1">
+                          <span
+                            className={`items-center gap-1 ${
+                              isGroupCell ? 'inline-flex' : 'flex'
+                            }`}
+                          >
                             {flexRender(header.column.columnDef.header, header.getContext())}
                             {!isGroupCell &&
                               ({
@@ -505,20 +523,29 @@ export default function DataTable() {
                     filter cell aligns with its column, not its parent group header. */}
                 {table
                   .getHeaderGroups()
-                  [table.getHeaderGroups().length - 1].headers.map((header) => (
-                  <th
-                    key={`filter-${header.id}`}
-                    className="px-2 py-0.5"
-                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                  >
-                    {DROPDOWN_COLUMNS.has(header.column.id) && (
-                      <DropdownFilter column={header.column} data={data} />
-                    )}
-                    {RANGE_COLUMNS.has(header.column.id) && (
-                      <RangeFilter column={header.column} data={data} />
-                    )}
-                  </th>
-                ))}
+                  [table.getHeaderGroups().length - 1].headers.map((header, colIdx) => {
+                    const isGroupStart =
+                      colIdx > 0 && Boolean(header.column.columnDef.meta?.groupStart);
+                    return (
+                      <th
+                        key={`filter-${header.id}`}
+                        className="px-2 py-0.5"
+                        style={{
+                          borderBottom: '1px solid var(--border-subtle)',
+                          borderLeft: isGroupStart
+                            ? '1px solid var(--glass-border)'
+                            : undefined,
+                        }}
+                      >
+                        {DROPDOWN_COLUMNS.has(header.column.id) && (
+                          <DropdownFilter column={header.column} data={data} />
+                        )}
+                        {RANGE_COLUMNS.has(header.column.id) && (
+                          <RangeFilter column={header.column} data={data} />
+                        )}
+                      </th>
+                    );
+                  })}
               </tr>
             )}
           </thead>
@@ -533,18 +560,25 @@ export default function DataTable() {
                 }}
                 onClick={() => selectSite(row.original.site_id)}
               >
-                {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    className="px-2 py-1"
-                    style={{
-                      color: 'var(--text-primary)',
-                      borderBottom: '1px solid var(--tab-border)',
-                    }}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
+                {row.getVisibleCells().map((cell, colIdx) => {
+                  const isGroupStart =
+                    colIdx > 0 && Boolean(cell.column.columnDef.meta?.groupStart);
+                  return (
+                    <td
+                      key={cell.id}
+                      className="px-2 py-1"
+                      style={{
+                        color: 'var(--text-primary)',
+                        borderBottom: '1px solid var(--tab-border)',
+                        borderLeft: isGroupStart
+                          ? '1px solid var(--glass-border)'
+                          : undefined,
+                      }}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
