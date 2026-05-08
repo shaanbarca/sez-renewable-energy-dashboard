@@ -383,9 +383,16 @@ export default function VectorOverlay() {
       map.getCanvas().style.cursor = '';
       setSubHover(null);
     };
+    // Hover the BG layer (9px circle) — bigger hit area than the inner bolt
+    // symbol, so users can mouse anywhere on the visible marker to trigger
+    // the popup. Both layers receive events so the bolt still works.
+    map.on('mouseenter', 'overlay-substations-bg', onEnter);
+    map.on('mouseleave', 'overlay-substations-bg', onLeave);
     map.on('mouseenter', 'overlay-substations-symbol', onEnter);
     map.on('mouseleave', 'overlay-substations-symbol', onLeave);
     return () => {
+      map.off('mouseenter', 'overlay-substations-bg', onEnter);
+      map.off('mouseleave', 'overlay-substations-bg', onLeave);
       map.off('mouseenter', 'overlay-substations-symbol', onEnter);
       map.off('mouseleave', 'overlay-substations-symbol', onLeave);
     };
@@ -751,20 +758,30 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
+              {/* Solid dark backdrop so the bolt always reads against varied
+                  satellite imagery. Was previously rgba(20,20,28,0.85);
+                  bumped to fully opaque per UX feedback. */}
+              <Layer
+                id="overlay-substations-bg"
+                type="circle"
+                paint={{
+                  'circle-radius': 9,
+                  'circle-color': '#14141C',
+                  'circle-stroke-color': '#FFD600',
+                  'circle-stroke-width': 1.5,
+                  'circle-opacity': 1,
+                }}
+              />
               <Layer
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
-                  // Try PNG first; fall back to canvas-rendered bolt-icon if
-                  // the PNG hasn't loaded yet. MapLibre's expression resolves
-                  // 'bolt-png' once registered, otherwise renders 'bolt-icon'
-                  // immediately. Both are yellow bolts at the same scale.
                   'icon-image': [
                     'coalesce',
                     ['image', 'bolt-png'],
                     ['image', 'bolt-icon'],
                   ],
-                  'icon-size': 0.85,
+                  'icon-size': 0.4,
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
