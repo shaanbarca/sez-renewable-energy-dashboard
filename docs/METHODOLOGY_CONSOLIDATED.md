@@ -1154,7 +1154,7 @@ The carbon price at which solar becomes cost-competitive.
 
 **Warning:** These factors are 2019 vintage (7 years old as of April 2026). Indonesia's grid mix has shifted. Update when KESDM publishes newer factors.
 
-**Simplification:** Formula assumes zero solar lifecycle emissions. Actual: ~40 gCO2/MWh (IPCC AR6). Breakeven prices are ~5-8% too optimistic.
+**Lifecycle correction (F4, applied 2026-05-07):** Formula now subtracts the renewable's lifecycle EF from the grid EF in the denominator. IPCC AR6 medians: solar PV crystalline silicon = 0.040 tCO2/MWh, onshore wind = 0.013 tCO2/MWh. `carbon_breakeven_price()` accepts a `technology` parameter ("solar" default, "wind" for wind callers, "hybrid" → solar EF as conservative approximation). Effect: all 81 sites' carbon-breakeven values shift +5-8% (more conservative). Floor at 1e-3 tCO2/MWh on the denominator prevents division by zero in the hypothetical near-zero-grid-EF case. Constants in `src/assumptions.py::SOLAR_LIFECYCLE_EF_TCO2_PER_MWH` and `WIND_LIFECYCLE_EF_TCO2_PER_MWH`.
 
 ### 9.3 Flip scenario
 
@@ -1645,6 +1645,14 @@ For cement (0.9 MWh/t) and ammonia/fertilizer (10 MWh/t), `CBAM_ELECTRICITY_INTE
 Full derivation in [docs/cbam_sector_data_collection_plan.md](cbam_sector_data_collection_plan.md) §4.1.
 
 **Simplification:** The model assumes 100% electricity substitution to solar on the RE-addressable fraction. Partial substitution would scale savings proportionally. Hybrid heat strategies (electric kilns, green hydrogen SMR, green ammonia) that would raise the RE-addressable fraction over time are out of scope — the RE-addressable dict captures today's technology, not a 2040 decarbonized heat stack.
+
+**Scope 1 abatement pathway flags (F9, 2026-05-07).** The RE-addressable ceilings above are right for *today's* technology stack but read as static when they aren't. Green-H2 DRI can take BFBOF from 80% to ~90% relief; green-H2 SMR can take ammonia/fertilizer from 10% to ~50%; alt fuels + SCM substitution can take cement from 12% to ~30%; inert anodes (Elysis JV) and SCM can take aluminium higher. To prevent a misread of the static ceiling, every CBAM-exposed site now carries 3 qualitative pathway-availability fields:
+
+- `scope1_abatement_pathways` (str) — comma-separated pathway names per primary product. E.g. cement → `"alt_fuels,scm_substitution,electric_kiln"`, ammonia → `"green_h2_smr"`, BFBOF → `"hydrogen_dri,scrap_substitution"`, nickel RKEF → null (process chemistry can't be electrified).
+- `scope1_abatement_indicative_addressable_pct` (float) — additional Scope 1 fraction reachable via these pathways, sourced from IEA / IRENA / Mission Possible Partnership roadmaps. Cement 0.30 / ammonia 0.50 / BFBOF 0.70 / EAF 0.10 / aluminium 0.10 / nickel RKEF 0.0.
+- `scope1_abatement_methodology_note` (str) — flags that this is qualitative, not modelled. `"Indicative — full cost modeling deferred to v5.x..."`.
+
+**Cost is NOT modeled** — F9 surfaces pathway *availability*, not levelized cost. The frontend uses these flags to show a Scope 1 abatement badge in the Industry tab, signaling to the user "this product has a non-RE pathway you should be aware of." Full cost modeling (capex of green-H2 electrolyzers, alt-fuel kiln retrofit, etc.) is a v5.x sectoral decarbonization scope. Constants in `src/assumptions.py::SCOPE1_ABATEMENT_PATHWAYS_BY_PRODUCT`.
 
 ### 14.4 CBAM cost trajectory
 

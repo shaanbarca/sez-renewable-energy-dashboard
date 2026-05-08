@@ -1539,10 +1539,11 @@ class TestCarbonBreakevenPrice:
 
     def test_positive_gap_java_bali(self):
         # Batang-like: LCOE=66.2, grid=63.08, EF=0.87 tCO2/MWh
-        # gap = 3.12 / 0.87 = 3.586... → rounds to 3.6
+        # F4 (2026-05-07): subtracts solar lifecycle EF (0.04 tCO2/MWh) from grid EF.
+        # gap = 3.12 / (0.87 - 0.04) = 3.12 / 0.83 = 3.759 → 3.8
         result = carbon_breakeven_price(66.2, 63.08, 0.87)
         assert result is not None
-        assert math.isclose(result, round(3.12 / 0.87, 1), rel_tol=1e-3)
+        assert math.isclose(result, round(3.12 / (0.87 - 0.04), 1), rel_tol=1e-3)
 
     def test_zero_emission_factor_returns_none(self):
         assert carbon_breakeven_price(70.0, 63.08, 0.0) is None
@@ -1552,14 +1553,50 @@ class TestCarbonBreakevenPrice:
 
     def test_large_gap_sulawesi(self):
         # High LCOE tourism KEK, cleaner grid (Sulawesi 0.58)
-        # gap = 80.0 - 63.08 = 16.92 / 0.58 = 29.17 → 29.2
+        # F4: gap = 16.92 / (0.58 - 0.04) = 16.92 / 0.54 = 31.33 → 31.3
         result = carbon_breakeven_price(80.0, 63.08, 0.58)
         assert result is not None
-        assert math.isclose(result, round(16.92 / 0.58, 1), rel_tol=1e-3)
+        assert math.isclose(result, round(16.92 / (0.58 - 0.04), 1), rel_tol=1e-3)
 
     def test_result_is_float(self):
         result = carbon_breakeven_price(70.0, 63.08, 0.87)
         assert isinstance(result, float)
+
+    # ─── F4 (2026-05-07) tests: lifecycle EF correction ──────────────────────
+
+    def test_f4_solar_lifecycle_default(self):
+        """Default technology='solar' subtracts 0.040 tCO2/MWh (IPCC AR6 median)."""
+        # gap = 70 - 63.08 = 6.92; denominator = 0.87 - 0.04 = 0.83 → 6.92/0.83 = 8.337 → 8.3
+        result = carbon_breakeven_price(70.0, 63.08, 0.87)
+        assert result is not None
+        assert math.isclose(result, round(6.92 / 0.83, 1), rel_tol=1e-3)
+
+    def test_f4_wind_uses_lower_lifecycle_ef(self):
+        """Wind lifecycle is 0.013 tCO2/MWh — denominator is closer to grid EF."""
+        # Same gap, technology='wind': denominator = 0.87 - 0.013 = 0.857
+        # 6.92 / 0.857 = 8.075 → 8.1
+        result = carbon_breakeven_price(70.0, 63.08, 0.87, technology="wind")
+        assert result is not None
+        assert math.isclose(result, round(6.92 / (0.87 - 0.013), 1), rel_tol=1e-3)
+        # Wind's breakeven is LOWER than solar's at the same LCOE/grid_cost because
+        # wind's lifecycle subtracts less from the denominator.
+        assert result < carbon_breakeven_price(70.0, 63.08, 0.87, technology="solar")
+
+    def test_f4_lifecycle_floor_when_grid_ef_below_lifecycle(self):
+        """Hypothetical near-zero grid EF: max(grid_ef - lifecycle, 1e-3) prevents div-by-zero."""
+        # Grid EF = 0.020 < solar lifecycle 0.040. Floor at 1e-3.
+        # gap = 80 - 50 = 30, denominator = 1e-3 → 30 / 0.001 = 30000.0
+        result = carbon_breakeven_price(80.0, 50.0, 0.020)
+        assert result is not None
+        assert (
+            result >= 30000.0
+        )  # Astronomical — signals "the grid is already cleaner than the renewable's lifecycle"
+
+    def test_f4_unknown_technology_falls_back_to_solar(self):
+        """Defensive: unknown technology arg uses solar EF (conservative)."""
+        result_unknown = carbon_breakeven_price(70.0, 63.08, 0.87, technology="biomass")
+        result_solar = carbon_breakeven_price(70.0, 63.08, 0.87, technology="solar")
+        assert result_unknown == result_solar
 
 
 # ---------------------------------------------------------------------------

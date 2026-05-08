@@ -604,6 +604,25 @@ GRID_EMISSION_FACTOR_DEFAULT: float = 0.77
 # Source: Sumatera interconnected OM from KESDM 2019 (0.77 tCO2/MWh) — used as a
 # mid-range national default. All active KEK grid_region_ids are explicitly mapped above.
 
+# ─── F4 (2026-05-07): Renewable lifecycle emissions ──────────────────────────
+# Solar PV and wind generation are not zero-emission. Manufacturing the panels /
+# turbines, transporting them, building the plant, and end-of-life disposal all
+# carry embodied carbon. The carbon-breakeven calculation in
+# carbon_breakeven_price() previously assumed zero — biased breakeven prices
+# 5-8% optimistic. F4 corrects by subtracting lifecycle EF from grid EF in the
+# denominator: delta_ef = max(grid_ef − lifecycle_ef, 1e-3).
+
+SOLAR_LIFECYCLE_EF_TCO2_PER_MWH: float = 0.040
+# Source: IPCC AR6 Working Group III (2022), Annex III: Lifecycle GHG emission
+# factors. Median lifecycle for crystalline silicon solar PV = ~40 gCO2/kWh =
+# 0.040 tCO2/MWh. Range across LCAs: 30-60 gCO2/kWh; median is the central
+# estimate used here.
+
+WIND_LIFECYCLE_EF_TCO2_PER_MWH: float = 0.013
+# Source: IPCC AR6 Annex III. Median lifecycle for onshore wind = ~13 gCO2/kWh
+# = 0.013 tCO2/MWh. Lower than solar because turbine steel + concrete amortize
+# over higher annual generation per nameplate kW.
+
 # ─── RUPTL ANALYSIS ───────────────────────────────────────────────────────────
 
 RUPTL_PRE2030_END: int = 2030
@@ -756,6 +775,46 @@ CBAM_RE_ADDRESSABLE_FRACTION: dict[str, float] = {
     "ammonia": 0.10,  # Same as fertilizer — SMR gas is Scope 1 feedstock, not RE-addressable
     "cement": 0.12,  # 0.11 / 0.9 — kiln thermal dominates; only grinding + aux are electric
 }
+
+# ─── F9 (2026-05-07): Scope 1 abatement pathways ─────────────────────────────
+# The CBAM_RE_ADDRESSABLE_FRACTION constants above are right for *today's*
+# technology stack — what fraction of CBAM exposure can be addressed by RE
+# electricity alone. But green-H2 DRI, alt fuels, electric kilns, inert anodes,
+# and SCM substitution are emerging. Without flagging these, the dashboard
+# creates a false static-ceiling impression: cement at 12% relief looks
+# permanent when it's actually a ~30% additional Scope 1 pathway via alt fuels
+# + SCM that the dashboard doesn't model the cost of.
+#
+# These constants are QUALITATIVE pathway flags. They surface the existence
+# of a Scope 1 reduction path, not its cost. Full cost modeling deferred to
+# v5.x sectoral decarbonization release.
+
+SCOPE1_ABATEMENT_PATHWAYS_BY_PRODUCT: dict[str, tuple[str, float]] = {
+    # (comma-separated pathway names, indicative additional addressable fraction)
+    "cement": ("alt_fuels,scm_substitution,electric_kiln", 0.30),
+    "ammonia": ("green_h2_smr", 0.50),
+    "fertilizer": ("green_h2_smr", 0.50),
+    "steel_bfbof": ("hydrogen_dri,scrap_substitution", 0.70),
+    "steel_eaf": ("scrap_substitution", 0.10),
+    "aluminium": ("inert_anodes", 0.10),
+    "nickel_rkef": ("", 0.0),  # process chemistry can't be electrified
+}
+# Sources for the addressable fractions:
+#   cement 0.30: IEA Cement Roadmap 2018 — alt fuels (waste-derived) up to 30%
+#               of kiln thermal, SCM substitution up to 35-50% by clinker mass.
+#   ammonia/fertilizer 0.50: IRENA Innovation Outlook for Renewable Ammonia 2022.
+#   steel_bfbof 0.70: IEA Iron and Steel Roadmap 2020 — hydrogen DRI + scrap can
+#               displace ~70% of BF-BOF Scope 1 emissions long-term.
+#   steel_eaf 0.10: marginal upside via scrap quality + electrification.
+#   aluminium 0.10: inert anode tech still in pilot at Elysis JV (Rio Tinto / Alcoa).
+#   nickel_rkef 0.0: RKEF emissions are reductant chemistry (carbon needed to
+#                    reduce ore); not addressable without process change.
+
+SCOPE1_ABATEMENT_METHODOLOGY_NOTE: str = (
+    "Indicative — full cost modeling deferred to v5.x. Pathway availability is "
+    "qualitative; the dashboard does not model the levelized cost of these "
+    "abatement paths today."
+)
 
 # ─── SECTOR DEMAND & RELIABILITY (Industrial Parks Expansion) ────────────────
 
