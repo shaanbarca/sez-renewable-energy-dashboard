@@ -118,11 +118,13 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 /* ---------- Section header (Excel-style merged-cell label across the group) ---------- */
 
 function GroupHeader({ label }: { label: string }) {
-  // Notion-style: sentence case, normal weight, muted color, no uppercase or
-  // letter-spacing. Reads as a quiet structural label — the column row stays
-  // the dominant visual layer.
+  // Airtable-style: bold caps, slight letter-spacing, sat on a darker panel.
+  // The darker `<th>` background is set in DataTable.tsx based on isGroupCell.
   return (
-    <span className="text-[11px] font-normal" style={{ color: 'var(--text-secondary)' }}>
+    <span
+      className="text-[11px] font-semibold uppercase"
+      style={{ color: 'var(--text-secondary)', letterSpacing: '0.08em' }}
+    >
       {label}
     </span>
   );
