@@ -127,8 +127,8 @@ export default function LayerControl() {
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
         style={{
           color: open ? 'var(--text-primary)' : 'var(--text-secondary)',
-          background: open ? 'var(--selected-bg)' : 'transparent',
-          border: `1px solid ${open ? 'var(--glass-border-bright)' : 'transparent'}`,
+          background: open ? 'var(--selected-bg)' : 'var(--toggle-on-bg)',
+          border: `1px solid var(--glass-border-bright)`,
         }}
       >
         <svg

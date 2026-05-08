@@ -21,7 +21,12 @@ export default function CostBasisToggle() {
 
   return (
     <Tooltip.Provider delayDuration={200}>
-      <div className="flex items-center gap-1">
+      {/* Toggle group + `?` info button live in the SAME bordered shell so
+          the `?` reads as part of the control, not a floating sibling. */}
+      <div
+        className="flex items-stretch rounded-lg overflow-hidden border"
+        style={{ borderColor: 'var(--glass-border-bright)' }}
+      >
       <ToggleGroup.Root
         type="single"
         value={costBasis}
@@ -30,8 +35,7 @@ export default function CostBasisToggle() {
             setCostBasis(value as CostBasis);
           }
         }}
-        className="flex rounded-lg overflow-hidden border"
-        style={{ borderColor: 'var(--glass-border-bright)' }}
+        className="flex"
         aria-label="Cost view"
       >
         {options.map((opt) => {
@@ -92,8 +96,11 @@ export default function CostBasisToggle() {
             <button
               type="button"
               aria-label="What is Cost basis?"
-              className="cursor-help transition-colors"
-              style={{ color: 'var(--text-muted)' }}
+              className="cursor-help transition-colors flex items-center px-2"
+              style={{
+                color: 'var(--text-muted)',
+                borderLeft: '1px solid var(--glass-border)',
+              }}
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
             >

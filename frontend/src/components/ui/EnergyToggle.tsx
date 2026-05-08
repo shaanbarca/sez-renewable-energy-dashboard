@@ -10,6 +10,57 @@ type Option =
 
 type Section = { title: string; options: Option[] };
 
+/** Tiny inline SVG icons for the active-mode indicator inside the dropdown
+ *  trigger. Each is a 14×14 stroked glyph that reads at small size. */
+function ModeIcon({ mode }: { mode: EnergyMode }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: '0 0 16 16',
+    fill: 'none' as const,
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  switch (mode) {
+    case 'solar':
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="3" />
+          <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" />
+        </svg>
+      );
+    case 'wind':
+      return (
+        <svg {...common}>
+          <path d="M2 5h7a2 2 0 1 0-2-2M2 11h10a2 2 0 1 1-2 2M2 8h12a2 2 0 1 0-2-2" />
+        </svg>
+      );
+    case 'geothermal':
+      return (
+        <svg {...common}>
+          <path d="M5 9c0-2 2-2 2-4M8 9c0-2 2-2 2-4M11 9c0-2 2-2 2-4" />
+          <path d="M2 13h12" strokeWidth="2" />
+        </svg>
+      );
+    case 'hybrid':
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="8" r="3.5" />
+          <circle cx="10" cy="8" r="3.5" />
+        </svg>
+      );
+    case 'overall':
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="6" />
+          <circle cx="8" cy="8" r="2.5" fill="currentColor" />
+        </svg>
+      );
+  }
+}
+
 // Two sections — single-source modes and composite modes. "Soon" pills
 // telegraph the v4.1+ roadmap (mirrors the LayerControl pattern). Adding a
 // new RE source is a 1-line addition here, no UI rework needed.
@@ -79,20 +130,36 @@ export default function EnergyToggle() {
     setOpen(false);
   };
 
+  // Active mode determines which mode is "real" (not coming-soon) — only those
+  // get a leading icon. Soon-modes never become active.
+  const isRealMode = (
+    ['solar', 'wind', 'geothermal', 'hybrid', 'overall'] as EnergyMode[]
+  ).includes(energyMode);
+
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="flex items-center gap-1">
+      {/* Single bordered shell holding both the dropdown trigger and the `?`
+          info button, with a thin vertical separator between them. The `?` no
+          longer floats outside the chip. */}
+      <div
+        className="flex items-stretch rounded-lg overflow-hidden transition-colors"
+        style={{
+          background: open ? 'var(--selected-bg)' : 'var(--toggle-on-bg)',
+          border: `1px solid var(--glass-border-bright)`,
+        }}
+      >
         <button
           ref={buttonRef}
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-          style={{
-            color: 'var(--text-primary)',
-            background: open ? 'var(--selected-bg)' : 'var(--toggle-on-bg)',
-            border: `1px solid ${open ? 'var(--glass-border-bright)' : 'var(--glass-border-bright)'}`,
-          }}
+          className="flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap"
+          style={{ color: 'var(--text-primary)' }}
         >
+          {isRealMode && (
+            <span style={{ color: 'var(--accent)', display: 'inline-flex' }}>
+              <ModeIcon mode={energyMode} />
+            </span>
+          )}
           <span>{activeLabel(energyMode)}</span>
           <svg
             width="10"
@@ -113,8 +180,11 @@ export default function EnergyToggle() {
             <button
               type="button"
               aria-label="What is Source?"
-              className="cursor-help transition-colors"
-              style={{ color: 'var(--text-muted)' }}
+              className="cursor-help transition-colors flex items-center px-2"
+              style={{
+                color: 'var(--text-muted)',
+                borderLeft: '1px solid var(--glass-border)',
+              }}
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
             >
