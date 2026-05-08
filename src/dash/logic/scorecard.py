@@ -480,7 +480,9 @@ def enrich_wind(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
         round(wind_gen_gwh / demand_gwh, 3) if demand_gwh > 0 and wind_gen_gwh > 0 else None
     )
     out["wind_carbon_breakeven_usd_tco2"] = (
-        carbon_breakeven_price(wind_lcoe_val, ctx.grid_cost, ctx.emission_factor)
+        # F4: pass technology="wind" so lifecycle EF (0.013 tCO2/MWh) is used
+        # instead of solar's 0.040 in the denominator.
+        carbon_breakeven_price(wind_lcoe_val, ctx.grid_cost, ctx.emission_factor, technology="wind")
         if pd.notna(wind_lcoe_val) and ctx.emission_factor > 0
         else None
     )

@@ -18,6 +18,8 @@ from src.assumptions import (
     CBAM_FREE_ALLOCATION,
     CBAM_RE_ADDRESSABLE_FRACTION,
     CBAM_SCOPE1_TCO2_PER_TONNE,
+    SCOPE1_ABATEMENT_METHODOLOGY_NOTE,
+    SCOPE1_ABATEMENT_PATHWAYS_BY_PRODUCT,
 )
 from src.model.site_types import SITE_TYPES, SiteType
 
@@ -137,6 +139,10 @@ def compute_cbam_trajectory(
         for year in [2026, 2030, 2034]:
             out[f"cbam_cost_{year}_usd_per_tonne"] = None
             out[f"cbam_savings_{year}_usd_per_tonne"] = None
+        # F9: Scope 1 abatement flags — null for non-CBAM-exposed sites
+        out["scope1_abatement_pathways"] = None
+        out["scope1_abatement_indicative_addressable_pct"] = None
+        out["scope1_abatement_methodology_note"] = None
         return out
 
     grid_ef = grid_ef_t_co2_mwh or 0.8  # fallback: Indonesia avg
@@ -171,4 +177,20 @@ def compute_cbam_trajectory(
     for year in [2026, 2030, 2034]:
         out[f"cbam_cost_{year}_usd_per_tonne"] = primary[f"cost_{year}_usd_per_tonne"]
         out[f"cbam_savings_{year}_usd_per_tonne"] = primary[f"savings_{year}_usd_per_tonne"]
+
+    # F9 (2026-05-07): qualitative Scope 1 abatement pathway flags. Surfaces
+    # non-RE pathways (alt fuels, green-H2 DRI, electric kilns, SCM, inert
+    # anodes) so the dashboard's RE-addressable ceiling isn't read as a hard
+    # static limit. Cost modeling deferred to v5.x. Uses the PRIMARY product
+    # type's pathways — for sites with multiple CBAM products (rare), the
+    # primary type drives the badge. METHODOLOGY §14.2 / §14.3.
+    primary_type = cbam_types[0]
+    pathways, addressable_pct = SCOPE1_ABATEMENT_PATHWAYS_BY_PRODUCT.get(primary_type, ("", 0.0))
+    out["scope1_abatement_pathways"] = pathways if pathways else None
+    out["scope1_abatement_indicative_addressable_pct"] = (
+        round(addressable_pct, 2) if pathways else None
+    )
+    out["scope1_abatement_methodology_note"] = (
+        SCOPE1_ABATEMENT_METHODOLOGY_NOTE if pathways else None
+    )
     return out
