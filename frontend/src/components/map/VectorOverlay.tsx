@@ -729,17 +729,32 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
+              {/* Dark circle backdrop so the yellow bolt always reads against
+                  varied satellite imagery (sandy, green, urban). Without this
+                  the bolt blends into desert / built-up areas and users miss
+                  the layer entirely. */}
+              <Layer
+                id="overlay-substations-bg"
+                type="circle"
+                paint={{
+                  'circle-radius': 9,
+                  'circle-color': 'rgba(0,0,0,0.55)',
+                  'circle-stroke-color': '#FFD600',
+                  'circle-stroke-width': 1.2,
+                  'circle-opacity': 1,
+                }}
+              />
               <Layer
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
                   'icon-image': 'bolt-icon',
-                  'icon-size': 0.7,
+                  'icon-size': 0.95,
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
                 paint={{
-                  'icon-opacity': 0.85,
+                  'icon-opacity': 1,
                 }}
               />
             </Source>

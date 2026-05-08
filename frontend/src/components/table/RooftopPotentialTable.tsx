@@ -15,6 +15,7 @@ import { useDashboardStore } from '../../store/dashboard';
 
 type SortKey =
   | 'rooftop_mwp'
+  | 'captive_mwp'
   | 'building_count'
   | 'usable_area'
   | 'site_name'
@@ -194,6 +195,7 @@ export default function RooftopPotentialTable() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const selectedSite = useDashboardStore((s) => s.selectedSite);
   const selectSite = useDashboardStore((s) => s.selectSite);
+  const buildoutPct = useDashboardStore((s) => s.assumptions?.wb_buildout_footprint_ratio ?? 0.2);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: 'rooftop_mwp',
     dir: 'desc',
@@ -214,6 +216,11 @@ export default function RooftopPotentialTable() {
       if (k === 'rooftop_mwp') {
         return (
           ((a.rooftop_solar_mwp_potential ?? -1) - (b.rooftop_solar_mwp_potential ?? -1)) * dir
+        );
+      }
+      if (k === 'captive_mwp') {
+        return (
+          ((a.within_boundary_capacity_mwp ?? -1) - (b.within_boundary_capacity_mwp ?? -1)) * dir
         );
       }
       if (k === 'building_count') {
@@ -272,6 +279,10 @@ export default function RooftopPotentialTable() {
 
   const totalMwp = rows.reduce((acc, r) => acc + (r.rooftop_solar_mwp_potential ?? 0), 0);
   const totalBuildings = rows.reduce((acc, r) => acc + (r.building_count_standard_roof ?? 0), 0);
+  const totalCaptiveMwp = rows.reduce(
+    (acc, r) => acc + (r.within_boundary_capacity_mwp ?? 0) * buildoutPct,
+    0,
+  );
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -294,7 +305,9 @@ export default function RooftopPotentialTable() {
         <span>
           <strong style={{ color: 'var(--text-primary)' }}>{rows.length}</strong> sites with rooftop
           data · <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalMwp)}</strong> MWp
-          DC total ·{' '}
+          rooftop ·{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalCaptiveMwp)}</strong> MWp
+          captive (at {(buildoutPct * 100).toFixed(0)}% buildout) ·{' '}
           <strong style={{ color: 'var(--text-primary)' }}>
             {FORMAT_NUMBER.format(totalBuildings)}
           </strong>{' '}
@@ -347,6 +360,15 @@ export default function RooftopPotentialTable() {
                 onSort={onSort}
                 align="right"
                 tooltip="Total rooftop solar capacity from the §14 building classifier × layout density × panel power."
+              />
+              <SortHeader
+                label={`Captive MWp (${(buildoutPct * 100).toFixed(0)}%)`}
+                sortKey="captive_mwp"
+                active={sort.key}
+                dir={sort.dir}
+                onSort={onSort}
+                align="right"
+                tooltip={`Captive on-site solar (within-boundary buildable raster × ${(buildoutPct * 100).toFixed(0)}% buildout-availability slider). Empty for sites without a fence polygon.`}
               />
               <SortHeader
                 label="Std. rooftops"
@@ -418,6 +440,23 @@ export default function RooftopPotentialTable() {
                     }}
                   >
                     {formatMwp(row.rooftop_solar_mwp_potential)}
+                  </td>
+                  <td
+                    style={{
+                      padding: '6px 12px',
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      fontWeight: 500,
+                    }}
+                    title={
+                      row.within_boundary_capacity_mwp
+                        ? `Raw ${row.within_boundary_capacity_mwp.toFixed(1)} MWp × ${(buildoutPct * 100).toFixed(0)}% available`
+                        : 'No fence polygon — captive solar not modelled for this site'
+                    }
+                  >
+                    {row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0
+                      ? formatMwp(row.within_boundary_capacity_mwp * buildoutPct)
+                      : '—'}
                   </td>
                   <td
                     style={{
