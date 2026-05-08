@@ -92,10 +92,13 @@ export function defaultCostBasis(energyMode: EnergyMode): CostBasis {
   return energyMode === 'overall' ? 'firmed' : 'raw';
 }
 
-/** Human label shown in the toggle. Names each view by what's in the number. */
+/** Human label shown in the toggle. Tech-agnostic — the active source is
+ *  conveyed by the adjacent Mode dropdown, so the basis pills name only the
+ *  cost view. "24/7 LCOE" is what IEA calls Full System LCOE; we keep "24/7"
+ *  for user familiarity since the dashboard has used that term throughout. */
 export const COST_BASIS_LABELS: Record<CostBasis, string> = {
-  raw: 'Solar LCOE',
-  firmed: 'Solar 24/7',
+  raw: 'LCOE',
+  firmed: '24/7 LCOE',
   delivered: 'Supply Blend',
 };
 

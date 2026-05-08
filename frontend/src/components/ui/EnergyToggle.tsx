@@ -91,7 +91,6 @@ export default function EnergyToggle() {
           border: `1px solid ${open ? 'var(--glass-border-bright)' : 'var(--glass-border-bright)'}`,
         }}
       >
-        <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 400 }}>Mode</span>
         <span>{activeLabel(energyMode)}</span>
         <svg
           width="10"
