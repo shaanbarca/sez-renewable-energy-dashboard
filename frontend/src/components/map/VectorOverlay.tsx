@@ -826,7 +826,7 @@ export default function VectorOverlay() {
             <div style={{ fontWeight: 600, marginBottom: 4 }}>
               {subHover.name || '—'}
             </div>
-            {subHover.voltage && (
+            {subHover.voltage != null && subHover.voltage !== '' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Voltage</span>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -834,7 +834,7 @@ export default function VectorOverlay() {
                 </span>
               </div>
             )}
-            {subHover.capacity_mva && (
+            {subHover.capacity_mva != null && subHover.capacity_mva !== '' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Capacity</span>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>
