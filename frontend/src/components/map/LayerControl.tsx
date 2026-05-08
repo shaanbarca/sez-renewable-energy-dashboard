@@ -147,10 +147,12 @@ export default function LayerControl() {
         </svg>
         Layers
         <span
-          className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium min-w-[20px] text-center"
+          className="ml-0.5 px-1.5 rounded-full text-[10px] font-medium leading-none min-w-[20px] text-center"
           style={{
             background: activeCount > 0 ? 'var(--accent-muted)' : 'transparent',
             color: activeCount > 0 ? 'var(--accent)' : 'transparent',
+            paddingTop: 2,
+            paddingBottom: 2,
           }}
         >
           {activeCount}

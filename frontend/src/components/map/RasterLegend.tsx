@@ -42,11 +42,13 @@ export default function RasterLegend() {
         // it naturally sits below the Header regardless of Header height.
         // No magic top offset — eliminates the coupling that broke when
         // typography changes grew the header by a few pixels.
-        height: 32,
+        // 38px (was 32) — gives breathing room for 12px legend labels so
+        // users actually read what each colour means on the map.
+        height: 38,
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
-        padding: '0 14px',
+        gap: 16,
+        padding: '0 16px',
         // Darker glass — user flagged the header-bg value (3% white tint)
         // as too transparent against the dark map, text wasn't legible.
         // 0.85 alpha dark glass matches what we use on the V4 rail + pane.
@@ -61,13 +63,26 @@ export default function RasterLegend() {
     >
       {/* Raster gradients */}
       {visible.map(({ key, label, unit, min, max, gradient }, idx) => (
-        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {idx > 0 && <Divider />}
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
-          <div style={{ height: 5, width: 80, borderRadius: 2, background: gradient }} />
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {label}
+          </span>
+          <div style={{ height: 6, width: 88, borderRadius: 3, background: gradient }} />
           <span
             className="tnum"
-            style={{ fontSize: 9, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}
+            style={{
+              fontSize: 11,
+              color: 'var(--text-secondary)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
           >
             {min}–{max} {unit}
           </span>
@@ -123,17 +138,17 @@ function Swatch({
   dashed?: boolean;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
       <span
         style={{
-          width: 8,
-          height: 8,
-          borderRadius: dashed ? '50%' : 2,
+          width: 10,
+          height: 10,
+          borderRadius: dashed ? '50%' : 3,
           background: `${color}44`,
-          border: `1px ${dashed ? 'dashed' : 'solid'} ${color}`,
+          border: `1.5px ${dashed ? 'dashed' : 'solid'} ${color}`,
         }}
       />
-      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>
     </div>
   );
 }
