@@ -121,7 +121,7 @@ function GroupHeader({ label }: { label: string }) {
   return (
     <span
       className="text-[10px] font-semibold uppercase"
-      style={{ color: 'var(--text-secondary)', letterSpacing: '0.12em' }}
+      style={{ color: 'var(--text-muted)', letterSpacing: '0.12em' }}
     >
       {label}
     </span>

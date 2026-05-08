@@ -477,7 +477,9 @@ export default function DataTable() {
                           isGroupCell ? 'py-2 text-center' : 'py-1.5 text-left font-medium'
                         } ${isGroupCell || isPlaceholder ? '' : 'cursor-pointer'}`}
                         style={{
-                          color: 'var(--text-secondary)',
+                          // Hierarchy flip: group headers (structural) are muted;
+                          // leaf column headers (clickable) get the brighter text.
+                          color: isGroupCell ? 'var(--text-muted)' : 'var(--text-primary)',
                           borderBottom: isGroupCell
                             ? '1px solid var(--glass-border-bright)'
                             : '1px solid var(--tab-border)',
