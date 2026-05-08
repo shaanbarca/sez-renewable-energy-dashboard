@@ -76,6 +76,68 @@ const STEEL_PATH = 'M2 18h20v2H2v-2zm1-2h18l-2-4H5L3 16zm4-6h10v2H7v-2zm2-4h6v2H
 const CEMENT_PATH = 'M4 20h16v-6H4v6zm2-14h2v6H6V6zm4 0h4v6h-4V6zm6 0h2v6h-2V6zM5 4h14v1H5V4z';
 
 /**
+ * Geothermal icon — universal hot-springs glyph (semicircle "bowl" + 3 steam
+ * plumes rising). Same shape used on Japanese maps and ISO 9008 — instantly
+ * reads as "geothermal resource", clearly distinct from circular site markers.
+ *
+ * Renders at 2× the requested logical size and pairs with `pixelRatio: 2` on
+ * `map.addImage`, so the icon stays crisp on retina without the canvas rasterizer
+ * upsampling at draw time.
+ */
+function createGeothermalIcon(color: string, size: number, filled: boolean): ImageData {
+  const PR = 2;
+  const px = size * PR;
+  const canvas = document.createElement('canvas');
+  canvas.width = px;
+  canvas.height = px;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(PR, PR);
+  const s = size;
+
+  // ── Steam plumes (3 wavy curls, top half) ────────────────────────────────
+  // Strokes use round caps + joins so the plumes don't terminate in jagged ends.
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.6, s / 14);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const plumeYTop = s * 0.08;
+  const plumeYBottom = s * 0.5;
+  const plumeXs = [s * 0.28, s * 0.5, s * 0.72];
+  for (const x of plumeXs) {
+    ctx.beginPath();
+    ctx.moveTo(x, plumeYBottom);
+    // S-curl: bend right then left as we rise
+    ctx.bezierCurveTo(
+      x + s * 0.08,
+      s * 0.4,
+      x - s * 0.08,
+      s * 0.25,
+      x,
+      plumeYTop,
+    );
+    ctx.stroke();
+  }
+
+  // ── Hot-springs "bowl" (semicircle, bottom third) ────────────────────────
+  ctx.beginPath();
+  ctx.arc(s * 0.5, s * 0.62, s * 0.4, 0, Math.PI, false);
+  ctx.lineTo(s * 0.1, s * 0.62);
+  ctx.closePath();
+  if (filled) {
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.8, s / 12);
+    ctx.stroke();
+  }
+  return ctx.getImageData(0, 0, px, px);
+}
+
+/**
  * Renders toggled vector layers: substations, kek_polygons, peatland,
  * protected_forest, industrial. Each has different styling.
  */
@@ -161,6 +223,32 @@ interface CementHover {
   is_chinese_owned: boolean;
 }
 
+interface GeothermalOpHover {
+  longitude: number;
+  latitude: number;
+  name: string;
+  id: string;
+  capacity_mw: number;
+  year_commissioned: number;
+  province: string;
+  island: string;
+  operator: string;
+  emission_factor_g_per_kwh: number;
+}
+
+interface GeothermalPipelineHover {
+  longitude: number;
+  latitude: number;
+  name: string;
+  id: string;
+  capacity_mw: number;
+  target_year: number;
+  province: string;
+  island: string;
+  scenario: string;
+  confidence: string;
+}
+
 export default function VectorOverlay() {
   const layerVisibility = useDashboardStore((s) => s.layerVisibility);
   const layers = useDashboardStore((s) => s.layers);
@@ -200,6 +288,78 @@ export default function VectorOverlay() {
   const [coalHover, setCoalHover] = useState<CoalHover | null>(null);
   const [steelHover, setSteelHover] = useState<SteelHover | null>(null);
   const [cementHover, setCementHover] = useState<CementHover | null>(null);
+  const [geoOpHover, setGeoOpHover] = useState<GeothermalOpHover | null>(null);
+  const [geoPipelineHover, setGeoPipelineHover] = useState<GeothermalPipelineHover | null>(null);
+
+  // Geothermal operating PLTP hover handlers
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0];
+      if (feat) {
+        const coords = (feat.geometry as GeoJSON.Point).coordinates;
+        setGeoOpHover({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: (feat.properties?.name as string) ?? '',
+          id: (feat.properties?.id as string) ?? '',
+          capacity_mw: Number(feat.properties?.capacity_mw) || 0,
+          year_commissioned: Number(feat.properties?.year_commissioned) || 0,
+          province: (feat.properties?.province as string) ?? '',
+          island: (feat.properties?.island as string) ?? '',
+          operator: (feat.properties?.operator as string) ?? '',
+          emission_factor_g_per_kwh: Number(feat.properties?.emission_factor_g_per_kwh) || 0,
+        });
+      }
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      setGeoOpHover(null);
+    };
+    map.on('mouseenter', 'overlay-geothermal-operating-symbol', onEnter);
+    map.on('mouseleave', 'overlay-geothermal-operating-symbol', onLeave);
+    return () => {
+      map.off('mouseenter', 'overlay-geothermal-operating-symbol', onEnter);
+      map.off('mouseleave', 'overlay-geothermal-operating-symbol', onLeave);
+    };
+  }, [mapRef]);
+
+  // Geothermal pipeline (RUPTL) hover handlers
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0];
+      if (feat) {
+        const coords = (feat.geometry as GeoJSON.Point).coordinates;
+        setGeoPipelineHover({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: (feat.properties?.name as string) ?? '',
+          id: (feat.properties?.id as string) ?? '',
+          capacity_mw: Number(feat.properties?.capacity_mw) || 0,
+          target_year: Number(feat.properties?.target_year) || 0,
+          province: (feat.properties?.province as string) ?? '',
+          island: (feat.properties?.island as string) ?? '',
+          scenario: (feat.properties?.scenario as string) ?? '',
+          confidence: (feat.properties?.confidence as string) ?? '',
+        });
+      }
+    };
+    const onLeave = () => {
+      map.getCanvas().style.cursor = '';
+      setGeoPipelineHover(null);
+    };
+    map.on('mouseenter', 'overlay-geothermal-pipeline-symbol', onEnter);
+    map.on('mouseleave', 'overlay-geothermal-pipeline-symbol', onLeave);
+    return () => {
+      map.off('mouseenter', 'overlay-geothermal-pipeline-symbol', onEnter);
+      map.off('mouseleave', 'overlay-geothermal-pipeline-symbol', onLeave);
+    };
+  }, [mapRef]);
 
   // Substation hover handlers
   useEffect(() => {
@@ -502,6 +662,26 @@ export default function VectorOverlay() {
       }
       if (!map.hasImage('cement-icon')) {
         map.addImage('cement-icon', createIconImage(CEMENT_PATH, '#78909C', 28), { sdf: false });
+      }
+      if (!map.hasImage('geo-op-icon')) {
+        map.addImage('geo-op-icon', createGeothermalIcon('#E53935', 32, true), {
+          sdf: false,
+          pixelRatio: 2,
+        });
+      }
+      if (!map.hasImage('geo-pipeline-pre2030-icon')) {
+        map.addImage(
+          'geo-pipeline-pre2030-icon',
+          createGeothermalIcon('#FFB300', 32, false),
+          { sdf: false, pixelRatio: 2 },
+        );
+      }
+      if (!map.hasImage('geo-pipeline-post2030-icon')) {
+        map.addImage(
+          'geo-pipeline-post2030-icon',
+          createGeothermalIcon('#9E9E9E', 32, false),
+          { sdf: false, pixelRatio: 2 },
+        );
       }
     };
     if (map.isStyleLoaded()) {
@@ -1278,6 +1458,238 @@ export default function VectorOverlay() {
             )}
             {cementHover.is_chinese_owned && (
               <div style={{ color: '#FFAB40', fontSize: 10, marginTop: 2 }}>Chinese ownership</div>
+            )}
+          </div>
+        </Popup>
+      )}
+
+      {/* F2: Geothermal — Operating PLTPs.
+          Red ring (steam plumes vibe) so they read as "live dispatchable RE". */}
+      {layerVisibility.geothermal_operating &&
+        layers.geothermal_operating &&
+        !(layers.geothermal_operating as LayerData)._loading &&
+        (() => {
+          const points =
+            (layers.geothermal_operating as LayerData).points ?? layers.geothermal_operating;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                id?: string;
+                name?: string;
+                capacity_mw?: number;
+                year_commissioned?: number;
+                province?: string;
+                island?: string;
+                operator?: string;
+                emission_factor_g_per_kwh?: number;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  id: p.id ?? '',
+                  name: p.name ?? '',
+                  capacity_mw: p.capacity_mw ?? 0,
+                  year_commissioned: p.year_commissioned ?? 0,
+                  province: p.province ?? '',
+                  island: p.island ?? '',
+                  operator: p.operator ?? '',
+                  emission_factor_g_per_kwh: p.emission_factor_g_per_kwh ?? 0,
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-geothermal-operating" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-geothermal-operating-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': 'geo-op-icon',
+                  'icon-size': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'capacity_mw'],
+                    0,
+                    0.7,
+                    100,
+                    0.85,
+                    400,
+                    1.05,
+                  ],
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{ 'icon-opacity': 0.95 }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* F2: Geothermal — RUPTL pipeline projects.
+          Hollow amber ring; pre-2030 brighter than post-2030 to telegraph
+          decision-horizon relevance at a glance. */}
+      {layerVisibility.geothermal_pipeline &&
+        layers.geothermal_pipeline &&
+        !(layers.geothermal_pipeline as LayerData)._loading &&
+        (() => {
+          const points =
+            (layers.geothermal_pipeline as LayerData).points ?? layers.geothermal_pipeline;
+          if (!Array.isArray(points) || !points.length) return null;
+          const geojson = {
+            type: 'FeatureCollection' as const,
+            features: points.map(
+              (p: {
+                lat: number;
+                lon: number;
+                id?: string;
+                name?: string;
+                capacity_mw?: number;
+                target_year?: number;
+                province?: string;
+                island?: string;
+                scenario?: string;
+                confidence?: string;
+              }) => ({
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+                properties: {
+                  id: p.id ?? '',
+                  name: p.name ?? '',
+                  capacity_mw: p.capacity_mw ?? 0,
+                  target_year: p.target_year ?? 0,
+                  is_pre2030: (p.target_year ?? 0) < 2030,
+                  province: p.province ?? '',
+                  island: p.island ?? '',
+                  scenario: p.scenario ?? '',
+                  confidence: p.confidence ?? '',
+                },
+              }),
+            ),
+          };
+          return (
+            <Source id="overlay-geothermal-pipeline" type="geojson" data={geojson}>
+              <Layer
+                id="overlay-geothermal-pipeline-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': [
+                    'case',
+                    ['get', 'is_pre2030'],
+                    'geo-pipeline-pre2030-icon',
+                    'geo-pipeline-post2030-icon',
+                  ],
+                  'icon-size': [
+                    'interpolate',
+                    ['linear'],
+                    ['get', 'capacity_mw'],
+                    0,
+                    0.7,
+                    100,
+                    0.85,
+                    400,
+                    1.05,
+                  ],
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
+                paint={{ 'icon-opacity': 0.95 }}
+              />
+            </Source>
+          );
+        })()}
+
+      {/* F2: Geothermal operating-PLTP hover popup */}
+      {geoOpHover && (
+        <Popup
+          longitude={geoOpHover.longitude}
+          latitude={geoOpHover.latitude}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={14}
+          className="geothermal-popup"
+        >
+          <div
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: 11,
+              lineHeight: 1.5,
+              maxWidth: 240,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 3, color: '#E53935' }}>
+              {geoOpHover.name} PLTP
+            </div>
+            <div style={{ color: 'var(--text-secondary)' }}>
+              {geoOpHover.capacity_mw.toFixed(0)} MW · operating since {geoOpHover.year_commissioned}
+            </div>
+            {geoOpHover.operator && (
+              <div style={{ color: 'var(--text-muted)' }}>{geoOpHover.operator}</div>
+            )}
+            {geoOpHover.province && (
+              <div style={{ color: 'var(--text-muted)' }}>
+                {geoOpHover.province}
+                {geoOpHover.island ? ` · ${geoOpHover.island}` : ''}
+              </div>
+            )}
+            {geoOpHover.emission_factor_g_per_kwh > 0 && (
+              <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
+                NCG: {geoOpHover.emission_factor_g_per_kwh} g CO₂/kWh
+              </div>
+            )}
+          </div>
+        </Popup>
+      )}
+
+      {/* F2: Geothermal pipeline (RUPTL) hover popup */}
+      {geoPipelineHover && (
+        <Popup
+          longitude={geoPipelineHover.longitude}
+          latitude={geoPipelineHover.latitude}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={14}
+          className="geothermal-pipeline-popup"
+        >
+          <div
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: 11,
+              lineHeight: 1.5,
+              maxWidth: 240,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 600,
+                marginBottom: 3,
+                color: geoPipelineHover.target_year < 2030 ? '#FFB300' : '#9E9E9E',
+              }}
+            >
+              {geoPipelineHover.name}
+            </div>
+            <div style={{ color: 'var(--text-secondary)' }}>
+              {geoPipelineHover.capacity_mw.toFixed(0)} MW · target COD{' '}
+              {geoPipelineHover.target_year}
+            </div>
+            {geoPipelineHover.scenario && (
+              <div style={{ color: 'var(--text-muted)' }}>RUPTL {geoPipelineHover.scenario}</div>
+            )}
+            {geoPipelineHover.province && (
+              <div style={{ color: 'var(--text-muted)' }}>
+                {geoPipelineHover.province}
+                {geoPipelineHover.island ? ` · ${geoPipelineHover.island}` : ''}
+              </div>
+            )}
+            {geoPipelineHover.confidence === 'low' && (
+              <div style={{ color: '#FFAB40', fontSize: 10, marginTop: 2 }}>
+                Low-confidence location (aggregate)
+              </div>
             )}
           </div>
         </Popup>

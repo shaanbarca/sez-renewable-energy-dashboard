@@ -34,6 +34,120 @@ const RUPTL_STATUS_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+const GEOTHERMAL_TIER_LABELS: Record<string, string> = {
+  operating_within_50km: 'Operating PLTP within 50 km',
+  operating_within_200km: 'Operating PLTP within 200 km',
+  pipeline_within_200km_pre2030: 'RUPTL pipeline within 200 km (pre-2030)',
+  pipeline_within_200km_post2030: 'RUPTL pipeline within 200 km (post-2030)',
+  none: 'No reachable geothermal',
+};
+const GEOTHERMAL_TIER_COLORS: Record<string, string> = {
+  operating_within_50km: '#4CAF50',
+  operating_within_200km: '#8BC34A',
+  pipeline_within_200km_pre2030: '#FFB300',
+  pipeline_within_200km_post2030: '#9E9E9E',
+  none: '#666',
+};
+const GEOTHERMAL_TIER_IMPLICATIONS: Record<string, string> = {
+  operating_within_50km:
+    'Scenario 6 (solar+geothermal+battery) viable today — supply blend layer fills ~30% of demand at $90/MWh.',
+  operating_within_200km:
+    'Reachable with new transmission. Supply blend layer fills ~15% of demand at $90/MWh.',
+  pipeline_within_200km_pre2030:
+    'Targets COD before 2030. Supply blend layer fills ~10% once online.',
+  pipeline_within_200km_post2030:
+    'COD after 2030 — does not relieve a 2030 decarbonization decision.',
+  none: 'Solar + BESS or grid backfill only — no dispatchable RE layer.',
+};
+
+function GeothermalAdjacencyCard({ row }: { row: ScorecardRow }) {
+  const tier = row.geothermal_adjacency_tier ?? 'none';
+  const tierColor = GEOTHERMAL_TIER_COLORS[tier] ?? '#666';
+  const tierLabel = GEOTHERMAL_TIER_LABELS[tier] ?? 'Unknown';
+  const showOperating =
+    tier === 'operating_within_50km' || tier === 'operating_within_200km';
+  const showPipeline =
+    tier === 'pipeline_within_200km_pre2030' || tier === 'pipeline_within_200km_post2030';
+
+  return (
+    <StatCard>
+      <SectionHeader
+        title="Geothermal Adjacency"
+        subtitle="Dispatchable RE feeds the Supply Blend (delivered cost) cascade for sites within reach."
+      />
+      <div className="flex items-center gap-2 py-1">
+        <span
+          style={{
+            display: 'inline-block',
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: tierColor,
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontSize: 11, color: 'var(--text-primary)' }}>{tierLabel}</span>
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          lineHeight: 1.5,
+          color: 'var(--text-secondary)',
+          marginBottom: 4,
+        }}
+      >
+        {GEOTHERMAL_TIER_IMPLICATIONS[tier] ?? ''}
+      </div>
+      {showOperating && row.nearest_geothermal_operating_id && (
+        <>
+          <StatRow
+            label="Nearest PLTP"
+            value={formatSnakeLabel(row.nearest_geothermal_operating_id.replace(/^pltp_/, ''))}
+          />
+          <StatRow
+            label="Distance"
+            value={row.nearest_geothermal_operating_km?.toFixed(1)}
+            unit="km"
+          />
+          {row.nearest_geothermal_operating_mw != null && (
+            <StatRow label="Plant capacity" value={row.nearest_geothermal_operating_mw} unit="MW" />
+          )}
+          {row.nearest_geothermal_operating_emission_factor_g_per_kwh != null && (
+            <StatRowWithTip
+              label="NCG emissions"
+              value={row.nearest_geothermal_operating_emission_factor_g_per_kwh}
+              unit="g CO₂/kWh"
+              tip="Per-plant non-condensable-gas emission factor from ESDM 2024. Geothermal isn't truly zero-carbon — Indonesian PLTPs run 42–73 g/kWh (vs ~0 for solar)."
+            />
+          )}
+        </>
+      )}
+      {showPipeline && row.nearest_geothermal_pipeline_id && (
+        <>
+          <StatRow
+            label="Nearest pipeline project"
+            value={formatSnakeLabel(row.nearest_geothermal_pipeline_id.replace(/^pipeline_/, ''))}
+          />
+          <StatRow
+            label="Distance"
+            value={row.nearest_geothermal_pipeline_km?.toFixed(1)}
+            unit="km"
+          />
+          {row.nearest_geothermal_pipeline_mw != null && (
+            <StatRow label="Planned capacity" value={row.nearest_geothermal_pipeline_mw} unit="MW" />
+          )}
+          {row.nearest_geothermal_pipeline_target_year != null && (
+            <StatRow
+              label="Target COD"
+              value={String(row.nearest_geothermal_pipeline_target_year)}
+            />
+          )}
+        </>
+      )}
+    </StatCard>
+  );
+}
+
 export function GridTab({
   row,
   substations,
@@ -451,6 +565,11 @@ export function GridTab({
         )}
 
       {substations.length > 1 && <SubstationComparison substations={substations} />}
+
+      {/* F2: Geothermal adjacency — drives the dispatchable-RE layer in the
+          Supply Blend cascade (METHODOLOGY §5.4). Visible on every site so
+          users can see "no reachable geothermal" too — that absence is signal. */}
+      <GeothermalAdjacencyCard row={row} />
     </>
   );
 }
