@@ -118,15 +118,11 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 /* ---------- Section header (Excel-style merged-cell label across the group) ---------- */
 
 function GroupHeader({ label }: { label: string }) {
-  // Pattern from MUI X DataGrid / Stripe Dashboard / AG-Grid: group is smaller
-  // and lower-contrast than the column header below it. The column row is the
-  // interactive layer (sortable / filterable) — it should dominate. The group
-  // is supporting context.
+  // Notion-style: sentence case, normal weight, muted color, no uppercase or
+  // letter-spacing. Reads as a quiet structural label — the column row stays
+  // the dominant visual layer.
   return (
-    <span
-      className="text-[11px] font-medium uppercase"
-      style={{ color: 'var(--text-secondary)', letterSpacing: '0.06em' }}
-    >
+    <span className="text-[11px] font-normal" style={{ color: 'var(--text-secondary)' }}>
       {label}
     </span>
   );
