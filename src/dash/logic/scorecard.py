@@ -452,6 +452,18 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
     pvout_wb = kek.get("pvout_within_boundary")
     pvout_cent = kek.get("pvout_centroid")
     pvout_for_wb = pvout_wb if pd.notna(pvout_wb) else pvout_cent
+
+    # Captive solar potential — total solar that fits inside the site fence,
+    # summed across all buildable polygons. The map popup shows one polygon at
+    # a time; the Score Drawer needs the aggregate so users see the captive
+    # ceiling at a glance.
+    out["within_boundary_capacity_mwp"] = _round(float(wb_cap), 1) if pd.notna(wb_cap) else None
+    wb_area = kek.get("within_boundary_area_ha")
+    out["within_boundary_area_ha"] = _round(float(wb_area), 0) if pd.notna(wb_area) else None
+    out["within_boundary_avg_pvout"] = (
+        _round(float(pvout_for_wb), 0) if pd.notna(pvout_for_wb) else None
+    )
+
     if pd.notna(wb_cap) and pd.notna(pvout_for_wb):
         wb_gen_mwh = float(wb_cap) * float(pvout_for_wb)
         out["within_boundary_generation_gwh"] = _round(wb_gen_mwh / 1000)

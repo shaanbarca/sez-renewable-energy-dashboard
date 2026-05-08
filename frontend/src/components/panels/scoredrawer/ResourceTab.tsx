@@ -98,6 +98,58 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
         )}
       </StatCard>
 
+      {showSolar &&
+        row.within_boundary_capacity_mwp != null &&
+        row.within_boundary_capacity_mwp > 0 && (
+          <StatCard>
+            <SectionHeader
+              title="Captive Solar (on-site)"
+              subtitle="Total solar that fits inside the site fence — the buildable polygons aggregated."
+              tip="Sum of buildable areas inside the site polygon, sized at 1.5 ha/MWp. Click any green polygon on the map to inspect a single piece."
+            />
+            <StatRowWithTip
+              label="Captive Capacity"
+              value={row.within_boundary_capacity_mwp.toFixed(1)}
+              unit="MWp"
+              tip="Maximum solar capacity from buildable land inside the site fence. Behind-the-meter — no grid connection cost."
+            />
+            <StatRowWithTip
+              label="Buildable Area"
+              value={
+                row.within_boundary_area_ha != null
+                  ? row.within_boundary_area_ha.toFixed(0)
+                  : null
+              }
+              unit="ha"
+              tip="Total area within the site fence that passes slope / land-cover / peat / forest filters."
+            />
+            {row.within_boundary_avg_pvout != null && (
+              <StatRowWithTip
+                label="Avg PVOUT"
+                value={row.within_boundary_avg_pvout.toFixed(0)}
+                unit="kWh/kWp/yr"
+                tip="Mean solar resource over the buildable polygons inside the fence."
+              />
+            )}
+            {row.within_boundary_generation_gwh != null && (
+              <StatRowWithTip
+                label="Annual Generation"
+                value={row.within_boundary_generation_gwh.toFixed(0)}
+                unit="GWh/yr"
+                tip="Capacity × Avg PVOUT. The energy ceiling for fully-utilising captive solar at this site."
+              />
+            )}
+            {row.within_boundary_coverage_pct != null && (
+              <StatRowWithTip
+                label="Demand Coverage"
+                value={(row.within_boundary_coverage_pct * 100).toFixed(0)}
+                unit="%"
+                tip="Captive solar generation as a fraction of the site's 2030 demand. >100% means on-site solar over-produces vs the load."
+              />
+            )}
+          </StatCard>
+        )}
+
       <StatCard>
         <SectionHeader
           title="Buildable Land"
