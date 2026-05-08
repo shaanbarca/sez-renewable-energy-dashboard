@@ -452,32 +452,60 @@ export default function DataTable() {
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10" style={{ background: 'var(--glass-heavy)' }}>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
-                {hg.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="text-left px-2 py-1.5 font-medium cursor-pointer select-none overflow-visible"
-                    style={{
-                      color: 'var(--text-secondary)',
-                      borderBottom: '1px solid var(--tab-border)',
-                    }}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <span className="flex items-center gap-1">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {{
-                        asc: ' \u25B2',
-                        desc: ' \u25BC',
-                      }[header.column.getIsSorted() as string] ?? ''}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            ))}
+            {table.getHeaderGroups().map((hg, hgIdx, hgArr) => {
+              const isGroupRow = hgIdx < hgArr.length - 1;
+              return (
+                <tr key={hg.id}>
+                  {hg.headers.map((header) => {
+                    const isPlaceholder = header.isPlaceholder;
+                    const isGroupCell = isGroupRow && !isPlaceholder;
+                    const colSpan = header.colSpan;
+                    return (
+                      <th
+                        key={header.id}
+                        colSpan={colSpan > 1 ? colSpan : undefined}
+                        className={`text-left px-2 py-1.5 font-medium select-none overflow-visible ${
+                          isGroupCell || isPlaceholder ? '' : 'cursor-pointer'
+                        }`}
+                        style={{
+                          color: 'var(--text-secondary)',
+                          borderBottom: isGroupCell
+                            ? '1px solid var(--glass-border-bright)'
+                            : '1px solid var(--tab-border)',
+                          borderLeft: isGroupCell
+                            ? '1px solid var(--glass-border)'
+                            : undefined,
+                          background: isGroupCell ? 'var(--glass-heavy)' : undefined,
+                        }}
+                        onClick={
+                          isGroupCell || isPlaceholder
+                            ? undefined
+                            : header.column.getToggleSortingHandler()
+                        }
+                      >
+                        {isPlaceholder ? null : (
+                          <span className="flex items-center gap-1">
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {!isGroupCell &&
+                              ({
+                                asc: ' \u25B2',
+                                desc: ' \u25BC',
+                              }[header.column.getIsSorted() as string] ?? '')}
+                          </span>
+                        )}
+                      </th>
+                    );
+                  })}
+                </tr>
+              );
+            })}
             {showFilters && (
               <tr>
-                {table.getHeaderGroups()[0].headers.map((header) => (
+                {/* Filter row keys off the LEAF header group (last entry) so each
+                    filter cell aligns with its column, not its parent group header. */}
+                {table
+                  .getHeaderGroups()
+                  [table.getHeaderGroups().length - 1].headers.map((header) => (
                   <th
                     key={`filter-${header.id}`}
                     className="px-2 py-0.5"

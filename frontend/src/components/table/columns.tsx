@@ -108,6 +108,19 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
   );
 }
 
+/* ---------- Section header (Excel-style merged-cell label across the group) ---------- */
+
+function GroupHeader({ label }: { label: string }) {
+  return (
+    <span
+      className="text-[9px] font-semibold uppercase tracking-wider"
+      style={{ color: 'var(--text-muted)' }}
+    >
+      {label}
+    </span>
+  );
+}
+
 /* ---------- RE Assessment cell (2D: economic tier + infrastructure) ---------- */
 
 function ReAssessmentCell({ info }: { info: CellContext<ScorecardRow, ActionFlag> }) {
@@ -273,117 +286,213 @@ function InfrastructureReadinessCell({ info }: { info: CellContext<ScorecardRow,
 const col = createColumnHelper<ScorecardRow>();
 
 export const columns = [
-  col.accessor('site_name', {
-    header: () => <HeaderWithTooltip label="Site Name" columnId="site_name" />,
-    cell: (info) => info.getValue(),
+  col.group({
+    id: 'group_site',
+    header: () => <GroupHeader label="Site" />,
+    columns: [
+      col.accessor('site_name', {
+        header: () => <HeaderWithTooltip label="Site Name" columnId="site_name" />,
+        cell: (info) => info.getValue(),
+      }),
+      col.accessor('province', {
+        header: () => <HeaderWithTooltip label="Province" columnId="province" />,
+        cell: (info) => info.getValue(),
+      }),
+      col.accessor('site_type', {
+        header: () => <HeaderWithTooltip label="Site Type" columnId="site_type" />,
+        enableColumnFilter: true,
+        cell: (info) => {
+          const t = info.getValue() as SiteType | undefined;
+          const cfg = t ? SITE_TYPES[t] : undefined;
+          return cfg ? cfg.filterLabel : (t ?? '—');
+        },
+      }),
+      col.accessor('sector', {
+        header: () => <HeaderWithTooltip label="Sector" columnId="sector" />,
+        enableColumnFilter: true,
+        cell: (info) => {
+          const v = info.getValue();
+          return v ? capitalize(v as string) : '—';
+        },
+      }),
+      col.accessor('zone_classification', {
+        header: () => <HeaderWithTooltip label="Type" columnId="zone_classification" />,
+        cell: (info) => info.getValue() ?? '—',
+      }),
+      col.accessor('category', {
+        header: () => <HeaderWithTooltip label="Category" columnId="category" />,
+        cell: (info) => info.getValue() ?? '—',
+      }),
+      col.accessor('area_ha', {
+        header: () => <HeaderWithTooltip label="Area (ha)" columnId="area_ha" />,
+        filterFn: 'inRange',
+        cell: (info) => {
+          const v = info.getValue();
+          return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+        },
+      }),
+    ],
   }),
-  col.accessor('province', {
-    header: () => <HeaderWithTooltip label="Province" columnId="province" />,
-    cell: (info) => info.getValue(),
+  col.group({
+    id: 'group_resource',
+    header: () => <GroupHeader label="Renewable resource" />,
+    columns: [
+      col.accessor('regional_groundmount_potential_mwp_50km', {
+        header: () => (
+          <HeaderWithTooltip
+            label="Ground 50km (MWp)"
+            columnId="regional_groundmount_potential_mwp_50km"
+          />
+        ),
+        filterFn: 'inRange',
+        cell: (info) => {
+          const v = info.getValue();
+          return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+        },
+      }),
+      col.accessor('rooftop_solar_mwp_potential', {
+        header: () => (
+          <HeaderWithTooltip label="Rooftop (MWp)" columnId="rooftop_solar_mwp_potential" />
+        ),
+        filterFn: 'inRange',
+        cell: (info) => {
+          const v = info.getValue();
+          return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
+        },
+      }),
+      col.accessor('action_flag', {
+        header: () => <HeaderWithTooltip label="RE Assessment" columnId="action_flag" />,
+        cell: (info) => <ReAssessmentCell info={info} />,
+      }),
+      col.accessor('best_re_technology', {
+        header: () => <HeaderWithTooltip label="Best RE" columnId="best_re_technology" />,
+        cell: (info) => capitalize(info.getValue()),
+      }),
+      col.accessor('solar_supply_coverage_pct', {
+        header: () => (
+          <HeaderWithTooltip label="RE Coverage" columnId="solar_supply_coverage_pct" />
+        ),
+        filterFn: 'inRange',
+        cell: (info) => {
+          const val = info.getValue();
+          if (val == null) return '—';
+          const pct = val * 100;
+          const color = val >= 1.0 ? '#4CAF50' : val >= 0.5 ? '#FFC107' : '#F44336';
+          return <span style={{ color }}>{pct.toFixed(0)}%</span>;
+        },
+      }),
+    ],
   }),
-  col.accessor('site_type', {
-    header: () => <HeaderWithTooltip label="Site Type" columnId="site_type" />,
-    enableColumnFilter: true,
-    cell: (info) => {
-      const t = info.getValue() as SiteType | undefined;
-      const cfg = t ? SITE_TYPES[t] : undefined;
-      return cfg ? cfg.filterLabel : (t ?? '—');
-    },
+  col.group({
+    id: 'group_readiness',
+    header: () => <GroupHeader label="Grid readiness" />,
+    columns: [
+      col.accessor('grid_integration_category', {
+        header: () => (
+          <HeaderWithTooltip label="Grid Integration" columnId="grid_integration_category" />
+        ),
+        cell: (info) => <GridIntegrationCell info={info} />,
+      }),
+      col.display({
+        id: 'economic_tier',
+        header: () => <HeaderWithTooltip label="Econ. Tier" columnId="economic_tier" />,
+        enableColumnFilter: true,
+        filterFn: (row, _columnId, filterValue: string) => {
+          const { energyMode, costBasis } = useDashboardStore.getState();
+          const tier = getEffectiveEconomicTier(row.original, energyMode, costBasis);
+          return tier === filterValue;
+        },
+        cell: (info) => <EconomicTierCell info={info} />,
+      }),
+      col.display({
+        id: 'infrastructure_readiness',
+        header: () => (
+          <HeaderWithTooltip label="Infra Ready" columnId="infrastructure_readiness" />
+        ),
+        enableColumnFilter: true,
+        filterFn: (row, _columnId, filterValue: string) => {
+          const energyMode = useDashboardStore.getState().energyMode;
+          const infra = getEffectiveInfraReadiness(row.original, energyMode);
+          return infra === filterValue;
+        },
+        cell: (info) => <InfrastructureReadinessCell info={info} />,
+      }),
+      col.accessor('grid_investment_needed_usd', {
+        header: () => (
+          <HeaderWithTooltip label="Grid Invest ($M)" columnId="grid_investment_needed_usd" />
+        ),
+        filterFn: 'inRange',
+        cell: (info) => {
+          const v = info.getValue();
+          if (v == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+          const millions = v / 1_000_000;
+          const color = millions > 500 ? '#EF5350' : millions > 100 ? '#FFC107' : '#4CAF50';
+          return <span style={{ color }}>${millions.toFixed(0)}M</span>;
+        },
+      }),
+    ],
   }),
-  col.accessor('sector', {
-    header: () => <HeaderWithTooltip label="Sector" columnId="sector" />,
-    enableColumnFilter: true,
-    cell: (info) => {
-      const v = info.getValue();
-      return v ? capitalize(v as string) : '—';
-    },
+  col.group({
+    id: 'group_cost',
+    header: () => <GroupHeader label="Cost" />,
+    columns: [
+      col.accessor('dashboard_rate_usd_mwh', {
+        header: () => <GridRateHeader />,
+        filterFn: 'inRange',
+        cell: (info) => <GridRateCell info={info} />,
+      }),
+      col.accessor('lcoe_mid_usd_mwh', {
+        header: () => <HeaderWithTooltip label="Solar LCOE" columnId="lcoe_mid_usd_mwh" />,
+        filterFn: 'inRange',
+        cell: (info) => info.getValue().toFixed(1),
+      }),
+      col.accessor('lcoe_wind_mid_usd_mwh', {
+        header: () => <HeaderWithTooltip label="Wind LCOE" columnId="lcoe_wind_mid_usd_mwh" />,
+        filterFn: 'inRange',
+        cell: (info) => {
+          const v = info.getValue();
+          return v != null ? v.toFixed(1) : '—';
+        },
+      }),
+      col.accessor('delivered_cost_usd_mwh', {
+        header: () => (
+          <HeaderWithTooltip label="Supply Blend" columnId="delivered_cost_usd_mwh" />
+        ),
+        filterFn: 'inRange',
+        cell: (info) => <DeliveredCostCell info={info} />,
+      }),
+      col.accessor('solar_competitive_gap_pct', {
+        header: () => (
+          <HeaderWithTooltip label="LCOE Gap (%)" columnId="solar_competitive_gap_pct" />
+        ),
+        sortingFn: (rowA, rowB) => {
+          const { energyMode, costBasis } = useDashboardStore.getState();
+          const a = getEffectiveGapPct(rowA.original, energyMode, costBasis);
+          const b = getEffectiveGapPct(rowB.original, energyMode, costBasis);
+          if (a == null && b == null) return 0;
+          if (a == null) return 1;
+          if (b == null) return -1;
+          return a - b;
+        },
+        filterFn: (row, _columnId, value: [number | '', number | '']) => {
+          const { energyMode, costBasis } = useDashboardStore.getState();
+          const v = getEffectiveGapPct(row.original, energyMode, costBasis);
+          if (v == null) return true;
+          const [lo, hi] = value;
+          if (lo !== '' && v < lo) return false;
+          if (hi !== '' && v > hi) return false;
+          return true;
+        },
+        cell: (info) => <LcoeGapCell info={info} />,
+      }),
+    ],
   }),
-  col.accessor('zone_classification', {
-    header: () => <HeaderWithTooltip label="Type" columnId="zone_classification" />,
-    cell: (info) => info.getValue() ?? '—',
-  }),
-  col.accessor('category', {
-    header: () => <HeaderWithTooltip label="Category" columnId="category" />,
-    cell: (info) => info.getValue() ?? '—',
-  }),
-  col.accessor('area_ha', {
-    header: () => <HeaderWithTooltip label="Area (ha)" columnId="area_ha" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const v = info.getValue();
-      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
-    },
-  }),
-  col.accessor('regional_groundmount_potential_mwp_50km', {
-    header: () => (
-      <HeaderWithTooltip
-        label="Ground 50km (MWp)"
-        columnId="regional_groundmount_potential_mwp_50km"
-      />
-    ),
-    filterFn: 'inRange',
-    cell: (info) => {
-      const v = info.getValue();
-      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
-    },
-  }),
-  col.accessor('rooftop_solar_mwp_potential', {
-    header: () => (
-      <HeaderWithTooltip label="Rooftop (MWp)" columnId="rooftop_solar_mwp_potential" />
-    ),
-    filterFn: 'inRange',
-    cell: (info) => {
-      const v = info.getValue();
-      return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—';
-    },
-  }),
-  col.accessor('action_flag', {
-    header: () => <HeaderWithTooltip label="RE Assessment" columnId="action_flag" />,
-    cell: (info) => <ReAssessmentCell info={info} />,
-  }),
-  col.accessor('grid_integration_category', {
-    header: () => (
-      <HeaderWithTooltip label="Grid Integration" columnId="grid_integration_category" />
-    ),
-    cell: (info) => <GridIntegrationCell info={info} />,
-  }),
-  col.display({
-    id: 'economic_tier',
-    header: () => <HeaderWithTooltip label="Econ. Tier" columnId="economic_tier" />,
-    enableColumnFilter: true,
-    filterFn: (row, _columnId, filterValue: string) => {
-      const { energyMode, costBasis } = useDashboardStore.getState();
-      const tier = getEffectiveEconomicTier(row.original, energyMode, costBasis);
-      return tier === filterValue;
-    },
-    cell: (info) => <EconomicTierCell info={info} />,
-  }),
-  col.display({
-    id: 'infrastructure_readiness',
-    header: () => <HeaderWithTooltip label="Infra Ready" columnId="infrastructure_readiness" />,
-    enableColumnFilter: true,
-    filterFn: (row, _columnId, filterValue: string) => {
-      const energyMode = useDashboardStore.getState().energyMode;
-      const infra = getEffectiveInfraReadiness(row.original, energyMode);
-      return infra === filterValue;
-    },
-    cell: (info) => <InfrastructureReadinessCell info={info} />,
-  }),
-  col.accessor('grid_investment_needed_usd', {
-    header: () => (
-      <HeaderWithTooltip label="Grid Invest ($M)" columnId="grid_investment_needed_usd" />
-    ),
-    filterFn: 'inRange',
-    cell: (info) => {
-      const v = info.getValue();
-      if (v == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-      const millions = v / 1_000_000;
-      const color = millions > 500 ? '#EF5350' : millions > 100 ? '#FFC107' : '#4CAF50';
-      return <span style={{ color }}>${millions.toFixed(0)}M</span>;
-    },
-  }),
-  col.display({
-    id: 'industry',
+  col.group({
+    id: 'group_cbam',
+    header: () => <GroupHeader label="CBAM exposure" />,
+    columns: [
+      col.display({
+        id: 'industry',
     header: () => <HeaderWithTooltip label="Industry" columnId="industry" />,
     enableColumnFilter: true,
     filterFn: (row, _columnId, filterValue: string) => {
@@ -448,135 +557,75 @@ export const columns = [
       );
     },
   }),
-  col.display({
-    id: 'cbam_2030',
-    header: () => <HeaderWithTooltip label="CBAM '30" columnId="cbam_2030" />,
-    enableColumnFilter: true,
-    filterFn: (row, _columnId, filterValue: string) => {
-      const exposed = !!row.original.cbam_exposed;
-      return filterValue === 'Yes' ? exposed : !exposed;
-    },
-    cell: (info) => {
-      const r = info.row.original;
-      if (!r.cbam_exposed) {
-        return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-      }
-      const cost2030 = r.cbam_cost_2030_usd_per_tonne;
-      const cost2026 = r.cbam_cost_2026_usd_per_tonne;
-      const cost2034 = r.cbam_cost_2034_usd_per_tonne;
-      const types = r.cbam_product_type
-        ? r.cbam_product_type
-            .split(',')
-            .map((t: string) => {
-              const labels: Record<string, string> = {
-                iron_steel: 'Iron/Steel',
-                aluminium: 'Aluminium',
-                fertilizer: 'Fertilizer',
-                cement: 'Cement',
-              };
-              return labels[t] ?? t;
-            })
-            .join(', ')
-        : '';
-      const tooltip = `${types}\n2026: $${cost2026?.toLocaleString() ?? '?'}/t\n2030: $${cost2030?.toLocaleString() ?? '?'}/t\n2034: $${cost2034?.toLocaleString() ?? '?'}/t`;
-      return (
-        <span
-          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
-          style={{ background: '#FF704433', color: '#FF7043' }}
-          title={tooltip}
-        >
-          {cost2030 != null ? `$${cost2030.toLocaleString()}/t` : 'Exposed'}
-        </span>
-      );
-    },
-  }),
-  col.accessor('lcoe_mid_usd_mwh', {
-    header: () => <HeaderWithTooltip label="Solar LCOE" columnId="lcoe_mid_usd_mwh" />,
-    filterFn: 'inRange',
-    cell: (info) => info.getValue().toFixed(1),
-  }),
-  col.accessor('lcoe_wind_mid_usd_mwh', {
-    header: () => <HeaderWithTooltip label="Wind LCOE" columnId="lcoe_wind_mid_usd_mwh" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const v = info.getValue();
-      return v != null ? v.toFixed(1) : '—';
-    },
-  }),
-  col.accessor('delivered_cost_usd_mwh', {
-    header: () => <HeaderWithTooltip label="Supply Blend" columnId="delivered_cost_usd_mwh" />,
-    filterFn: 'inRange',
-    cell: (info) => <DeliveredCostCell info={info} />,
-  }),
-  col.accessor('solar_competitive_gap_pct', {
-    header: () => <HeaderWithTooltip label="LCOE Gap (%)" columnId="solar_competitive_gap_pct" />,
-    // Sort + filter route through the active (mode × basis) gap so the column
-    // stays self-consistent with its cell rendering (TAXONOMY §7.3). Without
-    // this, sorting keys the raw solar T1 gap even when displayed values are
-    // wind / hybrid / delivered.
-    sortingFn: (rowA, rowB) => {
-      const { energyMode, costBasis } = useDashboardStore.getState();
-      const a = getEffectiveGapPct(rowA.original, energyMode, costBasis);
-      const b = getEffectiveGapPct(rowB.original, energyMode, costBasis);
-      if (a == null && b == null) return 0;
-      if (a == null) return 1;
-      if (b == null) return -1;
-      return a - b;
-    },
-    filterFn: (row, _columnId, value: [number | '', number | '']) => {
-      const { energyMode, costBasis } = useDashboardStore.getState();
-      const v = getEffectiveGapPct(row.original, energyMode, costBasis);
-      if (v == null) return true;
-      const [lo, hi] = value;
-      if (lo !== '' && v < lo) return false;
-      if (hi !== '' && v > hi) return false;
-      return true;
-    },
-    cell: (info) => <LcoeGapCell info={info} />,
-  }),
-  col.accessor('solar_supply_coverage_pct', {
-    header: () => <HeaderWithTooltip label="RE Coverage" columnId="solar_supply_coverage_pct" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const val = info.getValue();
-      if (val == null) return '—';
-      const pct = val * 100;
-      const color = val >= 1.0 ? '#4CAF50' : val >= 0.5 ? '#FFC107' : '#F44336';
-      return <span style={{ color }}>{pct.toFixed(0)}%</span>;
-    },
-  }),
-  col.accessor('best_re_technology', {
-    header: () => <HeaderWithTooltip label="Best RE" columnId="best_re_technology" />,
-    cell: (info) => capitalize(info.getValue()),
-  }),
-  col.accessor('dashboard_rate_usd_mwh', {
-    header: () => <GridRateHeader />,
-    filterFn: 'inRange',
-    cell: (info) => <GridRateCell info={info} />,
-  }),
-  col.accessor('cbam_adjusted_gap_pct', {
-    header: () => <HeaderWithTooltip label="CBAM Gap (%)" columnId="cbam_adjusted_gap_pct" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const val = info.getValue();
-      if (val == null) return <span style={{ color: '#666' }}>—</span>;
-      const sign = val > 0 ? '+' : '';
-      const color = val < 0 ? '#4CAF50' : val > 0 ? '#EF5350' : '#e0e0e0';
-      return (
-        <span style={{ color }}>
-          {sign}
-          {val.toFixed(1)}%
-        </span>
-      );
-    },
-  }),
-  col.accessor('cbam_cost_2030_usd_per_tonne', {
-    header: () => <HeaderWithTooltip label="CBAM 2030 ($/t)" columnId="cbam_2030" />,
-    filterFn: 'inRange',
-    cell: (info) => {
-      const val = info.getValue();
-      if (val == null) return <span style={{ color: '#666' }}>—</span>;
-      return <span style={{ color: '#FF6F00' }}>${val.toFixed(0)}/t</span>;
-    },
+      col.display({
+        id: 'cbam_2030',
+        header: () => <HeaderWithTooltip label="CBAM '30" columnId="cbam_2030" />,
+        enableColumnFilter: true,
+        filterFn: (row, _columnId, filterValue: string) => {
+          const exposed = !!row.original.cbam_exposed;
+          return filterValue === 'Yes' ? exposed : !exposed;
+        },
+        cell: (info) => {
+          const r = info.row.original;
+          if (!r.cbam_exposed) {
+            return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+          }
+          const cost2030 = r.cbam_cost_2030_usd_per_tonne;
+          const cost2026 = r.cbam_cost_2026_usd_per_tonne;
+          const cost2034 = r.cbam_cost_2034_usd_per_tonne;
+          const types = r.cbam_product_type
+            ? r.cbam_product_type
+                .split(',')
+                .map((t: string) => {
+                  const labels: Record<string, string> = {
+                    iron_steel: 'Iron/Steel',
+                    aluminium: 'Aluminium',
+                    fertilizer: 'Fertilizer',
+                    cement: 'Cement',
+                  };
+                  return labels[t] ?? t;
+                })
+                .join(', ')
+            : '';
+          const tooltip = `${types}\n2026: $${cost2026?.toLocaleString() ?? '?'}/t\n2030: $${cost2030?.toLocaleString() ?? '?'}/t\n2034: $${cost2034?.toLocaleString() ?? '?'}/t`;
+          return (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+              style={{ background: '#FF704433', color: '#FF7043' }}
+              title={tooltip}
+            >
+              {cost2030 != null ? `$${cost2030.toLocaleString()}/t` : 'Exposed'}
+            </span>
+          );
+        },
+      }),
+      col.accessor('cbam_adjusted_gap_pct', {
+        header: () => (
+          <HeaderWithTooltip label="CBAM Gap (%)" columnId="cbam_adjusted_gap_pct" />
+        ),
+        filterFn: 'inRange',
+        cell: (info) => {
+          const val = info.getValue();
+          if (val == null) return <span style={{ color: '#666' }}>—</span>;
+          const sign = val > 0 ? '+' : '';
+          const color = val < 0 ? '#4CAF50' : val > 0 ? '#EF5350' : '#e0e0e0';
+          return (
+            <span style={{ color }}>
+              {sign}
+              {val.toFixed(1)}%
+            </span>
+          );
+        },
+      }),
+      col.accessor('cbam_cost_2030_usd_per_tonne', {
+        header: () => <HeaderWithTooltip label="CBAM 2030 ($/t)" columnId="cbam_2030" />,
+        filterFn: 'inRange',
+        cell: (info) => {
+          const val = info.getValue();
+          if (val == null) return <span style={{ color: '#666' }}>—</span>;
+          return <span style={{ color: '#FF6F00' }}>${val.toFixed(0)}/t</span>;
+        },
+      }),
+    ],
   }),
 ];
