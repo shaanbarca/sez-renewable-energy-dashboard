@@ -76,6 +76,50 @@ const STEEL_PATH = 'M2 18h20v2H2v-2zm1-2h18l-2-4H5L3 16zm4-6h10v2H7v-2zm2-4h6v2H
 const CEMENT_PATH = 'M4 20h16v-6H4v6zm2-14h2v6H6V6zm4 0h4v6h-4V6zm6 0h2v6h-2V6zM5 4h14v1H5V4z';
 
 /**
+ * Geothermal icon — triangle (volcano peak) with three steam plumes rising.
+ * Distinctly non-circular so it doesn't read like a site / plant marker.
+ * `filled=false` produces a hollow outline (used for pipeline-stage projects).
+ */
+function createGeothermalIcon(color: string, size: number, filled: boolean): ImageData {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const s = size;
+
+  // Steam plumes (3 short squiggles, top third of icon)
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.4, s / 18);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const x = s * (0.32 + i * 0.18);
+    ctx.beginPath();
+    ctx.moveTo(x, s * 0.05);
+    ctx.bezierCurveTo(x - s * 0.04, s * 0.12, x + s * 0.04, s * 0.18, x, s * 0.27);
+    ctx.stroke();
+  }
+
+  // Volcano peak triangle (lower two-thirds)
+  ctx.beginPath();
+  ctx.moveTo(s * 0.5, s * 0.32);
+  ctx.lineTo(s * 0.95, s * 0.92);
+  ctx.lineTo(s * 0.05, s * 0.92);
+  ctx.closePath();
+  if (filled) {
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.6, s / 14);
+    ctx.stroke();
+  }
+  return ctx.getImageData(0, 0, size, size);
+}
+
+/**
  * Renders toggled vector layers: substations, kek_polygons, peatland,
  * protected_forest, industrial. Each has different styling.
  */
@@ -256,11 +300,11 @@ export default function VectorOverlay() {
       map.getCanvas().style.cursor = '';
       setGeoOpHover(null);
     };
-    map.on('mouseenter', 'overlay-geothermal-operating-circles', onEnter);
-    map.on('mouseleave', 'overlay-geothermal-operating-circles', onLeave);
+    map.on('mouseenter', 'overlay-geothermal-operating-symbol', onEnter);
+    map.on('mouseleave', 'overlay-geothermal-operating-symbol', onLeave);
     return () => {
-      map.off('mouseenter', 'overlay-geothermal-operating-circles', onEnter);
-      map.off('mouseleave', 'overlay-geothermal-operating-circles', onLeave);
+      map.off('mouseenter', 'overlay-geothermal-operating-symbol', onEnter);
+      map.off('mouseleave', 'overlay-geothermal-operating-symbol', onLeave);
     };
   }, [mapRef]);
 
@@ -291,11 +335,11 @@ export default function VectorOverlay() {
       map.getCanvas().style.cursor = '';
       setGeoPipelineHover(null);
     };
-    map.on('mouseenter', 'overlay-geothermal-pipeline-circles', onEnter);
-    map.on('mouseleave', 'overlay-geothermal-pipeline-circles', onLeave);
+    map.on('mouseenter', 'overlay-geothermal-pipeline-symbol', onEnter);
+    map.on('mouseleave', 'overlay-geothermal-pipeline-symbol', onLeave);
     return () => {
-      map.off('mouseenter', 'overlay-geothermal-pipeline-circles', onEnter);
-      map.off('mouseleave', 'overlay-geothermal-pipeline-circles', onLeave);
+      map.off('mouseenter', 'overlay-geothermal-pipeline-symbol', onEnter);
+      map.off('mouseleave', 'overlay-geothermal-pipeline-symbol', onLeave);
     };
   }, [mapRef]);
 
@@ -600,6 +644,23 @@ export default function VectorOverlay() {
       }
       if (!map.hasImage('cement-icon')) {
         map.addImage('cement-icon', createIconImage(CEMENT_PATH, '#78909C', 28), { sdf: false });
+      }
+      if (!map.hasImage('geo-op-icon')) {
+        map.addImage('geo-op-icon', createGeothermalIcon('#E53935', 32, true), { sdf: false });
+      }
+      if (!map.hasImage('geo-pipeline-pre2030-icon')) {
+        map.addImage(
+          'geo-pipeline-pre2030-icon',
+          createGeothermalIcon('#FFB300', 32, false),
+          { sdf: false },
+        );
+      }
+      if (!map.hasImage('geo-pipeline-post2030-icon')) {
+        map.addImage(
+          'geo-pipeline-post2030-icon',
+          createGeothermalIcon('#9E9E9E', 32, false),
+          { sdf: false },
+        );
       }
     };
     if (map.isStyleLoaded()) {
@@ -1423,25 +1484,25 @@ export default function VectorOverlay() {
           return (
             <Source id="overlay-geothermal-operating" type="geojson" data={geojson}>
               <Layer
-                id="overlay-geothermal-operating-circles"
-                type="circle"
-                paint={{
-                  'circle-radius': [
+                id="overlay-geothermal-operating-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': 'geo-op-icon',
+                  'icon-size': [
                     'interpolate',
                     ['linear'],
                     ['get', 'capacity_mw'],
                     0,
-                    4,
+                    0.55,
                     100,
-                    6,
+                    0.7,
                     400,
-                    9,
+                    0.95,
                   ],
-                  'circle-color': '#E53935',
-                  'circle-stroke-color': '#FFCDD2',
-                  'circle-stroke-width': 1.2,
-                  'circle-opacity': 0.85,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
                 }}
+                paint={{ 'icon-opacity': 0.95 }}
               />
             </Source>
           );
@@ -1491,30 +1552,30 @@ export default function VectorOverlay() {
           return (
             <Source id="overlay-geothermal-pipeline" type="geojson" data={geojson}>
               <Layer
-                id="overlay-geothermal-pipeline-circles"
-                type="circle"
-                paint={{
-                  'circle-radius': [
+                id="overlay-geothermal-pipeline-symbol"
+                type="symbol"
+                layout={{
+                  'icon-image': [
+                    'case',
+                    ['get', 'is_pre2030'],
+                    'geo-pipeline-pre2030-icon',
+                    'geo-pipeline-post2030-icon',
+                  ],
+                  'icon-size': [
                     'interpolate',
                     ['linear'],
                     ['get', 'capacity_mw'],
                     0,
-                    4,
+                    0.55,
                     100,
-                    6,
+                    0.7,
                     400,
-                    9,
+                    0.95,
                   ],
-                  'circle-color': 'rgba(0,0,0,0)',
-                  'circle-stroke-color': [
-                    'case',
-                    ['get', 'is_pre2030'],
-                    '#FFB300',
-                    '#9E9E9E',
-                  ],
-                  'circle-stroke-width': 2,
-                  'circle-opacity': 0.95,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
                 }}
+                paint={{ 'icon-opacity': 0.95 }}
               />
             </Source>
           );
