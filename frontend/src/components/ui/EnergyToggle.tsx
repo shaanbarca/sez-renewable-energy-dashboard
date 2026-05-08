@@ -5,8 +5,8 @@ import type { EnergyMode } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 type Option =
-  | { value: EnergyMode; label: string; comingSoon?: false }
-  | { value: string; label: string; comingSoon: true };
+  | { value: EnergyMode; label: string; description?: string; comingSoon?: false }
+  | { value: string; label: string; description?: string; comingSoon: true };
 
 type Section = { title: string; options: Option[] };
 
@@ -68,18 +68,51 @@ const SECTIONS: Section[] = [
   {
     title: 'Single source',
     options: [
-      { value: 'solar', label: 'Solar' },
-      { value: 'wind', label: 'Wind' },
-      { value: 'geothermal', label: 'Geothermal' },
-      { value: 'hydro', label: 'Hydro', comingSoon: true },
-      { value: 'biomass', label: 'Biomass', comingSoon: true },
+      {
+        value: 'solar',
+        label: 'Solar',
+        description: 'Solar-only LCOE. Map shows PVOUT raster + buildable land.',
+      },
+      {
+        value: 'wind',
+        label: 'Wind',
+        description: 'Wind-only LCOE. Map shows wind speed + buildable land.',
+      },
+      {
+        value: 'geothermal',
+        label: 'Geothermal',
+        description:
+          'Layers-only. Site-resolved geothermal LCOE isn’t published — the Score Drawer adjacency card carries the per-site signal.',
+      },
+      {
+        value: 'hydro',
+        label: 'Hydro',
+        description: 'Coming in v4.1b alongside the hydro proximity dataset.',
+        comingSoon: true,
+      },
+      {
+        value: 'biomass',
+        label: 'Biomass',
+        description: 'Spec-pending. Needs its own proximity model (no RUPTL analog).',
+        comingSoon: true,
+      },
     ],
   },
   {
     title: 'Composite',
     options: [
-      { value: 'hybrid', label: 'Hybrid' },
-      { value: 'overall', label: 'Overall' },
+      {
+        value: 'hybrid',
+        label: 'Mix',
+        description:
+          'Optimal solar + wind mix per site. The optimizer sweeps share splits to minimise blended LCOE; cost columns reflect the chosen mix and the BESS hours it implies.',
+      },
+      {
+        value: 'overall',
+        label: 'Best fit',
+        description:
+          'Per-site winner. Each site picks the cheapest of Solar / Wind / Mix; cost columns show that winner. Use this when you want one ranking across all techs.',
+      },
     ],
   },
 ];
@@ -258,10 +291,9 @@ export default function EnergyToggle() {
                   {section.options.map((opt) => {
                     const active = !opt.comingSoon && energyMode === opt.value;
                     if (opt.comingSoon) {
-                      return (
+                      const soonRow = (
                         <div
                           key={opt.value}
-                          title="Coming soon"
                           className="flex items-center gap-2 px-2 py-1 text-xs cursor-not-allowed"
                           style={{ color: 'var(--text-muted)', opacity: 0.55 }}
                         >
@@ -278,8 +310,19 @@ export default function EnergyToggle() {
                           </span>
                         </div>
                       );
+                      return opt.description ? (
+                        <ModeTooltip
+                          key={opt.value}
+                          title={opt.label}
+                          body={opt.description}
+                        >
+                          {soonRow}
+                        </ModeTooltip>
+                      ) : (
+                        soonRow
+                      );
                     }
-                    return (
+                    const button = (
                       <button
                         key={opt.value}
                         type="button"
@@ -308,6 +351,13 @@ export default function EnergyToggle() {
                         )}
                       </button>
                     );
+                    return opt.description ? (
+                      <ModeTooltip key={opt.value} title={opt.label} body={opt.description}>
+                        {button}
+                      </ModeTooltip>
+                    ) : (
+                      button
+                    );
                   })}
                 </div>
               </div>
@@ -316,5 +366,42 @@ export default function EnergyToggle() {
           document.body,
         )}
     </Tooltip.Provider>
+  );
+}
+
+/** Side-anchored tooltip for option rows in the dropdown. Wraps either a
+ *  clickable mode button or a "Soon" placeholder; renders the title in
+ *  primary color and the body explanation below in secondary. */
+function ModeTooltip({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="right"
+          sideOffset={10}
+          className="max-w-[260px] px-3 py-2 rounded text-xs leading-relaxed z-[1100]"
+          style={{
+            background: 'var(--glass-heavy)',
+            backdropFilter: 'var(--blur-heavy)',
+            WebkitBackdropFilter: 'var(--blur-heavy)',
+            border: '1px solid var(--glass-border-bright)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
+            color: 'var(--text-primary)',
+          }}
+        >
+          <div className="font-medium mb-1">{title}</div>
+          <div style={{ color: 'var(--text-secondary)' }}>{body}</div>
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }
