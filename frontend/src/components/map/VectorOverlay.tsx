@@ -758,8 +758,8 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
-              {/* Transparent fill, just the yellow ring — gives the bolt a
-                  hit-target + visual frame without occluding the basemap. */}
+              {/* Fully invisible circle — kept only as a 9px hover hit-target
+                  around the bolt so the popup is easier to trigger. */}
               <Layer
                 id="overlay-substations-bg"
                 type="circle"
@@ -769,6 +769,7 @@ export default function VectorOverlay() {
                   'circle-opacity': 0,
                   'circle-stroke-color': '#FFD600',
                   'circle-stroke-width': 1.5,
+                  'circle-stroke-opacity': 0,
                 }}
               />
               <Layer
