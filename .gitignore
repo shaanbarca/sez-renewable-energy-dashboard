@@ -183,7 +183,9 @@ data/~$*
 .gstack/
 
 # Claude Code (AI assistant config, not project content)
-.claude/
+.claude/*
+# ...except project-local skills (workflow tooling, intentionally tracked)
+!.claude/skills/
 
 # Developer-internal docs (not for publication)
 CLAUDE.md
