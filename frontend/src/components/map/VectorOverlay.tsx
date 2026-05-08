@@ -656,7 +656,29 @@ export default function VectorOverlay() {
     if (!map) return;
     const addIcons = () => {
       if (!map.hasImage('bolt-icon')) {
-        map.addImage('bolt-icon', createBoltIcon(24, '#FFD600'), { sdf: false });
+        map.addImage('bolt-icon', createBoltIcon(24, '#FFD600'), {
+          sdf: false,
+          pixelRatio: 2,
+        });
+      }
+      // Static PNG bolt — used by the substation layer. loadImage is async; we
+      // fire-and-forget here so it lands as soon as the network round-trip
+      // returns. MapLibre auto-refreshes layers that reference an image once
+      // the image is registered, so the marker fills in retroactively.
+      if (!map.hasImage('bolt-png')) {
+        map
+          .loadImage('/icons/bolt.png')
+          .then((response) => {
+            if (!response || map.hasImage('bolt-png')) return;
+            // MapLibre 4.x returns an object with .data; older versions return
+            // a HTMLImageElement directly.
+            // biome-ignore lint/suspicious/noExplicitAny: MapLibre typing
+            const data: any = (response as any).data ?? response;
+            map.addImage('bolt-png', data, { pixelRatio: 2 });
+          })
+          .catch(() => {
+            // PNG missing — substation layer falls back to the inner yellow circle.
+          });
       }
       if (!map.hasImage('nickel-icon')) {
         map.addImage('nickel-icon', createIconImage(NICKEL_PATH, '#FF6D00', 28), { sdf: false });
@@ -736,14 +758,11 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
-              {/* Dark circle backdrop + inner yellow dot. Tried both
-                  canvas-rendered bolt-icon and text-field U+26A1 ⚡; both
-                  silently failed (canvas: addImage timing race with style
-                  load, text-field: glyph not in default font atlas of all
-                  basemap styles). Stacked circles render reliably across
-                  every basemap and zoom level. The hover handler attaches
-                  to overlay-substations-symbol (the inner dot) which is
-                  what users actually click. */}
+              {/* Dark circle backdrop so the bolt always reads against
+                  varied satellite imagery. Bolt itself is loaded from
+                  /icons/bolt.png via map.loadImage — reliable PNG path
+                  that doesn't depend on font glyph atlas or canvas
+                  addImage timing. */}
               <Layer
                 id="overlay-substations-bg"
                 type="circle"
@@ -757,11 +776,15 @@ export default function VectorOverlay() {
               />
               <Layer
                 id="overlay-substations-symbol"
-                type="circle"
+                type="symbol"
+                layout={{
+                  'icon-image': 'bolt-png',
+                  'icon-size': 0.4,
+                  'icon-allow-overlap': true,
+                  'icon-ignore-placement': true,
+                }}
                 paint={{
-                  'circle-radius': 4,
-                  'circle-color': '#FFD600',
-                  'circle-opacity': 1,
+                  'icon-opacity': 1,
                 }}
               />
             </Source>
