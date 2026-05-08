@@ -34,26 +34,8 @@ def _make_ctx(
     disp_re_lcoe: float | None = None,  # F1: dispatchable RE LCOE
 ) -> SiteContext:
     """Construct a minimal SiteContext with only the fields the enricher reads."""
-    wb_fields: dict[str, Any] = {}
-    if wb_lcoe is not None:
-        wb_fields["lcoe_mid_usd_mwh"] = wb_lcoe
-    if disp_re_cov is not None:
-        wb_fields["dispatchable_re_coverage_pct"] = disp_re_cov
-    if disp_re_lcoe is not None:
-        wb_fields["dispatchable_re_lcoe_usd_mwh"] = disp_re_lcoe
-    wb_row = (
-        None if wb_lcoe is None and not wb_fields else pd.Series(wb_fields) if wb_fields else None
-    )
-
-    gc_fields: dict[str, Any] = {}
-    if gc_lcoe is not None:
-        gc_fields["lcoe_mid_usd_mwh"] = gc_lcoe
-    # If wb_row absent, mirror dispatchable_re fields on gc_row so the layer still works.
-    if wb_row is None and disp_re_cov is not None:
-        gc_fields["dispatchable_re_coverage_pct"] = disp_re_cov
-    if wb_row is None and disp_re_lcoe is not None:
-        gc_fields["dispatchable_re_lcoe_usd_mwh"] = disp_re_lcoe
-    gc_row = pd.Series(gc_fields) if gc_fields else None
+    wb_row = pd.Series({"lcoe_mid_usd_mwh": wb_lcoe}) if wb_lcoe is not None else None
+    gc_row = pd.Series({"lcoe_mid_usd_mwh": gc_lcoe}) if gc_lcoe is not None else None
 
     grid_out: dict[str, Any] = {
         "within_boundary_coverage_effective_pct": eff_cov,
@@ -91,6 +73,8 @@ def _make_ctx(
         gap_vs_tariff_pct=np.nan,
         gap_vs_bpp_pct=np.nan,
         grid_out=grid_out,
+        dispatchable_re_coverage_pct=disp_re_cov if disp_re_cov is not None else 0.0,
+        dispatchable_re_lcoe_usd_mwh=disp_re_lcoe,
     )
 
 

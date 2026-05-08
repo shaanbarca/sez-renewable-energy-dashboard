@@ -21,6 +21,7 @@ from src.dash.logic.assumptions import UserAssumptions, UserThresholds
 from src.dash.logic.grid import compute_grid_integration
 from src.model.basic_model import is_solar_attractive, solar_competitive_gap
 from src.model.columns import Col
+from src.model.geothermal_adjacency import dispatchable_re_from_geothermal_tier
 
 
 @dataclass(slots=True)
@@ -67,6 +68,12 @@ class SiteContext:
 
     # Grid integration bundle (category + infra cost + connectivity + capacity)
     grid_out: dict[str, Any]
+
+    # F2: Dispatchable-RE (geothermal today, hydro in v4.1b) — feeds F1's
+    # Supply Blend cascade. coverage_pct=0 + lcoe=None means the cascade falls
+    # through to its v4.0 3-layer behavior.
+    dispatchable_re_coverage_pct: float
+    dispatchable_re_lcoe_usd_mwh: float | None
 
 
 def _as_float(x: Any, default: float = 0.0) -> float:
@@ -187,6 +194,17 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
         else np.nan
     )
 
+    # F2: Translate geothermal adjacency tier into Supply Blend cascade inputs.
+    # Returns (0.0, None) when fct_geothermal_proximity hasn't been merged yet
+    # OR when the site has no useful adjacency — both no-op the F1 layer.
+    geothermal_tier_val = kek.get("geothermal_adjacency_tier")
+    geothermal_tier_str = (
+        str(geothermal_tier_val)
+        if geothermal_tier_val is not None and pd.notna(geothermal_tier_val)
+        else None
+    )
+    disp_re_coverage, disp_re_lcoe = dispatchable_re_from_geothermal_tier(geothermal_tier_str)
+
     return SiteContext(
         kek=kek,
         site_id=site_id,
@@ -218,4 +236,6 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
         gap_vs_tariff_pct=gap_vs_tariff_pct,
         gap_vs_bpp_pct=gap_vs_bpp_pct,
         grid_out=grid_out,
+        dispatchable_re_coverage_pct=disp_re_coverage,
+        dispatchable_re_lcoe_usd_mwh=disp_re_lcoe,
     )
