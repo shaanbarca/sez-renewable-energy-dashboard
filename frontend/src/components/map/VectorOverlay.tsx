@@ -383,9 +383,16 @@ export default function VectorOverlay() {
       map.getCanvas().style.cursor = '';
       setSubHover(null);
     };
+    // Hover the BG layer (9px circle) — bigger hit area than the inner yellow
+    // dot, so users can mouse anywhere on the visible marker to trigger the
+    // popup. Both layers receive events so the inner dot still works.
+    map.on('mouseenter', 'overlay-substations-bg', onEnter);
+    map.on('mouseleave', 'overlay-substations-bg', onLeave);
     map.on('mouseenter', 'overlay-substations-symbol', onEnter);
     map.on('mouseleave', 'overlay-substations-symbol', onLeave);
     return () => {
+      map.off('mouseenter', 'overlay-substations-bg', onEnter);
+      map.off('mouseleave', 'overlay-substations-bg', onLeave);
       map.off('mouseenter', 'overlay-substations-symbol', onEnter);
       map.off('mouseleave', 'overlay-substations-symbol', onLeave);
     };
@@ -729,11 +736,14 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
-              {/* Dark circle backdrop so the yellow bolt always reads against
-                  varied satellite imagery. The bolt itself is rendered as a
-                  Unicode high-voltage glyph (U+26A1) via text-field — works
-                  reliably across map styles without depending on a
-                  canvas-rendered addImage that sometimes fails silently. */}
+              {/* Dark circle backdrop + inner yellow dot. Tried both
+                  canvas-rendered bolt-icon and text-field U+26A1 ⚡; both
+                  silently failed (canvas: addImage timing race with style
+                  load, text-field: glyph not in default font atlas of all
+                  basemap styles). Stacked circles render reliably across
+                  every basemap and zoom level. The hover handler attaches
+                  to overlay-substations-symbol (the inner dot) which is
+                  what users actually click. */}
               <Layer
                 id="overlay-substations-bg"
                 type="circle"
@@ -747,17 +757,11 @@ export default function VectorOverlay() {
               />
               <Layer
                 id="overlay-substations-symbol"
-                type="symbol"
-                layout={{
-                  'text-field': '⚡',
-                  'text-size': 13,
-                  'text-allow-overlap': true,
-                  'text-ignore-placement': true,
-                }}
+                type="circle"
                 paint={{
-                  'text-color': '#FFD600',
-                  'text-halo-color': 'rgba(0,0,0,0.6)',
-                  'text-halo-width': 1,
+                  'circle-radius': 4,
+                  'circle-color': '#FFD600',
+                  'circle-opacity': 1,
                 }}
               />
             </Source>
