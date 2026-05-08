@@ -702,7 +702,7 @@ This replaces the fixed 2h sizing for KEKs with 24/7 industrial demand (manufact
 
 **Result at defaults (\$150/kWh, 14h bridge sizing, 87% RTE, 10% WACC, CF=0.18):** ~\$174/MWh battery adder for high-reliability loads. This is the honest cost of firming solar for 24/7 industrial demand. At 2h cloud-firming sizing: ~\$27/MWh. (Prior default of \$250/kWh produced ~\$290/MWh and ~\$45/MWh respectively.)
 
-**Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Storage must bridge the gap between solar production hours and demand hours. At equatorial latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store 14h × load_MW / RTE of energy.
+**Physical basis (first principles):** Storage must bridge the gap between solar production hours and demand hours. At equatorial Indonesian latitudes with ~10h effective solar production and 24/7 industrial demand, the overnight gap is 14h. BESS must store `14h × load_MW / RTE` of energy. The framing draws on the broader storage-system thinking in MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26 (UK-context analysis of grid-scale storage requirements) but the 14h tropical-equatorial bridge-hours figure is derived from Indonesia-specific solar production hours, not endorsed by MacKay's UK case study.
 
 **BESS competitive indicator (V3.5):** Battery economics (`battery_adder_usd_mwh`, `lcoe_with_battery_usd_mwh`) are computed for all KEKs with solar resource, not only those flagged `invest_battery`. This allows users to see the full cost of 24/7 solar+BESS for any KEK, regardless of reliability tier. A `bess_competitive` boolean indicates whether `lcoe_with_battery <= grid_cost`. This surfaces a previously hidden scenario: KEKs where daytime solar is competitive but 24/7 solar+BESS exceeds grid cost.
 
@@ -1215,7 +1215,7 @@ storage_required_mwh = nighttime_demand / BESS_ROUND_TRIP_EFFICIENCY
 
 **Storage gap:** Fixed at ~58% for equatorial Indonesia (14h night / 24h day). This is the fraction of total demand that physically cannot be served by solar without storage.
 
-**Physical basis:** MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26. Solar produces during ~10 hours of daylight. Industrial smelters consume 24 hours. Matching total energy is necessary but not sufficient. You must also match the timing. The firm coverage metric addresses this by only counting what solar can deliver directly during production hours.
+**Physical basis (first principles):** Solar produces during ~10 hours of daylight. Industrial smelters consume 24 hours. Matching total energy is necessary but not sufficient — you must also match the timing. The firm coverage metric addresses this by only counting what solar can deliver directly during production hours. The framing parallels storage-system thinking in MacKay, *Sustainable Energy Without the Hot Air*, Ch. 26, but the equatorial 10h-production / 14h-overnight figures are derived from Indonesia-specific solar profiles, not from MacKay's UK case study.
 
 **Implementation:** `firm_solar_metrics()` in `basic_model.py`. Output fields: `firm_solar_coverage_pct`, `nighttime_demand_mwh`, `storage_required_mwh`, `storage_gap_pct`.
 
