@@ -758,18 +758,17 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
-              {/* Solid dark backdrop so the bolt always reads against varied
-                  satellite imagery. Was previously rgba(20,20,28,0.85);
-                  bumped to fully opaque per UX feedback. */}
+              {/* Transparent fill, just the yellow ring — gives the bolt a
+                  hit-target + visual frame without occluding the basemap. */}
               <Layer
                 id="overlay-substations-bg"
                 type="circle"
                 paint={{
                   'circle-radius': 9,
-                  'circle-color': '#14141C',
+                  'circle-color': '#000000',
+                  'circle-opacity': 0,
                   'circle-stroke-color': '#FFD600',
                   'circle-stroke-width': 1.5,
-                  'circle-opacity': 1,
                 }}
               />
               <Layer
