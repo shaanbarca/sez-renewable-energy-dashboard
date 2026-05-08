@@ -266,7 +266,7 @@ export default function EnergyToggle() {
         createPortal(
           <div
             ref={panelRef}
-            className="rounded-lg px-2 py-2 min-w-[200px]"
+            className="rounded-lg px-2 py-2 min-w-[280px] max-w-[320px]"
             style={{
               position: 'fixed',
               top: pos.top,
@@ -290,73 +290,118 @@ export default function EnergyToggle() {
                 <div className="space-y-0.5">
                   {section.options.map((opt) => {
                     const active = !opt.comingSoon && energyMode === opt.value;
-                    if (opt.comingSoon) {
-                      const soonRow = (
-                        <div
-                          key={opt.value}
-                          className="flex items-center gap-2 px-2 py-1 text-xs cursor-not-allowed"
-                          style={{ color: 'var(--text-muted)', opacity: 0.55 }}
-                        >
-                          <span style={{ flex: 1 }}>{opt.label}</span>
+                    const isReal = !opt.comingSoon;
+
+                    // Two-line item: title (label) + body (description). Same
+                    // structure used elsewhere for the action-flag legend rows
+                    // — body is always visible inline so users don't need to
+                    // hunt or hover.
+                    const titleRow = (
+                      <div className="flex items-start gap-2">
+                        {isReal && (
                           <span
-                            className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded"
                             style={{
-                              color: 'var(--text-muted)',
-                              border: '1px solid var(--text-muted)',
-                              lineHeight: 1,
+                              color: active ? 'var(--accent)' : 'var(--text-muted)',
+                              display: 'inline-flex',
+                              marginTop: 1,
+                              flexShrink: 0,
                             }}
                           >
-                            Soon
+                            <ModeIcon mode={opt.value as EnergyMode} />
                           </span>
-                        </div>
-                      );
-                      return opt.description ? (
-                        <ModeTooltip
-                          key={opt.value}
-                          title={opt.label}
-                          body={opt.description}
+                        )}
+                        <span
+                          style={{
+                            flex: 1,
+                            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            fontSize: 13,
+                            fontWeight: 500,
+                            lineHeight: 1.2,
+                          }}
                         >
-                          {soonRow}
-                        </ModeTooltip>
-                      ) : (
-                        soonRow
-                      );
-                    }
-                    const button = (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => handlePick(opt.value as EnergyMode)}
-                        className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded cursor-pointer transition-colors"
-                        style={{
-                          color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                          background: active ? 'var(--accent-soft)' : 'transparent',
-                        }}
-                      >
-                        <span style={{ flex: 1, textAlign: 'left' }}>{opt.label}</span>
+                          {opt.label}
+                        </span>
                         {active && (
                           <svg
-                            width="11"
-                            height="11"
+                            width="12"
+                            height="12"
                             viewBox="0 0 16 16"
                             fill="none"
                             stroke="currentColor"
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            style={{ color: 'var(--accent)' }}
+                            style={{ color: 'var(--accent)', marginTop: 2, flexShrink: 0 }}
                           >
                             <path d="M3 8.5L6.5 12L13 4.5" />
                           </svg>
                         )}
-                      </button>
+                        {opt.comingSoon && (
+                          <span
+                            className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded"
+                            style={{
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--text-muted)',
+                              lineHeight: 1,
+                              flexShrink: 0,
+                              marginTop: 2,
+                            }}
+                          >
+                            Soon
+                          </span>
+                        )}
+                      </div>
                     );
-                    return opt.description ? (
-                      <ModeTooltip key={opt.value} title={opt.label} body={opt.description}>
-                        {button}
-                      </ModeTooltip>
-                    ) : (
-                      button
+
+                    const bodyRow = opt.description ? (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: 11,
+                          lineHeight: 1.4,
+                          marginTop: 2,
+                          marginLeft: isReal ? 22 : 0, // align under the title text
+                        }}
+                      >
+                        {opt.description}
+                      </div>
+                    ) : null;
+
+                    if (opt.comingSoon) {
+                      return (
+                        <div
+                          key={opt.value}
+                          className="px-2 py-2 cursor-not-allowed"
+                          style={{ opacity: 0.55 }}
+                        >
+                          {titleRow}
+                          {bodyRow}
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => handlePick(opt.value as EnergyMode)}
+                        className="w-full text-left px-2 py-2 rounded cursor-pointer transition-colors"
+                        style={{
+                          background: active ? 'var(--accent-soft)' : 'transparent',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        {titleRow}
+                        {bodyRow}
+                      </button>
                     );
                   })}
                 </div>
@@ -369,39 +414,3 @@ export default function EnergyToggle() {
   );
 }
 
-/** Side-anchored tooltip for option rows in the dropdown. Wraps either a
- *  clickable mode button or a "Soon" placeholder; renders the title in
- *  primary color and the body explanation below in secondary. */
-function ModeTooltip({
-  title,
-  body,
-  children,
-}: {
-  title: string;
-  body: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
-      <Tooltip.Portal>
-        <Tooltip.Content
-          side="right"
-          sideOffset={10}
-          className="max-w-[260px] px-3 py-2 rounded text-xs leading-relaxed z-[1100]"
-          style={{
-            background: 'var(--glass-heavy)',
-            backdropFilter: 'var(--blur-heavy)',
-            WebkitBackdropFilter: 'var(--blur-heavy)',
-            border: '1px solid var(--glass-border-bright)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(0,0,0,0.4)',
-            color: 'var(--text-primary)',
-          }}
-        >
-          <div className="font-medium mb-1">{title}</div>
-          <div style={{ color: 'var(--text-secondary)' }}>{body}</div>
-        </Tooltip.Content>
-      </Tooltip.Portal>
-    </Tooltip.Root>
-  );
-}
