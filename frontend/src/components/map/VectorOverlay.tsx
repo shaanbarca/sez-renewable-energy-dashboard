@@ -383,16 +383,9 @@ export default function VectorOverlay() {
       map.getCanvas().style.cursor = '';
       setSubHover(null);
     };
-    // Hover the BG layer (9px circle) — bigger hit area than the inner yellow
-    // dot, so users can mouse anywhere on the visible marker to trigger the
-    // popup. Both layers receive events so the inner dot still works.
-    map.on('mouseenter', 'overlay-substations-bg', onEnter);
-    map.on('mouseleave', 'overlay-substations-bg', onLeave);
     map.on('mouseenter', 'overlay-substations-symbol', onEnter);
     map.on('mouseleave', 'overlay-substations-symbol', onLeave);
     return () => {
-      map.off('mouseenter', 'overlay-substations-bg', onEnter);
-      map.off('mouseleave', 'overlay-substations-bg', onLeave);
       map.off('mouseenter', 'overlay-substations-symbol', onEnter);
       map.off('mouseleave', 'overlay-substations-symbol', onLeave);
     };
@@ -758,28 +751,12 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
-              {/* Dark circle backdrop so the bolt always reads against
-                  varied satellite imagery. Bolt itself is loaded from
-                  /icons/bolt.png via map.loadImage — reliable PNG path
-                  that doesn't depend on font glyph atlas or canvas
-                  addImage timing. */}
-              <Layer
-                id="overlay-substations-bg"
-                type="circle"
-                paint={{
-                  'circle-radius': 9,
-                  'circle-color': 'rgba(20,20,28,0.85)',
-                  'circle-stroke-color': '#FFD600',
-                  'circle-stroke-width': 1.5,
-                  'circle-opacity': 1,
-                }}
-              />
               <Layer
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
                   'icon-image': 'bolt-png',
-                  'icon-size': 0.4,
+                  'icon-size': 0.55,
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
