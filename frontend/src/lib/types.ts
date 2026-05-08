@@ -391,7 +391,7 @@ export interface ScorecardResponse {
   scorecard: ScorecardRow[];
 }
 
-export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
+export type EnergyMode = 'solar' | 'wind' | 'geothermal' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
 /** Which layer of the cost stack feeds action_flag / economic_tier / gap / carbon_breakeven.
  *  Mirrors `src/model/basic_model.py::CostBasis`. See TAXONOMY §7.3 for the

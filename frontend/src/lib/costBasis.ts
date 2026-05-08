@@ -42,6 +42,14 @@ export function resolveCost(
           return null; // empty cell — no wind-only delivered blend today
       }
       break;
+    case 'geothermal':
+      // Layers-only mode: site-resolved geothermal LCOE is not a quantity
+      // ESDM / PLN publish — the Technology Catalogue only gives a fleet
+      // HT/LT range, and real economics depend on the *plant's* resource
+      // (depth, well productivity, NCG fraction), not the demand site.
+      // Mode flips map layers + emphasizes the GeothermalAdjacencyCard;
+      // cost columns intentionally render '—' to avoid a misleading number.
+      return null;
     case 'hybrid':
       switch (basis) {
         case 'raw':
@@ -70,6 +78,9 @@ export function resolveCost(
  *  to grey out unsupported options. */
 export function isBasisSupported(energyMode: EnergyMode, basis: CostBasis): boolean {
   if (energyMode === 'overall') return basis === 'firmed';
+  // Geothermal mode is layers-only — no basis returns a number, so no
+  // basis is "supported". CostBasisToggle will grey all three out.
+  if (energyMode === 'geothermal') return false;
   if (basis === 'delivered') return energyMode === 'solar';
   return true; // raw and firmed are always supported for solar/wind/hybrid
 }

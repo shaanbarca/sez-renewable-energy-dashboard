@@ -68,6 +68,16 @@ export const ACTION_FLAG_HIERARCHY_BY_MODE: Record<EnergyMode, ActionFlag[]> = {
     'not_competitive',
     'no_re_resource',
   ],
+  // Geothermal is a layers-only mode — no per-site economics flow through the
+  // action-flag pipeline (see costBasis.ts geothermal case). Action flags
+  // collapse to the structural ones; UI surfaces will read mostly empty.
+  geothermal: [
+    'cbam_urgent',
+    'invest_resilience',
+    'plan_late',
+    'not_competitive',
+    'no_re_resource',
+  ],
 };
 
 /**
