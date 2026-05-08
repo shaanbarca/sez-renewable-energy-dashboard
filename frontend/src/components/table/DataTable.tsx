@@ -480,17 +480,14 @@ export default function DataTable() {
                           // Hierarchy flip: group headers (structural) are muted;
                           // leaf column headers (clickable) get the brighter text.
                           color: isGroupCell ? 'var(--text-muted)' : 'var(--text-primary)',
+                          // One unified header band — no per-row backgrounds. The
+                          // hairline below the group row is what separates the two
+                          // rows; vertical group dividers do the side separation.
                           borderBottom: isGroupCell
-                            ? '1px solid var(--glass-border-bright)'
+                            ? '1px solid var(--tab-border)'
                             : '1px solid var(--tab-border)',
                           borderLeft: showLeftDivider
                             ? '1px solid var(--glass-border-bright)'
-                            : undefined,
-                          background: isGroupCell
-                            ? 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))'
-                            : undefined,
-                          boxShadow: isGroupCell
-                            ? 'inset 0 -1px 0 rgba(255,255,255,0.04)'
                             : undefined,
                         }}
                         onClick={
