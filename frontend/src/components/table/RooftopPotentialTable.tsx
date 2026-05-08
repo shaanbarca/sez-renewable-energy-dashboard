@@ -81,6 +81,115 @@ function SortHeader({ label, sortKey, active, dir, onSort, align, tooltip }: Sor
   );
 }
 
+/** Sub-toggle inside the Renewable Resource tab. Lets users switch between
+ *  per-source potential views — Solar is the only one wired today, the rest
+ *  are placeholders mirroring the LayerControl / EnergyToggle "Soon" pattern.
+ *  When Wind / Geothermal / Hydro / Biomass land, swap the disabled flag and
+ *  branch to the right table component. */
+function ResourceSubToggle() {
+  const [active, setActive] = useState<'solar' | 'wind' | 'geothermal' | 'hydro' | 'biomass'>(
+    'solar',
+  );
+  const items: { value: typeof active; label: string; comingSoon?: boolean }[] = [
+    { value: 'solar', label: 'Solar' },
+    { value: 'wind', label: 'Wind', comingSoon: true },
+    { value: 'geothermal', label: 'Geothermal', comingSoon: true },
+    { value: 'hydro', label: 'Hydro', comingSoon: true },
+    { value: 'biomass', label: 'Biomass', comingSoon: true },
+  ];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 16px',
+        borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--panel-bg-deep)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          color: 'var(--text-muted)',
+          marginRight: 4,
+        }}
+      >
+        Resource
+      </span>
+      <div
+        style={{
+          display: 'flex',
+          border: '1px solid var(--glass-border-bright)',
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
+        {items.map((it) => {
+          const isActive = it.value === active && !it.comingSoon;
+          if (it.comingSoon) {
+            return (
+              <div
+                key={it.value}
+                title="Coming soon"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: 'var(--text-muted)',
+                  opacity: 0.55,
+                  cursor: 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {it.label}
+                <span
+                  style={{
+                    fontSize: 8,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    padding: '1px 4px',
+                    border: '1px solid var(--text-muted)',
+                    borderRadius: 3,
+                    lineHeight: 1,
+                  }}
+                >
+                  Soon
+                </span>
+              </div>
+            );
+          }
+          return (
+            <button
+              key={it.value}
+              type="button"
+              onClick={() => setActive(it.value)}
+              style={{
+                padding: '4px 10px',
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: 'pointer',
+                background: isActive ? 'var(--toggle-on-bg)' : 'transparent',
+                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                border: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {it.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function RooftopPotentialTable() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const selectedSite = useDashboardStore((s) => s.selectedSite);
@@ -166,6 +275,7 @@ export default function RooftopPotentialTable() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <ResourceSubToggle />
       {/* Summary bar */}
       <div
         style={{

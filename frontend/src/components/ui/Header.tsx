@@ -22,6 +22,7 @@ function GuideButton() {
   );
 }
 
+
 export default function Header() {
   const scorecard = useDashboardStore((s) => s.scorecard);
   const siteCount = scorecard?.length ?? 0;

@@ -248,6 +248,23 @@ export interface ScorecardRow {
   cement_plants?: string | null;
   cement_has_chinese_ownership?: boolean | null;
 
+  // F2: Geothermal adjacency (drives the dispatchable-RE layer in delivered cost)
+  geothermal_adjacency_tier?:
+    | 'operating_within_50km'
+    | 'operating_within_200km'
+    | 'pipeline_within_200km_pre2030'
+    | 'pipeline_within_200km_post2030'
+    | 'none'
+    | null;
+  nearest_geothermal_operating_id?: string | null;
+  nearest_geothermal_operating_km?: number | null;
+  nearest_geothermal_operating_mw?: number | null;
+  nearest_geothermal_operating_emission_factor_g_per_kwh?: number | null;
+  nearest_geothermal_pipeline_id?: string | null;
+  nearest_geothermal_pipeline_km?: number | null;
+  nearest_geothermal_pipeline_mw?: number | null;
+  nearest_geothermal_pipeline_target_year?: number | null;
+
   // H8: Perpres 112/2022 compliance
   has_captive_coal?: boolean;
   perpres_112_status?: string | null;
@@ -374,7 +391,7 @@ export interface ScorecardResponse {
   scorecard: ScorecardRow[];
 }
 
-export type EnergyMode = 'solar' | 'wind' | 'hybrid' | 'overall';
+export type EnergyMode = 'solar' | 'wind' | 'geothermal' | 'hybrid' | 'overall';
 export type BenchmarkMode = 'bpp' | 'tariff';
 /** Which layer of the cost stack feeds action_flag / economic_tier / gap / carbon_breakeven.
  *  Mirrors `src/model/basic_model.py::CostBasis`. See TAXONOMY §7.3 for the

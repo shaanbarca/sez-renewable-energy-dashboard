@@ -195,16 +195,29 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
         lv.pvout = false;
         lv.buildable_polygons = false;
         lv.wind_buildable_polygons = true;
+        lv.geothermal_operating = false;
+        lv.geothermal_pipeline = false;
       } else if (mode === 'solar') {
         lv.pvout = true;
         lv.wind = false;
         lv.buildable_polygons = true;
         lv.wind_buildable_polygons = false;
+        lv.geothermal_operating = false;
+        lv.geothermal_pipeline = false;
       } else if (mode === 'hybrid') {
         lv.pvout = true;
         lv.wind = true;
         lv.buildable_polygons = true;
         lv.wind_buildable_polygons = true;
+        lv.geothermal_operating = false;
+        lv.geothermal_pipeline = false;
+      } else if (mode === 'geothermal') {
+        lv.geothermal_operating = true;
+        lv.geothermal_pipeline = true;
+        lv.pvout = false;
+        lv.wind = false;
+        lv.buildable_polygons = false;
+        lv.wind_buildable_polygons = false;
       }
       // 'overall' — leave layers as-is, user controls via LayerControl
       // Auto-flip costBasis only when the current choice is invalid for the new mode.

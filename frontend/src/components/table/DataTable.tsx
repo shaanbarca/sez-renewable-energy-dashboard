@@ -452,45 +452,97 @@ export default function DataTable() {
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 z-10" style={{ background: 'var(--glass-heavy)' }}>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
-                {hg.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className="text-left px-2 py-1.5 font-medium cursor-pointer select-none overflow-visible"
-                    style={{
-                      color: 'var(--text-secondary)',
-                      borderBottom: '1px solid var(--tab-border)',
-                    }}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <span className="flex items-center gap-1">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {{
-                        asc: ' \u25B2',
-                        desc: ' \u25BC',
-                      }[header.column.getIsSorted() as string] ?? ''}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            ))}
+            {table.getHeaderGroups().map((hg, hgIdx, hgArr) => {
+              const isGroupRow = hgIdx < hgArr.length - 1;
+              return (
+                <tr key={hg.id}>
+                  {hg.headers.map((header, colIdx) => {
+                    const isPlaceholder = header.isPlaceholder;
+                    const isGroupCell = isGroupRow && !isPlaceholder;
+                    const colSpan = header.colSpan;
+                    // Section divider: a left border on this cell IF it begins a
+                    // new group. For group cells: any group cell after the first.
+                    // For leaf cells: the leaf marked with `meta.groupStart`.
+                    const isLeafGroupStart =
+                      !isGroupRow &&
+                      colIdx > 0 &&
+                      Boolean(header.column.columnDef.meta?.groupStart);
+                    const isGroupCellGroupStart = isGroupCell && colIdx > 0;
+                    const showLeftDivider = isLeafGroupStart || isGroupCellGroupStart;
+                    return (
+                      <th
+                        key={header.id}
+                        colSpan={colSpan > 1 ? colSpan : undefined}
+                        className={`px-2 select-none overflow-visible ${
+                          isGroupCell ? 'py-2 text-center' : 'py-1.5 text-left font-medium'
+                        } ${isGroupCell || isPlaceholder ? '' : 'cursor-pointer'}`}
+                        style={{
+                          // Hierarchy flip: group headers (structural) are muted;
+                          // leaf column headers (clickable) get the brighter text.
+                          color: isGroupCell ? 'var(--text-muted)' : 'var(--text-primary)',
+                          // Notion-style: one unified header band, no per-row
+                          // backgrounds. The hairline below the group row is what
+                          // splits the two; vertical group dividers do the rest.
+                          borderBottom: '1px solid var(--tab-border)',
+                          borderLeft: showLeftDivider
+                            ? '1px solid var(--glass-border-bright)'
+                            : undefined,
+                        }}
+                        onClick={
+                          isGroupCell || isPlaceholder
+                            ? undefined
+                            : header.column.getToggleSortingHandler()
+                        }
+                      >
+                        {isPlaceholder ? null : (
+                          <span
+                            className={`items-center gap-1 ${
+                              isGroupCell ? 'inline-flex' : 'flex'
+                            }`}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {!isGroupCell &&
+                              ({
+                                asc: ' \u25B2',
+                                desc: ' \u25BC',
+                              }[header.column.getIsSorted() as string] ?? '')}
+                          </span>
+                        )}
+                      </th>
+                    );
+                  })}
+                </tr>
+              );
+            })}
             {showFilters && (
               <tr>
-                {table.getHeaderGroups()[0].headers.map((header) => (
-                  <th
-                    key={`filter-${header.id}`}
-                    className="px-2 py-0.5"
-                    style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                  >
-                    {DROPDOWN_COLUMNS.has(header.column.id) && (
-                      <DropdownFilter column={header.column} data={data} />
-                    )}
-                    {RANGE_COLUMNS.has(header.column.id) && (
-                      <RangeFilter column={header.column} data={data} />
-                    )}
-                  </th>
-                ))}
+                {/* Filter row keys off the LEAF header group (last entry) so each
+                    filter cell aligns with its column, not its parent group header. */}
+                {table
+                  .getHeaderGroups()
+                  [table.getHeaderGroups().length - 1].headers.map((header, colIdx) => {
+                    const isGroupStart =
+                      colIdx > 0 && Boolean(header.column.columnDef.meta?.groupStart);
+                    return (
+                      <th
+                        key={`filter-${header.id}`}
+                        className="px-2 py-0.5"
+                        style={{
+                          borderBottom: '1px solid var(--border-subtle)',
+                          borderLeft: isGroupStart
+                            ? '1px solid var(--glass-border)'
+                            : undefined,
+                        }}
+                      >
+                        {DROPDOWN_COLUMNS.has(header.column.id) && (
+                          <DropdownFilter column={header.column} data={data} />
+                        )}
+                        {RANGE_COLUMNS.has(header.column.id) && (
+                          <RangeFilter column={header.column} data={data} />
+                        )}
+                      </th>
+                    );
+                  })}
               </tr>
             )}
           </thead>
@@ -505,18 +557,25 @@ export default function DataTable() {
                 }}
                 onClick={() => selectSite(row.original.site_id)}
               >
-                {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    className="px-2 py-1"
-                    style={{
-                      color: 'var(--text-primary)',
-                      borderBottom: '1px solid var(--tab-border)',
-                    }}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
+                {row.getVisibleCells().map((cell, colIdx) => {
+                  const isGroupStart =
+                    colIdx > 0 && Boolean(cell.column.columnDef.meta?.groupStart);
+                  return (
+                    <td
+                      key={cell.id}
+                      className="px-2 py-1"
+                      style={{
+                        color: 'var(--text-primary)',
+                        borderBottom: '1px solid var(--tab-border)',
+                        borderLeft: isGroupStart
+                          ? '1px solid var(--glass-border)'
+                          : undefined,
+                      }}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

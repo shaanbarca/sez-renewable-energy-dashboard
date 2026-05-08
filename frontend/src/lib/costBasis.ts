@@ -42,6 +42,14 @@ export function resolveCost(
           return null; // empty cell — no wind-only delivered blend today
       }
       break;
+    case 'geothermal':
+      // Layers-only mode: site-resolved geothermal LCOE is not a quantity
+      // ESDM / PLN publish — the Technology Catalogue only gives a fleet
+      // HT/LT range, and real economics depend on the *plant's* resource
+      // (depth, well productivity, NCG fraction), not the demand site.
+      // Mode flips map layers + emphasizes the GeothermalAdjacencyCard;
+      // cost columns intentionally render '—' to avoid a misleading number.
+      return null;
     case 'hybrid':
       switch (basis) {
         case 'raw':
@@ -70,6 +78,9 @@ export function resolveCost(
  *  to grey out unsupported options. */
 export function isBasisSupported(energyMode: EnergyMode, basis: CostBasis): boolean {
   if (energyMode === 'overall') return basis === 'firmed';
+  // Geothermal mode is layers-only — no basis returns a number, so no
+  // basis is "supported". CostBasisToggle will grey all three out.
+  if (energyMode === 'geothermal') return false;
   if (basis === 'delivered') return energyMode === 'solar';
   return true; // raw and firmed are always supported for solar/wind/hybrid
 }
@@ -81,10 +92,13 @@ export function defaultCostBasis(energyMode: EnergyMode): CostBasis {
   return energyMode === 'overall' ? 'firmed' : 'raw';
 }
 
-/** Human label shown in the toggle. Names each view by what's in the number. */
+/** Human label shown in the toggle. Tech-agnostic — the active source is
+ *  conveyed by the adjacent Mode dropdown, so the basis pills name only the
+ *  cost view. "24/7 LCOE" is what IEA calls Full System LCOE; we keep "24/7"
+ *  for user familiarity since the dashboard has used that term throughout. */
 export const COST_BASIS_LABELS: Record<CostBasis, string> = {
-  raw: 'Solar LCOE',
-  firmed: 'Solar 24/7',
+  raw: 'LCOE',
+  firmed: '24/7 LCOE',
   delivered: 'Supply Blend',
 };
 
