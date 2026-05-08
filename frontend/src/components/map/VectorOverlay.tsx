@@ -684,14 +684,18 @@ export default function VectorOverlay() {
         );
       }
     };
+    // Always attach the style.load listener so icons are re-registered every
+    // time the user switches basemap (satellite ↔ dark ↔ light ↔ voyager).
+    // MapLibre wipes all addImage'd images on style.setStyle, so without this
+    // re-registration the symbol layers (cement / steel / nickel / coal /
+    // geothermal) silently render nothing after the first style swap.
     if (map.isStyleLoaded()) {
       addIcons();
-    } else {
-      map.on('style.load', addIcons);
-      return () => {
-        map.off('style.load', addIcons);
-      };
     }
+    map.on('style.load', addIcons);
+    return () => {
+      map.off('style.load', addIcons);
+    };
   }, [mapRef]);
 
   return (

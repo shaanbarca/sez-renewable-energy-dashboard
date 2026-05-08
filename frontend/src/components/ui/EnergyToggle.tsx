@@ -5,8 +5,8 @@ import type { EnergyMode } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
 type Option =
-  | { value: EnergyMode; label: string; comingSoon?: false }
-  | { value: string; label: string; comingSoon: true };
+  | { value: EnergyMode; label: string; description?: string; comingSoon?: false }
+  | { value: string; label: string; description?: string; comingSoon: true };
 
 type Section = { title: string; options: Option[] };
 
@@ -68,18 +68,51 @@ const SECTIONS: Section[] = [
   {
     title: 'Single source',
     options: [
-      { value: 'solar', label: 'Solar' },
-      { value: 'wind', label: 'Wind' },
-      { value: 'geothermal', label: 'Geothermal' },
-      { value: 'hydro', label: 'Hydro', comingSoon: true },
-      { value: 'biomass', label: 'Biomass', comingSoon: true },
+      {
+        value: 'solar',
+        label: 'Solar',
+        description: 'Solar-only LCOE. Map shows PVOUT raster + buildable land.',
+      },
+      {
+        value: 'wind',
+        label: 'Wind',
+        description: 'Wind-only LCOE. Map shows wind speed + buildable land.',
+      },
+      {
+        value: 'geothermal',
+        label: 'Geothermal',
+        description:
+          'Layers-only. Site-resolved geothermal LCOE isn’t published — the Score Drawer adjacency card carries the per-site signal.',
+      },
+      {
+        value: 'hydro',
+        label: 'Hydro',
+        description: 'Coming in v4.1b alongside the hydro proximity dataset.',
+        comingSoon: true,
+      },
+      {
+        value: 'biomass',
+        label: 'Biomass',
+        description: 'Spec-pending. Needs its own proximity model (no RUPTL analog).',
+        comingSoon: true,
+      },
     ],
   },
   {
     title: 'Composite',
     options: [
-      { value: 'hybrid', label: 'Hybrid' },
-      { value: 'overall', label: 'Overall' },
+      {
+        value: 'hybrid',
+        label: 'Mix',
+        description:
+          'Optimal solar + wind mix per site. The optimizer sweeps share splits to minimise blended LCOE; cost columns reflect the chosen mix and the BESS hours it implies.',
+      },
+      {
+        value: 'overall',
+        label: 'Best fit',
+        description:
+          'Per-site winner. Each site picks the cheapest of Solar / Wind / Mix; cost columns show that winner. Use this when you want one ranking across all techs.',
+      },
     ],
   },
 ];
@@ -233,7 +266,7 @@ export default function EnergyToggle() {
         createPortal(
           <div
             ref={panelRef}
-            className="rounded-lg px-2 py-2 min-w-[200px]"
+            className="rounded-lg px-2 py-2 min-w-[280px] max-w-[320px]"
             style={{
               position: 'fixed',
               top: pos.top,
@@ -257,25 +290,92 @@ export default function EnergyToggle() {
                 <div className="space-y-0.5">
                   {section.options.map((opt) => {
                     const active = !opt.comingSoon && energyMode === opt.value;
-                    if (opt.comingSoon) {
-                      return (
-                        <div
-                          key={opt.value}
-                          title="Coming soon"
-                          className="flex items-center gap-2 px-2 py-1 text-xs cursor-not-allowed"
-                          style={{ color: 'var(--text-muted)', opacity: 0.55 }}
+                    const isReal = !opt.comingSoon;
+
+                    // Two-line item: title (label) + body (description). Same
+                    // structure used elsewhere for the action-flag legend rows
+                    // — body is always visible inline so users don't need to
+                    // hunt or hover.
+                    const titleRow = (
+                      <div className="flex items-start gap-2">
+                        {isReal && (
+                          <span
+                            style={{
+                              color: active ? 'var(--accent)' : 'var(--text-muted)',
+                              display: 'inline-flex',
+                              marginTop: 1,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <ModeIcon mode={opt.value as EnergyMode} />
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            flex: 1,
+                            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            fontSize: 13,
+                            fontWeight: 500,
+                            lineHeight: 1.2,
+                          }}
                         >
-                          <span style={{ flex: 1 }}>{opt.label}</span>
+                          {opt.label}
+                        </span>
+                        {active && (
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ color: 'var(--accent)', marginTop: 2, flexShrink: 0 }}
+                          >
+                            <path d="M3 8.5L6.5 12L13 4.5" />
+                          </svg>
+                        )}
+                        {opt.comingSoon && (
                           <span
                             className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded"
                             style={{
                               color: 'var(--text-muted)',
                               border: '1px solid var(--text-muted)',
                               lineHeight: 1,
+                              flexShrink: 0,
+                              marginTop: 2,
                             }}
                           >
                             Soon
                           </span>
+                        )}
+                      </div>
+                    );
+
+                    const bodyRow = opt.description ? (
+                      <div
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontSize: 11,
+                          lineHeight: 1.4,
+                          marginTop: 2,
+                          marginLeft: isReal ? 22 : 0, // align under the title text
+                        }}
+                      >
+                        {opt.description}
+                      </div>
+                    ) : null;
+
+                    if (opt.comingSoon) {
+                      return (
+                        <div
+                          key={opt.value}
+                          className="px-2 py-2 cursor-not-allowed"
+                          style={{ opacity: 0.55 }}
+                        >
+                          {titleRow}
+                          {bodyRow}
                         </div>
                       );
                     }
@@ -284,28 +384,23 @@ export default function EnergyToggle() {
                         key={opt.value}
                         type="button"
                         onClick={() => handlePick(opt.value as EnergyMode)}
-                        className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded cursor-pointer transition-colors"
+                        className="w-full text-left px-2 py-2 rounded cursor-pointer transition-colors"
                         style={{
-                          color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
                           background: active ? 'var(--accent-soft)' : 'transparent',
                         }}
+                        onMouseEnter={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
                       >
-                        <span style={{ flex: 1, textAlign: 'left' }}>{opt.label}</span>
-                        {active && (
-                          <svg
-                            width="11"
-                            height="11"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            style={{ color: 'var(--accent)' }}
-                          >
-                            <path d="M3 8.5L6.5 12L13 4.5" />
-                          </svg>
-                        )}
+                        {titleRow}
+                        {bodyRow}
                       </button>
                     );
                   })}
@@ -318,3 +413,4 @@ export default function EnergyToggle() {
     </Tooltip.Provider>
   );
 }
+
