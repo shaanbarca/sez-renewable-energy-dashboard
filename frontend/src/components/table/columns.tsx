@@ -120,8 +120,8 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 function GroupHeader({ label }: { label: string }) {
   return (
     <span
-      className="text-[10px] font-semibold uppercase"
-      style={{ color: 'var(--text-muted)', letterSpacing: '0.12em' }}
+      className="text-[10px] font-bold uppercase"
+      style={{ color: 'var(--text-primary)', letterSpacing: '0.12em' }}
     >
       {label}
     </span>
