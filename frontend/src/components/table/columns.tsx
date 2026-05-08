@@ -43,6 +43,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
   area_ha: 'Total designated KEK area in hectares',
   regional_groundmount_potential_mwp_50km:
     'Maximum buildable ground-mount solar capacity (MWp) within 50km of the site centroid, after applying buildability filters (slope, land cover, protected areas). Regional, not on-site.',
+  within_boundary_capacity_mwp:
+    'Captive (on-site) solar capacity (MWp) inside the site fence — sum across all buildable polygons. Adjusted by the buildout-availability slider (default 20% — operating industrial parks have most land already used). Behind-the-meter; no grid connection cost.',
   rooftop_solar_mwp_potential:
     'On-site rooftop solar nameplate ceiling (MWp). Sum of detected building footprints × §14 classifier usability multiplier × layout density × panel density. Source: Google Open Buildings v3 (vintage 2023-05). Outliers help spot data issues — extremely low may indicate stale GoB v3 detection; extremely high may indicate over-counted residential structures.',
   action_flag:
@@ -356,6 +358,35 @@ export const columns = [
         cell: (info) => {
           const v = info.getValue();
           return v != null ? v.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
+        },
+      }),
+      col.display({
+        id: 'captive_capacity_mwp',
+        header: () => (
+          <HeaderWithTooltip label="Captive (MWp)" columnId="within_boundary_capacity_mwp" />
+        ),
+        // Sort + filter route through the haircut-adjusted value so the column
+        // stays consistent with what the cell renders (otherwise sorting by
+        // raw raster value would conflict with the displayed adjusted figure).
+        sortingFn: (a, b) => {
+          const ratio =
+            useDashboardStore.getState().assumptions?.wb_buildout_footprint_ratio ?? 0.2;
+          const av = (a.original.within_boundary_capacity_mwp ?? -1) * ratio;
+          const bv = (b.original.within_boundary_capacity_mwp ?? -1) * ratio;
+          return av - bv;
+        },
+        cell: (info) => {
+          const ratio =
+            useDashboardStore.getState().assumptions?.wb_buildout_footprint_ratio ?? 0.2;
+          const raw = info.row.original.within_boundary_capacity_mwp;
+          if (raw == null || raw <= 0)
+            return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+          const adjusted = raw * ratio;
+          return (
+            <span title={`Raw ${raw.toFixed(1)} MWp × ${(ratio * 100).toFixed(0)}% available`}>
+              {adjusted.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+            </span>
+          );
         },
       }),
       col.accessor('rooftop_solar_mwp_potential', {

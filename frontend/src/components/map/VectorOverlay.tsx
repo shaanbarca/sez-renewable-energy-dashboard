@@ -383,9 +383,16 @@ export default function VectorOverlay() {
       map.getCanvas().style.cursor = '';
       setSubHover(null);
     };
+    // Hover the BG layer (9px circle) — bigger hit area than the inner bolt
+    // symbol, so users can mouse anywhere on the visible marker to trigger
+    // the popup. Both layers receive events so the bolt still works.
+    map.on('mouseenter', 'overlay-substations-bg', onEnter);
+    map.on('mouseleave', 'overlay-substations-bg', onLeave);
     map.on('mouseenter', 'overlay-substations-symbol', onEnter);
     map.on('mouseleave', 'overlay-substations-symbol', onLeave);
     return () => {
+      map.off('mouseenter', 'overlay-substations-bg', onEnter);
+      map.off('mouseleave', 'overlay-substations-bg', onLeave);
       map.off('mouseenter', 'overlay-substations-symbol', onEnter);
       map.off('mouseleave', 'overlay-substations-symbol', onLeave);
     };
@@ -649,7 +656,29 @@ export default function VectorOverlay() {
     if (!map) return;
     const addIcons = () => {
       if (!map.hasImage('bolt-icon')) {
-        map.addImage('bolt-icon', createBoltIcon(24, '#FFD600'), { sdf: false });
+        map.addImage('bolt-icon', createBoltIcon(24, '#FFD600'), {
+          sdf: false,
+          pixelRatio: 2,
+        });
+      }
+      // Static PNG bolt — used by the substation layer. loadImage is async; we
+      // fire-and-forget here so it lands as soon as the network round-trip
+      // returns. MapLibre auto-refreshes layers that reference an image once
+      // the image is registered, so the marker fills in retroactively.
+      if (!map.hasImage('bolt-png')) {
+        map
+          .loadImage('/icons/bolt.png')
+          .then((response) => {
+            if (!response || map.hasImage('bolt-png')) return;
+            // MapLibre 4.x returns an object with .data; older versions return
+            // a HTMLImageElement directly.
+            // biome-ignore lint/suspicious/noExplicitAny: MapLibre typing
+            const data: any = (response as any).data ?? response;
+            map.addImage('bolt-png', data, { pixelRatio: 2 });
+          })
+          .catch(() => {
+            // PNG missing — substation layer falls back to the inner yellow circle.
+          });
       }
       if (!map.hasImage('nickel-icon')) {
         map.addImage('nickel-icon', createIconImage(NICKEL_PATH, '#FF6D00', 28), { sdf: false });
@@ -729,17 +758,35 @@ export default function VectorOverlay() {
           };
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
+              {/* Fully invisible circle — kept only as a 9px hover hit-target
+                  around the bolt so the popup is easier to trigger. */}
+              <Layer
+                id="overlay-substations-bg"
+                type="circle"
+                paint={{
+                  'circle-radius': 9,
+                  'circle-color': '#000000',
+                  'circle-opacity': 0,
+                  'circle-stroke-color': '#FFD600',
+                  'circle-stroke-width': 1.5,
+                  'circle-stroke-opacity': 0,
+                }}
+              />
               <Layer
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
-                  'icon-image': 'bolt-icon',
-                  'icon-size': 0.7,
+                  'icon-image': [
+                    'coalesce',
+                    ['image', 'bolt-png'],
+                    ['image', 'bolt-icon'],
+                  ],
+                  'icon-size': 0.4,
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
                 }}
                 paint={{
-                  'icon-opacity': 0.85,
+                  'icon-opacity': 1,
                 }}
               />
             </Source>
@@ -762,11 +809,39 @@ export default function VectorOverlay() {
               color: 'var(--text-primary)',
               fontSize: 11,
               lineHeight: 1.5,
+              minWidth: 160,
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 2 }}>{subHover.name}</div>
-            {subHover.voltage && <div>{subHover.voltage}</div>}
-            {subHover.capacity_mva && <div>{subHover.capacity_mva} MVA</div>}
+            <div
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                color: 'var(--text-secondary)',
+                marginBottom: 2,
+              }}
+            >
+              Substation
+            </div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              {subHover.name || '—'}
+            </div>
+            {subHover.voltage != null && subHover.voltage !== '' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Voltage</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {subHover.voltage}
+                </span>
+              </div>
+            )}
+            {subHover.capacity_mva != null && subHover.capacity_mva !== '' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Capacity</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {subHover.capacity_mva} MVA
+                </span>
+              </div>
+            )}
           </div>
         </Popup>
       )}

@@ -1,11 +1,14 @@
 import { capitalize } from '../../../lib/format';
-import type { ScorecardRow } from '../../../lib/types';
+import type { ScorecardRow, UserAssumptions } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import LcoeCurveChart from '../../charts/LcoeCurveChart';
+import Slider from '../../ui/Slider';
 import { SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 export function ResourceTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
   const pvoutCentroid = row.pvout_centroid_kwh_kwp_yr;
   const pvoutBest = row.pvout_best_50km_kwh_kwp_yr;
   const solarCf =
@@ -18,6 +21,26 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
   const wbLcoe = row.lcoe_within_boundary_usd_mwh;
   const showSolar = energyMode === 'solar' || energyMode === 'hybrid' || energyMode === 'overall';
   const showWind = energyMode === 'wind' || energyMode === 'hybrid' || energyMode === 'overall';
+
+  // Captive Solar buildout-availability haircut. Raw raster picks every vacant
+  // pixel inside the fence; in reality factories + roads + buffers eat most of
+  // it. User-adjustable assumed share. Default 20% (matches the
+  // wb_buildout_footprint_ratio that already gates grid integration).
+  const buildoutPct = assumptions?.wb_buildout_footprint_ratio ?? 0.2;
+  const adjustedCapacity =
+    row.within_boundary_capacity_mwp != null
+      ? row.within_boundary_capacity_mwp * buildoutPct
+      : null;
+  const adjustedArea =
+    row.within_boundary_area_ha != null ? row.within_boundary_area_ha * buildoutPct : null;
+  const adjustedGen =
+    row.within_boundary_generation_gwh != null
+      ? row.within_boundary_generation_gwh * buildoutPct
+      : null;
+  const adjustedCoverage =
+    row.within_boundary_coverage_pct != null
+      ? row.within_boundary_coverage_pct * buildoutPct
+      : null;
 
   return (
     <>
@@ -97,6 +120,67 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
           />
         )}
       </StatCard>
+
+      {showSolar &&
+        row.within_boundary_capacity_mwp != null &&
+        row.within_boundary_capacity_mwp > 0 && (
+          <StatCard>
+            <SectionHeader
+              title="Captive Solar (on-site)"
+              subtitle="Total solar that fits inside the site fence — adjusted for assumed buildout availability."
+              tip="Raw buildable raster × buildout-availability slider. Default 20% reflects an operating industrial park where factories, roads, and buffers take most of the technically buildable land."
+            />
+            <div style={{ marginBottom: 6 }}>
+              <Slider
+                label="Buildout availability"
+                description={`Raw raster says ${row.within_boundary_capacity_mwp.toFixed(1)} MWp; this slider says how much is realistically deployable.`}
+                min={0.05}
+                max={1.0}
+                step={0.05}
+                value={buildoutPct}
+                onChange={(v) =>
+                  setAssumptions({ wb_buildout_footprint_ratio: v } as Partial<UserAssumptions>)
+                }
+              />
+            </div>
+            <StatRowWithTip
+              label="Captive Capacity"
+              value={adjustedCapacity != null ? adjustedCapacity.toFixed(1) : null}
+              unit="MWp"
+              tip={`Adjusted for ${(buildoutPct * 100).toFixed(0)}% availability. Raw raster ceiling is ${row.within_boundary_capacity_mwp.toFixed(1)} MWp; this is what the slider says is realistically deployable.`}
+            />
+            <StatRowWithTip
+              label="Available Area"
+              value={adjustedArea != null ? adjustedArea.toFixed(0) : null}
+              unit="ha"
+              tip={`Raw buildable area × ${(buildoutPct * 100).toFixed(0)}% slider. Raw is ${row.within_boundary_area_ha?.toFixed(0)} ha.`}
+            />
+            {row.within_boundary_avg_pvout != null && (
+              <StatRowWithTip
+                label="Avg PVOUT"
+                value={row.within_boundary_avg_pvout.toFixed(0)}
+                unit="kWh/kWp/yr"
+                tip="Mean solar resource over the buildable polygons inside the fence. Doesn't change with the slider."
+              />
+            )}
+            {adjustedGen != null && (
+              <StatRowWithTip
+                label="Annual Generation"
+                value={adjustedGen.toFixed(0)}
+                unit="GWh/yr"
+                tip={`Adjusted Capacity × Avg PVOUT. At 100% the ceiling is ${row.within_boundary_generation_gwh?.toFixed(0)} GWh/yr.`}
+              />
+            )}
+            {adjustedCoverage != null && (
+              <StatRowWithTip
+                label="Demand Coverage"
+                value={(adjustedCoverage * 100).toFixed(0)}
+                unit="%"
+                tip="Captive solar generation as a fraction of the site's 2030 demand. >100% means on-site solar over-produces vs the load."
+              />
+            )}
+          </StatCard>
+        )}
 
       <StatCard>
         <SectionHeader
