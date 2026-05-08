@@ -480,9 +480,9 @@ export default function DataTable() {
                           // Hierarchy flip: group headers (structural) are muted;
                           // leaf column headers (clickable) get the brighter text.
                           color: isGroupCell ? 'var(--text-muted)' : 'var(--text-primary)',
-                          // Airtable-style: group row sits on a darker panel so
-                          // the section bands read as distinct strips.
-                          background: isGroupCell ? 'rgba(0,0,0,0.25)' : undefined,
+                          // Notion-style: one unified header band, no per-row
+                          // backgrounds. The hairline below the group row is what
+                          // splits the two; vertical group dividers do the rest.
                           borderBottom: '1px solid var(--tab-border)',
                           borderLeft: showLeftDivider
                             ? '1px solid var(--glass-border-bright)'
