@@ -118,10 +118,14 @@ function HeaderWithTooltip({ label, columnId }: { label: string; columnId: strin
 /* ---------- Section header (Excel-style merged-cell label across the group) ---------- */
 
 function GroupHeader({ label }: { label: string }) {
+  // Pattern from MUI X DataGrid / Stripe Dashboard / AG-Grid: group is smaller
+  // and lower-contrast than the column header below it. The column row is the
+  // interactive layer (sortable / filterable) — it should dominate. The group
+  // is supporting context.
   return (
     <span
-      className="text-[13px] font-bold uppercase"
-      style={{ color: 'var(--text-primary)', letterSpacing: '0.1em' }}
+      className="text-[11px] font-medium uppercase"
+      style={{ color: 'var(--text-secondary)', letterSpacing: '0.06em' }}
     >
       {label}
     </span>
