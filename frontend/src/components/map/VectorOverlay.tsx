@@ -730,17 +730,18 @@ export default function VectorOverlay() {
           return (
             <Source id="overlay-substations" type="geojson" data={geojson}>
               {/* Dark circle backdrop so the yellow bolt always reads against
-                  varied satellite imagery (sandy, green, urban). Without this
-                  the bolt blends into desert / built-up areas and users miss
-                  the layer entirely. */}
+                  varied satellite imagery. The bolt itself is rendered as a
+                  Unicode high-voltage glyph (U+26A1) via text-field — works
+                  reliably across map styles without depending on a
+                  canvas-rendered addImage that sometimes fails silently. */}
               <Layer
                 id="overlay-substations-bg"
                 type="circle"
                 paint={{
                   'circle-radius': 9,
-                  'circle-color': 'rgba(0,0,0,0.55)',
+                  'circle-color': 'rgba(20,20,28,0.85)',
                   'circle-stroke-color': '#FFD600',
-                  'circle-stroke-width': 1.2,
+                  'circle-stroke-width': 1.5,
                   'circle-opacity': 1,
                 }}
               />
@@ -748,13 +749,15 @@ export default function VectorOverlay() {
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
-                  'icon-image': 'bolt-icon',
-                  'icon-size': 0.95,
-                  'icon-allow-overlap': true,
-                  'icon-ignore-placement': true,
+                  'text-field': '⚡',
+                  'text-size': 13,
+                  'text-allow-overlap': true,
+                  'text-ignore-placement': true,
                 }}
                 paint={{
-                  'icon-opacity': 1,
+                  'text-color': '#FFD600',
+                  'text-halo-color': 'rgba(0,0,0,0.6)',
+                  'text-halo-width': 1,
                 }}
               />
             </Source>
