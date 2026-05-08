@@ -393,7 +393,7 @@ export default function DataTable() {
                   border: '1px solid var(--accent-border)',
                   background: 'var(--accent-soft)',
                 }
-              : { color: 'var(--text-muted)', border: '1px solid var(--input-border)' }
+              : { color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }
           }
         >
           KEKs only
@@ -409,7 +409,7 @@ export default function DataTable() {
                   border: '1px solid rgba(255,111,0,0.4)',
                   background: 'rgba(255,111,0,0.1)',
                 }
-              : { color: 'var(--text-muted)', border: '1px solid var(--input-border)' }
+              : { color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }
           }
         >
           CBAM
@@ -425,7 +425,7 @@ export default function DataTable() {
                   border: '1px solid var(--accent-border)',
                   background: 'var(--accent-soft)',
                 }
-              : { color: 'var(--text-muted)', border: '1px solid var(--input-border)' }
+              : { color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }
           }
         >
           Filters{columnFilters.length > 0 ? ` (${columnFilters.length})` : ''}
@@ -444,7 +444,7 @@ export default function DataTable() {
           type="button"
           onClick={handleExport}
           className="px-3 py-1 text-xs rounded cursor-pointer transition-colors"
-          style={{ color: 'var(--text-muted)', border: '1px solid var(--input-border)' }}
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }}
         >
           Export CSV
         </button>
