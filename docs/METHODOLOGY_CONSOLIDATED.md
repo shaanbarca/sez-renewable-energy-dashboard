@@ -1523,12 +1523,25 @@ The dashboard integrates two external datasets to characterize captive (behind-t
 
 **GEM fields used:** plant name, latitude, longitude, capacity_mw, status, parent company, region. Note: the KAPSARC mirror of GEM data lacks `commissioning_year`, which limits Perpres 112/2022 compliance dating (see §13.3).
 
-### 13.2 Spatial matching
+### 13.2 Spatial matching + contractual overrides
 
 Both datasets are spatially joined to KEK polygons using a **50 km buffer** (haversine distance from KEK centroid). Per-KEK aggregation produces:
 
 - **Coal:** count of plants, total capacity (MW), semicolon-separated plant names
 - **Nickel:** count of facilities, semicolon-separated project names, dominant process type (mode), Chinese ownership flag (any)
+
+**Contractual override layer (F12, 2026-05-09).** Pure 50-km haversine matching misses common contractual relationships — Sumatran mine-mouth coal plants supplying smelters > 50 km away are well-documented in annual reports but invisible to spatial matching. Cement plants with off-site captive arrangements have the same problem.
+
+A manual-override CSV at `data/raw/captive_coal_contractual_overrides.csv` (schema documented in `data/raw/README.md`) re-routes specific plants to their contractual site after the haversine match. Each override row carries:
+
+- `site_id` — the contractual site (must exist in `dim_sites`; typo'd ids are skipped with a stderr warning, not silently swallowed)
+- `plant_name` — case-insensitive match against the GEM `plant` field
+- `source` — primary citation (annual report, public disclosure)
+- `verification_status` — `confirmed` / `inferred` / `placeholder`
+
+The override layer doesn't expand the universe of captive plants — it only re-routes plants that GEM already tracks. Implementation: `apply_contractual_overrides()` in `src/pipeline/geo_utils.py`, called from `build_fct_captive_coal()` after the spatial match. Output rows carry a `captive_match_method` column (`spatial` vs. `contractual`) for provenance and a `captive_match_source` with the citation.
+
+**Coverage today.** Two seed entries (IMIP, Krakatau Steel) populate the override CSV from F12 spec examples; both marked `inferred` until cross-checked against GEM. Concrete contractual data work — surveying Sumatran mine-mouth plants — is a follow-up task.
 
 Pipeline functions:
 - `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`

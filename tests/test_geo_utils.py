@@ -12,7 +12,12 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.pipeline.geo_utils import direct_match, haversine_km, proximity_match
+from src.pipeline.geo_utils import (
+    apply_contractual_overrides,
+    direct_match,
+    haversine_km,
+    proximity_match,
+)
 
 
 class TestHaversine:
@@ -119,3 +124,147 @@ class TestDirectMatch:
         plants = pd.DataFrame(columns=["site_id", "capacity"])
         result = direct_match(sites, plants)
         assert len(result) == 0
+
+
+class TestApplyContractualOverrides:
+    """F12 (2026-05-09): contractual overrides on top of haversine match."""
+
+    def _matched(self, rows: list[dict]) -> pd.DataFrame:
+        # Mimics the output of proximity_match + direct_match concat
+        return pd.DataFrame(rows)
+
+    def _sites(self, rows: list[dict]) -> pd.DataFrame:
+        return pd.DataFrame(rows)
+
+    def test_override_pulls_in_unmatched_plant(self):
+        """Plant outside spatial buffer (site_id=None) gets routed via override."""
+        matched = self._matched(
+            [
+                {
+                    "plant": "Mine-Mouth Coal A",
+                    "latitude": -2.0,
+                    "longitude": 103.0,
+                    "site_id": None,
+                    "dist_km": None,
+                }
+            ]
+        )
+        sites = self._sites([{"site_id": "smelter_x", "latitude": -3.0, "longitude": 105.0}])
+        overrides = pd.DataFrame(
+            [
+                {
+                    "site_id": "smelter_x",
+                    "plant_name": "Mine-Mouth Coal A",
+                    "plant_lat": -2.0,
+                    "plant_lon": 103.0,
+                    "source": "Annual report 2024",
+                }
+            ]
+        )
+        result = apply_contractual_overrides(matched, overrides, sites)
+        assert result.iloc[0]["site_id"] == "smelter_x"
+        assert result.iloc[0]["captive_match_method"] == "contractual"
+        assert result.iloc[0]["captive_match_source"] == "Annual report 2024"
+        assert result.iloc[0]["dist_km"] > 0  # recomputed from coords
+
+    def test_override_replaces_wrong_spatial_match(self):
+        """Plant matched to wrong nearest-neighbour gets re-routed."""
+        matched = self._matched(
+            [
+                {
+                    "plant": "Coal Plant B",
+                    "latitude": -6.0,
+                    "longitude": 106.0,
+                    "site_id": "wrong_site",
+                    "dist_km": 5.0,
+                }
+            ]
+        )
+        sites = self._sites(
+            [
+                {"site_id": "wrong_site", "latitude": -6.05, "longitude": 106.05},
+                {"site_id": "right_site", "latitude": -6.5, "longitude": 106.5},
+            ]
+        )
+        overrides = pd.DataFrame(
+            [{"site_id": "right_site", "plant_name": "Coal Plant B", "source": "Disclosure"}]
+        )
+        result = apply_contractual_overrides(matched, overrides, sites)
+        assert result.iloc[0]["site_id"] == "right_site"
+        assert result.iloc[0]["captive_match_method"] == "contractual"
+
+    def test_unmatched_plants_stay_spatial(self):
+        """Plants not in the override file get captive_match_method='spatial'."""
+        matched = self._matched(
+            [
+                {
+                    "plant": "Some Plant",
+                    "latitude": -6.0,
+                    "longitude": 106.0,
+                    "site_id": "site_y",
+                    "dist_km": 3.0,
+                }
+            ]
+        )
+        sites = self._sites([{"site_id": "site_y", "latitude": -6.0, "longitude": 106.0}])
+        overrides = pd.DataFrame(columns=["site_id", "plant_name", "source"])
+        result = apply_contractual_overrides(matched, overrides, sites)
+        assert result.iloc[0]["captive_match_method"] == "spatial"
+        assert result.iloc[0]["captive_match_source"] is None
+
+    def test_override_with_unknown_site_id_skipped(self):
+        """Override pointing to a non-existent site_id is skipped, not crashed."""
+        matched = self._matched(
+            [
+                {
+                    "plant": "Plant C",
+                    "latitude": -1.0,
+                    "longitude": 100.0,
+                    "site_id": None,
+                    "dist_km": None,
+                }
+            ]
+        )
+        sites = self._sites([{"site_id": "real_site", "latitude": -2.0, "longitude": 101.0}])
+        overrides = pd.DataFrame([{"site_id": "TYPO_SITE", "plant_name": "Plant C", "source": "x"}])
+        result = apply_contractual_overrides(matched, overrides, sites)
+        # Override is ignored — row stays unmatched
+        assert result.iloc[0]["site_id"] is None
+        assert result.iloc[0]["captive_match_method"] == "spatial"
+
+    def test_plant_name_match_is_case_insensitive(self):
+        matched = self._matched(
+            [
+                {
+                    "plant": "Borneo Coal",
+                    "latitude": 0.0,
+                    "longitude": 113.0,
+                    "site_id": None,
+                    "dist_km": None,
+                }
+            ]
+        )
+        sites = self._sites([{"site_id": "kal_smelter", "latitude": 0.5, "longitude": 113.5}])
+        overrides = pd.DataFrame(
+            [{"site_id": "kal_smelter", "plant_name": "BORNEO COAL", "source": "report"}]
+        )
+        result = apply_contractual_overrides(matched, overrides, sites)
+        assert result.iloc[0]["site_id"] == "kal_smelter"
+        assert result.iloc[0]["captive_match_method"] == "contractual"
+
+    def test_empty_overrides_is_noop(self):
+        matched = self._matched(
+            [
+                {
+                    "plant": "P",
+                    "latitude": 0.0,
+                    "longitude": 0.0,
+                    "site_id": "s",
+                    "dist_km": 1.0,
+                }
+            ]
+        )
+        result = apply_contractual_overrides(matched, pd.DataFrame(), pd.DataFrame())
+        assert result.iloc[0]["captive_match_method"] == "spatial"
+        assert result.iloc[0]["site_id"] == "s"
+        assert "captive_match_source" in result.columns

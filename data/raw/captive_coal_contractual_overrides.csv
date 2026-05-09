@@ -1,0 +1,3 @@
+site_id,plant_name,plant_lat,plant_lon,source,last_updated,distance_km,verification_status,notes
+imip_morowali,IMIP Captive Power Plant,-2.81,121.99,"IMIP 2023 annual report",2024-12,1.2,inferred,"On-site captive — spec example. Plant name needs cross-check against GEM tracker."
+krakatau_steel_cilegon,Krakatau Steel Captive,-6.03,106.05,"PT Krakatau Steel 2022 annual report",2024-11,8.5,inferred,"Captive but on a separate parcel from steel plant. Spec example."

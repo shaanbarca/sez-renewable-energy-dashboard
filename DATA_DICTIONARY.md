@@ -935,9 +935,9 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 ### 3.7 `outputs/data/processed/fct_captive_coal_summary.csv`
 
-**Rows:** Sites with captive coal plants within 50 km (proximity mode for KEK/KI) or direct match (standalone/cluster)
-**Built from:** `dim_sites` centroids × GEM Global Coal Plant Tracker (KAPSARC mirror, filtered to Indonesia captive)
-**Pipeline:** `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`. Uses shared `proximity_match()` / `direct_match()` from `src/pipeline/geo_utils.py` dispatched via `SITE_TYPES[site_type].captive_power_method`.
+**Rows:** Sites with captive coal plants within 50 km (proximity mode for KEK/KI), direct match (standalone/cluster), **or contractual override** (F12, 2026-05-09).
+**Built from:** `dim_sites` centroids × GEM Global Coal Plant Tracker (KAPSARC mirror, filtered to Indonesia captive) + `data/raw/captive_coal_contractual_overrides.csv`
+**Pipeline:** `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`. Uses shared `proximity_match()` / `direct_match()` from `src/pipeline/geo_utils.py` dispatched via `SITE_TYPES[site_type].captive_power_method`, then `apply_contractual_overrides()` re-routes plants per public-disclosure citations (annual reports, etc.).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -946,7 +946,14 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `captive_coal_mw` | float | Total captive coal capacity (MW) |
 | `captive_coal_plants` | str | Semicolon-separated plant names |
 
-**Data source:** GEM Global Coal Plant Tracker, CC BY 4.0. Downloaded via KAPSARC mirror. Filtered to `country="Indonesia"` and captive status. 26 plants in raw data.
+**Per-plant table** (`fct_captive_coal.csv`, source for the summary above) gained two F12 provenance columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `captive_match_method` | str | `spatial` (50-km haversine) or `contractual` (overridden via `data/raw/captive_coal_contractual_overrides.csv`) |
+| `captive_match_source` | str/null | Source citation (annual report, public disclosure) when `captive_match_method == 'contractual'`; null otherwise |
+
+**Data sources:** GEM Global Coal Plant Tracker, CC BY 4.0 via KAPSARC mirror (~26 plants). Override CSV is manually curated — see `data/raw/README.md` for schema and citation requirements.
 
 ---
 
