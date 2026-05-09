@@ -4,6 +4,83 @@ import CbamTrajectoryChart from '../../charts/CbamTrajectoryChart';
 import { formatGap, gapColor } from './formatting';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
+// F6 (2026-05-09): structured Perpres 112/2022 regulatory display.
+// Falls back to the legacy single-line status string when the structured
+// fields aren't populated (older scorecard pickle files).
+const PERPRES_BASIS_LABEL: Record<
+  NonNullable<ScorecardRow['captive_perpres_112_exemption_basis']>,
+  string
+> = {
+  strategic_industry: 'Exempt — Art. 10 strategic industry',
+  mining_specific: 'Exempt — mining-specific',
+  not_exempt: 'Not exempt',
+  unclear: 'Unclear (depends on tenant)',
+};
+const PERPRES_BASIS_COLOR: Record<
+  NonNullable<ScorecardRow['captive_perpres_112_exemption_basis']>,
+  string
+> = {
+  strategic_industry: '#FFC107', // exempt today, flips under strict scenario
+  mining_specific: '#FFC107',
+  not_exempt: '#EF5350', // already subject to phase-out
+  unclear: 'var(--text-secondary)',
+};
+
+function Perpres112Block({ row }: { row: ScorecardRow }) {
+  const basis = row.captive_perpres_112_exemption_basis;
+  // Legacy fallback — old data without structured fields
+  if (!basis) {
+    return (
+      <StatRowWithTip
+        label="Perpres 112/2022"
+        value={row.perpres_112_status ?? '—'}
+        tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
+      />
+    );
+  }
+  const baselineYr = row.captive_phaseout_year_baseline ?? 2050;
+  const strictYr = row.captive_phaseout_year_strict_scenario ?? 2050;
+  const subjectStrict = !!row.captive_subject_to_strict_scenario;
+  const verification = row.captive_perpres_112_verification_status;
+  return (
+    <>
+      <ColoredStatRow
+        label="Perpres 112/2022"
+        value={PERPRES_BASIS_LABEL[basis]}
+        color={PERPRES_BASIS_COLOR[basis]}
+        tip={`Presidential Regulation 112/2022 mandates captive coal phase-out by 2050. Article 10 exempts strategic industries (nickel, aluminium, steel, fertilizer). This site classified as: ${PERPRES_BASIS_LABEL[basis]}. Source: ${row.captive_perpres_112_source ?? 'sector default'}.`}
+      />
+      <ColoredStatRow
+        label="Phase-out"
+        value={
+          subjectStrict
+            ? `${baselineYr} baseline · ${strictYr} strict`
+            : `${baselineYr} baseline`
+        }
+        color={subjectStrict ? '#FFC107' : undefined}
+        tip={
+          subjectStrict
+            ? `Baseline ${baselineYr} under current Perpres 112. If the Art. 10 exemption is tightened in the 2026+ regulatory cycle, this site faces an earlier ${strictYr} phase-out — v4.3 'strict' pathway default.`
+            : `Baseline ${baselineYr} under current Perpres 112. Site is not subject to the strict-scenario tightening (cement / no exemption to lose).`
+        }
+      />
+      {verification === 'sector_default' && (
+        <div
+          style={{
+            fontSize: 10,
+            color: 'var(--text-secondary)',
+            fontStyle: 'italic',
+            marginTop: 2,
+          }}
+          title="Classification from sector default. Site-specific legal review pending — will refine source and verification_status when available."
+        >
+          Classification from sector default — legal review pending
+        </div>
+      )}
+    </>
+  );
+}
+
 export function DemandTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
   const demand2030 = row.demand_2030_gwh;
@@ -198,13 +275,7 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
                   tip="What % of captive coal generation solar could replace. 100%+ (green) = full displacement possible. <50% (red) = supplementary generation needed."
                 />
               )}
-              {row.perpres_112_status && (
-                <StatRowWithTip
-                  label="Perpres 112/2022"
-                  value={row.perpres_112_status}
-                  tip="Presidential Regulation mandating captive coal phase-out by 2050. Creates regulatory urgency for transition. Plants post-2022 must cut emissions 35% within 10 years."
-                />
-              )}
+              {row.perpres_112_status && <Perpres112Block row={row} />}
             </div>
           )}
         </StatCard>

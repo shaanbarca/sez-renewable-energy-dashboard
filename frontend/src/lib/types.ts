@@ -271,7 +271,21 @@ export interface ScorecardRow {
 
   // H8: Perpres 112/2022 compliance
   has_captive_coal?: boolean;
+  // Legacy display string — kept for backwards compat, derived from F6 fields
   perpres_112_status?: string | null;
+  // F6 (2026-05-09): structured regulatory state
+  captive_perpres_112_exempt?: boolean | null;
+  captive_perpres_112_exemption_basis?:
+    | 'strategic_industry'
+    | 'mining_specific'
+    | 'not_exempt'
+    | 'unclear'
+    | null;
+  captive_phaseout_year_baseline?: number | null;
+  captive_phaseout_year_strict_scenario?: number | null;
+  captive_subject_to_strict_scenario?: boolean | null;
+  captive_perpres_112_source?: string | null;
+  captive_perpres_112_verification_status?: string | null;
   captive_coal_generation_gwh?: number | null;
   solar_replacement_pct?: number | null;
 

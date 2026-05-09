@@ -1,0 +1,82 @@
+site_id,site_name,sector,site_type,exemption_basis,exempt,phaseout_year_baseline,phaseout_year_strict,source,verification_status,notes
+industropolis-batang,Industropolis Batang,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+batam-tourism-and-international-healthcare,Batam Tourism and International Healthcare,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+bumi-serpong-damai,"Banten International Education, Technology, and Health",mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+setangga,Setangga,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+tanjung-sauh,Tanjung Sauh,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-arun-lhokseumawe,Arun Lhokseumawe,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-sanur,Sanur,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-kendal,Kendal,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-sorong,Sorong,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-singhasari,Singhasari,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-morotai,Morotai,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-gresik,Gresik,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-likupang,Likupang,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-bitung,Bitung,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-palu,Palu,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-kura-kura,Kura Kura Bali,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-galang-batang,Galang Batang,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-maloy-batuta,Maloy Batuta Trans Kalimantan,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-nongsa,Nongsa,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-mandalika,Mandalika,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-batam-aero-technic,Batam Aero Technic,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-tanjung-kelayang,Tanjung Kelayang,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-lido,Lido,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-tanjung-lesung,Tanjung Lesung,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+kek-sei-mangkei,Sei Mangkei,mixed,kek,unclear,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,KEK tenant mix unknown — depends on dominant tenant sector
+semen-gresik-tuban,Semen Gresik Tuban,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+indocement-citeureup,Indocement Citeureup,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-padang-indarung,Semen Padang Indarung,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-tonasa,Semen Tonasa,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+sbi-narogong,SBI Narogong,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+conch-cement-serang,Conch Cement Serang,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-bosowa-maros,Semen Bosowa Maros,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+red-lion-hongshi-tonga,Red Lion Hongshi Tonga,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-baturaja,Semen Baturaja,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+sbi-tuban,SBI Tuban,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+indocement-palimanan,Indocement Palimanan,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+cemindo-gemilang-bayah,Cemindo Gemilang Bayah,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+sbi-cilacap,SBI Cilacap,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-imasco-asiatic-jember,Semen Imasco Asiatic Jember,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+si-gresik-rembang,SI Gresik Rembang,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semeru-surya-semen-kutai,Semeru Surya Semen Kutai,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-grobogan,Semen Grobogan,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-garuda-bekasi,Semen Garuda Bekasi,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+sbi-andalas-lhoknga,SBI Andalas Lhoknga,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-jawa-scg-sukabumi,Semen Jawa SCG Sukabumi,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-bosowa-banyuwangi,Semen Bosowa Banyuwangi,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+cemindo-gemilang-ciwandan,Cemindo Gemilang Ciwandan,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+conch-south-kalimantan,Conch South Kalimantan,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+cemindo-gemilang-batam,Cemindo Gemilang Batam,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-bosowa-batam,Semen Bosowa Batam,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-jakarta,Semen Jakarta,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-gresik-city,Semen Gresik City,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+solusi-bangun-cilegon,Solusi Bangun Cilegon,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+semen-kupang,Semen Kupang,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+conch-west-kalimantan,Conch West Kalimantan,cement,standalone,not_exempt,False,2050,2035,Perpres 112/2022 Art. 10 (sector default),sector_default,General industry — subject to baseline phase-out
+krakatau-steel-cilegon,Krakatau Steel Cilegon,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+krakatau-posco-cilegon,Krakatau Posco Cilegon,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+dexin-steel-morowali,Dexin Steel Morowali,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+master-steel-jakarta,Master Steel Jakarta,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+jakarta-prima-steel-industries,Jakarta Prima Steel Industries,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+ispat-indo-sidoarjo,Ispat Indo Sidoarjo,steel,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (basic metals)
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park (VDNIP),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+obi-island-industrial-park,Obi Island Industrial Park,nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+nusantara-industri-sejati,Nusantara Industri Sejati,nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+buli-industrial-park,Buli Industrial Park,nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),nickel,cluster,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Perpres 112/2022 Art. 10 explicit (strategic mineral processing)
+inalum-asahan,Inalum Asahan,aluminium,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (downstream metals)
+freeport-smelter-gresik,Freeport Smelter Gresik,aluminium,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (downstream metals)
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,fertilizer,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (food security input)
+pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,fertilizer,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (food security input)
+petrokimia-gresik,Petrokimia Gresik,fertilizer,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (food security input)
+pupuk-kujang-cikampek,Pupuk Kujang Cikampek,fertilizer,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (food security input)
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda Lhokseumawe,fertilizer,standalone,strategic_industry,True,2050,2050,Perpres 112/2022 Art. 10 (sector default),sector_default,Strategic industry (food security input)

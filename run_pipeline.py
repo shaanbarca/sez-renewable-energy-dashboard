@@ -62,6 +62,9 @@ from src.pipeline.build_fct_geothermal_proximity import build_fct_geothermal_pro
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
 from src.pipeline.build_fct_lcoe import build_fct_lcoe
 from src.pipeline.build_fct_lcoe_wind import build_fct_lcoe_wind
+from src.pipeline.build_fct_perpres_112_classification import (
+    build_fct_perpres_112_classification,
+)
 from src.pipeline.build_fct_ruptl_pipeline import build_fct_ruptl_pipeline
 from src.pipeline.build_fct_site_demand import build_fct_site_demand
 from src.pipeline.build_fct_site_resource import build_fct_site_resource
@@ -141,6 +144,12 @@ PIPELINE: list[Step] = [
         "fct_geothermal_proximity",
         build_fct_geothermal_proximity,
         "fct_geothermal_proximity.csv",
+        depends_on=["dim_sites"],
+    ),
+    Step(
+        "fct_perpres_112_classification",
+        build_fct_perpres_112_classification,
+        "fct_perpres_112_classification.csv",
         depends_on=["dim_sites"],
     ),
     # Stage 3: Computed
