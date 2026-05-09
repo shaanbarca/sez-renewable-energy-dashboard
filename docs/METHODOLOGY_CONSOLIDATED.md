@@ -906,6 +906,25 @@ If `max(|Δ|)` < 0.05 (5 percentage points), the optimum is reported as `none_me
 
 **Validation expectations.** Sites with high BESS share (Maluku/Papua, NTT) should mostly show `bess_capex` as binding constraint. Sites near grid parity should show `wacc` as binding. Sites with strong wind resource and tight CAPEX margins should show `wind_capex`.
 
+#### 6A.7.2 Limitations + roadmap to PyPSA
+
+**This is a tornado-style local sensitivity, not a true binding-constraint analysis.** Three things to be honest about:
+
+1. **No interactions.** Inputs are perturbed one-at-a-time (OAT). A site where the optimum flips dramatically under *combined* BESS + WACC moves but not under either alone will still report whichever single-input shift was largest — possibly missing the real lever. Standard practice in industry first-cut reports (BNEF, IRENA, NREL ATB tornado diagrams), but it loses information that variance-based methods (Sobol indices, Morris screening) preserve.
+
+2. **Arbitrary perturbation widths.** ±30% BESS / ±15% solar / ±2pp WACC are picked round numbers, not draws from actual cost-uncertainty distributions. A more rigorous version would sample inputs from BNEF historical price-volatility distributions (lognormal CAPEX with σ calibrated against the 2018–2025 LFP-pack price series, etc.) and report P50/P90 mix bands.
+
+3. **Not the LP-theoretic binding constraint.** In linear/mixed-integer optimization, *binding constraint* means an active inequality with a non-zero dual variable (shadow price). Our signal is colloquial — *"which input shifts the cost-minimum mix most under symmetric perturbation."* It can't distinguish "BESS cost is the dominant lever in the static cost-stack" from "BESS energy capacity is binding in dispatch."
+
+**Why we ship it anyway.** For a deterministic cost-stack model with no hourly dispatch, OAT tornado is the right floor: cheap (~10× optimizer runs per site), interpretable (single labelled lever), and good enough to catch the obvious cases (Maluku/Papua → BESS-bound; near-parity Java → WACC-bound). The user-facing value is *"here's the lever that matters most for this site"*, and that signal survives tornado's limitations.
+
+**v5.0 PyPSA roadmap.** When the dashboard moves to PyPSA-based hourly dispatch (v5.0), this column should be replaced with:
+- Genuine LP shadow prices on storage capacity, transmission capacity, and renewable resource constraints (free output from the solve).
+- Stochastic dispatch over weather realizations to surface seasonal vs. diurnal binding modes.
+- Optional Sobol/Morris global sensitivity over the cost inputs for sites where shadow prices alone don't tell the whole story.
+
+The current `hybrid_binding_constraint` schema (3 columns, enum + narrative + sensitivity) is a v5.0-compatible interface — the new computation can populate the same fields with richer semantics, and existing frontends keep working.
+
 ### 6A.8 Hydro extensibility
 
 When hydro proximity data ships, adding hydro requires:

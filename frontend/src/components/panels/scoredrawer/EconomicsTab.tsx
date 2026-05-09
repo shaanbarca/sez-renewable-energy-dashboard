@@ -28,6 +28,14 @@ const BINDING_CONSTRAINT_TIP: Record<NonNullable<ScorecardRow['hybrid_binding_co
   none_meaningful: 'No single perturbation flips this mix by more than 5 percentage points. The optimum is robust.',
 };
 
+// Short limitation note shown in the method-label tooltip + footer of the
+// callout. Mirrors METHODOLOGY §6A.7.2.
+const BINDING_CONSTRAINT_METHOD_TIP =
+  'Tornado sensitivity (one-at-a-time perturbation): each input is moved ±X% individually, ' +
+  'we re-run the solar/wind optimizer, and report which input shifts the mix most. ' +
+  "Doesn't capture interactions between inputs, and isn't a true LP shadow price — " +
+  "v5.0 PyPSA will replace this with shadow prices from the actual hourly dispatch.";
+
 function BindingConstraintCallout({
   constraint,
   narrative,
@@ -42,7 +50,6 @@ function BindingConstraintCallout({
   const isRobust = constraint === 'none_meaningful';
   return (
     <div
-      title={tip}
       style={{
         marginTop: 10,
         padding: '8px 10px',
@@ -54,6 +61,7 @@ function BindingConstraintCallout({
       }}
     >
       <div
+        title={tip}
         style={{
           display: 'flex',
           alignItems: 'baseline',
@@ -79,6 +87,37 @@ function BindingConstraintCallout({
           Max mix shift: {Math.round(sensitivity * 100)} pp
         </div>
       )}
+      <div
+        title={BINDING_CONSTRAINT_METHOD_TIP}
+        style={{
+          marginTop: 6,
+          paddingTop: 5,
+          borderTop: '1px dashed rgba(255,255,255,0.10)',
+          fontSize: 10,
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          cursor: 'help',
+        }}
+      >
+        <span style={{ fontStyle: 'italic' }}>
+          Method: tornado sensitivity (OAT) — limitations apply.
+        </span>
+        <a
+          href="https://github.com/shaanbarca/sez-renewable-energy-dashboard/blob/main/docs/METHODOLOGY_CONSOLIDATED.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: 'var(--text-secondary)',
+            textDecoration: 'underline',
+            textDecorationStyle: 'dotted',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          §6A.7.2 →
+        </a>
+      </div>
     </div>
   );
 }
