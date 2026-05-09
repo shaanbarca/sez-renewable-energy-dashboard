@@ -881,6 +881,30 @@ The lowest all-in cost wins. Hybrid can beat both standalone technologies: it be
 | `hybrid_nighttime_coverage_pct` | float | Wind nighttime fill fraction |
 | `hybrid_bess_reduction_pct` | float | `1 - hybrid_bess_hours / 14` |
 | `hybrid_carbon_breakeven_usd_tco2` | float | Carbon price for hybrid competitiveness |
+| `hybrid_wind_nighttime_fraction` | float | F3 (2026-05-08). Region-tiered wind nighttime fraction applied to this site's optimisation. |
+| `hybrid_binding_constraint` | enum | F10 (2026-05-08). Which input shifts the optimum mix most: `bess_capex` / `solar_capex` / `wind_capex` / `wacc` / `storage_duration` / `none_meaningful`. None when user pins `hybrid_solar_share`. |
+| `hybrid_binding_narrative` | str | F10. One-sentence English description of the binding lever — e.g., *"65/35 solar/wind today; flips to 80/20 if BESS drops to $84/kWh."* |
+| `hybrid_constraint_sensitivity` | float | F10. Magnitude of solar-share shift under the binding-constraint perturbation (0–1). Floor for "meaningful" is 0.05 (5pp). |
+
+#### 6A.7.1 Binding-constraint methodology (F10, 2026-05-08)
+
+**Why this matters.** §6A.5 sweeps `solar_share` 0–100% and picks the cost-minimum hybrid. The natural follow-up question for any user is *what does it take to flip the optimum?* (Lower BESS cost? Different WACC? Longer storage?) v4.3 multi-pathway analysis will compute this implicitly across the whole site set; surface it explicitly per-site too — the binding constraint is the marginal lever a developer or policy analyst should pull.
+
+**Method.** For each site, perturb five inputs symmetrically and re-run `hybrid_lcoe_optimized` for each. The constraint with the largest |Δ solar_share| is the binding constraint:
+
+| Input | Perturbation | Implementation |
+|---|---|---|
+| BESS CAPEX | ±30% multiplicative | scale `bess_capex_usd_per_kwh` |
+| Solar CAPEX | ±15% (proxy via LCOE) | scale solar source's `lcoe_usd_mwh` |
+| Wind CAPEX | ±15% (proxy via LCOE) | scale wind source's `lcoe_usd_mwh` |
+| WACC | ±2pp absolute | shift `wacc` by 0.02 |
+| Storage duration | ±25% | scale `bess_discharge_hours` |
+
+If `max(|Δ|)` < 0.05 (5 percentage points), the optimum is reported as `none_meaningful` — no single perturbation flips the mix in a way that's worth surfacing.
+
+**Skipped under user override.** When `assumptions.hybrid_solar_share` is set (user pinned the mix), sensitivity analysis is meaningless and the three columns return `None`.
+
+**Validation expectations.** Sites with high BESS share (Maluku/Papua, NTT) should mostly show `bess_capex` as binding constraint. Sites near grid parity should show `wacc` as binding. Sites with strong wind resource and tight CAPEX margins should show `wind_capex`.
 
 ### 6A.8 Hydro extensibility
 

@@ -28,6 +28,7 @@ from src.model.basic_model import (
     bess_bridge_hours,
     bess_storage_adder,
     carbon_breakeven_price,
+    compute_hybrid_binding_constraint,
     firm_solar_metrics,
     firm_wind_metrics,
     hybrid_lcoe_optimized,
@@ -178,6 +179,23 @@ def compute_hybrid_metrics(  # noqa: PLR0913 — pure helper; kwarg-only for cla
         else None
     )
 
+    # F10 (2026-05-08): per-site binding-constraint signal. Skipped when the
+    # base optimum can't be computed or when the user has pinned the share
+    # (sensitivity analysis is meaningless under a manual override).
+    if assumptions.hybrid_solar_share is None:
+        binding = compute_hybrid_binding_constraint(
+            sources=[solar_source, wind_source],
+            demand_mwh=demand_mwh,
+            bess_capex_usd_per_kwh=assumptions.bess_capex_usd_per_kwh,
+            wacc=assumptions.wacc_decimal,
+        )
+    else:
+        binding = {
+            "hybrid_binding_constraint": None,
+            "hybrid_binding_narrative": None,
+            "hybrid_constraint_sensitivity": None,
+        }
+
     return {
         "hybrid_lcoe_usd_mwh": hybrid["hybrid_lcoe_usd_mwh"],
         "hybrid_bess_hours": hybrid["hybrid_bess_hours"],
@@ -189,4 +207,7 @@ def compute_hybrid_metrics(  # noqa: PLR0913 — pure helper; kwarg-only for cla
         "hybrid_bess_reduction_pct": reduction_pct,
         "hybrid_carbon_breakeven_usd_tco2": carbon_breakeven,
         "hybrid_wind_nighttime_fraction": wind_nighttime_frac,
+        "hybrid_binding_constraint": binding["hybrid_binding_constraint"],
+        "hybrid_binding_narrative": binding["hybrid_binding_narrative"],
+        "hybrid_constraint_sensitivity": binding["hybrid_constraint_sensitivity"],
     }

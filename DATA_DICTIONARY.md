@@ -864,6 +864,9 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `hybrid_bess_reduction_pct` | float | Live | `1 - hybrid_bess_hours / 14`. 0% = no reduction, 100% = no BESS needed. |
 | `hybrid_carbon_breakeven_usd_tco2` | float | Live | Carbon price at which hybrid all-in beats grid cost. Same formula as solar (§9.2). |
 | `hybrid_wind_nighttime_fraction` | float | Live | F3, 2026-05-08. Region-tiered wind nighttime fraction used in this site's hybrid optimisation (NTT 0.42 → Kalimantan 0.60, default 0.583 for Maluku/Papua). See METHODOLOGY §6A.2. |
+| `hybrid_binding_constraint` | str enum | Live | F10, 2026-05-08. Which input shifts the hybrid optimum mix most under perturbation: `bess_capex` / `solar_capex` / `wind_capex` / `wacc` / `storage_duration` / `none_meaningful`. None when user pins `hybrid_solar_share`. See METHODOLOGY §6A.7.1. |
+| `hybrid_binding_narrative` | str | Live | F10, 2026-05-08. One-sentence English description of the binding lever for the Score Drawer. |
+| `hybrid_constraint_sensitivity` | float | Live | F10, 2026-05-08. Magnitude of solar-share shift under the binding perturbation (0–1). 5pp floor for "meaningful". |
 
 **Data quality column:**
 

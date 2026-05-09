@@ -673,6 +673,239 @@ def hybrid_lcoe_optimized(
     return best_result
 
 
+_BINDING_CONSTRAINT_THRESHOLD = 0.05
+# Below this max shift in solar_share, the model reports "none_meaningful"
+# rather than the technically-largest-but-trivial constraint.
+
+_BINDING_CONSTRAINT_PERTURBATIONS: dict[str, tuple[float, float]] = {
+    # multiplicative pct unless noted; (low, high) e.g. (-0.30, +0.30) = ±30%
+    "bess_capex": (-0.30, 0.30),
+    "solar_capex": (-0.15, 0.15),  # proxy: scale solar LCOE
+    "wind_capex": (-0.15, 0.15),  # proxy: scale wind LCOE
+    "wacc": (-0.02, 0.02),  # ABSOLUTE (e.g. 0.10 → 0.08 / 0.12)
+    "storage_duration": (-0.25, 0.25),  # bess_discharge_hours multiplier
+}
+
+
+def _label_solar_wind_split(share: float) -> str:
+    """Render an optimum like 0.65 as '65/35 solar/wind'."""
+    s = round(share * 100)
+    return f"{s}/{100 - s} solar/wind"
+
+
+def _format_binding_narrative(
+    binding: str,
+    base_share: float,
+    low_share: float,
+    high_share: float,
+    inputs: dict[str, float],
+) -> str:
+    """One-sentence binding-constraint narrative for the dashboard callout."""
+    if binding == "none_meaningful":
+        return (
+            f"{_label_solar_wind_split(base_share)} optimum is robust — "
+            f"no single perturbation flips it by more than 5 percentage points."
+        )
+    base_label = _label_solar_wind_split(base_share)
+    low_label = _label_solar_wind_split(low_share)
+    high_label = _label_solar_wind_split(high_share)
+    bess_capex = inputs.get("bess_capex_usd_per_kwh")
+    wacc = inputs.get("wacc")
+    if binding == "bess_capex" and bess_capex is not None:
+        return (
+            f"{base_label} today; flips to {low_label} if BESS drops to "
+            f"${round(bess_capex * 0.7)}/kWh or to {high_label} at ${round(bess_capex * 1.3)}/kWh."
+        )
+    if binding == "solar_capex":
+        return (
+            f"{base_label} today; flips to {high_label} on a 15% solar CAPEX cut "
+            f"or {low_label} on a 15% increase."
+        )
+    if binding == "wind_capex":
+        return (
+            f"{base_label} today; flips to {low_label} on a 15% wind CAPEX cut "
+            f"or {high_label} on a 15% increase."
+        )
+    if binding == "wacc" and wacc is not None:
+        return (
+            f"{base_label} today; flips to {low_label} at {round((wacc - 0.02) * 100)}% WACC "
+            f"or {high_label} at {round((wacc + 0.02) * 100)}% WACC."
+        )
+    if binding == "storage_duration":
+        return (
+            f"{base_label} today; flips to {low_label} on 25% shorter BESS "
+            f"or {high_label} on 25% longer."
+        )
+    return f"{base_label} today; binding constraint: {binding}."
+
+
+def compute_hybrid_binding_constraint(  # noqa: PLR0913 — pure helper; one arg per perturbed input
+    *,
+    sources: list[RESource],
+    demand_mwh: float,
+    bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
+    wacc: float = BASE_WACC_DECIMAL,
+    bess_lifetime_yr: int = BESS_LIFETIME_YR,
+    bess_fom_usd_per_kw_yr: float = BESS_FOM_USD_PER_KW_YR,
+    bess_discharge_hours: float = BESS_DISCHARGE_HOURS,
+    round_trip_efficiency: float = BESS_ROUND_TRIP_EFFICIENCY,
+) -> dict[str, str | float | None]:
+    """Per-site binding-constraint signal for the hybrid solar+wind optimum.
+
+    Perturbs five inputs, re-runs `hybrid_lcoe_optimized` for each, and reports
+    which parameter shifts the optimum solar/wind mix most. Surfaces the lever
+    a developer or policy analyst should pull to flip the recommended mix.
+
+    Returns:
+        binding_constraint: enum (bess_capex / solar_capex / wind_capex / wacc /
+            storage_duration / none_meaningful)
+        narrative: one-sentence English description of the lever
+        sensitivity: max |delta_solar_share| under the binding perturbation
+
+    Returns None values when the base optimum is itself None (e.g. no solar).
+    """
+    base = hybrid_lcoe_optimized(
+        sources=sources,
+        demand_mwh=demand_mwh,
+        bess_capex_usd_per_kwh=bess_capex_usd_per_kwh,
+        wacc=wacc,
+        bess_lifetime_yr=bess_lifetime_yr,
+        bess_fom_usd_per_kw_yr=bess_fom_usd_per_kw_yr,
+        bess_discharge_hours=bess_discharge_hours,
+        round_trip_efficiency=round_trip_efficiency,
+    )
+    base_share = base.get("optimal_solar_share")
+    if base_share is None:
+        return {
+            "hybrid_binding_constraint": None,
+            "hybrid_binding_narrative": None,
+            "hybrid_constraint_sensitivity": None,
+        }
+
+    solar = next((s for s in sources if s.technology == "solar"), None)
+    wind = next((s for s in sources if s.technology == "wind"), None)
+
+    def _run(
+        *,
+        bess_cx: float = bess_capex_usd_per_kwh,
+        wacc_: float = wacc,
+        sd_hours: float = bess_discharge_hours,
+        scale_solar_lcoe: float = 1.0,
+        scale_wind_lcoe: float = 1.0,
+    ) -> float | None:
+        srcs = []
+        if solar is not None:
+            srcs.append(
+                RESource(
+                    technology=solar.technology,
+                    lcoe_usd_mwh=solar.lcoe_usd_mwh * scale_solar_lcoe,
+                    generation_mwh=solar.generation_mwh,
+                    cf=solar.cf,
+                    nighttime_fraction=solar.nighttime_fraction,
+                    capacity_mwp=solar.capacity_mwp,
+                )
+            )
+        if wind is not None:
+            srcs.append(
+                RESource(
+                    technology=wind.technology,
+                    lcoe_usd_mwh=wind.lcoe_usd_mwh * scale_wind_lcoe,
+                    generation_mwh=wind.generation_mwh,
+                    cf=wind.cf,
+                    nighttime_fraction=wind.nighttime_fraction,
+                    capacity_mwp=wind.capacity_mwp,
+                )
+            )
+        out = hybrid_lcoe_optimized(
+            sources=srcs,
+            demand_mwh=demand_mwh,
+            bess_capex_usd_per_kwh=bess_cx,
+            wacc=wacc_,
+            bess_lifetime_yr=bess_lifetime_yr,
+            bess_fom_usd_per_kw_yr=bess_fom_usd_per_kw_yr,
+            bess_discharge_hours=sd_hours,
+            round_trip_efficiency=round_trip_efficiency,
+        )
+        return out.get("optimal_solar_share")
+
+    runs = {
+        "bess_capex": (
+            _run(
+                bess_cx=bess_capex_usd_per_kwh
+                * (1 + _BINDING_CONSTRAINT_PERTURBATIONS["bess_capex"][0])
+            ),
+            _run(
+                bess_cx=bess_capex_usd_per_kwh
+                * (1 + _BINDING_CONSTRAINT_PERTURBATIONS["bess_capex"][1])
+            ),
+        ),
+        "solar_capex": (
+            _run(scale_solar_lcoe=1 + _BINDING_CONSTRAINT_PERTURBATIONS["solar_capex"][0]),
+            _run(scale_solar_lcoe=1 + _BINDING_CONSTRAINT_PERTURBATIONS["solar_capex"][1]),
+        ),
+        "wind_capex": (
+            _run(scale_wind_lcoe=1 + _BINDING_CONSTRAINT_PERTURBATIONS["wind_capex"][0]),
+            _run(scale_wind_lcoe=1 + _BINDING_CONSTRAINT_PERTURBATIONS["wind_capex"][1]),
+        ),
+        "wacc": (
+            _run(wacc_=wacc + _BINDING_CONSTRAINT_PERTURBATIONS["wacc"][0]),
+            _run(wacc_=wacc + _BINDING_CONSTRAINT_PERTURBATIONS["wacc"][1]),
+        ),
+        "storage_duration": (
+            _run(
+                sd_hours=bess_discharge_hours
+                * (1 + _BINDING_CONSTRAINT_PERTURBATIONS["storage_duration"][0])
+            ),
+            _run(
+                sd_hours=bess_discharge_hours
+                * (1 + _BINDING_CONSTRAINT_PERTURBATIONS["storage_duration"][1])
+            ),
+        ),
+    }
+
+    deltas = {}
+    low_high_shares: dict[str, tuple[float, float]] = {}
+    for param, (low_share, high_share) in runs.items():
+        if low_share is None or high_share is None:
+            continue
+        d_low = abs(low_share - base_share)
+        d_high = abs(high_share - base_share)
+        deltas[param] = max(d_low, d_high)
+        low_high_shares[param] = (low_share, high_share)
+
+    if not deltas:
+        return {
+            "hybrid_binding_constraint": "none_meaningful",
+            "hybrid_binding_narrative": _format_binding_narrative(
+                "none_meaningful", base_share, base_share, base_share, {}
+            ),
+            "hybrid_constraint_sensitivity": 0.0,
+        }
+
+    binding = max(deltas, key=deltas.get)
+    sensitivity = deltas[binding]
+    if sensitivity < _BINDING_CONSTRAINT_THRESHOLD:
+        binding = "none_meaningful"
+        narrative = _format_binding_narrative(
+            "none_meaningful", base_share, base_share, base_share, {}
+        )
+    else:
+        low_share, high_share = low_high_shares[binding]
+        narrative = _format_binding_narrative(
+            binding,
+            base_share,
+            low_share,
+            high_share,
+            {"bess_capex_usd_per_kwh": bess_capex_usd_per_kwh, "wacc": wacc},
+        )
+
+    return {
+        "hybrid_binding_constraint": binding,
+        "hybrid_binding_narrative": narrative,
+        "hybrid_constraint_sensitivity": round(sensitivity, 3),
+    }
+
+
 def bess_storage_adder(
     bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
     solar_cf: float = 0.18,

@@ -41,6 +41,9 @@ HYBRID_KEYS = {
     "hybrid_bess_reduction_pct",
     "hybrid_carbon_breakeven_usd_tco2",
     "hybrid_wind_nighttime_fraction",
+    "hybrid_binding_constraint",
+    "hybrid_binding_narrative",
+    "hybrid_constraint_sensitivity",
 }
 
 
@@ -166,3 +169,45 @@ def test_compute_hybrid_metrics_wind_nighttime_fraction_tiered() -> None:
         < none["hybrid_wind_nighttime_fraction"]
         < kal["hybrid_wind_nighttime_fraction"]
     )
+
+
+def test_compute_hybrid_metrics_binding_constraint_present() -> None:
+    """F10: binding-constraint signal returned for auto-optimized sites."""
+    out = _hybrid_with_region("JAVA_BALI")
+    binding = out["hybrid_binding_constraint"]
+    narrative = out["hybrid_binding_narrative"]
+    sensitivity = out["hybrid_constraint_sensitivity"]
+    assert binding in {
+        "bess_capex",
+        "solar_capex",
+        "wind_capex",
+        "wacc",
+        "storage_duration",
+        "none_meaningful",
+    }
+    assert isinstance(narrative, str) and len(narrative) > 0
+    assert isinstance(sensitivity, float) and sensitivity >= 0.0
+
+
+def test_compute_hybrid_metrics_binding_constraint_skipped_under_override() -> None:
+    """F10: when user pins solar_share, sensitivity analysis is skipped (returns None)."""
+    a = get_default_assumptions()
+    a.hybrid_solar_share = 0.7  # user-pinned mix
+    out = compute_hybrid_metrics(
+        solar_lcoe=60.0,
+        wind_lcoe=55.0,
+        solar_gen_mwh=500_000.0,
+        wind_gen_mwh=400_000.0,
+        primary_cf=0.18,
+        wind_cf_best=0.35,
+        solar_capacity_mwp=300.0,
+        wind_capacity_mwp=150.0,
+        demand_mwh=1_000_000.0,
+        assumptions=a,
+        grid_cost=100.0,
+        emission_factor=0.8,
+        grid_region_id="JAVA_BALI",
+    )
+    assert out["hybrid_binding_constraint"] is None
+    assert out["hybrid_binding_narrative"] is None
+    assert out["hybrid_constraint_sensitivity"] is None
