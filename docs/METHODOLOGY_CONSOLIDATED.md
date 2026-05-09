@@ -881,6 +881,49 @@ The lowest all-in cost wins. Hybrid can beat both standalone technologies: it be
 | `hybrid_nighttime_coverage_pct` | float | Wind nighttime fill fraction |
 | `hybrid_bess_reduction_pct` | float | `1 - hybrid_bess_hours / 14` |
 | `hybrid_carbon_breakeven_usd_tco2` | float | Carbon price for hybrid competitiveness |
+| `hybrid_wind_nighttime_fraction` | float | F3 (2026-05-08). Region-tiered wind nighttime fraction applied to this site's optimisation. |
+| `hybrid_binding_constraint` | enum | F10 (2026-05-08). Which input shifts the optimum mix most: `bess_capex` / `solar_capex` / `wind_capex` / `wacc` / `storage_duration` / `none_meaningful`. None when user pins `hybrid_solar_share`. |
+| `hybrid_binding_narrative` | str | F10. One-sentence English description of the binding lever — e.g., *"65/35 solar/wind today; flips to 80/20 if BESS drops to $84/kWh."* |
+| `hybrid_constraint_sensitivity` | float | F10. Magnitude of solar-share shift under the binding-constraint perturbation (0–1). Floor for "meaningful" is 0.05 (5pp). |
+
+#### 6A.7.1 Binding-constraint methodology (F10, 2026-05-08)
+
+**Why this matters.** §6A.5 sweeps `solar_share` 0–100% and picks the cost-minimum hybrid. The natural follow-up question for any user is *what does it take to flip the optimum?* (Lower BESS cost? Different WACC? Longer storage?) v4.3 multi-pathway analysis will compute this implicitly across the whole site set; surface it explicitly per-site too — the binding constraint is the marginal lever a developer or policy analyst should pull.
+
+**Method.** For each site, perturb five inputs symmetrically and re-run `hybrid_lcoe_optimized` for each. The constraint with the largest |Δ solar_share| is the binding constraint:
+
+| Input | Perturbation | Implementation |
+|---|---|---|
+| BESS CAPEX | ±30% multiplicative | scale `bess_capex_usd_per_kwh` |
+| Solar CAPEX | ±15% (proxy via LCOE) | scale solar source's `lcoe_usd_mwh` |
+| Wind CAPEX | ±15% (proxy via LCOE) | scale wind source's `lcoe_usd_mwh` |
+| WACC | ±2pp absolute | shift `wacc` by 0.02 |
+| Storage duration | ±25% | scale `bess_discharge_hours` |
+
+If `max(|Δ|)` < 0.05 (5 percentage points), the optimum is reported as `none_meaningful` — no single perturbation flips the mix in a way that's worth surfacing.
+
+**Skipped under user override.** When `assumptions.hybrid_solar_share` is set (user pinned the mix), sensitivity analysis is meaningless and the three columns return `None`.
+
+**Validation expectations.** Sites with high BESS share (Maluku/Papua, NTT) should mostly show `bess_capex` as binding constraint. Sites near grid parity should show `wacc` as binding. Sites with strong wind resource and tight CAPEX margins should show `wind_capex`.
+
+#### 6A.7.2 Limitations + roadmap to PyPSA
+
+**This is a tornado-style local sensitivity, not a true binding-constraint analysis.** Three things to be honest about:
+
+1. **No interactions.** Inputs are perturbed one-at-a-time (OAT). A site where the optimum flips dramatically under *combined* BESS + WACC moves but not under either alone will still report whichever single-input shift was largest — possibly missing the real lever. Standard practice in industry first-cut reports (BNEF, IRENA, NREL ATB tornado diagrams), but it loses information that variance-based methods (Sobol indices, Morris screening) preserve.
+
+2. **Arbitrary perturbation widths.** ±30% BESS / ±15% solar / ±2pp WACC are picked round numbers, not draws from actual cost-uncertainty distributions. A more rigorous version would sample inputs from BNEF historical price-volatility distributions (lognormal CAPEX with σ calibrated against the 2018–2025 LFP-pack price series, etc.) and report P50/P90 mix bands.
+
+3. **Not the LP-theoretic binding constraint.** In linear/mixed-integer optimization, *binding constraint* means an active inequality with a non-zero dual variable (shadow price). Our signal is colloquial — *"which input shifts the cost-minimum mix most under symmetric perturbation."* It can't distinguish "BESS cost is the dominant lever in the static cost-stack" from "BESS energy capacity is binding in dispatch."
+
+**Why we ship it anyway.** For a deterministic cost-stack model with no hourly dispatch, OAT tornado is the right floor: cheap (~10× optimizer runs per site), interpretable (single labelled lever), and good enough to catch the obvious cases (Maluku/Papua → BESS-bound; near-parity Java → WACC-bound). The user-facing value is *"here's the lever that matters most for this site"*, and that signal survives tornado's limitations.
+
+**v5.0 PyPSA roadmap.** When the dashboard moves to PyPSA-based hourly dispatch (v5.0), this column should be replaced with:
+- Genuine LP shadow prices on storage capacity, transmission capacity, and renewable resource constraints (free output from the solve).
+- Stochastic dispatch over weather realizations to surface seasonal vs. diurnal binding modes.
+- Optional Sobol/Morris global sensitivity over the cost inputs for sites where shadow prices alone don't tell the whole story.
+
+The current `hybrid_binding_constraint` schema (3 columns, enum + narrative + sensitivity) is a v5.0-compatible interface — the new computation can populate the same fields with richer semantics, and existing frontends keep working.
 
 ### 6A.8 Hydro extensibility
 

@@ -9,6 +9,119 @@ import { computeGapPct, formatGap, gapColor } from './formatting';
 import { LcoeWaterfallModal } from './LcoeWaterfallModal';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
+// F10 (2026-05-08): binding-constraint label + tooltip
+const BINDING_CONSTRAINT_LABEL: Record<NonNullable<ScorecardRow['hybrid_binding_constraint']>, string> = {
+  bess_capex: 'Battery cost',
+  solar_capex: 'Solar CAPEX',
+  wind_capex: 'Wind CAPEX',
+  wacc: 'Cost of capital',
+  storage_duration: 'Storage duration',
+  none_meaningful: 'Robust mix',
+};
+
+const BINDING_CONSTRAINT_TIP: Record<NonNullable<ScorecardRow['hybrid_binding_constraint']>, string> = {
+  bess_capex: 'Battery cost is the lever — cheaper BESS pushes the mix toward more solar, pricier BESS toward more wind.',
+  solar_capex: 'Solar CAPEX is the lever — cheaper panels push toward more solar.',
+  wind_capex: 'Wind CAPEX is the lever — cheaper turbines push toward more wind.',
+  wacc: 'Cost of capital is the lever — lower WACC favors higher-CAPEX/lower-OPEX mixes.',
+  storage_duration: 'Storage duration is the lever — longer discharge changes power-vs-energy economics.',
+  none_meaningful: 'No single perturbation flips this mix by more than 5 percentage points. The optimum is robust.',
+};
+
+// Short limitation note shown in the method-label tooltip + footer of the
+// callout. Mirrors METHODOLOGY §6A.7.2.
+const BINDING_CONSTRAINT_METHOD_TIP =
+  'Tornado sensitivity (one-at-a-time perturbation): each input is moved ±X% individually, ' +
+  'we re-run the solar/wind optimizer, and report which input shifts the mix most. ' +
+  "Doesn't capture interactions between inputs, and isn't a true LP shadow price — " +
+  "v5.0 PyPSA will replace this with shadow prices from the actual hourly dispatch.";
+
+function BindingConstraintCallout({
+  constraint,
+  narrative,
+  sensitivity,
+}: {
+  constraint: NonNullable<ScorecardRow['hybrid_binding_constraint']>;
+  narrative: string;
+  sensitivity?: number | null;
+}) {
+  const label = BINDING_CONSTRAINT_LABEL[constraint];
+  const tip = BINDING_CONSTRAINT_TIP[constraint];
+  const isRobust = constraint === 'none_meaningful';
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: '8px 10px',
+        borderRadius: 6,
+        background: isRobust ? 'rgba(76,175,80,0.10)' : 'rgba(255,193,7,0.10)',
+        border: `1px solid ${isRobust ? 'rgba(76,175,80,0.35)' : 'rgba(255,193,7,0.35)'}`,
+        fontSize: 11,
+        lineHeight: 1.45,
+      }}
+    >
+      <div
+        title={tip}
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          marginBottom: 3,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10,
+            textTransform: 'uppercase',
+            letterSpacing: 0.4,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          Binding constraint
+        </span>
+        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
+      </div>
+      <div style={{ color: 'var(--text-primary)' }}>{narrative}</div>
+      {!isRobust && sensitivity != null && (
+        <div style={{ marginTop: 3, color: 'var(--text-secondary)', fontSize: 10 }}>
+          Max mix shift: {Math.round(sensitivity * 100)} pp
+        </div>
+      )}
+      <div
+        title={BINDING_CONSTRAINT_METHOD_TIP}
+        style={{
+          marginTop: 6,
+          paddingTop: 5,
+          borderTop: '1px dashed rgba(255,255,255,0.10)',
+          fontSize: 10,
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          cursor: 'help',
+        }}
+      >
+        <span style={{ fontStyle: 'italic' }}>
+          Method: tornado sensitivity (OAT) — limitations apply.
+        </span>
+        <a
+          href="https://github.com/shaanbarca/sez-renewable-energy-dashboard/blob/main/docs/METHODOLOGY_CONSOLIDATED.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: 'var(--text-secondary)',
+            textDecoration: 'underline',
+            textDecorationStyle: 'dotted',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          §6A.7.2 →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function EconomicsTab({ row }: { row: ScorecardRow }) {
   const [waterfallOpen, setWaterfallOpen] = useState(false);
   const assumptions = useDashboardStore((s) => s.assumptions);
@@ -331,6 +444,13 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
             />
           )}
           <StatRow label="All-In LCOE" value={row.hybrid_allin_usd_mwh.toFixed(1)} unit="$/MWh" />
+          {row.hybrid_binding_constraint && row.hybrid_binding_narrative && (
+            <BindingConstraintCallout
+              constraint={row.hybrid_binding_constraint}
+              narrative={row.hybrid_binding_narrative}
+              sensitivity={row.hybrid_constraint_sensitivity}
+            />
+          )}
         </StatCard>
       )}
 

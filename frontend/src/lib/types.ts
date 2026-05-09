@@ -329,6 +329,19 @@ export interface ScorecardRow {
   hybrid_nighttime_coverage_pct?: number | null;
   hybrid_bess_reduction_pct?: number | null;
   hybrid_carbon_breakeven_usd_tco2?: number | null;
+  // F3 (2026-05-08): region-tiered wind nighttime fraction used for this site
+  hybrid_wind_nighttime_fraction?: number | null;
+  // F10 (2026-05-08): binding-constraint signal — which lever flips the mix
+  hybrid_binding_constraint?:
+    | 'bess_capex'
+    | 'solar_capex'
+    | 'wind_capex'
+    | 'wacc'
+    | 'storage_duration'
+    | 'none_meaningful'
+    | null;
+  hybrid_binding_narrative?: string | null;
+  hybrid_constraint_sensitivity?: number | null;
 
   // 2D classification system (Option C)
   economic_tier?: EconomicTier;
