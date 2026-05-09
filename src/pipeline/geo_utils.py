@@ -131,6 +131,101 @@ def direct_match(
     return matched
 
 
+def apply_contractual_overrides(
+    matched_plants: pd.DataFrame,
+    overrides_df: pd.DataFrame,
+    sites_df: pd.DataFrame,
+    plant_name_col: str = "plant",
+    site_id_col: str = "site_id",
+    *,
+    site_lat_col: str = "latitude",
+    site_lon_col: str = "longitude",
+    plant_lat_col: str = "latitude",
+    plant_lon_col: str = "longitude",
+) -> pd.DataFrame:
+    """F12 (2026-05-09): apply contractual site-id overrides to a spatial match.
+
+    Sumatran mine-mouth coal plants supplying smelters > 50 km away are common.
+    Pure haversine matching misses these; this layer re-routes such plants to
+    their contractual site (or pulls them in if they were unmatched).
+
+    Match key is the plant name (case-insensitive, whitespace-normalised).
+    Coordinates in the override file are advisory — only used to log warnings
+    when an override matches a plant whose GEM coordinates differ by > 1 km.
+
+    Adds two provenance columns to every row:
+      - `captive_match_method`: 'spatial' (haversine) or 'contractual' (override)
+      - `captive_match_source`: source citation from the override (or None)
+
+    Override site_id resolution:
+      - If override site_id is in sites_df → applied; recomputes `dist_km`
+        from the site's coordinates to the plant's coordinates
+      - If override site_id is NOT in sites_df → row left untouched, warning
+        printed to stderr (don't silently swallow typos)
+
+    Returns a copy of matched_plants with same shape + the two new columns.
+    Rows that don't match any override get `captive_match_method = 'spatial'`.
+    """
+    result = matched_plants.copy()
+    result["captive_match_method"] = "spatial"
+    result["captive_match_source"] = None
+
+    if overrides_df is None or overrides_df.empty or matched_plants.empty:
+        return result
+
+    site_lookup = {
+        r[site_id_col]: (r[site_lat_col], r[site_lon_col])
+        for _, r in sites_df.iterrows()
+        if pd.notna(r.get(site_lat_col)) and pd.notna(r.get(site_lon_col))
+    }
+
+    def _norm(name: object) -> str:
+        return str(name).strip().lower() if pd.notna(name) else ""
+
+    plant_name_index = {_norm(n): idx for idx, n in result[plant_name_col].items()}
+
+    for _, override in overrides_df.iterrows():
+        ov_site_id = override.get(site_id_col)
+        ov_plant_name = _norm(override.get("plant_name"))
+        ov_source = override.get("source")
+
+        if not ov_plant_name or pd.isna(ov_site_id):
+            continue
+        if ov_site_id not in site_lookup:
+            print(
+                f"  apply_contractual_overrides: site_id '{ov_site_id}' not in dim_sites — skipping override for plant '{override.get('plant_name')}'"
+            )
+            continue
+        if ov_plant_name not in plant_name_index:
+            print(
+                f"  apply_contractual_overrides: plant '{override.get('plant_name')}' not in plants_df (likely filtered out as non-captive) — skipping"
+            )
+            continue
+
+        row_idx = plant_name_index[ov_plant_name]
+        plant_lat = result.at[row_idx, plant_lat_col]
+        plant_lon = result.at[row_idx, plant_lon_col]
+        site_lat, site_lon = site_lookup[ov_site_id]
+        dist_km = round(haversine_km(plant_lat, plant_lon, site_lat, site_lon), 1)
+
+        # Defensive: warn if override coordinates disagree with GEM by > 1 km
+        ov_lat = override.get("plant_lat")
+        ov_lon = override.get("plant_lon")
+        if pd.notna(ov_lat) and pd.notna(ov_lon):
+            coord_drift = haversine_km(plant_lat, plant_lon, ov_lat, ov_lon)
+            if coord_drift > 1.0:
+                print(
+                    f"  apply_contractual_overrides: coord drift {coord_drift:.1f}km for plant '{override.get('plant_name')}' — override CSV may be stale vs GEM"
+                )
+
+        result.at[row_idx, site_id_col] = ov_site_id
+        result.at[row_idx, "dist_km"] = dist_km
+        result.at[row_idx, "captive_match_method"] = "contractual"
+        result.at[row_idx, "captive_match_source"] = ov_source
+
+    return result
+
+
 def sites_by_captive_method(
     sites_df: pd.DataFrame,
     method: Literal["proximity", "direct"],

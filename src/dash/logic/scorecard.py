@@ -598,11 +598,40 @@ def enrich_captive_context(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, 
         "cement_has_chinese_ownership": _bool_or_false(k, "cement_has_chinese_ownership"),
     }
     coal_count = out["captive_coal_count"] or 0
+    out["has_captive_coal"] = coal_count > 0
+
+    # F6 (2026-05-09): structured Perpres 112/2022 regulatory state.
+    # Replaces the legacy `perpres_112_status` string with 5 typed columns
+    # populated from `fct_perpres_112_classification.csv`. The legacy field is
+    # kept for backwards compat (frontend old code paths) but derived from the
+    # new exemption_basis to avoid drift.
+    out["captive_perpres_112_exempt"] = bool(k.get("captive_perpres_112_exempt", False))
+    out["captive_perpres_112_exemption_basis"] = _opt_str(k, "captive_perpres_112_exemption_basis")
+    out["captive_phaseout_year_baseline"] = _opt_int(k, "captive_phaseout_year_baseline")
+    out["captive_phaseout_year_strict_scenario"] = _opt_int(
+        k, "captive_phaseout_year_strict_scenario"
+    )
+    out["captive_subject_to_strict_scenario"] = bool(
+        k.get("captive_subject_to_strict_scenario", False)
+    )
+    out["captive_perpres_112_source"] = _opt_str(k, "captive_perpres_112_source")
+    out["captive_perpres_112_verification_status"] = _opt_str(
+        k, "captive_perpres_112_verification_status"
+    )
+
+    # Legacy field — derived from the new exemption_basis. Frontend code that
+    # still reads `perpres_112_status` keeps working until it's migrated.
     if coal_count > 0:
-        out["has_captive_coal"] = True
-        out["perpres_112_status"] = "Subject to 2050 phase-out"
+        basis = out["captive_perpres_112_exemption_basis"]
+        if basis == "strategic_industry":
+            out["perpres_112_status"] = (
+                "Subject to 2050 phase-out (strategic-industry exempt today)"
+            )
+        elif basis == "not_exempt":
+            out["perpres_112_status"] = "Subject to 2050 phase-out"
+        else:
+            out["perpres_112_status"] = "Subject to 2050 phase-out"
     else:
-        out["has_captive_coal"] = False
         out["perpres_112_status"] = None
 
     # F2: surface geothermal adjacency on the scorecard so the frontend can

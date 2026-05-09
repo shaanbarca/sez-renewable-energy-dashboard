@@ -20,11 +20,18 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.pipeline.geo_utils import direct_match, proximity_match, sites_by_captive_method
+from src.pipeline.geo_utils import (
+    apply_contractual_overrides,
+    direct_match,
+    proximity_match,
+    sites_by_captive_method,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data" / "captive_power"
+RAW_DIR = REPO_ROOT / "data" / "raw"
 PROCESSED_DIR = REPO_ROOT / "outputs" / "data" / "processed"
+CONTRACTUAL_OVERRIDES_PATH = RAW_DIR / "captive_coal_contractual_overrides.csv"
 
 # Keywords that indicate captive/industrial power (not PLN grid plants)
 _CAPTIVE_KEYWORDS = re.compile(
@@ -46,6 +53,7 @@ def build_fct_captive_coal(
     sites_path: Path | str = PROCESSED_DIR / "dim_sites.csv",
     buffer_km: float = 50.0,
     include_all: bool = False,
+    overrides_path: Path | str | None = CONTRACTUAL_OVERRIDES_PATH,
 ) -> pd.DataFrame:
     """Load GEM coal data, filter to captive/industrial, spatial-join against sites.
 
@@ -105,6 +113,16 @@ def build_fct_captive_coal(
 
     matched = pd.concat([prox, direct], ignore_index=True)
 
+    # F12 (2026-05-09): apply contractual overrides AFTER spatial match.
+    # Re-routes plants to their contractual site when public disclosures
+    # (annual reports, etc.) override the haversine nearest-neighbour.
+    overrides_df = pd.DataFrame()
+    if overrides_path is not None:
+        overrides_path = Path(overrides_path)
+        if overrides_path.exists():
+            overrides_df = pd.read_csv(overrides_path)
+    matched = apply_contractual_overrides(matched, overrides_df, sites)
+
     return pd.DataFrame(
         {
             "plant_name": matched["plant"],
@@ -118,6 +136,8 @@ def build_fct_captive_coal(
             "is_captive": matched["is_captive"],
             "site_id": matched["site_id"],
             "dist_to_site_km": matched["dist_km"],
+            "captive_match_method": matched["captive_match_method"],
+            "captive_match_source": matched["captive_match_source"],
         }
     )
 

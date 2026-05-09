@@ -886,7 +886,14 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `dominant_process_type` | str/null | CGSP | Mode of process types among matched facilities (RKEF, Ferro Nickel, HPAL, Laterite). |
 | `has_chinese_ownership` | bool | CGSP | True if any matched nickel facility has Chinese ownership. False if no nickel data. |
 | `has_captive_coal` | bool | Derived | `captive_coal_count > 0`. Indicates site is subject to Perpres 112/2022. |
-| `perpres_112_status` | str/null | Derived | `"Subject to 2050 phase-out"` if `has_captive_coal`, else null. Status-based proxy (commissioning_year unavailable). |
+| `perpres_112_status` | str/null | Derived | LEGACY (kept for backwards compat). `"Subject to 2050 phase-out"` if `has_captive_coal`, else null. Now derived from the structured F6 fields below to avoid drift. |
+| `captive_perpres_112_exempt` | bool | F6, 2026-05-09 | True if site qualifies for Art. 10 strategic-industry exemption. From `fct_perpres_112_classification.csv`. |
+| `captive_perpres_112_exemption_basis` | str enum | F6, 2026-05-09 | `strategic_industry` / `mining_specific` / `not_exempt` / `unclear`. Sector defaults (nickel/aluminium/steel/fertilizer → strategic, cement → not_exempt, KEK → unclear) with site-specific overrides. |
+| `captive_phaseout_year_baseline` | int | F6, 2026-05-09 | 2050 under current Perpres 112. |
+| `captive_phaseout_year_strict_scenario` | int | F6, 2026-05-09 | 2035 if Art. 10 exemption tightened in 2026+ regulatory cycle (v4.3 strict-pathway default). 2050 for non-exempt sites. |
+| `captive_subject_to_strict_scenario` | bool | F6, 2026-05-09 | True if the strict scenario phase-out year is earlier than baseline (i.e. site relies on the exemption today). |
+| `captive_perpres_112_source` | str/null | F6, 2026-05-09 | Citation for the classification (e.g. "Perpres 112/2022 Art. 10 (sector default)" or specific rulings like Perpres 70/2014). |
+| `captive_perpres_112_verification_status` | str enum | F6, 2026-05-09 | `sector_default` (auto from sector rule) or `verified` (legal review confirmed). |
 | `effective_capacity_mwp` | float/null | User input (H10) | User-selected project capacity for LCOE recalculation. When set, overrides `regional_groundmount_potential_mwp_50km` for gen-tie cost and substation capacity assessment. Null = use max buildable. |
 | `captive_coal_generation_gwh` | float/null | Derived | Estimated annual coal generation: `captive_coal_mw × 8.76 × 0.40` (40% CF assumption for Indonesian captive coal). |
 | `solar_replacement_pct` | float/null | Derived | `max_solar_generation_gwh / captive_coal_generation_gwh × 100`. What % of captive coal output is replaceable by buildable solar. |
@@ -935,9 +942,9 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 ### 3.7 `outputs/data/processed/fct_captive_coal_summary.csv`
 
-**Rows:** Sites with captive coal plants within 50 km (proximity mode for KEK/KI) or direct match (standalone/cluster)
-**Built from:** `dim_sites` centroids × GEM Global Coal Plant Tracker (KAPSARC mirror, filtered to Indonesia captive)
-**Pipeline:** `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`. Uses shared `proximity_match()` / `direct_match()` from `src/pipeline/geo_utils.py` dispatched via `SITE_TYPES[site_type].captive_power_method`.
+**Rows:** Sites with captive coal plants within 50 km (proximity mode for KEK/KI), direct match (standalone/cluster), **or contractual override** (F12, 2026-05-09).
+**Built from:** `dim_sites` centroids × GEM Global Coal Plant Tracker (KAPSARC mirror, filtered to Indonesia captive) + `data/raw/captive_coal_contractual_overrides.csv`
+**Pipeline:** `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`. Uses shared `proximity_match()` / `direct_match()` from `src/pipeline/geo_utils.py` dispatched via `SITE_TYPES[site_type].captive_power_method`, then `apply_contractual_overrides()` re-routes plants per public-disclosure citations (annual reports, etc.).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -946,7 +953,14 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `captive_coal_mw` | float | Total captive coal capacity (MW) |
 | `captive_coal_plants` | str | Semicolon-separated plant names |
 
-**Data source:** GEM Global Coal Plant Tracker, CC BY 4.0. Downloaded via KAPSARC mirror. Filtered to `country="Indonesia"` and captive status. 26 plants in raw data.
+**Per-plant table** (`fct_captive_coal.csv`, source for the summary above) gained two F12 provenance columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `captive_match_method` | str | `spatial` (50-km haversine) or `contractual` (overridden via `data/raw/captive_coal_contractual_overrides.csv`) |
+| `captive_match_source` | str/null | Source citation (annual report, public disclosure) when `captive_match_method == 'contractual'`; null otherwise |
+
+**Data sources:** GEM Global Coal Plant Tracker, CC BY 4.0 via KAPSARC mirror (~26 plants). Override CSV is manually curated — see `data/raw/README.md` for schema and citation requirements.
 
 ---
 

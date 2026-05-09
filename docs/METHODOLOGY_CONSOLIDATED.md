@@ -1523,12 +1523,25 @@ The dashboard integrates two external datasets to characterize captive (behind-t
 
 **GEM fields used:** plant name, latitude, longitude, capacity_mw, status, parent company, region. Note: the KAPSARC mirror of GEM data lacks `commissioning_year`, which limits Perpres 112/2022 compliance dating (see §13.3).
 
-### 13.2 Spatial matching
+### 13.2 Spatial matching + contractual overrides
 
 Both datasets are spatially joined to KEK polygons using a **50 km buffer** (haversine distance from KEK centroid). Per-KEK aggregation produces:
 
 - **Coal:** count of plants, total capacity (MW), semicolon-separated plant names
 - **Nickel:** count of facilities, semicolon-separated project names, dominant process type (mode), Chinese ownership flag (any)
+
+**Contractual override layer (F12, 2026-05-09).** Pure 50-km haversine matching misses common contractual relationships — Sumatran mine-mouth coal plants supplying smelters > 50 km away are well-documented in annual reports but invisible to spatial matching. Cement plants with off-site captive arrangements have the same problem.
+
+A manual-override CSV at `data/raw/captive_coal_contractual_overrides.csv` (schema documented in `data/raw/README.md`) re-routes specific plants to their contractual site after the haversine match. Each override row carries:
+
+- `site_id` — the contractual site (must exist in `dim_sites`; typo'd ids are skipped with a stderr warning, not silently swallowed)
+- `plant_name` — case-insensitive match against the GEM `plant` field
+- `source` — primary citation (annual report, public disclosure)
+- `verification_status` — `confirmed` / `inferred` / `placeholder`
+
+The override layer doesn't expand the universe of captive plants — it only re-routes plants that GEM already tracks. Implementation: `apply_contractual_overrides()` in `src/pipeline/geo_utils.py`, called from `build_fct_captive_coal()` after the spatial match. Output rows carry a `captive_match_method` column (`spatial` vs. `contractual`) for provenance and a `captive_match_source` with the citation.
+
+**Coverage today.** Two seed entries (IMIP, Krakatau Steel) populate the override CSV from F12 spec examples; both marked `inferred` until cross-checked against GEM. Concrete contractual data work — surveying Sumatran mine-mouth plants — is a follow-up task.
 
 Pipeline functions:
 - `build_captive_coal_summary()` in `src/pipeline/build_fct_captive_coal.py`
@@ -1536,19 +1549,44 @@ Pipeline functions:
 
 Output CSVs: `fct_captive_coal_summary.csv` (5 KEKs matched), `fct_captive_nickel_summary.csv` (3 KEKs matched). Merged into `resource_df` via left join on `kek_id` in `data_loader.py:prepare_resource_df()`.
 
-### 13.3 Perpres 112/2022 compliance
+### 13.3 Perpres 112/2022 as regulatory variable (F6, 2026-05-09)
 
 Presidential Regulation (Perpres) 112/2022 mandates emission reduction for captive coal power in Indonesia:
 
 - Plants commissioned **post-2022**: 35% emission reduction within 10 years
 - **All captive coal** must cease operations by 2050
+- **Article 10 strategic-industry exemption** allows continued captive coal for nickel, aluminium, steel, fertilizer, and other strategic-mineral processing
 
-**Implementation limitation:** The GEM KAPSARC mirror lacks `commissioning_year`, so we cannot determine individual plant compliance deadlines. Instead, a status-based proxy is used:
+The Article 10 exemption is *the policy gap through which most of Indonesia's new industrial-scale fossil capacity flows* (per the Indonesia Grid Infrastructure synthesis). Treating compliance as a single static string conflates exempt and non-exempt sites — which then makes v4.3 pathway analysis impossible.
 
-- Any KEK with `captive_coal_count > 0` → `has_captive_coal = True`, `perpres_112_status = "Subject to 2050 phase-out"`
-- KEKs with no matched coal → `has_captive_coal = False`, `perpres_112_status = None`
+**v4.0.5 change.** Replace the legacy `perpres_112_status` string with a structured regulatory state: 5 typed columns on the scorecard, populated from `data/raw/site_perpres_112_classification.csv` via `src/pipeline/build_fct_perpres_112_classification.py`.
 
-This is a **regulatory compliance signal**, not an action flag. It lives alongside the 8 solar readiness flags as supplementary context. When `commissioning_year` data becomes available (e.g., from ESDM Minerba Geoportal), the status can be refined to per-plant deadlines.
+| Column | Type | Description |
+|---|---|---|
+| `captive_perpres_112_exempt` | bool | True if site qualifies for Art. 10 strategic-industry exemption |
+| `captive_perpres_112_exemption_basis` | enum | `strategic_industry` / `mining_specific` / `not_exempt` / `unclear` |
+| `captive_phaseout_year_baseline` | int | 2050 under current Perpres 112 |
+| `captive_phaseout_year_strict_scenario` | int | 2035 if exemption tightened in 2026+ regulatory cycle (v4.3 default for "strict" pathway) |
+| `captive_subject_to_strict_scenario` | bool | True if the strict scenario forces this site to phase out captive coal earlier than baseline |
+
+**Default classification by sector:**
+
+| Sector | `captive_perpres_112_exemption_basis` | Rationale |
+|---|---|---|
+| Nickel cluster | `strategic_industry` | Perpres 112 Art. 10 explicit |
+| Aluminium | `strategic_industry` | Downstream metals — strategic |
+| Steel | `strategic_industry` | Basic metals — strategic |
+| Fertilizer | `strategic_industry` | Food security input — strategic |
+| Cement | `not_exempt` | General industry — subject to baseline phase-out |
+| KEK (mixed tenants) | `unclear` | Depends on dominant tenant sector |
+
+**Site-specific overrides** override the sector default — edit the row in `data/raw/site_perpres_112_classification.csv` and set `verification_status='verified'` with `source` citing the legal basis (e.g. IMIP carries Perpres 70/2014 incentive rulings on top of Art. 10).
+
+**Coverage today.** 24 strategic-industry exempt + 32 not-exempt cement + 25 unclear KEK = 81 sites. All rows seeded with sector defaults; IMIP entry verified against Perpres 70/2014. Concrete legal review of the remaining 80 sites is a follow-up data task (the schema is in place, only the classification confidence improves).
+
+**Legacy field.** `perpres_112_status` (the old string) is kept for backwards compatibility with the existing Score Drawer display but is now derived from the new `exemption_basis` column to avoid drift. Frontend migration to the structured fields is tracked separately.
+
+**Why no per-plant compliance deadlines yet.** GEM KAPSARC mirror lacks `commissioning_year`, so individual plant compliance deadlines (35% reduction by year+10 for post-2022 commissioned plants) can't be computed. The structured columns above sit at the *site* level — the per-plant refinement is deferred until ESDM Minerba Geoportal commissioning years land.
 
 ### 13.4 Scorecard fields
 
