@@ -1103,6 +1103,30 @@ If `inter_substation_connected == False`, the category becomes `invest_transmiss
 
 **New line cost (V3.1):** `new_transmission_cost_per_kw()` = dist x \$1.25M/km / solar_capacity_mwp. Practical limit: ~10-15km before economics fail.
 
+### 8.5a RUPTL §V.9 transmission-link feasibility (F5, 2026-05-09)
+
+§8 computes infrastructure costs (gen-tie, new transmission, substation upgrade) on the *solar* side and compares to PLN BPP / I-4 tariff. But the wiki's grid synthesis identifies the ~5–6× grid-investment gap (RUPTL plans ~\$2.4B/yr on transmission; IEA APS implies need for ~\$15B/yr). The comparator grid the dashboard assumes won't always be there.
+
+For sites where the comparison logic recommends *"build new transmission to connect this site,"* the dashboard cross-checks whether the relevant link is in PLN's RUPTL §V.9 (regional Pengembangan Sistem Penyaluran). If the link is `kajian lebih lanjut` (further study) or explicitly `tidak layak` (not feasible), the realistic comparator isn't PLN tariff — it's continued captive economics.
+
+> **Spec discrepancy.** F5's spec referenced RUPTL §V.11 — that anchor is from an older RUPTL version. The 2025–2034 RUPTL has the relevant content at §V.9.x per region. Schema and intent are unchanged.
+
+**Implementation today (region-level rollup).** F5 ships the data infrastructure plus a **region-level feasibility heuristic**, not yet a per-link match. For each grid region, `region_worst_status_map` collects the worst-case status across all `data/raw/ruptl_v9_transmission_links.csv` entries that touch the region (severity: `not_feasible` < `under_study` < `cross_border` < `pre_construction` < `in_construction`). Then per site:
+
+| Site condition | `comparator_feasibility` |
+|---|---|
+| `grid_integration_category` ∈ {`invest_transmission`, `invest_substation`, `grid_first`} AND region worst-case is `not_feasible` | `pln_tariff_infeasible_captive_only` |
+| Same category gate AND region worst-case is `under_study` or `cross_border` | `pln_tariff_uncertain_grid_first_required` |
+| Otherwise (region clean OR site already grid-ready) | `pln_tariff_feasible` |
+
+Three new scorecard columns: `recommended_grid_link_status`, `recommended_grid_link_section`, `comparator_feasibility`. Pipeline: `src/pipeline/build_fct_transmission_link_ruptl_signal.py` → `outputs/data/processed/fct_transmission_link_ruptl_signal.csv`.
+
+**Coverage today.** 8 seed entries from RUPTL §V.9 cross-island interconnection passages: Sumatra–Java HVDC (under study), Java–Lombok (under study), Bangka–Belitung (under study), Sulawesi internal (Tongkonan–Bangkir explicitly *tidak layak*), Sulbagsel–Baubau floating tower (under study), Seram–Ambon (under study), Malaka GI (under study), Papua–PNG (cross-border). All marked `inferred` pending domain review. Full §V.9 transcription per region (substation pipeline, ~hundreds of rows) is a follow-up data task.
+
+**Per-link matching deferred.** Today's heuristic uses *region* worst-case. A truer answer matches each site's specific recommended new-transmission corridor (from `fct_substation_proximity`'s nearest substation + the next hop in PLN's grid topology) against the link table. That requires a graph of inter-substation links — out of scope for v4.0.5. Tracked in #7's follow-up notes.
+
+**Action-flag flip deferred.** F5's spec also called for `comparator_used_for_action_flag` and rewiring `compute_action_flag()` to use captive cost as the comparator when feasibility is `pln_tariff_infeasible_captive_only`. This is a real output flip — sites in Sulawesi might switch from `invest_transmission` to a captive-cost-based label. Risky to ship without domain validation; deferred to a follow-up PR. Today's column is informational on the Score Drawer.
+
 ### 8.6 Infrastructure cost layers
 
 | # | Cost | Who pays | Implementation |

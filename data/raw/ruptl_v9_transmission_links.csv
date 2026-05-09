@@ -1,0 +1,9 @@
+link_id,from_region,to_region,voltage_kv,length_km,ruptl_section,status,target_cod_year,verification_status,ruptl_quote,source,notes
+SUMATRA::JAVA,SUMATERA,JAVA_BALI,500,,V.9.2,under_study,,inferred,"masih membutuhkan kajian lebih lanjut",RUPTL 2025-2034 p.529,"SKTET option requires further study; opsi 275 kV mentioned"
+JAVA::LOMBOK,JAVA_BALI,NUSA_TENGGARA,150,,V.9.5,under_study,,inferred,"Interkoneksi ini masih memerlukan kajian lebih lanjut",RUPTL 2025-2034 p.558,"Bali-Lombok or Gianyar-Sekotong link"
+BANGKA::BELITUNG,SUMATERA,SUMATERA,150,,V.9.2,under_study,,inferred,"masih memerlukan kajian lebih lanjut",RUPTL 2025-2034 p.558,"Bangka-Belitung interconnection"
+SULAWESI_INTERCONNECT,SULAWESI,SULAWESI,150,,V.9.4,not_feasible,,inferred,"hasilnya tidak layak pada Skenario Base. Diperlukan kajian lebih lanjut",RUPTL 2025-2034 p.534,"Tongkonan-Bangkir COD 2024 found infeasible under Base scenario; needs Penugasan Pemerintah"
+SULBAGSEL::BAUBAU_RAHA,SULAWESI,SULAWESI,150,,V.9.4,under_study,,inferred,"masih diperlukan kajian lebih lanjut terkait kondisi perairan sekitar",RUPTL 2025-2034 p.560,"Floating tower at Groot Tobea/Groot Muna islands; hydro-oceanography study needed"
+SERAM::AMBON,MALUKU,MALUKU,150,,V.9.6,under_study,,inferred,"perlu dilakukan kajian lebih lanjut baik dari segi operasional finansial dan teknis",RUPTL 2025-2034 p.559,"Deep-sea trench in Ambon waters; transmission cable vs gas pipe alternatives"
+MALAKA_GI,NUSA_TENGGARA,NUSA_TENGGARA,150,,V.9.5,under_study,,inferred,"Diperlukan kajian lebih lanjut untuk kelayakan proyek ini",RUPTL 2025-2034 p.562,"GI Malaka (Kabupaten Malaka NTT) feasibility study required"
+PAPUA::PNG,PAPUA,CROSS_BORDER,150,,V.9.7,cross_border,,inferred,"Rencana interkoneksi di daerah perbatasan Papua dengan Papua Nugini",RUPTL 2025-2034 p.562,"Cross-border interconnection initiated by presidential visit; bilateral framework required"

@@ -100,10 +100,36 @@ def enrich_grid_passthroughs(ctx: SiteContext, _row: dict[str, Any]) -> dict[str
     Also surfaces `grid_emission_factor_t_co2_mwh` so downstream enrichers
     (`enrich_cbam`) and the frontend (carbon-breakeven per cost basis) can
     compute against the same EF the backend uses.
+
+    F5 (2026-05-09): also derives `comparator_feasibility` from the
+    region-rolled RUPTL §V.9 transmission-link status × the site's grid
+    integration category. When the category is `invest_transmission` /
+    `invest_substation` / `grid_first` AND the region's only path to the
+    grid is `not_feasible` or `under_study`, comparator falls back from
+    PLN tariff to captive economics. The action-flag flip itself is
+    deferred to a follow-up PR — this column is informational for now.
     """
     out = dict(ctx.grid_out)
     ef = ctx.emission_factor
     out["grid_emission_factor_t_co2_mwh"] = float(ef) if ef and ef > 0 else None
+
+    # F5: surface RUPTL transmission-link signal + derive feasibility.
+    link_status = ctx.kek.get("recommended_grid_link_status")
+    out["recommended_grid_link_status"] = link_status if pd.notna(link_status) else "not_in_ruptl"
+    section = ctx.kek.get("recommended_grid_link_section")
+    out["recommended_grid_link_section"] = section if pd.notna(section) else None
+
+    integration_cat = out.get("grid_integration_category")
+    if integration_cat in {"invest_transmission", "invest_substation", "grid_first"}:
+        if link_status == "not_feasible":
+            out["comparator_feasibility"] = "pln_tariff_infeasible_captive_only"
+        elif link_status in {"under_study", "cross_border"}:
+            out["comparator_feasibility"] = "pln_tariff_uncertain_grid_first_required"
+        else:
+            out["comparator_feasibility"] = "pln_tariff_feasible"
+    else:
+        out["comparator_feasibility"] = "pln_tariff_feasible"
+
     return out
 
 
