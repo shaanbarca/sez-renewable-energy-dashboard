@@ -173,6 +173,12 @@ export interface ScorecardRow {
   within_boundary_capacity_mwp?: number;
   within_boundary_area_ha?: number;
   within_boundary_avg_pvout?: number;
+  /** v4.0.5 (methodology #40): HARD-only mask area + capacity — what's physically/legally
+   * buildable inside the polygon regardless of zoning. Frontend slider interpolates
+   * `deployable = baseline + (hard_max - baseline) × slider%`. See
+   * docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md. */
+  within_boundary_hard_max_ha?: number;
+  within_boundary_capacity_hard_max_mwp?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;

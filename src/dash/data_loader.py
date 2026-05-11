@@ -122,6 +122,9 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     for col in [
         "green_share_geas",
         "within_boundary_coverage_pct",
+        # v4.0.5 (methodology #40): hard-max coverage drives the slider override
+        # math in dash/logic/grid.py. Must be merged alongside the baseline.
+        "within_boundary_coverage_hard_max_pct",
         "solar_regime",
         "lcoe_grid_connected_capped_usd_mwh",
         # F13: empirical GEAS allocation alongside the proportional baseline.

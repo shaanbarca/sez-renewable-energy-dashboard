@@ -246,6 +246,11 @@ def build_fct_site_scorecard(
         "pvout_within_boundary",
         "within_boundary_source",
         "within_boundary_capacity_mwp",
+        # v4.0.5 (methodology #40): hard-only mask area + capacity, needed
+        # downstream to compute within_boundary_coverage_hard_max_pct used
+        # by the new slider override math in dash/logic/grid.py.
+        "within_boundary_hard_max_ha",
+        "within_boundary_capacity_hard_max_mwp",
     ]
     _resource_base = ["site_id", "pvout_centroid", "cf_centroid", "pvout_best_50km", "cf_best_50km"]
     _resource_cols = _resource_base + [c for c in _build_cols if c in resource.columns]
@@ -462,7 +467,25 @@ def build_fct_site_scorecard(
     demand_mwh = df["demand_mwh_2030"].fillna(0)
     df["within_boundary_coverage_pct"] = np.where(demand_mwh > 0, wb_gen_mwh / demand_mwh, 0.0)
 
-    # Override grid_integration_category for KEKs where within-boundary solar >= 100% of demand
+    # v4.0.5 (methodology #40): hard_max coverage — what % of demand on-site
+    # solar could meet if the site owner overrode all SOFT zoning exclusions.
+    # Used downstream by dash/logic/grid.py:112 for the slider override math.
+    # Falls back to baseline `within_boundary_coverage_pct` when the hard_max
+    # column is absent (e.g., the pipeline hasn't been re-run after the v4.0.5
+    # refactor). Invariant: coverage_hard_max >= coverage_baseline.
+    if "within_boundary_capacity_hard_max_mwp" in df.columns:
+        wb_hard_max_cap = df["within_boundary_capacity_hard_max_mwp"].fillna(0)
+        wb_hard_gen_mwh = wb_hard_max_cap * wb_pvout
+        df["within_boundary_coverage_hard_max_pct"] = np.where(
+            demand_mwh > 0, wb_hard_gen_mwh / demand_mwh, 0.0
+        )
+    else:
+        df["within_boundary_coverage_hard_max_pct"] = df["within_boundary_coverage_pct"]
+
+    # Override grid_integration_category for KEKs where within-boundary solar >= 100% of demand.
+    # Uses baseline (strict raster) coverage — the slider's owner-override is applied at runtime
+    # via dash/logic/grid.py:112, not at pipeline build time. Pipeline-time gate stays
+    # conservative.
     wb_override = df["within_boundary_coverage_pct"] >= 1.0
     df.loc[wb_override, "grid_integration_category"] = "within_boundary"
 
@@ -705,6 +728,10 @@ def build_fct_site_scorecard(
             "project_scale_solar_mwp",
             "solar_regime",
             "within_boundary_coverage_pct",
+            # v4.0.5 (methodology #40): hard-max coverage used by the slider
+            # override math in dash/logic/grid.py. Always present (falls back
+            # to baseline coverage if hard_max column missing — see line 483).
+            "within_boundary_coverage_hard_max_pct",
             "firm_solar_coverage_pct",
             "nighttime_demand_mwh",
             "storage_required_mwh",

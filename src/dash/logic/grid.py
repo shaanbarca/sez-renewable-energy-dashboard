@@ -104,12 +104,33 @@ def compute_grid_integration(
     inter_raw = kek.get("inter_substation_connected")
     inter_connected = bool(inter_raw) if pd.notna(inter_raw) else None
     wb_coverage = _get_float(kek, "within_boundary_coverage_pct")
-    # V3.9.1: Raw buildable area from the raster counts every vacant KEK pixel,
-    # including land earmarked for future factories. Haircut by the user-set
-    # footprint ratio so an operating industrial park (default 0.20) doesn't
-    # get treated like a greenfield. Only gates category; LCOE $/MWh unchanged.
+    wb_coverage_hard_max = _get_float(kek, "within_boundary_coverage_hard_max_pct")
+    # v4.0.5 (methodology #40): slider semantic changed from haircut → override.
+    # The 4-layer raster baseline (wb_coverage) is the methodologically rigorous
+    # floor. The slider value expresses what fraction of the soft-excluded land
+    # (currently zoned built-up / agricultural inside the polygon) the site
+    # owner overrides for solar. Effective coverage interpolates:
+    #
+    #   slider=0%  → effective = baseline (trust the raster strictly)
+    #   slider=20% → effective = baseline + 20% × (hard_max - baseline)
+    #   slider=100%→ effective = hard_max (override all soft exclusions; only
+    #                physical/legal constraints — slope, peat, Kawasan Hutan —
+    #                remain)
+    #
+    # Pre-#40 behavior was `wb_coverage * slider` (haircut). The new math
+    # produces larger numbers at the same slider position because we no longer
+    # haircut the raster output. See
+    # docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md.
     if wb_coverage is not None:
-        effective_wb_coverage: float | None = wb_coverage * assumptions.wb_buildout_footprint_ratio
+        if wb_coverage_hard_max is not None and wb_coverage_hard_max >= wb_coverage:
+            soft_excluded_coverage = wb_coverage_hard_max - wb_coverage
+            effective_wb_coverage: float | None = (
+                wb_coverage + soft_excluded_coverage * assumptions.wb_buildout_footprint_ratio
+            )
+        else:
+            # No hard_max signal (pipeline missing the column) — fall back to
+            # baseline only. Preserves correctness during partial deploys.
+            effective_wb_coverage = wb_coverage
     else:
         effective_wb_coverage = None
     site_type_raw = kek.get("site_type")

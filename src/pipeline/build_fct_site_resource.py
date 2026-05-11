@@ -650,6 +650,7 @@ def _compute_buildable_pvout(
     float,
     float,
     np.ndarray | None,
+    np.ndarray | None,
     object | None,
     str,
     str | None,
@@ -668,6 +669,15 @@ def _compute_buildable_pvout(
     has enough buildable area to meet MEANINGFUL_SHARE_PCT of demand.
     See METHODOLOGY_CONSOLIDATED.md §8 for the search algorithm.
 
+    v4.0.5 (methodology #40): in addition to the full 4-layer filtered_mask, the
+    function also returns a hard_filtered_mask — the result of running ONLY the
+    HARD-classified layers (slope/elev, Kawasan Hutan, peat) and skipping the
+    SOFT layers (land cover, road distance). The hard mask represents land that
+    is physically and legally buildable regardless of zoning; downstream the
+    `wb_buildout_footprint_ratio` slider expresses what fraction of
+    (hard_max - baseline) the site owner overrides for solar deployment.
+    See src/dash/constants.py:BUILDABILITY_LAYER_CLASSIFICATION.
+
     Args:
         pvout_patch:       2D daily PVOUT values (kWh/kWp/day) from the raw raster window.
         window:            rasterio Window corresponding to the patch.
@@ -684,16 +694,22 @@ def _compute_buildable_pvout(
     Returns:
         (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str,
          best_solar_site_lat, best_solar_site_lon, best_solar_site_dist_km,
-         filtered_mask, win_transform,
+         filtered_mask, hard_filtered_mask, win_transform,
          solar_search_method, chosen_anchor_substation_name,
          solar_supply_share_pct, solar_delivered_share_pct)
-        Returns (NaN, ..., None, None, "data_unavailable", None, NaN, NaN)
+        Returns (NaN, ..., None, None, None, "data_unavailable", None, NaN, NaN)
         when no files are present.
 
     Note on resolution:
         PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
         filter (Layer 4, 10 ha) is a no-op — every valid pixel exceeds the threshold.
         Layer 4 is retained to count buildable pixels and compute total area.
+
+    Invariant:
+        hard_filtered_mask is always a superset of filtered_mask
+        (since hard_filtered_mask drops SOFT exclusions). The caller can compute
+        soft_excluded = hard_filtered_mask.sum() - filtered_mask.sum() to surface
+        the land that's only excluded by zoning/use.
     """
 
     available = _available_build_files(data_dir)
@@ -706,6 +722,7 @@ def _compute_buildable_pvout(
             np.nan,
             np.nan,
             np.nan,
+            None,
             None,
             None,
             "data_unavailable",
@@ -739,6 +756,7 @@ def _compute_buildable_pvout(
             np.nan,
             np.nan,
             np.nan,
+            None,
             None,
             None,
             "no_pvout",
@@ -813,6 +831,9 @@ def _compute_buildable_pvout(
     n_after_3a = int((pvout_after_3a > 0).sum())
 
     # ── Layer 2: Slope + elevation (skip if DEM absent) ───────────────────────
+    # Hoist slope/elev computation so the HARD-only cascade below can reuse it.
+    dem_arr = None
+    slope_arr = None
     if "dem_indonesia.tif" in available:
         dem_arr = _read_raster_window_to_pvout_grid(
             data_dir / "dem_indonesia.tif", bbox, (height, width), win_transform
@@ -831,6 +852,27 @@ def _compute_buildable_pvout(
     buildable_mask = pvout_after_2 > 0
     filtered_mask = apply_min_area_filter(buildable_mask, pix_ha)
     n_after_4 = int(filtered_mask.sum())
+
+    # ── HARD-only cascade (v4.0.5, methodology #40) ─────────────────────────
+    # Re-apply only the HARD exclusion layers (Kawasan Hutan, peat, slope+elev)
+    # — skipping SOFT layers (land cover, road distance) — to produce a parallel
+    # mask of land that's physically/legally buildable regardless of zoning.
+    # See src/dash/constants.py:BUILDABILITY_LAYER_CLASSIFICATION.
+    #
+    #   FULL cascade:  pvout_working → Kawasan Hutan → peat → land cover →
+    #                                  road distance → slope+elev → min_area
+    #   HARD cascade:  pvout_working → Kawasan Hutan → peat → slope+elev → min_area
+    #
+    # The site owner can override SOFT exclusions (canopy over parking, etc.);
+    # HARD exclusions are physical/legal facts that the dashboard cannot waive.
+    # The frontend slider expresses what fraction of (hard_max - baseline) the
+    # user wants to override.
+    if slope_arr is not None and dem_arr is not None:
+        pvout_hard_after_2 = apply_slope_elevation_mask(pvout_after_1b, slope_arr, dem_arr)
+    else:
+        pvout_hard_after_2 = pvout_after_1b
+    hard_buildable_mask = pvout_hard_after_2 > 0
+    hard_filtered_mask = apply_min_area_filter(hard_buildable_mask, pix_ha)
 
     # Outputs
     buildable_area_ha = round(n_after_4 * pix_ha, 1)
@@ -941,6 +983,7 @@ def _compute_buildable_pvout(
         best_solar_lon,
         best_solar_dist_km,
         filtered_mask,
+        hard_filtered_mask,
         win_transform,
         solar_search_method,
         chosen_anchor_substation_name,
@@ -1139,6 +1182,7 @@ def build_fct_site_resource(
                 best_solar_lon,
                 best_solar_dist_km,
                 build_mask,
+                build_mask_hard,
                 build_win_tf,
                 solar_search_method,
                 chosen_anchor_substation_name,
@@ -1173,6 +1217,8 @@ def build_fct_site_resource(
             wb_area_ha = np.nan
             wb_pvout_annual = np.nan
             wb_capacity_mwp = np.nan
+            wb_hard_max_area_ha = np.nan
+            wb_hard_max_capacity_mwp = np.nan
             wb_source = "theoretical"
 
             if build_mask is not None and build_win_tf is not None and kek_polygon is not None:
@@ -1197,12 +1243,51 @@ def build_fct_site_resource(
                     # KEK polygon too small for raster resolution — fall back
                     wb_source = "theoretical"
 
+                # v4.0.5 (methodology #40): hard-only mask within-boundary —
+                # what would be buildable if the site owner could override all
+                # SOFT zoning exclusions (land cover, road distance). The
+                # frontend slider expresses what fraction of (hard - baseline)
+                # to actually override. hard_filtered_mask is a superset of
+                # filtered_mask (only drops SOFT exclusions), so
+                # wb_hard_max_area_ha >= wb_area_ha by construction.
+                if build_mask_hard is not None:
+                    wb_hard_max_area_ha, _, wb_hard_max_capacity_mwp = (
+                        _compute_within_boundary_buildable(
+                            build_mask_hard,
+                            pvout_patch,
+                            build_win_tf,
+                            kek_polygon,
+                            pix_ha,
+                            kek_geom_area_ha,
+                        )
+                    )
+
             # No fallback: if spatial intersection found 0 buildable pixels,
             # within-boundary buildable area is genuinely 0.
             if wb_source == "theoretical":
                 wb_area_ha = 0.0
                 wb_capacity_mwp = 0.0
                 wb_pvout_annual = np.nan
+                # If baseline fell back to theoretical/zero, hard_max should
+                # also be zero (no polygon match means no surface to compute on).
+                if not np.isfinite(wb_hard_max_area_ha):
+                    wb_hard_max_area_ha = 0.0
+                    wb_hard_max_capacity_mwp = 0.0
+
+            # Guard the invariant: hard_max >= baseline. If a pipeline edge
+            # case violates this, clamp + log. Better to ship a consistent
+            # number than a confusing negative soft_excluded downstream.
+            if (
+                np.isfinite(wb_hard_max_area_ha)
+                and np.isfinite(wb_area_ha)
+                and wb_hard_max_area_ha < wb_area_ha
+            ):
+                print(
+                    f"  WARNING {site_id}: hard_max_area_ha ({wb_hard_max_area_ha}) "
+                    f"< baseline area_ha ({wb_area_ha}); clamping to baseline."
+                )
+                wb_hard_max_area_ha = wb_area_ha
+                wb_hard_max_capacity_mwp = wb_capacity_mwp
 
             records.append(
                 {
@@ -1257,6 +1342,17 @@ def build_fct_site_resource(
                     if np.isfinite(wb_pvout_annual)
                     else np.nan,
                     "within_boundary_source": wb_source,
+                    # v4.0.5 (methodology #40): HARD-only mask within-boundary —
+                    # area that's physically/legally buildable regardless of
+                    # zoning. The frontend slider expresses what fraction of
+                    # (hard_max - baseline) the site owner overrides.
+                    # Invariant: within_boundary_hard_max_ha >= within_boundary_area_ha
+                    "within_boundary_hard_max_ha": round(wb_hard_max_area_ha, 1)
+                    if np.isfinite(wb_hard_max_area_ha)
+                    else np.nan,
+                    "within_boundary_capacity_hard_max_mwp": round(wb_hard_max_capacity_mwp, 1)
+                    if np.isfinite(wb_hard_max_capacity_mwp)
+                    else np.nan,
                     # V3.7: substation-anchored picker outputs
                     "solar_search_method": solar_search_method,
                     "chosen_anchor_substation_name": chosen_anchor_substation_name,

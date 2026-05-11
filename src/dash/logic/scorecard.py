@@ -483,6 +483,13 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
     # summed across all buildable polygons. The map popup shows one polygon at
     # a time; the Score Drawer needs the aggregate so users see the captive
     # ceiling at a glance.
+    #
+    # v4.0.5 (methodology #40): `within_boundary_capacity_mwp` remains the
+    # raster BASELINE (slider-independent). The frontend reads this + the
+    # hard_max + slider to compute the deployable display value client-side
+    # (see frontend/src/components/panels/scoredrawer/ResourceTab.tsx). Cost
+    # cascades below use the slider-adjusted `wb_cap_deployable` so backend
+    # cost numbers stay consistent with what the user sees.
     out["within_boundary_capacity_mwp"] = _round(float(wb_cap), 1) if pd.notna(wb_cap) else None
     wb_area = kek.get("within_boundary_area_ha")
     out["within_boundary_area_ha"] = _round(float(wb_area), 0) if pd.notna(wb_area) else None
@@ -490,8 +497,41 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
         _round(float(pvout_for_wb), 0) if pd.notna(pvout_for_wb) else None
     )
 
-    if pd.notna(wb_cap) and pd.notna(pvout_for_wb):
-        wb_gen_mwh = float(wb_cap) * float(pvout_for_wb)
+    # v4.0.5 (methodology #40): HARD-only mask area + capacity. Frontend slider
+    # interpolates between baseline (this row's _area_ha / _capacity_mwp above)
+    # and the hard_max values. See docs/refinement/industrial_canopy_potential
+    # _methodology_2026-05-11.md. Invariant: hard_max >= baseline.
+    wb_hard_max_area = kek.get("within_boundary_hard_max_ha")
+    out["within_boundary_hard_max_ha"] = (
+        _round(float(wb_hard_max_area), 0) if pd.notna(wb_hard_max_area) else None
+    )
+    wb_hard_max_cap = kek.get("within_boundary_capacity_hard_max_mwp")
+    out["within_boundary_capacity_hard_max_mwp"] = (
+        _round(float(wb_hard_max_cap), 1) if pd.notna(wb_hard_max_cap) else None
+    )
+
+    # v4.0.5 (methodology #40): slider-aware DEPLOYABLE capacity. Per D1A
+    # (eng review of #40), every backend consumer of within_boundary_capacity_mwp
+    # should use this deployable value, not the baseline. Cost cascade outputs
+    # below are computed from `wb_cap_deployable` so the cost numbers match
+    # what the user sees on screen.
+    #
+    #   wb_cap_deployable = baseline + (hard_max - baseline) × slider%
+    #
+    # Invariant: deployable >= baseline. Falls back to baseline if hard_max is
+    # absent (pipeline not re-run after #40 lands).
+    slider = float(ctx.assumptions.wb_buildout_footprint_ratio)
+    if pd.notna(wb_cap):
+        if pd.notna(wb_hard_max_cap) and float(wb_hard_max_cap) >= float(wb_cap):
+            soft_excluded_cap = float(wb_hard_max_cap) - float(wb_cap)
+            wb_cap_deployable = float(wb_cap) + soft_excluded_cap * slider
+        else:
+            wb_cap_deployable = float(wb_cap)
+    else:
+        wb_cap_deployable = None
+
+    if wb_cap_deployable is not None and pd.notna(pvout_for_wb):
+        wb_gen_mwh = wb_cap_deployable * float(pvout_for_wb)
         out["within_boundary_generation_gwh"] = _round(wb_gen_mwh / 1000)
         out["within_boundary_coverage_pct"] = (
             round(wb_gen_mwh / ctx.demand_mwh, 3) if ctx.demand_mwh > 0 else None
@@ -499,6 +539,21 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
     else:
         out["within_boundary_generation_gwh"] = None
         out["within_boundary_coverage_pct"] = None
+
+    # v4.0.5 (methodology #40): hard_max generation + coverage. Uses the same
+    # avg PVOUT as the baseline (in-polygon variation is <5% at 1km Indonesian
+    # resolution per the methodology doc §5). Downstream `grid.py:112` blends
+    # baseline + (hard_max - baseline) × slider% to drive the within_boundary
+    # gate.
+    if pd.notna(wb_hard_max_cap) and pd.notna(pvout_for_wb):
+        wb_hard_gen_mwh = float(wb_hard_max_cap) * float(pvout_for_wb)
+        out["within_boundary_generation_hard_max_gwh"] = _round(wb_hard_gen_mwh / 1000)
+        out["within_boundary_coverage_hard_max_pct"] = (
+            round(wb_hard_gen_mwh / ctx.demand_mwh, 3) if ctx.demand_mwh > 0 else None
+        )
+    else:
+        out["within_boundary_generation_hard_max_gwh"] = None
+        out["within_boundary_coverage_hard_max_pct"] = None
 
     return out
 
