@@ -120,6 +120,11 @@ BUILDABILITY_DIR = REPO_ROOT / "data" / "buildability"
 
 # KEK polygon boundaries for spatial intersection with buildable raster
 KEK_POLYGONS_GEOJSON = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
+# v4.0.5 (methodology #42): industrial site polygons for non-KEK sites.
+# Same source the rooftop layer (build_fct_site_solar_potential.py) uses to
+# clip building footprints. 35 sites as of 2026-05-11 — covers Petrokimia
+# Gresik, Indocement Palimanan, Freeport Smelter Gresik, IMIP, IPIP, etc.
+INDUSTRIAL_POLYGONS_GEOJSON = REPO_ROOT / "data" / "industrial_sites" / "site_polygons.geojson"
 
 _REQUIRED_BUILD_FILES = [
     "dem_indonesia.tif",
@@ -260,6 +265,51 @@ def _load_kek_polygons(path: Path) -> dict[str, object]:
             polygons[slug] = unary_union([polygons[slug], geom])
         else:
             polygons[slug] = geom
+    return polygons
+
+
+def _load_industrial_polygons(path: Path) -> dict[str, object]:
+    """Return {site_id: shapely_geometry} for non-KEK industrial site polygons.
+
+    Sourced from OSM `landuse=industrial` / `man_made=works` tags + curated
+    overrides — same file `build_fct_site_solar_potential.py` clips rooftop
+    buildings against. Pre-v4.0.5 the within-boundary calculation read KEK
+    polygons only; this loader fills the 56-non-KEK-sites gap surfaced via
+    user QA at Petrokimia Gresik. See issue #42.
+    """
+    if not path.exists():
+        return {}
+    with path.open() as f:
+        gj = json.load(f)
+    polygons: dict[str, object] = {}
+    for feat in gj["features"]:
+        site_id = feat["properties"].get("site_id", "")
+        if not site_id:
+            continue
+        geom = shape(feat["geometry"])
+        if site_id in polygons:
+            polygons[site_id] = unary_union([polygons[site_id], geom])
+        else:
+            polygons[site_id] = geom
+    return polygons
+
+
+def _load_all_site_polygons(
+    kek_path: Path = KEK_POLYGONS_GEOJSON,
+    industrial_path: Path = INDUSTRIAL_POLYGONS_GEOJSON,
+) -> dict[str, object]:
+    """Union the KEK + industrial polygon sources by site_id.
+
+    KEK polygons win when both files have the same key — KEK boundaries are
+    the canonical fence-line where they exist. Industrial polygons fill the
+    gap for standalone cement / steel / nickel / aluminium / fertilizer
+    sites that aren't in `kek_polygons.geojson`.
+    """
+    polygons = _load_kek_polygons(kek_path)
+    industrial = _load_industrial_polygons(industrial_path)
+    for site_id, geom in industrial.items():
+        if site_id not in polygons:
+            polygons[site_id] = geom
     return polygons
 
 
@@ -1107,9 +1157,15 @@ def build_fct_site_resource(
         )
 
     # Load KEK polygon geometries for spatial within-boundary intersection
-    kek_polygons = _load_kek_polygons(KEK_POLYGONS_GEOJSON)
+    # v4.0.5 (methodology #42): union KEK + industrial polygon sources so
+    # standalone sites (Petrokimia Gresik et al.) get within-boundary data,
+    # not just the 25 KEKs. Same polygon source the rooftop layer uses.
+    kek_polygons = _load_all_site_polygons(KEK_POLYGONS_GEOJSON, INDUSTRIAL_POLYGONS_GEOJSON)
     if kek_polygons:
-        print(f"  KEK polygons: {len(kek_polygons)} loaded for within-boundary intersection")
+        print(
+            f"  Site polygons: {len(kek_polygons)} loaded for within-boundary intersection "
+            f"(KEK + industrial sources merged)"
+        )
     else:
         print("  KEK polygons not found — using theoretical within-boundary estimate")
 
