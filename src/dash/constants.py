@@ -199,9 +199,9 @@ TIER2_SLIDERS = {
         "max": 1.00,
         "step": 0.05,
         "default": WB_BUILDOUT_FOOTPRINT_RATIO,
-        "label": "WB buildout footprint (%)",
+        "label": "Usable ground % (global)",
         "unit": "",
-        "description": "Share of KEK area realistically free for on-site solar after factories, roads, and buffers. Haircuts within-boundary coverage before the within_boundary gate. 0.20 = operating park, 1.0 = greenfield.",
+        "description": "Share of buildable open ground inside the fence assumed deployable for utility-scale PV after factories, roads, and buffers. Haircuts within-boundary coverage before the within_boundary gate. Synced with the Resource tab + Advanced Assumptions sliders. 0.20 = operating park, 1.0 = greenfield.",
     },
     "idr_usd_rate": {
         "min": 14000,
