@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
 **Version:** 3.7 (Consolidated, April 2026)
-**Status:** Implemented in code. 81 sites (25 KEKs + 56 industrial: 32 cement + 17 steel + 5 fertilizer + 2 aluminium + 10 nickel IIA), 541 tests passing. CBAM Layer 3 complete (68/81 sites exposed; Scope 2 RE savings bounded by `CBAM_RE_ADDRESSABLE_FRACTION` per sector to reflect the electric share of thermal-inclusive intensity values — see §4.1), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
+**Status:** Implemented in code. 81 sites (25 KEKs + 56 industrial: 32 cement + 7 steel + 5 fertilizer + 2 aluminium + 10 nickel IIA), 541 tests passing. CBAM Layer 3 complete (68/81 sites exposed; Scope 2 RE savings bounded by `CBAM_RE_ADDRESSABLE_FRACTION` per sector to reflect the electric share of thermal-inclusive intensity values — see §4.1), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
