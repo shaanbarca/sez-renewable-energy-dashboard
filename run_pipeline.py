@@ -74,6 +74,9 @@ from src.pipeline.build_fct_substation_proximity import build_fct_substation_pro
 from src.pipeline.build_fct_substation_ruptl_signal import (
     build_fct_substation_ruptl_signal_from_disk,
 )
+from src.pipeline.build_fct_transmission_link_ruptl_signal import (
+    build_fct_transmission_link_ruptl_signal,
+)
 from src.pipeline.build_industrial_sites import build_industrial_sites
 from src.pipeline.pdf_extract_ruptl_substations import build_raw_ruptl_substation_plans
 
@@ -151,6 +154,11 @@ PIPELINE: list[Step] = [
         build_fct_perpres_112_classification,
         "fct_perpres_112_classification.csv",
         depends_on=["dim_sites"],
+    ),
+    Step(
+        "fct_transmission_link_ruptl_signal",
+        build_fct_transmission_link_ruptl_signal,
+        "fct_transmission_link_ruptl_signal.csv",
     ),
     # Stage 3: Computed
     # V3.8: RUPTL substation signal feeds fct_substation_proximity for per-site utilization tiers
