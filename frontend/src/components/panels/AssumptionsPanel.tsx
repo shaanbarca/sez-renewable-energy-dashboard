@@ -488,20 +488,28 @@ export default function AssumptionsPanel() {
               </Accordion.Content>
             </Accordion.Item>
 
-            {/* V4.1 RV15: Rooftop solar §5.3 sliders. Recompute happens in
-                /api/scorecard against usable_roof_area_m2 from the rooftop
-                fct, so changes here propagate to rooftop_solar_mwp_potential
-                without re-running the build pipeline. */}
+            {/* Captive Solar: on-site PV potential decomposed into Rooftop (V4.1
+                §5.3 sliders — recomputed in /api/scorecard against
+                usable_roof_area_m2) + Ground-mounted (wb_buildout_footprint_ratio
+                — also drives the Grid tab within_boundary gate). Both sliders
+                sync with inline copies in the Score Drawer Resource tab + Grid
+                tab via the same Zustand store. */}
             {sliderConfigs.rooftop && (
               <Accordion.Item
-                value="rooftop"
+                value="captive_solar"
                 className="border-t"
                 style={{ borderColor: 'var(--border-subtle)' }}
               >
                 <Accordion.Header>
-                  <AccordionTrigger>Rooftop Solar (V4.1)</AccordionTrigger>
+                  <AccordionTrigger>Captive Solar</AccordionTrigger>
                 </Accordion.Header>
                 <Accordion.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                  <div
+                    className="text-[10px] uppercase tracking-wider mt-2 mb-2"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Rooftop
+                  </div>
                   <Slider
                     value={assumptions.rooftop_panel_power_w_dc}
                     onChange={(v) =>
@@ -536,6 +544,25 @@ export default function AssumptionsPanel() {
                     step={sliderConfigs.rooftop.layout_density.step}
                     label={sliderConfigs.rooftop.layout_density.label}
                     description={sliderConfigs.rooftop.layout_density.description}
+                  />
+                  <div
+                    className="text-[10px] uppercase tracking-wider mt-4 mb-2"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Ground-mounted
+                  </div>
+                  <Slider
+                    value={assumptions.wb_buildout_footprint_ratio}
+                    onChange={(v) =>
+                      setAssumptions({
+                        wb_buildout_footprint_ratio: v,
+                      } as Partial<UserAssumptions>)
+                    }
+                    min={0.05}
+                    max={1.0}
+                    step={0.05}
+                    label="Usable ground % (global)"
+                    description="Fraction of buildable open ground inside the fence assumed deployable for utility-scale PV. Default 20% reflects an operating industrial park where factories, roads, and buffers take most of the technically buildable land. Synced with the Resource tab + Grid tab sliders."
                   />
                 </Accordion.Content>
               </Accordion.Item>

@@ -27,6 +27,21 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
   // it. User-adjustable assumed share. Default 20% (matches the
   // wb_buildout_footprint_ratio that already gates grid integration).
   const buildoutPct = assumptions?.wb_buildout_footprint_ratio ?? 0.2;
+  const rooftopDensity = assumptions?.rooftop_layout_density ?? 0.5;
+  const rooftopPanelPower = assumptions?.rooftop_panel_power_w_dc ?? 400;
+  const rooftopPanelArea = assumptions?.rooftop_panel_area_m2 ?? 2;
+
+  // Client-side rooftop MWp mirror of scorecard.py:348-353. Keeps the Rooftop
+  // Layout density slider feeling instant alongside the captive (ground-mount)
+  // slider — server still recomputes rooftop_solar_mwp_potential for RankedTable
+  // / RooftopPotentialTable consistency. If the formula evolves, update both sides.
+  const rooftopMwpClient = (() => {
+    const u = row.usable_roof_area_m2;
+    if (u == null || !Number.isFinite(u) || rooftopPanelArea <= 0) return null;
+    const m = (u * rooftopDensity * (rooftopPanelPower / rooftopPanelArea)) / 1_000_000;
+    return Number.isFinite(m) ? m : null;
+  })();
+
   const adjustedCapacity =
     row.within_boundary_capacity_mwp != null
       ? row.within_boundary_capacity_mwp * buildoutPct
@@ -41,6 +56,24 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
     row.within_boundary_coverage_pct != null
       ? row.within_boundary_coverage_pct * buildoutPct
       : null;
+
+  // Composition flags for the merged Captive Solar card subsections.
+  const hasRooftop = row.rooftop_solar_mwp_potential != null;
+  const hasGround = row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0;
+  const totalCaptiveMwp =
+    hasRooftop && hasGround && rooftopMwpClient != null && adjustedCapacity != null
+      ? rooftopMwpClient + adjustedCapacity
+      : hasRooftop && rooftopMwpClient != null
+        ? rooftopMwpClient
+        : hasGround && adjustedCapacity != null
+          ? adjustedCapacity
+          : null;
+  const totalCompositionLabel =
+    hasRooftop && hasGround
+      ? 'Captive MWp (rooftop + ground)'
+      : hasRooftop
+        ? 'Captive MWp (rooftop only)'
+        : 'Captive MWp (ground only)';
 
   return (
     <>
@@ -121,66 +154,206 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
         )}
       </StatCard>
 
-      {showSolar &&
-        row.within_boundary_capacity_mwp != null &&
-        row.within_boundary_capacity_mwp > 0 && (
-          <StatCard>
-            <SectionHeader
-              title="Captive Solar (on-site)"
-              subtitle="Total solar that fits inside the site fence — adjusted for assumed buildout availability."
-              tip="Raw buildable raster × buildout-availability slider. Default 20% reflects an operating industrial park where factories, roads, and buffers take most of the technically buildable land."
-            />
-            <div style={{ marginBottom: 6 }}>
-              <Slider
-                label="Buildout availability"
-                description={`Raw raster says ${row.within_boundary_capacity_mwp.toFixed(1)} MWp; this slider says how much is realistically deployable.`}
-                min={0.05}
-                max={1.0}
-                step={0.05}
-                value={buildoutPct}
-                onChange={(v) =>
-                  setAssumptions({ wb_buildout_footprint_ratio: v } as Partial<UserAssumptions>)
+      {showSolar && (hasRooftop || hasGround) && (
+        <StatCard>
+          <SectionHeader
+            title="Captive Solar (on-site)"
+            subtitle="On-site solar potential — rooftop + ground-mounted, adjusted for usable area."
+            tip="Decomposes into Rooftop (on existing buildings, §14 classifier × layout density) and Ground-mounted (raw buildable raster × usable-ground %). Total mixes cost tiers — rooftop ≈ 5× $/MWp vs ground-mounted utility-scale, see Total tooltip."
+          />
+
+          <div
+            className="text-[10px] uppercase tracking-wider mt-2 mb-1"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Rooftop
+          </div>
+          {hasRooftop ? (
+            <>
+              <div style={{ marginBottom: 6 }}>
+                <Slider
+                  label="Layout density"
+                  description={`Fraction of usable roof covered by panels after spacing for shading, walkways, and equipment. Default 0.50 is industrial (NREL TP-6A20-65298); bifacials/utility-scale push higher.`}
+                  min={0.4}
+                  max={0.65}
+                  step={0.05}
+                  value={rooftopDensity}
+                  onChange={(v) =>
+                    setAssumptions({ rooftop_layout_density: v } as Partial<UserAssumptions>)
+                  }
+                />
+              </div>
+              <StatRowWithTip
+                label="Rooftop MWp"
+                value={
+                  rooftopMwpClient != null
+                    ? rooftopMwpClient.toFixed(1)
+                    : row.rooftop_solar_mwp_potential != null
+                      ? row.rooftop_solar_mwp_potential.toFixed(1)
+                      : null
+                }
+                unit="MWp DC"
+                tip={`§14 classifier × ${(rooftopDensity * 100).toFixed(0)}% layout density × panel power. Computed client-side for instant slider feedback; server recomputes for the Ranked Table. Includes standard + soft-derated rooftops.`}
+              />
+              <StatRow
+                label="Standard rooftops"
+                value={
+                  row.building_count_standard_roof != null
+                    ? row.building_count_standard_roof.toLocaleString()
+                    : null
+                }
+                unit={
+                  row.building_count_other_excluded != null && row.building_count_other_excluded > 0
+                    ? `(${row.building_count_other_excluded.toLocaleString()} excluded)`
+                    : ''
                 }
               />
+              {row.usable_roof_area_m2 != null && row.usable_roof_area_m2 > 0 && (
+                <StatRowWithTip
+                  label="Usable roof area"
+                  value={(row.usable_roof_area_m2 / 10_000).toFixed(1)}
+                  unit="ha"
+                  tip="Building footprint × usability multiplier from the §14 classifier (1.0 for standard rooftops, derated for elongated / complex / round shapes)."
+                />
+              )}
+              {row.building_data_confidence && (
+                <StatRowWithTip
+                  label="Data confidence"
+                  value={row.building_data_confidence}
+                  unit=""
+                  tip={`Derived from building count + footprint ratio + imagery vintage. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`}
+                />
+              )}
+            </>
+          ) : (
+            <div
+              className="text-xs italic py-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {row.building_data_reason_flagged
+                ? `No rooftop data — ${row.building_data_reason_flagged.replace(/_/g, ' ')}`
+                : 'No buildings detected in 2km buffer'}
             </div>
+          )}
+
+          <div
+            className="text-[10px] uppercase tracking-wider mt-3 mb-1"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Ground-mounted
+          </div>
+          {hasGround ? (
+            <>
+              <div style={{ marginBottom: 6 }}>
+                <Slider
+                  label="Usable ground % (global)"
+                  description={`Raw raster says ${row.within_boundary_capacity_mwp?.toFixed(1)} MWp; this slider says how much is realistically deployable. Synced with the Grid tab + Advanced Assumptions sliders.`}
+                  min={0.05}
+                  max={1.0}
+                  step={0.05}
+                  value={buildoutPct}
+                  onChange={(v) =>
+                    setAssumptions({ wb_buildout_footprint_ratio: v } as Partial<UserAssumptions>)
+                  }
+                />
+              </div>
+              <StatRowWithTip
+                label="Captive Capacity"
+                value={adjustedCapacity != null ? adjustedCapacity.toFixed(1) : null}
+                unit="MWp"
+                tip={`Adjusted for ${(buildoutPct * 100).toFixed(0)}% availability. Raw raster ceiling is ${row.within_boundary_capacity_mwp?.toFixed(1)} MWp; this is what the slider says is realistically deployable.`}
+              />
+              <StatRowWithTip
+                label="Available Area"
+                value={adjustedArea != null ? adjustedArea.toFixed(0) : null}
+                unit="ha"
+                tip={`Raw buildable area × ${(buildoutPct * 100).toFixed(0)}% slider. Raw is ${row.within_boundary_area_ha?.toFixed(0)} ha.`}
+              />
+              {row.within_boundary_avg_pvout != null && (
+                <StatRowWithTip
+                  label="Avg PVOUT"
+                  value={row.within_boundary_avg_pvout.toFixed(0)}
+                  unit="kWh/kWp/yr"
+                  tip="Mean solar resource over the buildable polygons inside the fence. Doesn't change with the slider."
+                />
+              )}
+              {adjustedGen != null && (
+                <StatRowWithTip
+                  label="Annual Generation"
+                  value={adjustedGen.toFixed(0)}
+                  unit="GWh/yr"
+                  tip={`Adjusted Capacity × Avg PVOUT. At 100% the ceiling is ${row.within_boundary_generation_gwh?.toFixed(0)} GWh/yr.`}
+                />
+              )}
+              {adjustedCoverage != null && (
+                <StatRowWithTip
+                  label="Demand Coverage"
+                  value={(adjustedCoverage * 100).toFixed(0)}
+                  unit="%"
+                  tip="Captive solar generation as a fraction of the site's 2030 demand. >100% means on-site solar over-produces vs the load."
+                />
+              )}
+            </>
+          ) : (
+            <div
+              className="text-xs italic py-1"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              No buildable area within fence
+            </div>
+          )}
+
+          {totalCaptiveMwp != null && (
+            <>
+              <div
+                className="text-[10px] uppercase tracking-wider mt-3 mb-1"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Total
+              </div>
+              <StatRowWithTip
+                label={totalCompositionLabel}
+                value={totalCaptiveMwp.toFixed(1)}
+                unit="MWp"
+                tip={
+                  hasRooftop && hasGround
+                    ? `Rooftop ${rooftopMwpClient?.toFixed(1)} + Ground ${adjustedCapacity?.toFixed(1)} MWp. Mixes cost tiers — rooftop is ≈ 5× $/MWp vs ground-mounted utility-scale, so this sum is a capacity ceiling, not a unit-economics number.`
+                    : hasRooftop
+                      ? 'Rooftop only — no buildable ground inside the fence at this site.'
+                      : 'Ground only — no rooftop data at this site.'
+                }
+              />
+            </>
+          )}
+
+          {row.polygon_source_tier && (
             <StatRowWithTip
-              label="Captive Capacity"
-              value={adjustedCapacity != null ? adjustedCapacity.toFixed(1) : null}
-              unit="MWp"
-              tip={`Adjusted for ${(buildoutPct * 100).toFixed(0)}% availability. Raw raster ceiling is ${row.within_boundary_capacity_mwp.toFixed(1)} MWp; this is what the slider says is realistically deployable.`}
+              label="Polygon source"
+              value={
+                {
+                  official_kek: 'Official KEK',
+                  osm_landuse_industrial: 'OSM',
+                  claude_building_hull_estimate: 'Estimated',
+                  none: 'No polygon',
+                }[row.polygon_source_tier]
+              }
+              unit=""
+              tip={
+                {
+                  official_kek:
+                    'Government-published KEK boundary from the Indonesian OSS portal. High trust.',
+                  osm_landuse_industrial:
+                    'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued.',
+                  claude_building_hull_estimate:
+                    'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
+                  none:
+                    'No fence-line polygon yet. Rooftop estimate uses a 2 km centroid buffer, which can over-count adjacent factories.',
+                }[row.polygon_source_tier]
+              }
             />
-            <StatRowWithTip
-              label="Available Area"
-              value={adjustedArea != null ? adjustedArea.toFixed(0) : null}
-              unit="ha"
-              tip={`Raw buildable area × ${(buildoutPct * 100).toFixed(0)}% slider. Raw is ${row.within_boundary_area_ha?.toFixed(0)} ha.`}
-            />
-            {row.within_boundary_avg_pvout != null && (
-              <StatRowWithTip
-                label="Avg PVOUT"
-                value={row.within_boundary_avg_pvout.toFixed(0)}
-                unit="kWh/kWp/yr"
-                tip="Mean solar resource over the buildable polygons inside the fence. Doesn't change with the slider."
-              />
-            )}
-            {adjustedGen != null && (
-              <StatRowWithTip
-                label="Annual Generation"
-                value={adjustedGen.toFixed(0)}
-                unit="GWh/yr"
-                tip={`Adjusted Capacity × Avg PVOUT. At 100% the ceiling is ${row.within_boundary_generation_gwh?.toFixed(0)} GWh/yr.`}
-              />
-            )}
-            {adjustedCoverage != null && (
-              <StatRowWithTip
-                label="Demand Coverage"
-                value={(adjustedCoverage * 100).toFixed(0)}
-                unit="%"
-                tip="Captive solar generation as a fraction of the site's 2030 demand. >100% means on-site solar over-produces vs the load."
-              />
-            )}
-          </StatCard>
-        )}
+          )}
+        </StatCard>
+      )}
 
       <StatCard>
         <SectionHeader
@@ -229,85 +402,6 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
           </>
         )}
       </StatCard>
-
-      {showSolar && row.rooftop_solar_mwp_potential != null && (
-        <StatCard>
-          <SectionHeader
-            title="Rooftop Solar Potential"
-            subtitle={
-              row.building_data_confidence === 'low' && row.building_data_reason_flagged
-                ? `Building data unavailable for this site — ${row.building_data_reason_flagged.replace(/_/g, ' ')}`
-                : "How much rooftop solar can the site's existing buildings host?"
-            }
-            tip="Per-building footprints from Google Open Buildings v3, classified for solar suitability (tanks, silos, conveyors excluded), then sized at modern panel density."
-          />
-          <StatRowWithTip
-            label="Rooftop MWp"
-            value={
-              row.rooftop_solar_mwp_potential != null
-                ? row.rooftop_solar_mwp_potential.toFixed(1)
-                : null
-            }
-            unit="MWp DC"
-            tip="Total rooftop solar capacity from the §14 building classifier × layout density × panel power. Includes all suitable buildings (standard rooftops + soft-derated)."
-          />
-          <StatRow
-            label="Standard rooftops"
-            value={
-              row.building_count_standard_roof != null
-                ? row.building_count_standard_roof.toLocaleString()
-                : null
-            }
-            unit={
-              row.building_count_other_excluded != null && row.building_count_other_excluded > 0
-                ? `(${row.building_count_other_excluded.toLocaleString()} excluded)`
-                : ''
-            }
-          />
-          {row.usable_roof_area_m2 != null && row.usable_roof_area_m2 > 0 && (
-            <StatRowWithTip
-              label="Usable roof area"
-              value={(row.usable_roof_area_m2 / 10_000).toFixed(1)}
-              unit="ha"
-              tip="Building footprint × usability multiplier from the §14 classifier (1.0 for standard rooftops, derated for elongated / complex / round shapes)."
-            />
-          )}
-          {row.building_data_confidence && (
-            <StatRowWithTip
-              label="Data confidence"
-              value={row.building_data_confidence}
-              unit=""
-              tip={`Derived from building count + footprint ratio + imagery vintage. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`}
-            />
-          )}
-          {row.polygon_source_tier && (
-            <StatRowWithTip
-              label="Polygon source"
-              value={
-                {
-                  official_kek: 'Official KEK',
-                  osm_landuse_industrial: 'OSM',
-                  claude_building_hull_estimate: 'Estimated',
-                  none: 'No polygon',
-                }[row.polygon_source_tier]
-              }
-              unit=""
-              tip={
-                {
-                  official_kek:
-                    'Government-published KEK boundary from the Indonesian OSS portal. High trust.',
-                  osm_landuse_industrial:
-                    'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued.',
-                  claude_building_hull_estimate:
-                    'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
-                  none:
-                    'No fence-line polygon yet. Rooftop estimate uses a 2 km centroid buffer, which can over-count adjacent factories.',
-                }[row.polygon_source_tier]
-              }
-            />
-          )}
-        </StatCard>
-      )}
 
       {showSolar && (
         <StatCard>
