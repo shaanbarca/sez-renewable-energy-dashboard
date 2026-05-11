@@ -558,11 +558,11 @@ export default function AssumptionsPanel() {
                         wb_buildout_footprint_ratio: v,
                       } as Partial<UserAssumptions>)
                     }
-                    min={0.05}
+                    min={0.0}
                     max={1.0}
                     step={0.05}
-                    label="Usable ground % (global)"
-                    description="Fraction of buildable open ground inside the fence assumed deployable for utility-scale PV. Default 20% reflects an operating industrial park where factories, roads, and buffers take most of the technically buildable land. Synced with the Resource tab + Grid tab sliders."
+                    label="Land-use override % (global)"
+                    description="Fraction of soft-excluded land (currently zoned built-up or agricultural inside the polygon) the site owner overrides for solar. At 0% the 4-layer raster baseline is the strict floor; at 100% all soft exclusions are overridden (only physical/legal constraints — slope, peat, Kawasan Hutan — remain). Default 20% = mild owner override. Synced with the Resource tab + Grid tab sliders. See methodology #40."
                   />
                 </Accordion.Content>
               </Accordion.Item>

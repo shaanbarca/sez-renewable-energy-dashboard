@@ -196,11 +196,11 @@ export function GridTab({
             </div>
             {wbCoveragePct != null && wbCoverageEffectivePct != null && assumptions && (
               <>
-                Raw buildable area covers <strong>{wbCoveragePct.toFixed(0)}%</strong> of 2030
-                demand. After the{' '}
+                Raster baseline covers <strong>{wbCoveragePct.toFixed(0)}%</strong> of 2030 demand.
+                With the{' '}
                 <strong>{(assumptions.wb_buildout_footprint_ratio * 100).toFixed(0)}%</strong>{' '}
-                buildout-footprint haircut, effective coverage is{' '}
-                <strong>{wbCoverageEffectivePct.toFixed(0)}%</strong> — above the{' '}
+                land-use override (fraction of soft-excluded land treated as deployable), effective
+                coverage is <strong>{wbCoverageEffectivePct.toFixed(0)}%</strong> — above the{' '}
                 <strong>{(assumptions.meaningful_share_pct * 100).toFixed(0)}%</strong> meaningful
                 share threshold. Gen-tie, new transmission, and substation upgrade costs are all
                 zero: the project is self-contained.
@@ -238,11 +238,10 @@ export function GridTab({
             </div>
             {wbCoveragePct != null && wbCoverageEffectivePct != null && assumptions && (
               <>
-                Raw buildable area covers <strong>{wbCoveragePct.toFixed(0)}%</strong> of demand.
-                After the{' '}
-                <strong>{(assumptions.wb_buildout_footprint_ratio * 100).toFixed(0)}%</strong>{' '}
-                buildout haircut, effective coverage is{' '}
-                <strong>{wbCoverageEffectivePct.toFixed(0)}%</strong> — below the{' '}
+                Raster baseline covers <strong>{wbCoveragePct.toFixed(0)}%</strong> of demand. With
+                the <strong>{(assumptions.wb_buildout_footprint_ratio * 100).toFixed(0)}%</strong>{' '}
+                land-use override (fraction of soft-excluded land treated as deployable), effective
+                coverage is <strong>{wbCoverageEffectivePct.toFixed(0)}%</strong> — below the{' '}
                 <strong>{(assumptions.meaningful_share_pct * 100).toFixed(0)}%</strong> threshold,
                 so grid infrastructure still applies.
               </>

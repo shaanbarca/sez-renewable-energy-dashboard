@@ -510,28 +510,16 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
         _round(float(wb_hard_max_cap), 1) if pd.notna(wb_hard_max_cap) else None
     )
 
-    # v4.0.5 (methodology #40): slider-aware DEPLOYABLE capacity. Per D1A
-    # (eng review of #40), every backend consumer of within_boundary_capacity_mwp
-    # should use this deployable value, not the baseline. Cost cascade outputs
-    # below are computed from `wb_cap_deployable` so the cost numbers match
-    # what the user sees on screen.
-    #
-    #   wb_cap_deployable = baseline + (hard_max - baseline) × slider%
-    #
-    # Invariant: deployable >= baseline. Falls back to baseline if hard_max is
-    # absent (pipeline not re-run after #40 lands).
-    slider = float(ctx.assumptions.wb_buildout_footprint_ratio)
-    if pd.notna(wb_cap):
-        if pd.notna(wb_hard_max_cap) and float(wb_hard_max_cap) >= float(wb_cap):
-            soft_excluded_cap = float(wb_hard_max_cap) - float(wb_cap)
-            wb_cap_deployable = float(wb_cap) + soft_excluded_cap * slider
-        else:
-            wb_cap_deployable = float(wb_cap)
-    else:
-        wb_cap_deployable = None
-
-    if wb_cap_deployable is not None and pd.notna(pvout_for_wb):
-        wb_gen_mwh = wb_cap_deployable * float(pvout_for_wb)
+    # v4.0.5 (methodology #40): output fields stay BASELINE (raw raster output)
+    # for consistency — `within_boundary_capacity_mwp` and the hard_max columns
+    # together give the frontend everything it needs to compute deployable
+    # client-side per the slider. The slider-aware "effective" coverage used
+    # for the within_boundary gate is computed in dash/logic/grid.py:112 and
+    # surfaces as grid_out["within_boundary_coverage_effective_pct"] (separate
+    # field). The cost cascade in _delivered_cost reads that effective value
+    # via ctx.grid_out, so it stays consistent with the user's slider position.
+    if pd.notna(wb_cap) and pd.notna(pvout_for_wb):
+        wb_gen_mwh = float(wb_cap) * float(pvout_for_wb)
         out["within_boundary_generation_gwh"] = _round(wb_gen_mwh / 1000)
         out["within_boundary_coverage_pct"] = (
             round(wb_gen_mwh / ctx.demand_mwh, 3) if ctx.demand_mwh > 0 else None
