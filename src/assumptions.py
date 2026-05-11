@@ -683,7 +683,32 @@ CURTAILMENT_OVERSUPPLY_HIGH_RATIO: float = 2.0
 # Tiered thresholds for solar_generation / local_grid_demand. See
 # estimate_curtailment_loss_pct() in basic_model.py.
 
-# ─── F13 (2026-05-08): GEAS empirical allocation multipliers ─────────────────
+# ─── F13 (2026-05-08) DEPRIORITIZED — GEAS empirical allocation multipliers ─
+#
+# ⚠️  NOT THE OPERATIVE PATH. Preserved for reference per
+#     docs/refinement/F13_GEAS_deprioritization_2026-05-08.md
+#
+# The constants below (REGION_GEAS_MULT, REGION_LOAD_CENTRE_LATLON, the
+# GEAS_DISTANCE_DECAY_* family, GEAS_RUPTL_CAPACITY_FACTOR) are inputs to
+# the empirical variant geas_alloc_empirical() in basic_model.py.
+#
+# WHY DEPRIORITIZED. Hyperscalers (24/7 CFE methodology), CBAM-exposed
+# industrial exporters (Scope-2 attestation), and DFI investors (additionality
+# screens) all reject REC-based decarbonization attribution regardless of
+# allocation method. For those buyer classes — which are the dashboard's
+# primary analytical audience — empirical-vs-proportional REC-allocation
+# precision doesn't change the analytical conclusion.
+#
+# OPERATIVE PATH today: geas_alloc_proportional() only. The empirical
+# variant remains for the smaller buyer class that does accept REC
+# attribution (mid-tier industrial under softer ESG frameworks), and so
+# the constants are kept in case the use case becomes primary.
+#
+# REVISIT IF: a REC-accepting buyer class becomes a primary use case, PLN
+# GEAS evolves to support hourly matching/additionality, or a user
+# explicitly requests the empirical variant.
+#
+# ─── original F13 rationale (preserved for context) ─────────────────────────
 # §11's proportional GEAS allocation (green_energy × demand_share) doesn't
 # match how PLN actually allocates green generation. Empirically, allocation
 # is urban-anchored and slower-rural — Java industrial customers get more than
