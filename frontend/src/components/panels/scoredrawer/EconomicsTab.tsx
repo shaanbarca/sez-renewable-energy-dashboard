@@ -122,6 +122,54 @@ function BindingConstraintCallout({
   );
 }
 
+// GEAS Green Share row with a small deprioritization chip — REC-attributed
+// decarb signaling is rejected by hyperscalers (24/7 CFE), CBAM-exposed
+// exporters (Scope-2 attestation), and DFI screens (additionality). The
+// chip surfaces this so a green share > threshold isn't read as
+// "decarbonized" for buyers it doesn't actually satisfy.
+// See docs/refinement/F13_GEAS_deprioritization_2026-05-08.md.
+function GeasGreenShareRow({ row }: { row: ScorecardRow }) {
+  const value = row.green_share_geas;
+  const display = value != null ? `${(value * 100).toFixed(1)}%` : 'N/A';
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span
+        className="text-[11px] flex items-center gap-1.5"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        GEAS Green Share
+        <span
+          title={
+            'GEAS = Green Energy Auction Scheme. This share is REC-attributed ' +
+            '(proportional regional allocation), not direct/physical matching. ' +
+            'Hyperscalers (24/7 CFE), CBAM-exposed exporters (Scope-2 attestation), ' +
+            'and DFI additionality screens reject REC-based attribution regardless ' +
+            'of allocation method — this signal is informational only for those ' +
+            'buyer classes. Direct PPA / hourly matching is the operative path. ' +
+            'See docs/refinement/F13_GEAS_deprioritization_2026-05-08.md.'
+          }
+          style={{
+            fontSize: 9,
+            padding: '1px 5px',
+            borderRadius: 3,
+            background: 'rgba(255,193,7,0.15)',
+            border: '1px solid rgba(255,193,7,0.40)',
+            color: 'var(--text-secondary)',
+            fontWeight: 500,
+            cursor: 'help',
+            letterSpacing: 0.2,
+          }}
+        >
+          REC-based · deprioritized
+        </span>
+      </span>
+      <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--text-value)' }}>
+        {display}
+      </span>
+    </div>
+  );
+}
+
 export function EconomicsTab({ row }: { row: ScorecardRow }) {
   const [waterfallOpen, setWaterfallOpen] = useState(false);
   const assumptions = useDashboardStore((s) => s.assumptions);
@@ -529,12 +577,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
             tip="Carbon price that makes the hybrid solar+wind+battery system cheaper than grid."
           />
         )}
-        <StatRowWithTip
-          label="GEAS Green Share"
-          value={row.green_share_geas != null ? `${(row.green_share_geas * 100).toFixed(1)}` : null}
-          unit="%"
-          tip="% of 2030 demand that GEAS-allocated solar could cover. GEAS and captive solar are substitutes — high share means strong policy support."
-        />
+        <GeasGreenShareRow row={row} />
       </StatCard>
       <LcoeWaterfallModal open={waterfallOpen} onClose={() => setWaterfallOpen(false)} row={row} />
     </>

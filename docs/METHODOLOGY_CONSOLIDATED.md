@@ -1084,6 +1084,8 @@ Province-level placeholders ("Eksisting", "Tersebar") and `project_type == "new"
 
 **Implementation:** `_ruptl_utilization_for_substation()` in `build_fct_substation_proximity.py`; override priority in `dash/logic/grid.py` and `dash/logic/lcoe.py`.
 
+**v4.3 Methodology Transparency (M-AT1, GitHub issue #34).** The tier values above (85/75/70/55/65) are calibrated, not measured. v4.3 ships per-substation user override + confidence-tier badge (`PLN-published` / `RUPTL-estimated` / `User-set`) with inline methodology link. Override flow: `substation_utilization_override_pct` (per-substation) > `assumptions.substation_utilization_pct` (global slider when off-default) > tier from this section. Plan: `docs/refinement/v4_3_methodology_transparency_refinement.md`.
+
 ### 8.5 Inter-substation connectivity
 
 When B_solar and B_kek are different substations, the model checks whether an existing transmission line connects them.
@@ -1125,7 +1127,7 @@ Three new scorecard columns: `recommended_grid_link_status`, `recommended_grid_l
 
 **Per-link matching deferred.** Today's heuristic uses *region* worst-case. A truer answer matches each site's specific recommended new-transmission corridor (from `fct_substation_proximity`'s nearest substation + the next hop in PLN's grid topology) against the link table. That requires a graph of inter-substation links — out of scope for v4.0.5. Tracked in #7's follow-up notes.
 
-**Action-flag flip deferred.** F5's spec also called for `comparator_used_for_action_flag` and rewiring `compute_action_flag()` to use captive cost as the comparator when feasibility is `pln_tariff_infeasible_captive_only`. This is a real output flip — sites in Sulawesi might switch from `invest_transmission` to a captive-cost-based label. Risky to ship without domain validation; deferred to a follow-up PR. Today's column is informational on the Score Drawer.
+**Action-flag flip deferred → v4.3 milestone (M-T1, GitHub issue #34).** F5's spec also called for `comparator_used_for_action_flag` and rewiring `compute_action_flag()` to use captive cost as the comparator when feasibility is `pln_tariff_infeasible_captive_only`. This is a real output flip — sites in Sulawesi might switch from `invest_transmission` to a captive-cost-based label. Risky to ship without domain validation; deferred to v4.3 *Methodology Transparency* milestone with a validation prerequisite (8 seed entries get `feasibility_validation_tier` of `expert_confirmed` / `single_source` / `prose_inferred` via expert outreach to IESR / ESDM / JETP CPS authors before the flip ships). Today's column is informational on the Score Drawer. Plan: `docs/refinement/v4_3_methodology_transparency_refinement.md`.
 
 ### 8.6 Infrastructure cost layers
 

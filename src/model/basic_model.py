@@ -237,6 +237,18 @@ def geas_alloc_empirical(
 ) -> float:
     """PLN-empirical GEAS allocation (METHODOLOGY §11.B — F13).
 
+    ⚠️  DEPRIORITIZED 2026-05-08 — preserved for reference, NOT operative.
+    See `docs/refinement/F13_GEAS_deprioritization_2026-05-08.md`.
+
+    The empirical variant remains in the codebase in case a REC-accepting
+    buyer class becomes a primary use case, but is NOT load-bearing today.
+    Hyperscalers (24/7 CFE), CBAM-exposed industrial exporters (Scope-2
+    attestation), and DFI investors (additionality screens) all reject
+    REC-based decarbonization attribution regardless of allocation method —
+    so empirical-vs-proportional precision doesn't change the analytical
+    conclusion for those buyer classes. Operative path uses
+    `geas_alloc_proportional()` only.
+
     The proportional baseline (`geas_baseline_allocation`) gives every site
     `green_energy × demand_share`. PLN's actual allocation is urban-anchored
     and slower-rural — Java industrial tenants get more than their pro-rata
