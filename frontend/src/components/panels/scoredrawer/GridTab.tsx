@@ -171,8 +171,13 @@ export function GridTab({
     row.within_boundary_coverage_effective_pct != null
       ? row.within_boundary_coverage_effective_pct * 100
       : null;
+  // v4.0.5 (methodology #40): include hard_max so the coverage panel + slider
+  // show at industrial sites where the strict raster baseline is 0. The slider
+  // can dial soft-excluded coverage back in via the override math at grid.py:112.
   const hasWbCoverage =
-    row.within_boundary_coverage_pct != null && row.within_boundary_coverage_pct > 0;
+    (row.within_boundary_coverage_pct != null && row.within_boundary_coverage_pct > 0) ||
+    (row.within_boundary_coverage_hard_max_pct != null &&
+      row.within_boundary_coverage_hard_max_pct > 0);
 
   return (
     <>

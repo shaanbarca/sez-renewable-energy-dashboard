@@ -169,6 +169,10 @@ export interface ScorecardRow {
   within_boundary_generation_gwh?: number;
   within_boundary_coverage_pct?: number;
   within_boundary_coverage_effective_pct?: number;
+  /** v4.0.5 (#40): baseline_coverage with hard_max ceiling — used by GridTab
+   * to decide whether the coverage panel + slider should render at sites
+   * where the strict raster baseline is 0 but hard_max is non-zero. */
+  within_boundary_coverage_hard_max_pct?: number;
   /** Captive solar — total MWp that fits inside the site fence (sum across all buildable polygons). */
   within_boundary_capacity_mwp?: number;
   within_boundary_area_ha?: number;

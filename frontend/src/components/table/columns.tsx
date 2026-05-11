@@ -377,9 +377,12 @@ export const columns = [
             baseline: number | null | undefined,
             hardMax: number | null | undefined,
           ): number => {
-            if (baseline == null) return -1;
-            const soft = hardMax != null && hardMax >= baseline ? hardMax - baseline : 0;
-            return baseline + soft * slider;
+            // No-data sentinel — sort below everything. Sites with hard_max
+            // but no baseline still rank by their slider-adjusted value.
+            if (baseline == null && hardMax == null) return -1;
+            const b = baseline ?? 0;
+            const soft = hardMax != null && hardMax >= b ? hardMax - b : 0;
+            return b + soft * slider;
           };
           const av = computeDeployable(
             a.original.within_boundary_capacity_mwp,
@@ -396,13 +399,20 @@ export const columns = [
             useDashboardStore.getState().assumptions?.wb_buildout_footprint_ratio ?? 0.2;
           const baseline = info.row.original.within_boundary_capacity_mwp;
           const hardMax = info.row.original.within_boundary_capacity_hard_max_mwp;
-          if (baseline == null || baseline <= 0)
-            return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-          const softExcluded = hardMax != null && hardMax >= baseline ? hardMax - baseline : 0;
-          const deployable = baseline + softExcluded * slider;
+          // Render a value when EITHER baseline > 0 or hard_max > 0. At
+          // industrial sites where the strict raster returns 0 but hard_max
+          // is meaningful (Palu, Maloy Batuta, etc.), the slider still gives
+          // a non-zero deployable value. Pre-#40 we'd show "—" at these sites
+          // even when the user dialed the slider up.
+          const hasAny =
+            (baseline != null && baseline > 0) || (hardMax != null && hardMax > 0);
+          if (!hasAny) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+          const baselineSafe = baseline ?? 0;
+          const softExcluded = hardMax != null && hardMax >= baselineSafe ? hardMax - baselineSafe : 0;
+          const deployable = baselineSafe + softExcluded * slider;
           return (
             <span
-              title={`Baseline ${baseline.toFixed(1)} MWp + ${(slider * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax?.toFixed(1) ?? baseline.toFixed(1)} MWp)`}
+              title={`Baseline ${baselineSafe.toFixed(1)} MWp + ${(slider * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax?.toFixed(1) ?? baselineSafe.toFixed(1)} MWp)`}
             >
               {deployable.toLocaleString(undefined, { maximumFractionDigits: 1 })}
             </span>

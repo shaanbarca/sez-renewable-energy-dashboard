@@ -93,7 +93,17 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
 
   // Composition flags for the merged Captive Solar card subsections.
   const hasRooftop = row.rooftop_solar_mwp_potential != null;
-  const hasGround = row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0;
+  // v4.0.5 (methodology #40): "has ground potential" includes hard_max so the
+  // slider stays visible at industrial sites where the strict 4-layer raster
+  // returns 0 (e.g., fully-built Palu / Tanjung Sauh / Maloy Batuta polygons).
+  // Those sites have meaningful hard_max — the slider lets the user override
+  // soft-zoning exclusions back into deployable area. Pre-fix the slider was
+  // hidden unless baseline > 0, defeating the whole point of the methodology
+  // change at the sites it was designed to fix.
+  const hasGround =
+    (row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0) ||
+    (row.within_boundary_capacity_hard_max_mwp != null &&
+      row.within_boundary_capacity_hard_max_mwp > 0);
   const totalCaptiveMwp =
     hasRooftop && hasGround && rooftopMwpClient != null && adjustedCapacity != null
       ? rooftopMwpClient + adjustedCapacity
@@ -333,7 +343,11 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               className="text-xs italic py-1"
               style={{ color: 'var(--text-muted)' }}
             >
-              No buildable area within fence
+              {row.site_type !== 'kek'
+                ? 'Standalone industrial site — ground-mount estimate uses KEK polygons only and is not available here. Rooftop estimate (above) uses OSM/GOB building footprints. See #42 for the pipeline extension.'
+                : row.polygon_source_tier === 'none' || row.polygon_source_tier == null
+                  ? 'No fence polygon — ground-mount estimate not available.'
+                  : 'No buildable area within fence (entire polygon excluded by slope, peat, or Kawasan Hutan).'}
             </div>
           )}
 
