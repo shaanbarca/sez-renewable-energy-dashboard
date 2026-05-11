@@ -27,6 +27,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
   // it. User-adjustable assumed share. Default 20% (matches the
   // wb_buildout_footprint_ratio that already gates grid integration).
   const buildoutPct = assumptions?.wb_buildout_footprint_ratio ?? 0.2;
+  const rooftopDensity = assumptions?.rooftop_layout_density ?? 0.5;
   const adjustedCapacity =
     row.within_boundary_capacity_mwp != null
       ? row.within_boundary_capacity_mwp * buildoutPct
@@ -241,6 +242,19 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
             }
             tip="Per-building footprints from Google Open Buildings v3, classified for solar suitability (tanks, silos, conveyors excluded), then sized at modern panel density."
           />
+          <div style={{ marginBottom: 6 }}>
+            <Slider
+              label="Layout density"
+              description={`Fraction of usable roof actually covered by panels after spacing for shading, walkways, and equipment. Default 0.50 is industrial (NREL TP-6A20-65298); bifacials/utility-scale push higher.`}
+              min={0.4}
+              max={0.65}
+              step={0.05}
+              value={rooftopDensity}
+              onChange={(v) =>
+                setAssumptions({ rooftop_layout_density: v } as Partial<UserAssumptions>)
+              }
+            />
+          </div>
           <StatRowWithTip
             label="Rooftop MWp"
             value={
@@ -249,7 +263,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                 : null
             }
             unit="MWp DC"
-            tip="Total rooftop solar capacity from the §14 building classifier × layout density × panel power. Includes all suitable buildings (standard rooftops + soft-derated)."
+            tip={`§14 classifier × ${(rooftopDensity * 100).toFixed(0)}% layout density × panel power. Recomputed server-side when the slider moves. Includes standard + soft-derated rooftops.`}
           />
           <StatRow
             label="Standard rooftops"
