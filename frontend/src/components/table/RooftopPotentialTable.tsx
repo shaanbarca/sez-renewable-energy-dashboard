@@ -9,18 +9,47 @@
  *
  * Spec §3.6 F7. Rooftop columns + the comparison view.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 
+/** CSV cell escape — wraps values containing commas/quotes in double quotes. */
+function csvCell(val: unknown): string {
+  if (val == null) return '';
+  const s = String(val);
+  return s.includes(',') || s.includes('"') || s.includes('\n')
+    ? `"${s.replace(/"/g, '""')}"`
+    : s;
+}
+
 type SortKey =
   | 'rooftop_mwp'
+  | 'ground_mwp'
   | 'captive_mwp'
   | 'building_count'
   | 'usable_area'
   | 'site_name'
   | 'sector'
   | 'confidence';
+
+/** v4.0.5 (methodology #40): client-side ground-mounted MWp with override math.
+ *
+ *   deployable = baseline + (hard_max - baseline) × slider%
+ *
+ * Mirrors the math in src/dash/logic/grid.py:112 + ResourceTab.tsx so the
+ * Renewable Resource table stays consistent with the Score Drawer. Falls
+ * back to baseline-only when hard_max signal is missing (graceful pre-rerun).
+ */
+function computeGroundMwp(row: ScorecardRow, slider: number): number | null {
+  const baseline = row.within_boundary_capacity_mwp;
+  const hardMax = row.within_boundary_capacity_hard_max_mwp;
+  if ((baseline == null || baseline <= 0) && (hardMax == null || hardMax <= 0)) {
+    return null;
+  }
+  const b = baseline ?? 0;
+  const soft = hardMax != null && hardMax >= b ? hardMax - b : 0;
+  return b + soft * slider;
+}
 
 type SortDir = 'asc' | 'desc';
 
@@ -218,10 +247,20 @@ export default function RooftopPotentialTable() {
           ((a.rooftop_solar_mwp_potential ?? -1) - (b.rooftop_solar_mwp_potential ?? -1)) * dir
         );
       }
+      if (k === 'ground_mwp') {
+        // v4.0.5 (methodology #40): use slider-aware override math, not raw raster.
+        const av = computeGroundMwp(a, buildoutPct) ?? -1;
+        const bv = computeGroundMwp(b, buildoutPct) ?? -1;
+        return (av - bv) * dir;
+      }
       if (k === 'captive_mwp') {
-        return (
-          ((a.within_boundary_capacity_mwp ?? -1) - (b.within_boundary_capacity_mwp ?? -1)) * dir
-        );
+        // Total captive = rooftop + ground-mounted (both client-computed at
+        // current slider positions). Mirrors Score Drawer TOTAL row.
+        const aGround = computeGroundMwp(a, buildoutPct) ?? 0;
+        const bGround = computeGroundMwp(b, buildoutPct) ?? 0;
+        const aTotal = (a.rooftop_solar_mwp_potential ?? 0) + aGround;
+        const bTotal = (b.rooftop_solar_mwp_potential ?? 0) + bGround;
+        return (aTotal - bTotal) * dir;
       }
       if (k === 'building_count') {
         return (
@@ -279,10 +318,79 @@ export default function RooftopPotentialTable() {
 
   const totalMwp = rows.reduce((acc, r) => acc + (r.rooftop_solar_mwp_potential ?? 0), 0);
   const totalBuildings = rows.reduce((acc, r) => acc + (r.building_count_standard_roof ?? 0), 0);
-  const totalCaptiveMwp = rows.reduce(
-    (acc, r) => acc + (r.within_boundary_capacity_mwp ?? 0) * buildoutPct,
-    0,
-  );
+  // v4.0.5 (methodology #40): totals use new override math.
+  // Ground-mounted = baseline + (hard_max - baseline) × slider%.
+  // Total Captive = Rooftop + Ground-mounted (matches Score Drawer TOTAL row).
+  const totalGroundMwp = rows.reduce((acc, r) => acc + (computeGroundMwp(r, buildoutPct) ?? 0), 0);
+  const totalCaptiveMwp = totalMwp + totalGroundMwp;
+
+  // CSV export — captures everything visible in the table plus the raw
+  // baseline/hard_max columns so downstream users can recompute under
+  // different slider settings. Slider value at export time goes in the
+  // metadata footer.
+  const handleExport = useCallback(() => {
+    const headers = [
+      'site_id',
+      'site_name',
+      'sector',
+      'rooftop_mwp',
+      'ground_mounted_mwp',
+      'total_captive_mwp',
+      'building_count_standard',
+      'usable_roof_area_ha',
+      'data_confidence',
+      'baseline_capacity_mwp',
+      'hard_max_capacity_mwp',
+      'land_use_override_pct_applied',
+    ];
+    const lines = rows.map((r) => {
+      const ground = computeGroundMwp(r, buildoutPct);
+      const rooftop = r.rooftop_solar_mwp_potential ?? null;
+      const total = ground != null ? (rooftop ?? 0) + ground : rooftop;
+      const usableHa =
+        r.usable_roof_area_m2 != null ? +(r.usable_roof_area_m2 / 10_000).toFixed(2) : null;
+      return [
+        r.site_id,
+        r.site_name,
+        r.sector ?? '',
+        rooftop != null ? rooftop.toFixed(1) : '',
+        ground != null ? ground.toFixed(1) : '',
+        total != null ? total.toFixed(1) : '',
+        r.building_count_standard_roof ?? '',
+        usableHa ?? '',
+        r.building_data_confidence ?? '',
+        r.within_boundary_capacity_mwp != null ? r.within_boundary_capacity_mwp.toFixed(1) : '',
+        r.within_boundary_capacity_hard_max_mwp != null
+          ? r.within_boundary_capacity_hard_max_mwp.toFixed(1)
+          : '',
+        (buildoutPct * 100).toFixed(0),
+      ]
+        .map(csvCell)
+        .join(',');
+    });
+    const metadata = [
+      '',
+      '--- Export Metadata ---',
+      `Land-use override (slider),${(buildoutPct * 100).toFixed(0)}%`,
+      `Total rooftop MWp,${totalMwp.toFixed(1)}`,
+      `Total ground-mounted MWp,${totalGroundMwp.toFixed(1)}`,
+      `Total captive MWp,${totalCaptiveMwp.toFixed(1)}`,
+      `Sites with data,${rows.length}`,
+      `Export Date,${new Date().toISOString().slice(0, 10)}`,
+      '',
+      'Methodology: Ground-mounted = baseline + (hard_max − baseline) × slider%',
+      'Total Captive = Rooftop + Ground-mounted (cost tiers differ — rooftop ≈ 5× $/MWp vs ground utility-scale)',
+      'See docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md and DESIGN.md §5.1.1',
+    ].join('\n');
+    const csv = [headers.join(','), ...lines, metadata].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `renewable_resource_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [rows, buildoutPct, totalMwp, totalGroundMwp, totalCaptiveMwp]);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -306,15 +414,27 @@ export default function RooftopPotentialTable() {
           <strong style={{ color: 'var(--text-primary)' }}>{rows.length}</strong> sites with rooftop
           data · <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalMwp)}</strong> MWp
           rooftop ·{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalGroundMwp)}</strong> MWp
+          ground-mounted ·{' '}
           <strong style={{ color: 'var(--text-primary)' }}>{formatMwp(totalCaptiveMwp)}</strong> MWp
-          captive (at {(buildoutPct * 100).toFixed(0)}% buildout) ·{' '}
+          captive total (at {(buildoutPct * 100).toFixed(0)}% land-use override) ·{' '}
           <strong style={{ color: 'var(--text-primary)' }}>
             {FORMAT_NUMBER.format(totalBuildings)}
           </strong>{' '}
           standard rooftops
         </span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          Click a row to select on the map
+        <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Click a row to select on the map
+          </span>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="px-3 py-1 text-xs rounded cursor-pointer transition-colors"
+            style={{ color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }}
+          >
+            Export CSV
+          </button>
         </span>
       </div>
 
@@ -362,13 +482,22 @@ export default function RooftopPotentialTable() {
                 tooltip="Total rooftop solar capacity from the §14 building classifier × layout density × panel power."
               />
               <SortHeader
-                label={`Captive MWp (${(buildoutPct * 100).toFixed(0)}%)`}
+                label={`Ground-mounted MWp (${(buildoutPct * 100).toFixed(0)}%)`}
+                sortKey="ground_mwp"
+                active={sort.key}
+                dir={sort.dir}
+                onSort={onSort}
+                align="right"
+                tooltip={`Ground-mounted captive solar with the land-use override slider applied: baseline + (hard_max − baseline) × ${(buildoutPct * 100).toFixed(0)}%. At 0% strict 4-layer raster baseline; at 100% all soft-zoning exclusions overridden. Empty for sites without a fence polygon.`}
+              />
+              <SortHeader
+                label="Total Captive MWp"
                 sortKey="captive_mwp"
                 active={sort.key}
                 dir={sort.dir}
                 onSort={onSort}
                 align="right"
-                tooltip={`Captive on-site solar (within-boundary buildable raster × ${(buildoutPct * 100).toFixed(0)}% buildout-availability slider). Empty for sites without a fence polygon.`}
+                tooltip="Rooftop + Ground-mounted MWp — matches the Score Drawer TOTAL row. Mixes cost tiers (rooftop ≈ 5× $/MWp vs ground utility-scale)."
               />
               <SortHeader
                 label="Std. rooftops"
@@ -441,23 +570,48 @@ export default function RooftopPotentialTable() {
                   >
                     {formatMwp(row.rooftop_solar_mwp_potential)}
                   </td>
-                  <td
-                    style={{
-                      padding: '6px 12px',
-                      textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 500,
-                    }}
-                    title={
-                      row.within_boundary_capacity_mwp
-                        ? `Raw ${row.within_boundary_capacity_mwp.toFixed(1)} MWp × ${(buildoutPct * 100).toFixed(0)}% available`
-                        : 'No fence polygon — captive solar not modelled for this site'
-                    }
-                  >
-                    {row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0
-                      ? formatMwp(row.within_boundary_capacity_mwp * buildoutPct)
-                      : '—'}
-                  </td>
+                  {(() => {
+                    const groundMwp = computeGroundMwp(row, buildoutPct);
+                    const baseline = row.within_boundary_capacity_mwp ?? 0;
+                    const hardMax = row.within_boundary_capacity_hard_max_mwp ?? baseline;
+                    const softExcluded = Math.max(0, hardMax - baseline);
+                    const rooftopMwp = row.rooftop_solar_mwp_potential ?? 0;
+                    const totalCaptive = groundMwp != null ? rooftopMwp + groundMwp : null;
+                    return (
+                      <>
+                        <td
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'right',
+                            fontVariantNumeric: 'tabular-nums',
+                            fontWeight: 500,
+                          }}
+                          title={
+                            groundMwp != null
+                              ? `Baseline ${baseline.toFixed(1)} MWp + ${(buildoutPct * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax.toFixed(1)} MWp)`
+                              : 'No fence polygon — ground-mounted captive solar not modelled for this site'
+                          }
+                        >
+                          {groundMwp != null ? formatMwp(groundMwp) : '—'}
+                        </td>
+                        <td
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'right',
+                            fontVariantNumeric: 'tabular-nums',
+                            fontWeight: 500,
+                          }}
+                          title={
+                            totalCaptive != null
+                              ? `Rooftop ${rooftopMwp.toFixed(1)} + Ground-mounted ${groundMwp?.toFixed(1) ?? '0.0'} MWp (cost tiers differ — rooftop ≈ 5× $/MWp vs ground utility-scale)`
+                              : 'Rooftop only — no fence polygon for ground-mounted'
+                          }
+                        >
+                          {totalCaptive != null ? formatMwp(totalCaptive) : formatMwp(rooftopMwp)}
+                        </td>
+                      </>
+                    );
+                  })()}
                   <td
                     style={{
                       padding: '6px 12px',
