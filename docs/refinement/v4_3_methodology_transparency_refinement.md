@@ -244,6 +244,7 @@ Three reasons to ship M-AT1 and M-T1 together as a v4.3 release theme:
 - Per-link transmission match (v4.4 — needs inter-substation graph)
 - Extension to other inferred defaults (M-AT2 GEAS, M-AT3 demand intensity, M-AT4 captive cost)
 - Per-site (rather than per-substation) override semantics — see Risks
+- **M-AT5 rooftop estimated multiplier**: currently flagged as a *conditional* in-scope candidate — see Pattern section. Decision pending effort confirmation. If effort is ~1–2 days, include in v4.3; if heavier than expected, defer to v4.4.
 
 **Acceptance criteria:**
 - User can set GI Cilegon utilization to 72% on the Score Drawer; `invest_substation` re-evaluates within 200ms (M-AT1).
@@ -297,13 +298,30 @@ Substation utilization (M-AT1) and transmission feasibility (M-T1) are the **fir
 |---|---|---|---|
 | Substation utilization | §8.4a tier mapping | M-AT1 (this plan) | shipped v4.3 |
 | Transmission link feasibility | §8.5a F5 deferral | M-T1 (this plan) | shipped v4.3 |
+| **Rooftop estimated multiplier** | §4A rooftop solar potential + `src/assumptions.py` (hardcoded). Assumptions panel currently exposes panel power, area, and layout density — but NOT the multiplier that turns the §14 geometric classifier output into a deployment-realistic nameplate. | inferred only — flagged 2026-05-11 | **M-AT5** (proposed v4.3 if effort is small; else v4.4) |
 | GEAS proportional allocation | §11 + Methodology Review finding 13 | inferred only | **M-AT2** (proposed v4.4) |
 | Demand intensity (KEKs: area × intensity; industrial: capacity × sectoral intensity) | §3 + EXECUTIVE_SUMMARY Known Limitations §3 | inferred only | **M-AT3** (proposed v4.4) |
 | Captive coal cost defaults (only 3 anchor sites have site-specific overrides) | §13 | inferred only | **M-AT4** (proposed v4.5 alongside captive deep-dive) |
 | Wind nighttime fraction (14/24 uniform) | §6A.2 + Methodology Review finding 3 | inferred only | candidate for v4.4 or v5.0 PyPSA |
 | RE-addressable fraction sectoral defaults (cement 0.12, ammonia 0.10, etc.) | §14 + assumptions.py | speced, has source | low priority; values are well-cited |
 
-Each is currently a **silent assumption**: user sees a number, doesn't see the inference chain, can't override at the relevant resolution. The v4.3 release theme establishes the **template** for transparency on inferred defaults:
+### M-AT5 — rooftop estimated multiplier (late-added candidate, 2026-05-11)
+
+The v4.1 rooftop solar potential layer (per `EXECUTIVE_SUMMARY.md` §4A — total fleet 2,743 MWp across 78/81 sites) applies a hardcoded estimated multiplier on top of the §14 geometric classifier output (the 7-category roof typology with residential-pattern filter and OSM fence-boundary clips). That multiplier is the **load-bearing parameter** that turns the geometric ceiling into a deployment-realistic nameplate — the difference between *"this much roof exists"* and *"this much is plausibly installable for solar."* It is currently invisible to the user.
+
+The Assumptions panel today exposes three rooftop-related parameters: **panel power** (W/m² conversion), **area** (buildable footprint post-exclusions), and **layout density** (packing factor). The estimated multiplier should be a fourth user-control slider, following the same UX pattern as M-AT1.
+
+**Why this is lower-effort than M-AT1:**
+- No per-substation / per-site keying — global slider on the Assumptions panel suffices initially (subsequent per-category multipliers — `standard_roof` vs `complex` vs `conveyor` etc. — could come in a follow-on).
+- No methodology drawer content beyond §4A (already documented in EXECUTIVE_SUMMARY and the rooftop spec).
+- Reuses the existing Assumptions-panel slider pattern + live-recompute infrastructure (rooftop nameplate → downstream LCOE → action flag) that's already wired for the existing three parameters.
+- Effort estimate: **~1–2 days** if scoped to a single global multiplier slider; **~3–4 days** if also exposing per-category multipliers behind a "Customize" toggle.
+
+**Recommendation:** include in v4.3 scope as M-AT5 if the rooftop pipeline's recompute path can be confirmed as cheap (likely yes given the existing slider precedent). If the recompute path turns out to be heavier than expected, defer to v4.4 alongside M-AT2 / M-AT3 — same template, no design rework needed.
+
+**Open question for the user:** what's the current default multiplier value, and is there a documented justification (calibration record, source) for it? If the value is itself an undocumented guess, that's worth surfacing in the methodology drawer alongside the slider — same disclosure discipline as M-AT1's tier-table justification block.
+
+Each entry above is currently a **silent assumption**: user sees a number, doesn't see the inference chain, can't override at the relevant resolution. The v4.3 release theme establishes the **template** for transparency on inferred defaults:
 
 1. **Confidence badge** distinguishing measured vs estimated vs user-set
 2. **Override at the methodologically correct resolution** (per-substation, per-site, per-sector — depends on the assumption)
