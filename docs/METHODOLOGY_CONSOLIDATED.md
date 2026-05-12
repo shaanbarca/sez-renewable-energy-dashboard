@@ -1,7 +1,7 @@
 # Methodology: Indonesia KEK Clean Power Competitiveness Model
 
 **Version:** 3.7 (Consolidated, April 2026)
-**Status:** Implemented in code. 81 sites (25 KEKs + 56 industrial: 32 cement + 17 steel + 5 fertilizer + 2 aluminium + 10 nickel IIA), 541 tests passing. CBAM Layer 3 complete (68/81 sites exposed; Scope 2 RE savings bounded by `CBAM_RE_ADDRESSABLE_FRACTION` per sector to reflect the electric share of thermal-inclusive intensity values — see §4.1), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
+**Status:** Implemented in code. 81 sites (25 KEKs + 56 industrial: 32 cement + 7 steel + 5 fertilizer + 2 aluminium + 10 nickel IIA), 541 tests passing. CBAM Layer 3 complete (68/81 sites exposed; Scope 2 RE savings bounded by `CBAM_RE_ADDRESSABLE_FRACTION` per sector to reflect the electric share of thermal-inclusive intensity values — see §4.1), hybrid optimization, panel degradation modeled, site selection driven by GEM/CGSP trackers. Ammonia + petrochemical scaffolding in place pending top-down universe discovery (TODOS M28/M29).
 **Intended audience:** Energy economists, development bank analysts, policy makers, peer reviewers
 **Supersedes:** `METHODOLOGY.md` (v0.4), `docs/METHODOLOGY_V2.md` (draft), `docs/methodology_testing.md` (research notes)
 
@@ -497,6 +497,43 @@ Solar plant inside KEK boundary, behind-the-meter. No PLN involvement.
 - **Minimum viable capacity:** 0.5 MWp (Indonesian IUPTLS regulatory threshold)
 - **Buildable area visualization:** When a KEK is selected, buildable polygons within the KEK boundary are displayed as a green overlay on the map. These are clipped from the 50km-radius buildable polygons (§3.3) using the KEK polygon boundary, with a 220m buffer to catch edge polygons from raster vectorization. Metrics: `within_boundary_area_ha`, `within_boundary_capacity_mwp`, `pvout_within_boundary` (see `build_fct_kek_resource.py`).
 
+#### 5.1.1 Hard/soft filter split + land-use override slider (v4.0.5)
+
+The 4-layer buildability filter described in §3.3 (slope, land cover, Kawasan Hutan, peatland) treats all exclusions as equivalent. In reality the layers split into two methodological categories with different override semantics:
+
+- **HARD filters** (physical / legal): slope >8°, peatland, Kawasan Hutan protected forest. These exclude land that **truly cannot host solar** regardless of intent. The site owner cannot override these.
+- **SOFT filters** (zoning / current use): built-up land cover, agricultural cover. These exclude land that is currently in another use but **the site owner can choose to redeploy** (canopy over parking, repurpose storage yards, convert ag land within their own fence-line).
+
+`src/pipeline/build_fct_site_resource.py::_compute_buildable_pvout` runs both cascades in a single pass and emits two columns:
+
+- `within_boundary_area_ha` / `within_boundary_capacity_mwp` — **baseline**: polygon ∩ (all 4 filters pass). The methodologically rigorous floor — same as pre-v4.0.5.
+- `within_boundary_hard_max_ha` / `within_boundary_capacity_hard_max_mwp` — **hard_max**: polygon ∩ (only HARD filters pass). Drops the land-cover layer only. Represents what would be buildable if the owner overrode all soft-zoning exclusions.
+
+Invariant: `hard_max >= baseline` by construction (hard_max drops constraints, never adds them).
+
+The `wb_buildout_footprint_ratio` slider (default 0.20, range 0.00–1.00) — relabelled "Land-use override % (global)" in v4.0.5 — interpolates between these two values:
+
+```
+deployable = baseline + (hard_max - baseline) × slider%
+```
+
+- **slider = 0%** → deployable = baseline (trust the strict 4-layer raster; equivalent to pre-v4.0.5 with the haircut multiplied by 1.0)
+- **slider = 20%** (default) → mild owner override on soft-excluded land
+- **slider = 100%** → deployable = hard_max (override all soft exclusions; only physical/legal constraints remain)
+
+**Why the split matters.** Pre-v4.0.5 the slider was a haircut: `effective = baseline × slider%`. At industrial sites where the polygon is fully built-up, the raster baseline is near-zero → the slider had nothing to multiply against → the dashboard showed ~0 MWp captive even at sites with realistic canopy potential. The override semantic fixes this by letting the slider bring soft-excluded land back into deployable.
+
+**Filter classification config.** `src/dash/constants.py::BUILDABILITY_LAYER_CLASSIFICATION` is a declarative dict mapping each filter layer to `hard` or `soft`. Source review and quantitative anchoring (NREL LA100 layered methodology, LBNL urban-pavement studies, CA SB 49) live in [`docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md`](refinement/industrial_canopy_potential_methodology_2026-05-11.md). Tracked under [#40](https://github.com/shaanbarca/eez/issues/40).
+
+**Downstream propagation (D1A).** Every backend consumer of `within_boundary_capacity_mwp` now uses the slider-aware deployable value for math purposes:
+
+- `src/dash/logic/grid.py:112` computes `effective_wb_coverage = baseline + (hard_max - baseline) × slider%` and feeds it into `grid_integration_category()` — the within_boundary gate now flips on the override potential, not the raster-baseline haircut.
+- The delivered-cost cascade in `src/dash/logic/scorecard.py::_delivered_cost` reads `ctx.grid_out["within_boundary_coverage_effective_pct"]` (the slider-aware value), so blended LCOE numbers stay consistent with what the user sees.
+
+API output fields remain raster-baseline. The frontend (`ResourceTab.tsx`, `columns.tsx`) computes deployable client-side for instant slider feedback and reconverges with the server on the 300ms refetch — mirrors the v4.1 rooftop slider pattern from PR #38.
+
+**Honest framing.** The slider IS the user's local knowledge. At industrial sites the owner knows their site better than any raster — the slider lets them encode that knowledge with a defensible default (~20% per LBNL urban-pavement studies + CA SB 49 50% canopy coverage). At KEKs the slider has small effect because the raster baseline already captures most of the polygon. **Caveat:** at fully-built nickel/aluminium smelter complexes (1000+ ha), 20% override of polygon-scale soft-excluded land yields large numbers — that's politically loaded but methodologically correct, and the user can dial down per site.
+
 ### 5.2 Grid-connected solar
 
 Solar farm connects to nearest PLN substation, sells to PLN via PPA. PLN delivers to KEK.
@@ -527,7 +564,7 @@ The realistic model for delivering cheap solar to KEKs is through PLN's grid, no
 
 **Version:** V3.11 (cascade). Replaces the V3.10 two-layer blend (captive + grid).
 
-The `within_boundary` gate (§8.2) is binary: a site either clears the `meaningful_share_pct` threshold (after the V3.9.1 buildout-footprint haircut) and is treated as fully self-sufficient on captive solar, or it doesn't — in which case `lcoe_mid_usd_mwh` reports the grid-connected LCOE with transmission/substation/connection costs loaded onto 100% of effective capacity. Neither picture matches what an industrial tenant actually pays when on-site solar can supply, say, 16% of demand, a remote IPP with a gentie can fill another 26%, and PLN covers the rest.
+The `within_boundary` gate (§8.2) is binary: a site either clears the `meaningful_share_pct` threshold (after the V4.0.5 land-use override interpolation, see §5.1.1) and is treated as fully self-sufficient on captive solar, or it doesn't — in which case `lcoe_mid_usd_mwh` reports the grid-connected LCOE with transmission/substation/connection costs loaded onto 100% of effective capacity. Neither picture matches what an industrial tenant actually pays when on-site solar can supply, say, 16% of demand, a remote IPP with a gentie can fill another 26%, and PLN covers the rest.
 
 **Supply Blend** fills this gap. It is a tenant-view cascade — what the load's effective $/MWh bill looks like when supply stacks across three layers in order of economic preference: within-boundary captive first, then remote captive IPP, then grid.
 
@@ -556,7 +593,7 @@ The ceiling matches the temporal model in §8.2 (`firm_solar_metrics`): `daytime
 
 **Glossary:**
 
-- `within_boundary_coverage_effective_pct` — haircut-adjusted on-site coverage: `wb_coverage × wb_buildout_footprint_ratio`. Same figure the `within_boundary` gate in §8.2 checks.
+- `within_boundary_coverage_effective_pct` — slider-adjusted on-site coverage (V4.0.5): `baseline + (hard_max - baseline) × wb_buildout_footprint_ratio` (was `wb_coverage × ratio` pre-v4.0.5). Same figure the `within_boundary` gate in §8.2 checks. See §5.1.1.
 - `daytime_cap` — `SOLAR_PRODUCTION_HOURS / 24` (physical ceiling on real-time solar share for a flat 24/7 industrial load).
 - `LCOE_wb` — within-boundary scenario LCOE (§5.1 / §6.1): centroid PVOUT, no connection cost, no transmission build, no substation upgrade. Read from `wb_row.lcoe_mid_usd_mwh`.
 - `LCOE_gc` — grid-connected scenario LCOE (§6.2): best PVOUT within 50 km, includes gen-tie + land + substation upgrade. Read from `gc_row.lcoe_mid_usd_mwh`. Represents the remote IPP's cost of delivering to the site with a dedicated transmission line.
@@ -1008,9 +1045,13 @@ For each KEK:
 
 **V3.2 history:** The original override required >= 100% coverage (no slider). V3.9 replaces the hard-coded threshold with the live `meaningful_share_pct` slider so the gate aligns with phase-1 project sizing: if on-site solar can meet the user's chosen "meaningful share" of demand, grid infrastructure is not part of the captive project.
 
-**Buildout-footprint haircut (V3.9.1):** Before comparing `within_boundary_coverage_pct` to the meaningful-share threshold, it is multiplied by `wb_buildout_footprint_ratio` (default 0.20, user slider range 0.05–1.00). Motivation: the raw `within_boundary_capacity_mwp` is derived from the spatial intersection of the KEK polygon with the buildability-filtered raster — that filter rejects forest, peatland, steep slope, and built-up pixels, but still counts every remaining vacant pixel as "buildable for solar." Inside an operating industrial park, most vacant land is earmarked for future factories, roads, utilities, and buffers, so the raw number systematically overstates what is actually free for on-site solar today. Galang Batang triggered this: the raster flagged ~59% of the KEK as buildable, which at face value made the KEK look self-sufficient on solar alone and incorrectly zeroed out all grid-infrastructure costs.
+**Land-use override slider (V4.0.5, was Buildout-footprint haircut V3.9.1):** Before comparing `within_boundary_coverage_pct` to the meaningful-share threshold, an override-based interpolation is applied via `wb_buildout_footprint_ratio` (default 0.20, user slider range 0.00–1.00). See §5.1.1 for the full methodology.
 
-The ratio is a **gate-only haircut**: it gates whether the KEK clears the `meaningful_share_pct` threshold (and therefore whether grid infrastructure costs load into the LCOE). It does **not** scale the installed volume or the $/MWh LCOE — CAPEX and CF are volume-independent. Default 0.20 is tuned to operating parks. Greenfield KEKs should use higher values (0.50–1.00). Implementation: `effective_wb_coverage = wb_coverage × wb_buildout_footprint_ratio` in `src/dash/logic/grid.py` before the call to `grid_integration_category()`. Exposed to the UI as `within_boundary_coverage_effective_pct` so banners can narrate "raw 59% × 0.20 → 12% effective, below 30% threshold."
+  V3.9.1 (pre-v4.0.5) behavior: `effective = wb_coverage × wb_buildout_footprint_ratio` (haircut). Problem: at fully-built industrial sites the raw raster output is near-zero, so the haircut produced ~0 captive coverage even where canopy / edge-zone solar is realistic.
+
+  V4.0.5 behavior: `effective = baseline + (hard_max - baseline) × wb_buildout_footprint_ratio` (interpolation between strict raster baseline and hard-only mask). At slider=0% the strict raster baseline is used; at slider=100% the hard_max (polygon minus slope + Kawasan Hutan + peat) is used. Default 0.20 = mild owner override. Implemented in `src/dash/logic/grid.py:112`; exposed to the UI as `within_boundary_coverage_effective_pct` so banners can narrate "baseline 12% + 20% override × 47% soft-excluded = 21% effective, below 30% threshold."
+
+The ratio is **applied at the coverage layer** — it flips whether the KEK clears the `meaningful_share_pct` threshold (and therefore whether grid infrastructure costs load into the LCOE). It does **not** scale the installed volume or the $/MWh LCOE — CAPEX and CF are volume-independent. Default 0.20 is tuned to operating parks; greenfield KEKs see small effect from the slider because their baseline already captures most of the polygon.
 
 **Implementation:** `grid_integration_category()` in `basic_model.py` (takes `meaningful_share_pct` + `site_type` args); plumbed through `compute_grid_integration()` in `src/dash/logic/grid.py`; primary LCOE picker in `src/dash/logic/site_context.py` flips to `wb_row` when category is `within_boundary`.
 

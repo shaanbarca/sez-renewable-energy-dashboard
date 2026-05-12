@@ -169,10 +169,20 @@ export interface ScorecardRow {
   within_boundary_generation_gwh?: number;
   within_boundary_coverage_pct?: number;
   within_boundary_coverage_effective_pct?: number;
+  /** v4.0.5 (#40): baseline_coverage with hard_max ceiling — used by GridTab
+   * to decide whether the coverage panel + slider should render at sites
+   * where the strict raster baseline is 0 but hard_max is non-zero. */
+  within_boundary_coverage_hard_max_pct?: number;
   /** Captive solar — total MWp that fits inside the site fence (sum across all buildable polygons). */
   within_boundary_capacity_mwp?: number;
   within_boundary_area_ha?: number;
   within_boundary_avg_pvout?: number;
+  /** v4.0.5 (methodology #40): HARD-only mask area + capacity — what's physically/legally
+   * buildable inside the polygon regardless of zoning. Frontend slider interpolates
+   * `deployable = baseline + (hard_max - baseline) × slider%`. See
+   * docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md. */
+  within_boundary_hard_max_ha?: number;
+  within_boundary_capacity_hard_max_mwp?: number;
   green_share_geas?: number;
   grid_upgrade_planned?: boolean;
   ruptl_region_summary?: string;

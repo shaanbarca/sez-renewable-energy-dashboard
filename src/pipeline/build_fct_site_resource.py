@@ -42,6 +42,13 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
     pvout_within_boundary      avg annual PVOUT from buildable pixels within KEK boundary (V2.1)
                                NaN when fallback (theoretical) — uses pvout_centroid instead
     within_boundary_source     "raster" if spatial intersection, "theoretical" if fallback
+    polygon_source_tier        tier from src.model.polygon_provenance:
+                               "official_kek" | "osm_landuse_industrial" |
+                               "claude_building_hull_estimate" | "none".
+                               "none" means no fence-line polygon found and
+                               the within-boundary calc fell back to a 2 km
+                               buffer around the centroid — frontend renders
+                               a warning badge for this tier. (v4.0.5, #45)
     solar_search_method        V3.7: "substation_anchored" if a co-located patch met
                                MEANINGFUL_SHARE_PCT, else "best_pvout_fallback".
                                Only fallback should produce "Build Substation" labels.
@@ -70,7 +77,8 @@ import rasterio.features
 from rasterio.enums import Resampling
 from rasterio.warp import reproject
 from rasterio.windows import from_bounds
-from shapely.geometry import shape
+from shapely.affinity import scale as _shapely_scale
+from shapely.geometry import Point, shape
 from shapely.ops import unary_union
 
 from src.model.basic_model import (
@@ -80,6 +88,10 @@ from src.model.basic_model import (
     pvout_daily_to_annual,
 )
 from src.model.columns import Col
+from src.model.polygon_provenance import (
+    PolygonSourceTier,
+    classify_industrial_polygon_props,
+)
 from src.pipeline.assumptions import (
     ANCHOR_SEARCH_RADIUS_KM,
     BASE_WACC_DECIMAL,
@@ -88,6 +100,7 @@ from src.pipeline.assumptions import (
     KEK_TO_SUBSTATION_THRESHOLD_KM,
     KM_PER_DEGREE_LAT,
     MEANINGFUL_SHARE_PCT,
+    NO_POLYGON_FALLBACK_BUFFER_KM,
     PVOUT_BUFFER_KM,
     PVOUT_SOURCE,
 )
@@ -120,6 +133,11 @@ BUILDABILITY_DIR = REPO_ROOT / "data" / "buildability"
 
 # KEK polygon boundaries for spatial intersection with buildable raster
 KEK_POLYGONS_GEOJSON = REPO_ROOT / "outputs" / "data" / "raw" / "kek_polygons.geojson"
+# v4.0.5 (methodology #42): industrial site polygons for non-KEK sites.
+# Same source the rooftop layer (build_fct_site_solar_potential.py) uses to
+# clip building footprints. 35 sites as of 2026-05-11 — covers Petrokimia
+# Gresik, Indocement Palimanan, Freeport Smelter Gresik, IMIP, IPIP, etc.
+INDUSTRIAL_POLYGONS_GEOJSON = REPO_ROOT / "data" / "industrial_sites" / "site_polygons.geojson"
 
 _REQUIRED_BUILD_FILES = [
     "dem_indonesia.tif",
@@ -261,6 +279,104 @@ def _load_kek_polygons(path: Path) -> dict[str, object]:
         else:
             polygons[slug] = geom
     return polygons
+
+
+def _load_industrial_polygons(path: Path) -> dict[str, object]:
+    """Return {site_id: shapely_geometry} for non-KEK industrial site polygons.
+
+    Sourced from OSM `landuse=industrial` / `man_made=works` tags + curated
+    overrides — same file `build_fct_site_solar_potential.py` clips rooftop
+    buildings against. Pre-v4.0.5 the within-boundary calculation read KEK
+    polygons only; this loader fills the 56-non-KEK-sites gap surfaced via
+    user QA at Petrokimia Gresik. See issue #42.
+    """
+    if not path.exists():
+        return {}
+    with path.open() as f:
+        gj = json.load(f)
+    polygons: dict[str, object] = {}
+    for feat in gj["features"]:
+        site_id = feat["properties"].get("site_id", "")
+        if not site_id:
+            continue
+        geom = shape(feat["geometry"])
+        if site_id in polygons:
+            polygons[site_id] = unary_union([polygons[site_id], geom])
+        else:
+            polygons[site_id] = geom
+    return polygons
+
+
+def _load_all_site_polygons(
+    kek_path: Path = KEK_POLYGONS_GEOJSON,
+    industrial_path: Path = INDUSTRIAL_POLYGONS_GEOJSON,
+) -> dict[str, object]:
+    """Union the KEK + industrial polygon sources by site_id.
+
+    KEK polygons win when both files have the same key — KEK boundaries are
+    the canonical fence-line where they exist. Industrial polygons fill the
+    gap for standalone cement / steel / nickel / aluminium / fertilizer
+    sites that aren't in `kek_polygons.geojson`.
+    """
+    polygons = _load_kek_polygons(kek_path)
+    industrial = _load_industrial_polygons(industrial_path)
+    for site_id, geom in industrial.items():
+        if site_id not in polygons:
+            polygons[site_id] = geom
+    return polygons
+
+
+def _load_all_site_provenance(
+    kek_path: Path = KEK_POLYGONS_GEOJSON,
+    industrial_path: Path = INDUSTRIAL_POLYGONS_GEOJSON,
+) -> dict[str, PolygonSourceTier]:
+    """Return {site_id: provenance_tier} for every polygon-covered site.
+
+    Mirrors `_load_polygon_source_tiers` in build_fct_site_solar_potential.py
+    so the rooftop and within-boundary pipelines stay aligned on which sites
+    have which tier. Sites without an entry default to "none" (the 2 km buffer
+    fallback wired into the main loop).
+    """
+    tiers: dict[str, PolygonSourceTier] = {}
+    if kek_path.exists():
+        kek = json.loads(kek_path.read_text())
+        for feat in kek.get("features", []):
+            slug = feat.get("properties", {}).get("slug")
+            if slug:
+                tiers[slug] = "official_kek"
+    if industrial_path.exists():
+        ind = json.loads(industrial_path.read_text())
+        for feat in ind.get("features", []):
+            props = feat.get("properties", {})
+            sid = props.get("site_id")
+            if not sid or sid in tiers:
+                # KEK polygons win when both files have the same key (official
+                # > community-verified > estimated).
+                continue
+            tiers[sid] = classify_industrial_polygon_props(props)
+    return tiers
+
+
+def _build_centroid_buffer_polygon(
+    lat: float, lon: float, radius_km: float = NO_POLYGON_FALLBACK_BUFFER_KM
+):
+    """Build an approximate circular polygon around (lon, lat) in EPSG:4326.
+
+    Used as a fence-line fallback for sites with no real polygon. The longitude
+    radius is scaled by cos(lat) so the result approximates a great-circle disk
+    of `radius_km` — accurate enough for the 1km PVOUT raster grid we rasterize
+    against. Matches the degree-space math used elsewhere in this pipeline
+    (KM_PER_DEGREE_LAT corrections).
+    """
+    lat_radius_deg = radius_km / KM_PER_DEGREE_LAT
+    lon_radius_deg = radius_km / (KM_PER_DEGREE_LAT * math.cos(math.radians(lat)))
+    circle = Point(lon, lat).buffer(lat_radius_deg, resolution=32)
+    return _shapely_scale(
+        circle,
+        xfact=lon_radius_deg / lat_radius_deg,
+        yfact=1.0,
+        origin=(lon, lat),
+    )
 
 
 def _compute_within_boundary_buildable(
@@ -650,6 +766,7 @@ def _compute_buildable_pvout(
     float,
     float,
     np.ndarray | None,
+    np.ndarray | None,
     object | None,
     str,
     str | None,
@@ -668,6 +785,15 @@ def _compute_buildable_pvout(
     has enough buildable area to meet MEANINGFUL_SHARE_PCT of demand.
     See METHODOLOGY_CONSOLIDATED.md §8 for the search algorithm.
 
+    v4.0.5 (methodology #40): in addition to the full 4-layer filtered_mask, the
+    function also returns a hard_filtered_mask — the result of running ONLY the
+    HARD-classified layers (slope/elev, Kawasan Hutan, peat) and skipping the
+    SOFT layers (land cover, road distance). The hard mask represents land that
+    is physically and legally buildable regardless of zoning; downstream the
+    `wb_buildout_footprint_ratio` slider expresses what fraction of
+    (hard_max - baseline) the site owner overrides for solar deployment.
+    See src/dash/constants.py:BUILDABILITY_LAYER_CLASSIFICATION.
+
     Args:
         pvout_patch:       2D daily PVOUT values (kWh/kWp/day) from the raw raster window.
         window:            rasterio Window corresponding to the patch.
@@ -684,16 +810,22 @@ def _compute_buildable_pvout(
     Returns:
         (pvout_buildable_daily, buildable_area_ha, max_captive_mwp, constraint_str,
          best_solar_site_lat, best_solar_site_lon, best_solar_site_dist_km,
-         filtered_mask, win_transform,
+         filtered_mask, hard_filtered_mask, win_transform,
          solar_search_method, chosen_anchor_substation_name,
          solar_supply_share_pct, solar_delivered_share_pct)
-        Returns (NaN, ..., None, None, "data_unavailable", None, NaN, NaN)
+        Returns (NaN, ..., None, None, None, "data_unavailable", None, NaN, NaN)
         when no files are present.
 
     Note on resolution:
         PVOUT raster is at ~1km (≈86 ha/pixel). At this resolution, the minimum-area
         filter (Layer 4, 10 ha) is a no-op — every valid pixel exceeds the threshold.
         Layer 4 is retained to count buildable pixels and compute total area.
+
+    Invariant:
+        hard_filtered_mask is always a superset of filtered_mask
+        (since hard_filtered_mask drops SOFT exclusions). The caller can compute
+        soft_excluded = hard_filtered_mask.sum() - filtered_mask.sum() to surface
+        the land that's only excluded by zoning/use.
     """
 
     available = _available_build_files(data_dir)
@@ -706,6 +838,7 @@ def _compute_buildable_pvout(
             np.nan,
             np.nan,
             np.nan,
+            None,
             None,
             None,
             "data_unavailable",
@@ -739,6 +872,7 @@ def _compute_buildable_pvout(
             np.nan,
             np.nan,
             np.nan,
+            None,
             None,
             None,
             "no_pvout",
@@ -813,6 +947,9 @@ def _compute_buildable_pvout(
     n_after_3a = int((pvout_after_3a > 0).sum())
 
     # ── Layer 2: Slope + elevation (skip if DEM absent) ───────────────────────
+    # Hoist slope/elev computation so the HARD-only cascade below can reuse it.
+    dem_arr = None
+    slope_arr = None
     if "dem_indonesia.tif" in available:
         dem_arr = _read_raster_window_to_pvout_grid(
             data_dir / "dem_indonesia.tif", bbox, (height, width), win_transform
@@ -831,6 +968,27 @@ def _compute_buildable_pvout(
     buildable_mask = pvout_after_2 > 0
     filtered_mask = apply_min_area_filter(buildable_mask, pix_ha)
     n_after_4 = int(filtered_mask.sum())
+
+    # ── HARD-only cascade (v4.0.5, methodology #40) ─────────────────────────
+    # Re-apply only the HARD exclusion layers (Kawasan Hutan, peat, slope+elev)
+    # — skipping SOFT layers (land cover, road distance) — to produce a parallel
+    # mask of land that's physically/legally buildable regardless of zoning.
+    # See src/dash/constants.py:BUILDABILITY_LAYER_CLASSIFICATION.
+    #
+    #   FULL cascade:  pvout_working → Kawasan Hutan → peat → land cover →
+    #                                  road distance → slope+elev → min_area
+    #   HARD cascade:  pvout_working → Kawasan Hutan → peat → slope+elev → min_area
+    #
+    # The site owner can override SOFT exclusions (canopy over parking, etc.);
+    # HARD exclusions are physical/legal facts that the dashboard cannot waive.
+    # The frontend slider expresses what fraction of (hard_max - baseline) the
+    # user wants to override.
+    if slope_arr is not None and dem_arr is not None:
+        pvout_hard_after_2 = apply_slope_elevation_mask(pvout_after_1b, slope_arr, dem_arr)
+    else:
+        pvout_hard_after_2 = pvout_after_1b
+    hard_buildable_mask = pvout_hard_after_2 > 0
+    hard_filtered_mask = apply_min_area_filter(hard_buildable_mask, pix_ha)
 
     # Outputs
     buildable_area_ha = round(n_after_4 * pix_ha, 1)
@@ -941,6 +1099,7 @@ def _compute_buildable_pvout(
         best_solar_lon,
         best_solar_dist_km,
         filtered_mask,
+        hard_filtered_mask,
         win_transform,
         solar_search_method,
         chosen_anchor_substation_name,
@@ -1064,9 +1223,22 @@ def build_fct_site_resource(
         )
 
     # Load KEK polygon geometries for spatial within-boundary intersection
-    kek_polygons = _load_kek_polygons(KEK_POLYGONS_GEOJSON)
+    # v4.0.5 (methodology #42): union KEK + industrial polygon sources so
+    # standalone sites (Petrokimia Gresik et al.) get within-boundary data,
+    # not just the 25 KEKs. Same polygon source the rooftop layer uses.
+    kek_polygons = _load_all_site_polygons(KEK_POLYGONS_GEOJSON, INDUSTRIAL_POLYGONS_GEOJSON)
+    # v4.0.5 (#45): parallel dict of {site_id: provenance_tier} so the loop
+    # can stamp each row with the source of its polygon. Sites missing from
+    # both polygon files default to "none" and get a 2 km buffer fallback
+    # downstream.
+    polygon_source_tier_by_site = _load_all_site_provenance(
+        KEK_POLYGONS_GEOJSON, INDUSTRIAL_POLYGONS_GEOJSON
+    )
     if kek_polygons:
-        print(f"  KEK polygons: {len(kek_polygons)} loaded for within-boundary intersection")
+        print(
+            f"  Site polygons: {len(kek_polygons)} loaded for within-boundary intersection "
+            f"(KEK + industrial sources merged)"
+        )
     else:
         print("  KEK polygons not found — using theoretical within-boundary estimate")
 
@@ -1139,6 +1311,7 @@ def build_fct_site_resource(
                 best_solar_lon,
                 best_solar_dist_km,
                 build_mask,
+                build_mask_hard,
                 build_win_tf,
                 solar_search_method,
                 chosen_anchor_substation_name,
@@ -1167,12 +1340,27 @@ def build_fct_site_resource(
                 print(f"  WARNING buildable {row['site_id']}: {e}")
                 pvout_buildable = np.nan
 
-            # Within-boundary: spatial intersection with KEK polygon
+            # Within-boundary: spatial intersection with site polygon
             site_id = row["site_id"]
             kek_polygon = kek_polygons.get(site_id)
+            polygon_source_tier: PolygonSourceTier = polygon_source_tier_by_site.get(
+                site_id, "none"
+            )
+
+            # v4.0.5 (#45): when no fence-line polygon exists, fall back to a
+            # 2 km centroid buffer instead of silently zeroing within-boundary
+            # capacity. Provenance stays "none" so the UI can render a warning
+            # badge — the buffer over-counts adjacent land in dense corridors.
+            # Mirrors the rooftop pipeline's pre-existing 2 km buffer behavior.
+            if kek_polygon is None:
+                kek_polygon = _build_centroid_buffer_polygon(lat, lon)
+                polygon_source_tier = "none"
+
             wb_area_ha = np.nan
             wb_pvout_annual = np.nan
             wb_capacity_mwp = np.nan
+            wb_hard_max_area_ha = np.nan
+            wb_hard_max_capacity_mwp = np.nan
             wb_source = "theoretical"
 
             if build_mask is not None and build_win_tf is not None and kek_polygon is not None:
@@ -1197,12 +1385,51 @@ def build_fct_site_resource(
                     # KEK polygon too small for raster resolution — fall back
                     wb_source = "theoretical"
 
+                # v4.0.5 (methodology #40): hard-only mask within-boundary —
+                # what would be buildable if the site owner could override all
+                # SOFT zoning exclusions (land cover, road distance). The
+                # frontend slider expresses what fraction of (hard - baseline)
+                # to actually override. hard_filtered_mask is a superset of
+                # filtered_mask (only drops SOFT exclusions), so
+                # wb_hard_max_area_ha >= wb_area_ha by construction.
+                if build_mask_hard is not None:
+                    wb_hard_max_area_ha, _, wb_hard_max_capacity_mwp = (
+                        _compute_within_boundary_buildable(
+                            build_mask_hard,
+                            pvout_patch,
+                            build_win_tf,
+                            kek_polygon,
+                            pix_ha,
+                            kek_geom_area_ha,
+                        )
+                    )
+
             # No fallback: if spatial intersection found 0 buildable pixels,
             # within-boundary buildable area is genuinely 0.
             if wb_source == "theoretical":
                 wb_area_ha = 0.0
                 wb_capacity_mwp = 0.0
                 wb_pvout_annual = np.nan
+                # If baseline fell back to theoretical/zero, hard_max should
+                # also be zero (no polygon match means no surface to compute on).
+                if not np.isfinite(wb_hard_max_area_ha):
+                    wb_hard_max_area_ha = 0.0
+                    wb_hard_max_capacity_mwp = 0.0
+
+            # Guard the invariant: hard_max >= baseline. If a pipeline edge
+            # case violates this, clamp + log. Better to ship a consistent
+            # number than a confusing negative soft_excluded downstream.
+            if (
+                np.isfinite(wb_hard_max_area_ha)
+                and np.isfinite(wb_area_ha)
+                and wb_hard_max_area_ha < wb_area_ha
+            ):
+                print(
+                    f"  WARNING {site_id}: hard_max_area_ha ({wb_hard_max_area_ha}) "
+                    f"< baseline area_ha ({wb_area_ha}); clamping to baseline."
+                )
+                wb_hard_max_area_ha = wb_area_ha
+                wb_hard_max_capacity_mwp = wb_capacity_mwp
 
             records.append(
                 {
@@ -1257,6 +1484,22 @@ def build_fct_site_resource(
                     if np.isfinite(wb_pvout_annual)
                     else np.nan,
                     "within_boundary_source": wb_source,
+                    # v4.0.5 (#45): source tier of the polygon used above.
+                    # "none" means the 2 km centroid buffer fallback fired —
+                    # within_boundary_capacity_mwp is a low-trust estimate
+                    # and the frontend should render a warning badge.
+                    "polygon_source_tier": polygon_source_tier,
+                    # v4.0.5 (methodology #40): HARD-only mask within-boundary —
+                    # area that's physically/legally buildable regardless of
+                    # zoning. The frontend slider expresses what fraction of
+                    # (hard_max - baseline) the site owner overrides.
+                    # Invariant: within_boundary_hard_max_ha >= within_boundary_area_ha
+                    "within_boundary_hard_max_ha": round(wb_hard_max_area_ha, 1)
+                    if np.isfinite(wb_hard_max_area_ha)
+                    else np.nan,
+                    "within_boundary_capacity_hard_max_mwp": round(wb_hard_max_capacity_mwp, 1)
+                    if np.isfinite(wb_hard_max_capacity_mwp)
+                    else np.nan,
                     # V3.7: substation-anchored picker outputs
                     "solar_search_method": solar_search_method,
                     "chosen_anchor_substation_name": chosen_anchor_substation_name,
@@ -1299,6 +1542,13 @@ def main() -> None:
         n_raster = (df["within_boundary_source"] == "raster").sum()
         n_theoretical = (df["within_boundary_source"] == "theoretical").sum()
         print(f"  within-boundary source: {n_raster} raster, {n_theoretical} theoretical")
+
+    # v4.0.5 (#45): polygon provenance breakdown — surfaces how many sites
+    # rely on the 2 km buffer fallback ("none" tier) vs real polygons.
+    if "polygon_source_tier" in df.columns:
+        prov_counts = df["polygon_source_tier"].value_counts().to_dict()
+        prov_summary = ", ".join(f"{k}={v}" for k, v in sorted(prov_counts.items()))
+        print(f"  polygon_source_tier: {prov_summary}")
 
     # V3.7: substation-anchored picker distribution
     if "solar_search_method" in df.columns:

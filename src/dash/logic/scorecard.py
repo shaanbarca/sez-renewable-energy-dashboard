@@ -483,6 +483,13 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
     # summed across all buildable polygons. The map popup shows one polygon at
     # a time; the Score Drawer needs the aggregate so users see the captive
     # ceiling at a glance.
+    #
+    # v4.0.5 (methodology #40): `within_boundary_capacity_mwp` remains the
+    # raster BASELINE (slider-independent). The frontend reads this + the
+    # hard_max + slider to compute the deployable display value client-side
+    # (see frontend/src/components/panels/scoredrawer/ResourceTab.tsx). Cost
+    # cascades below use the slider-adjusted `wb_cap_deployable` so backend
+    # cost numbers stay consistent with what the user sees.
     out["within_boundary_capacity_mwp"] = _round(float(wb_cap), 1) if pd.notna(wb_cap) else None
     wb_area = kek.get("within_boundary_area_ha")
     out["within_boundary_area_ha"] = _round(float(wb_area), 0) if pd.notna(wb_area) else None
@@ -490,6 +497,27 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
         _round(float(pvout_for_wb), 0) if pd.notna(pvout_for_wb) else None
     )
 
+    # v4.0.5 (methodology #40): HARD-only mask area + capacity. Frontend slider
+    # interpolates between baseline (this row's _area_ha / _capacity_mwp above)
+    # and the hard_max values. See docs/refinement/industrial_canopy_potential
+    # _methodology_2026-05-11.md. Invariant: hard_max >= baseline.
+    wb_hard_max_area = kek.get("within_boundary_hard_max_ha")
+    out["within_boundary_hard_max_ha"] = (
+        _round(float(wb_hard_max_area), 0) if pd.notna(wb_hard_max_area) else None
+    )
+    wb_hard_max_cap = kek.get("within_boundary_capacity_hard_max_mwp")
+    out["within_boundary_capacity_hard_max_mwp"] = (
+        _round(float(wb_hard_max_cap), 1) if pd.notna(wb_hard_max_cap) else None
+    )
+
+    # v4.0.5 (methodology #40): output fields stay BASELINE (raw raster output)
+    # for consistency — `within_boundary_capacity_mwp` and the hard_max columns
+    # together give the frontend everything it needs to compute deployable
+    # client-side per the slider. The slider-aware "effective" coverage used
+    # for the within_boundary gate is computed in dash/logic/grid.py:112 and
+    # surfaces as grid_out["within_boundary_coverage_effective_pct"] (separate
+    # field). The cost cascade in _delivered_cost reads that effective value
+    # via ctx.grid_out, so it stays consistent with the user's slider position.
     if pd.notna(wb_cap) and pd.notna(pvout_for_wb):
         wb_gen_mwh = float(wb_cap) * float(pvout_for_wb)
         out["within_boundary_generation_gwh"] = _round(wb_gen_mwh / 1000)
@@ -499,6 +527,21 @@ def enrich_generation(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, Any]:
     else:
         out["within_boundary_generation_gwh"] = None
         out["within_boundary_coverage_pct"] = None
+
+    # v4.0.5 (methodology #40): hard_max generation + coverage. Uses the same
+    # avg PVOUT as the baseline (in-polygon variation is <5% at 1km Indonesian
+    # resolution per the methodology doc §5). Downstream `grid.py:112` blends
+    # baseline + (hard_max - baseline) × slider% to drive the within_boundary
+    # gate.
+    if pd.notna(wb_hard_max_cap) and pd.notna(pvout_for_wb):
+        wb_hard_gen_mwh = float(wb_hard_max_cap) * float(pvout_for_wb)
+        out["within_boundary_generation_hard_max_gwh"] = _round(wb_hard_gen_mwh / 1000)
+        out["within_boundary_coverage_hard_max_pct"] = (
+            round(wb_hard_gen_mwh / ctx.demand_mwh, 3) if ctx.demand_mwh > 0 else None
+        )
+    else:
+        out["within_boundary_generation_hard_max_gwh"] = None
+        out["within_boundary_coverage_hard_max_pct"] = None
 
     return out
 

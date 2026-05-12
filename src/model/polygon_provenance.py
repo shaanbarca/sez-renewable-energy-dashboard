@@ -31,9 +31,13 @@ seeing a government KEK boundary (high trust) or a Claude-traced estimate
                              verified against any authoritative source.
                              Requires human visual verification before
                              relying on for site selection.
-  4. `none`                — No polygon. Building catchment falls back to
-                             a 2 km centroid buffer. Likely over-counts
-                             when site sits in dense industrial corridors.
+  4. `none`                — No fence-line polygon found. Both the rooftop
+                             building catchment and the within-boundary
+                             ground-mounted calculation fall back to a 2 km
+                             centroid buffer. Likely over-counts when site
+                             sits in dense industrial corridors (rooftop:
+                             adjacent factory bleed; ground-mount: same).
+                             UI surfaces a warning badge for this tier.
 """
 
 from __future__ import annotations
@@ -69,9 +73,11 @@ TIER_DESCRIPTIONS: dict[str, str] = {
         "Treat as an estimate; verify visually before relying on for site selection."
     ),
     "none": (
-        "No fence-line polygon found yet. Rooftop estimate uses a 2 km centroid "
-        "buffer, which over-counts when the site sits in a dense industrial "
-        "corridor (adjacent factories' rooftops get included)."
+        "No fence-line polygon found yet. Both rooftop and ground-mounted "
+        "estimates use a 2 km centroid buffer, which over-counts when the "
+        "site sits in a dense industrial corridor (adjacent factories' "
+        "rooftops and land get included). Treat numbers as low-trust; "
+        "verify visually or hunt a real polygon."
     ),
 }
 

@@ -195,13 +195,13 @@ TIER2_SLIDERS = {
         "description": "First-phase solar sized to cover this share of site demand. Lower = smaller project, fewer substation upgrades needed. 0.30 = phase-1 realistic, 1.00 = full self-sufficiency.",
     },
     "wb_buildout_footprint_ratio": {
-        "min": 0.05,
+        "min": 0.0,
         "max": 1.00,
         "step": 0.05,
         "default": WB_BUILDOUT_FOOTPRINT_RATIO,
-        "label": "Usable ground % (global)",
+        "label": "Land-use override % (global)",
         "unit": "",
-        "description": "Share of buildable open ground inside the fence assumed deployable for utility-scale PV after factories, roads, and buffers. Haircuts within-boundary coverage before the within_boundary gate. Synced with the Resource tab + Advanced Assumptions sliders. 0.20 = operating park, 1.0 = greenfield.",
+        "description": "Fraction of soft-excluded land (currently zoned built-up or agricultural inside the site polygon) that the site owner overrides for solar deployment. 0% = trust the 4-layer raster strictly (no override); 100% = override all soft exclusions, only physical/legal constraints (slope, peat, Kawasan Hutan) remain. Default 20% = mild owner override; assumes most zoning-excluded land is in active use but ~20% (canopies over parking, edge buffers) is realistically deployable. Synced with the Resource tab + Grid tab + Advanced Assumptions sliders.",
     },
     "idr_usd_rate": {
         "min": 14000,
@@ -297,3 +297,43 @@ TABLE_COLUMNS = {
 # Indonesia map center
 MAP_CENTER = {"lat": -2.5, "lon": 118.0}
 MAP_ZOOM = 4
+
+# ---------------------------------------------------------------------------
+# Buildability filter classification (v4.0.5, methodology refinement #40)
+# ---------------------------------------------------------------------------
+# Splits the buildability filter layers into two categories:
+#
+#   HARD — physical or legal exclusions that cannot be overridden by the site
+#          owner. These constrain the absolute maximum deployable area.
+#
+#   SOFT — zoning / current-use exclusions that the site owner can choose to
+#          redeploy (canopy over parking, repurpose storage yards, convert
+#          agricultural land within their own fence-line, etc.). The
+#          `wb_buildout_footprint_ratio` slider expresses what fraction of
+#          soft-excluded land the user assumes is realistically deployable.
+#
+# See docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md §3
+# for the source review and the canonical NREL/LBNL anchoring.
+#
+# Deployable area math (post-#40):
+#   baseline_area    = polygon ∩ (HARD ∧ SOFT all pass) — current raster output
+#   hard_max_area    = polygon ∩ (only HARD pass)        — new column
+#   soft_excluded    = hard_max_area − baseline_area     — derived
+#   deployable_area  = baseline_area + soft_excluded × slider%
+
+BUILDABILITY_LAYER_CLASSIFICATION: dict[str, str] = {
+    # HARD physical / legal exclusions
+    "kawasan_hutan": "hard",  # Indonesian state-protected forest, legal protection
+    "peatland": "hard",  # Peat-soil subsidence, engineering infeasibility
+    "slope": "hard",  # Slope >8° (solar) / >20° (wind), terracing prohibitive at scale
+    "elevation": "hard",  # Elevation >1500m, paired with slope in apply_slope_elevation_mask
+    # SOFT zoning / current-use exclusions
+    "land_cover": "soft",  # ESA WorldCover built-up / agricultural / forest (non-Kawasan-Hutan)
+    "road_distance": "soft",  # >10km from motorable road; owner can build access for large projects
+}
+HARD_LAYERS: frozenset[str] = frozenset(
+    k for k, v in BUILDABILITY_LAYER_CLASSIFICATION.items() if v == "hard"
+)
+SOFT_LAYERS: frozenset[str] = frozenset(
+    k for k, v in BUILDABILITY_LAYER_CLASSIFICATION.items() if v == "soft"
+)

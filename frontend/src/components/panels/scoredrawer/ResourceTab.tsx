@@ -42,24 +42,68 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
     return Number.isFinite(m) ? m : null;
   })();
 
+  // v4.0.5 (methodology #40): client-side override math. Mirrors
+  // src/dash/logic/grid.py:112 + src/dash/logic/scorecard.py for instant
+  // slider feedback (server still recomputes effective coverage for the
+  // within_boundary gate + cost cascade on the 300ms refetch). Server
+  // outputs `within_boundary_*_mwp` / `within_boundary_*_gwh` /
+  // `within_boundary_coverage_pct` as raster BASELINE; the slider value
+  // (`wb_buildout_footprint_ratio` = "Land-use override %") interpolates
+  // between baseline and the new hard_max columns:
+  //
+  //   deployable = baseline + (hard_max - baseline) × slider%
+  //
+  // At slider=0% deployable = baseline (strict raster); at slider=100%
+  // deployable = hard_max (override all soft-zoning exclusions; only
+  // physical/legal constraints remain). Default 20% = mild owner override.
+  //
+  // Fallback (no hard_max signal yet, e.g. pre-pipeline-rerun): treat as
+  // soft_excluded = 0 so display falls back to baseline. Matches the
+  // graceful pre-regen behavior in src/dash/logic/grid.py.
+  const baselineCapacity = row.within_boundary_capacity_mwp;
+  const baselineArea = row.within_boundary_area_ha;
+  const baselineGen = row.within_boundary_generation_gwh;
+  const baselineCoverage = row.within_boundary_coverage_pct;
+  const hardMaxCapacity = row.within_boundary_capacity_hard_max_mwp;
+  const hardMaxArea = row.within_boundary_hard_max_ha;
+
+  const softExcludedCapacity =
+    baselineCapacity != null && hardMaxCapacity != null
+      ? Math.max(0, hardMaxCapacity - baselineCapacity)
+      : 0;
+  const softExcludedArea =
+    baselineArea != null && hardMaxArea != null ? Math.max(0, hardMaxArea - baselineArea) : 0;
+  // soft_excluded_gen = (hard_max_capacity - baseline_capacity) × pvout / 1000
+  // — derive from capacity × pvout ratio so we don't need a separate
+  // hard_max_generation column on the row. Mirrors the methodology decision
+  // to reuse baseline PVOUT for the override portion (sub-5% in-polygon
+  // variation at 1km Indonesian resolution).
+  const softExcludedGenRatio =
+    baselineCapacity != null && baselineCapacity > 0 ? softExcludedCapacity / baselineCapacity : 0;
+  const softExcludedGen = baselineGen != null ? baselineGen * softExcludedGenRatio : 0;
+  const softExcludedCoverage =
+    baselineCoverage != null ? baselineCoverage * softExcludedGenRatio : 0;
+
   const adjustedCapacity =
-    row.within_boundary_capacity_mwp != null
-      ? row.within_boundary_capacity_mwp * buildoutPct
-      : null;
-  const adjustedArea =
-    row.within_boundary_area_ha != null ? row.within_boundary_area_ha * buildoutPct : null;
-  const adjustedGen =
-    row.within_boundary_generation_gwh != null
-      ? row.within_boundary_generation_gwh * buildoutPct
-      : null;
+    baselineCapacity != null ? baselineCapacity + softExcludedCapacity * buildoutPct : null;
+  const adjustedArea = baselineArea != null ? baselineArea + softExcludedArea * buildoutPct : null;
+  const adjustedGen = baselineGen != null ? baselineGen + softExcludedGen * buildoutPct : null;
   const adjustedCoverage =
-    row.within_boundary_coverage_pct != null
-      ? row.within_boundary_coverage_pct * buildoutPct
-      : null;
+    baselineCoverage != null ? baselineCoverage + softExcludedCoverage * buildoutPct : null;
 
   // Composition flags for the merged Captive Solar card subsections.
   const hasRooftop = row.rooftop_solar_mwp_potential != null;
-  const hasGround = row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0;
+  // v4.0.5 (methodology #40): "has ground potential" includes hard_max so the
+  // slider stays visible at industrial sites where the strict 4-layer raster
+  // returns 0 (e.g., fully-built Palu / Tanjung Sauh / Maloy Batuta polygons).
+  // Those sites have meaningful hard_max — the slider lets the user override
+  // soft-zoning exclusions back into deployable area. Pre-fix the slider was
+  // hidden unless baseline > 0, defeating the whole point of the methodology
+  // change at the sites it was designed to fix.
+  const hasGround =
+    (row.within_boundary_capacity_mwp != null && row.within_boundary_capacity_mwp > 0) ||
+    (row.within_boundary_capacity_hard_max_mwp != null &&
+      row.within_boundary_capacity_hard_max_mwp > 0);
   const totalCaptiveMwp =
     hasRooftop && hasGround && rooftopMwpClient != null && adjustedCapacity != null
       ? rooftopMwpClient + adjustedCapacity
@@ -158,8 +202,8 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
         <StatCard>
           <SectionHeader
             title="Captive Solar (on-site)"
-            subtitle="On-site solar potential — rooftop + ground-mounted, adjusted for usable area."
-            tip="Decomposes into Rooftop (on existing buildings, §14 classifier × layout density) and Ground-mounted (raw buildable raster × usable-ground %). Total mixes cost tiers — rooftop ≈ 5× $/MWp vs ground-mounted utility-scale, see Total tooltip."
+            subtitle="On-site solar potential — rooftop + ground-mounted, adjusted via land-use override slider."
+            tip="Decomposes into Rooftop (on existing buildings, §14 classifier × layout density) and Ground-mounted (4-layer raster baseline + the Land-use override slider, which lets you treat fraction of soft-excluded land — currently zoned built-up or agricultural — as deployable). Total mixes cost tiers (rooftop ≈ 5× $/MWp vs ground utility-scale)."
           />
 
           <div
@@ -226,10 +270,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               )}
             </>
           ) : (
-            <div
-              className="text-xs italic py-1"
-              style={{ color: 'var(--text-muted)' }}
-            >
+            <div className="text-xs italic py-1" style={{ color: 'var(--text-muted)' }}>
               {row.building_data_reason_flagged
                 ? `No rooftop data — ${row.building_data_reason_flagged.replace(/_/g, ' ')}`
                 : 'No buildings detected in 2km buffer'}
@@ -244,11 +285,27 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
           </div>
           {hasGround ? (
             <>
+              {(row.polygon_source_tier === 'none' ||
+                row.polygon_source_tier === 'claude_building_hull_estimate') && (
+                <div
+                  className="text-xs italic py-1 px-2 mb-2 rounded"
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.10)',
+                    color: 'var(--text-muted)',
+                    border: '1px solid rgba(245, 158, 11, 0.30)',
+                  }}
+                >
+                  ⚠{' '}
+                  {row.polygon_source_tier === 'none'
+                    ? 'Low-trust: no fence-line polygon — using a 2 km centroid buffer. Likely over-counts adjacent land in dense corridors. See Polygon source below.'
+                    : 'Low-trust: polygon estimated from detected buildings — fence boundary not independently verified. See Polygon source below.'}
+                </div>
+              )}
               <div style={{ marginBottom: 6 }}>
                 <Slider
-                  label="Usable ground % (global)"
-                  description={`Raw raster says ${row.within_boundary_capacity_mwp?.toFixed(1)} MWp; this slider says how much is realistically deployable. Synced with the Grid tab + Advanced Assumptions sliders.`}
-                  min={0.05}
+                  label="Land-use override % (global)"
+                  description={`Fraction of soft-excluded land (zoned built-up / agricultural inside the fence) the site owner overrides. At 0% the strict 4-layer raster is the floor (${baselineCapacity?.toFixed(1) ?? '—'} MWp); at 100% all soft exclusions are overridden (hard_max ${hardMaxCapacity?.toFixed(1) ?? baselineCapacity?.toFixed(1) ?? '—'} MWp). Synced with the Grid tab + Advanced Assumptions sliders.`}
+                  min={0.0}
                   max={1.0}
                   step={0.05}
                   value={buildoutPct}
@@ -261,20 +318,20 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                 label="Captive Capacity"
                 value={adjustedCapacity != null ? adjustedCapacity.toFixed(1) : null}
                 unit="MWp"
-                tip={`Adjusted for ${(buildoutPct * 100).toFixed(0)}% availability. Raw raster ceiling is ${row.within_boundary_capacity_mwp?.toFixed(1)} MWp; this is what the slider says is realistically deployable.`}
+                tip={`Baseline (raster) ${baselineCapacity?.toFixed(1) ?? '—'} MWp + ${(buildoutPct * 100).toFixed(0)}% × ${softExcludedCapacity.toFixed(1)} MWp soft-excluded override. Hard-max ceiling is ${hardMaxCapacity?.toFixed(1) ?? baselineCapacity?.toFixed(1) ?? '—'} MWp (slider = 100%).`}
               />
               <StatRowWithTip
                 label="Available Area"
                 value={adjustedArea != null ? adjustedArea.toFixed(0) : null}
                 unit="ha"
-                tip={`Raw buildable area × ${(buildoutPct * 100).toFixed(0)}% slider. Raw is ${row.within_boundary_area_ha?.toFixed(0)} ha.`}
+                tip={`Baseline ${baselineArea?.toFixed(0) ?? '—'} ha + ${(buildoutPct * 100).toFixed(0)}% × ${softExcludedArea.toFixed(0)} ha soft-excluded override. Hard-max is ${hardMaxArea?.toFixed(0) ?? baselineArea?.toFixed(0) ?? '—'} ha.`}
               />
               {row.within_boundary_avg_pvout != null && (
                 <StatRowWithTip
                   label="Avg PVOUT"
                   value={row.within_boundary_avg_pvout.toFixed(0)}
                   unit="kWh/kWp/yr"
-                  tip="Mean solar resource over the buildable polygons inside the fence. Doesn't change with the slider."
+                  tip="Mean solar resource over the buildable polygons inside the fence. Doesn't change with the slider. Soft-excluded override reuses this PVOUT (sub-5% in-polygon variation at 1km resolution)."
                 />
               )}
               {adjustedGen != null && (
@@ -282,7 +339,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                   label="Annual Generation"
                   value={adjustedGen.toFixed(0)}
                   unit="GWh/yr"
-                  tip={`Adjusted Capacity × Avg PVOUT. At 100% the ceiling is ${row.within_boundary_generation_gwh?.toFixed(0)} GWh/yr.`}
+                  tip={`Adjusted Capacity × Avg PVOUT. Baseline = ${baselineGen?.toFixed(0) ?? '—'} GWh/yr; hard-max ceiling ${(baselineGen != null && softExcludedGenRatio > 0 ? baselineGen * (1 + softExcludedGenRatio) : (baselineGen ?? 0)).toFixed(0)} GWh/yr at slider = 100%.`}
                 />
               )}
               {adjustedCoverage != null && (
@@ -290,16 +347,15 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                   label="Demand Coverage"
                   value={(adjustedCoverage * 100).toFixed(0)}
                   unit="%"
-                  tip="Captive solar generation as a fraction of the site's 2030 demand. >100% means on-site solar over-produces vs the load."
+                  tip="Captive solar generation as a fraction of the site's 2030 demand. >100% means on-site solar over-produces vs the load. Drives the within_boundary self-sufficiency gate in the Grid tab."
                 />
               )}
             </>
           ) : (
-            <div
-              className="text-xs italic py-1"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              No buildable area within fence
+            <div className="text-xs italic py-1" style={{ color: 'var(--text-muted)' }}>
+              {row.polygon_source_tier === 'none' || row.polygon_source_tier == null
+                ? 'No buildable land within 2 km centroid buffer (entire buffer excluded by slope, peat, Kawasan Hutan, or buildability data coverage gap). Hunt a real fence-line polygon to refine.'
+                : 'No buildable area within fence (entire polygon excluded by slope, peat, or Kawasan Hutan).'}
             </div>
           )}
 
@@ -346,8 +402,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                     'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued.',
                   claude_building_hull_estimate:
                     'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
-                  none:
-                    'No fence-line polygon yet. Rooftop estimate uses a 2 km centroid buffer, which can over-count adjacent factories.',
+                  none: 'No fence-line polygon yet. Both rooftop and ground-mounted estimates use a 2 km centroid buffer, which can over-count adjacent factories and land. Treat as low-trust; verify visually or hunt a real polygon.',
                 }[row.polygon_source_tier]
               }
             />

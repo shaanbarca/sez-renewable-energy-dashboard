@@ -308,6 +308,16 @@ GRID_LINE_BUFFER_KM: float = 2.0
 # A grid line is considered to "connect" a substation if it passes within
 # this distance. Accounts for GIS digitization error and substation footprint.
 
+NO_POLYGON_FALLBACK_BUFFER_KM: float = 2.0
+# v4.0.5 (#45): radius of the centroid-buffer fallback used when a site has
+# no fence-line polygon in either kek_polygons.geojson or
+# data/industrial_sites/site_polygons.geojson. Both rooftop and within-boundary
+# pipelines fall back to a circle of this radius around the site centroid.
+# Tagged with polygon_provenance="none" so the UI can render a warning badge.
+# Matches the rooftop pipeline's pre-existing 2 km buffer behavior so the
+# two layers stay consistent for users comparing rooftop vs ground potential
+# on the same site.
+
 TRANSMISSION_FALLBACK_CAPACITY_MWP: float = 20.0
 # Conservative default solar capacity (MWp) used for transmission cost calculation
 # when regional_groundmount_potential_mwp_50km is unavailable. All 25 KEKs currently have capacity

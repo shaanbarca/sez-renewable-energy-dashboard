@@ -365,26 +365,56 @@ export const columns = [
         header: () => (
           <HeaderWithTooltip label="Captive (MWp)" columnId="within_boundary_capacity_mwp" />
         ),
-        // Sort + filter route through the haircut-adjusted value so the column
-        // stays consistent with what the cell renders (otherwise sorting by
-        // raw raster value would conflict with the displayed adjusted figure).
+        // v4.0.5 (methodology #40): override math mirrors ResourceTab.tsx.
+        //   deployable = baseline + (hard_max - baseline) × slider%
+        // Sort + cell both use the deployable value so column stays consistent
+        // with what's displayed. Falls back to baseline when hard_max signal
+        // is absent (pre-pipeline-rerun).
         sortingFn: (a, b) => {
-          const ratio =
+          const slider =
             useDashboardStore.getState().assumptions?.wb_buildout_footprint_ratio ?? 0.2;
-          const av = (a.original.within_boundary_capacity_mwp ?? -1) * ratio;
-          const bv = (b.original.within_boundary_capacity_mwp ?? -1) * ratio;
+          const computeDeployable = (
+            baseline: number | null | undefined,
+            hardMax: number | null | undefined,
+          ): number => {
+            // No-data sentinel — sort below everything. Sites with hard_max
+            // but no baseline still rank by their slider-adjusted value.
+            if (baseline == null && hardMax == null) return -1;
+            const b = baseline ?? 0;
+            const soft = hardMax != null && hardMax >= b ? hardMax - b : 0;
+            return b + soft * slider;
+          };
+          const av = computeDeployable(
+            a.original.within_boundary_capacity_mwp,
+            a.original.within_boundary_capacity_hard_max_mwp,
+          );
+          const bv = computeDeployable(
+            b.original.within_boundary_capacity_mwp,
+            b.original.within_boundary_capacity_hard_max_mwp,
+          );
           return av - bv;
         },
         cell: (info) => {
-          const ratio =
+          const slider =
             useDashboardStore.getState().assumptions?.wb_buildout_footprint_ratio ?? 0.2;
-          const raw = info.row.original.within_boundary_capacity_mwp;
-          if (raw == null || raw <= 0)
-            return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-          const adjusted = raw * ratio;
+          const baseline = info.row.original.within_boundary_capacity_mwp;
+          const hardMax = info.row.original.within_boundary_capacity_hard_max_mwp;
+          // Render a value when EITHER baseline > 0 or hard_max > 0. At
+          // industrial sites where the strict raster returns 0 but hard_max
+          // is meaningful (Palu, Maloy Batuta, etc.), the slider still gives
+          // a non-zero deployable value. Pre-#40 we'd show "—" at these sites
+          // even when the user dialed the slider up.
+          const hasAny =
+            (baseline != null && baseline > 0) || (hardMax != null && hardMax > 0);
+          if (!hasAny) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+          const baselineSafe = baseline ?? 0;
+          const softExcluded = hardMax != null && hardMax >= baselineSafe ? hardMax - baselineSafe : 0;
+          const deployable = baselineSafe + softExcluded * slider;
           return (
-            <span title={`Raw ${raw.toFixed(1)} MWp × ${(ratio * 100).toFixed(0)}% available`}>
-              {adjusted.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+            <span
+              title={`Baseline ${baselineSafe.toFixed(1)} MWp + ${(slider * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax?.toFixed(1) ?? baselineSafe.toFixed(1)} MWp)`}
+            >
+              {deployable.toLocaleString(undefined, { maximumFractionDigits: 1 })}
             </span>
           );
         },
