@@ -270,10 +270,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               )}
             </>
           ) : (
-            <div
-              className="text-xs italic py-1"
-              style={{ color: 'var(--text-muted)' }}
-            >
+            <div className="text-xs italic py-1" style={{ color: 'var(--text-muted)' }}>
               {row.building_data_reason_flagged
                 ? `No rooftop data — ${row.building_data_reason_flagged.replace(/_/g, ' ')}`
                 : 'No buildings detected in 2km buffer'}
@@ -288,6 +285,22 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
           </div>
           {hasGround ? (
             <>
+              {(row.polygon_source_tier === 'none' ||
+                row.polygon_source_tier === 'claude_building_hull_estimate') && (
+                <div
+                  className="text-xs italic py-1 px-2 mb-2 rounded"
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.10)',
+                    color: 'var(--text-muted)',
+                    border: '1px solid rgba(245, 158, 11, 0.30)',
+                  }}
+                >
+                  ⚠{' '}
+                  {row.polygon_source_tier === 'none'
+                    ? 'Low-trust: no fence-line polygon — using a 2 km centroid buffer. Likely over-counts adjacent land in dense corridors. See Polygon source below.'
+                    : 'Low-trust: polygon estimated from detected buildings — fence boundary not independently verified. See Polygon source below.'}
+                </div>
+              )}
               <div style={{ marginBottom: 6 }}>
                 <Slider
                   label="Land-use override % (global)"
@@ -339,15 +352,10 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               )}
             </>
           ) : (
-            <div
-              className="text-xs italic py-1"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {row.site_type !== 'kek'
-                ? 'Standalone industrial site — ground-mount estimate uses KEK polygons only and is not available here. Rooftop estimate (above) uses OSM/GOB building footprints. See #42 for the pipeline extension.'
-                : row.polygon_source_tier === 'none' || row.polygon_source_tier == null
-                  ? 'No fence polygon — ground-mount estimate not available.'
-                  : 'No buildable area within fence (entire polygon excluded by slope, peat, or Kawasan Hutan).'}
+            <div className="text-xs italic py-1" style={{ color: 'var(--text-muted)' }}>
+              {row.polygon_source_tier === 'none' || row.polygon_source_tier == null
+                ? 'No buildable land within 2 km centroid buffer (entire buffer excluded by slope, peat, Kawasan Hutan, or buildability data coverage gap). Hunt a real fence-line polygon to refine.'
+                : 'No buildable area within fence (entire polygon excluded by slope, peat, or Kawasan Hutan).'}
             </div>
           )}
 
@@ -394,8 +402,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                     'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued.',
                   claude_building_hull_estimate:
                     'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
-                  none:
-                    'No fence-line polygon yet. Rooftop estimate uses a 2 km centroid buffer, which can over-count adjacent factories.',
+                  none: 'No fence-line polygon yet. Both rooftop and ground-mounted estimates use a 2 km centroid buffer, which can over-count adjacent factories and land. Treat as low-trust; verify visually or hunt a real polygon.',
                 }[row.polygon_source_tier]
               }
             />

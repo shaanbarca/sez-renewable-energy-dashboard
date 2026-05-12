@@ -17,9 +17,7 @@ import { useDashboardStore } from '../../store/dashboard';
 function csvCell(val: unknown): string {
   if (val == null) return '';
   const s = String(val);
-  return s.includes(',') || s.includes('"') || s.includes('\n')
-    ? `"${s.replace(/"/g, '""')}"`
-    : s;
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 type SortKey =
@@ -577,6 +575,17 @@ export default function RooftopPotentialTable() {
                     const softExcluded = Math.max(0, hardMax - baseline);
                     const rooftopMwp = row.rooftop_solar_mwp_potential ?? 0;
                     const totalCaptive = groundMwp != null ? rooftopMwp + groundMwp : null;
+                    const lowTrustPolygon =
+                      row.polygon_source_tier === 'none' ||
+                      row.polygon_source_tier === 'claude_building_hull_estimate';
+                    const lowTrustTooltip =
+                      row.polygon_source_tier === 'none'
+                        ? 'Low-trust: no fence-line polygon — using 2 km centroid buffer fallback. Likely over-counts adjacent land.'
+                        : 'Low-trust: polygon estimated from detected buildings — fence boundary not independently verified.';
+                    const groundTitle =
+                      groundMwp != null
+                        ? `Baseline ${baseline.toFixed(1)} MWp + ${(buildoutPct * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax.toFixed(1)} MWp)${lowTrustPolygon ? ` — ${lowTrustTooltip}` : ''}`
+                        : 'No buildable land within fence (or 2 km buffer for no-polygon sites). Slope, peat, or Kawasan Hutan filters eliminated all in-boundary pixels.';
                     return (
                       <>
                         <td
@@ -586,13 +595,19 @@ export default function RooftopPotentialTable() {
                             fontVariantNumeric: 'tabular-nums',
                             fontWeight: 500,
                           }}
-                          title={
-                            groundMwp != null
-                              ? `Baseline ${baseline.toFixed(1)} MWp + ${(buildoutPct * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax.toFixed(1)} MWp)`
-                              : 'No fence polygon — ground-mounted captive solar not modelled for this site'
-                          }
+                          title={groundTitle}
                         >
                           {groundMwp != null ? formatMwp(groundMwp) : '—'}
+                          {groundMwp != null && lowTrustPolygon && (
+                            <span
+                              role="img"
+                              style={{ marginLeft: 4, color: 'rgba(245, 158, 11, 0.9)' }}
+                              title={lowTrustTooltip}
+                              aria-label="low-trust polygon"
+                            >
+                              ⚠
+                            </span>
+                          )}
                         </td>
                         <td
                           style={{
