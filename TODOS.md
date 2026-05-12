@@ -1,9 +1,35 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-05-07 (8 commits shipped: prod OOM fixed via Tier 1A per-site parquet filter, Docker image slimmed 24 GB → ~1 GB, v4.0 scorecard baseline locked, refinement spec docs tracked + eng-reviewed + codex-reviewed; v4.1 split into v4.1a + v4.1b per /plan-eng-review decision; auth gate temporarily disabled at user direction).
+Last updated: 2026-05-12 (v4.0.5 buildability hard/soft split shipped via PR #44 — 12 commits including the 2-commit A2 fix that closed the silent-zero bug on 21 polygon-missing sites; previously on 2026-05-07: prod OOM fixed via Tier 1A per-site parquet filter, Docker image slimmed 24 GB → ~1 GB, v4.0 scorecard baseline locked, refinement spec docs tracked + eng-reviewed + codex-reviewed; v4.1 split into v4.1a + v4.1b per /plan-eng-review decision; auth gate temporarily disabled at user direction).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
+
+---
+
+## Today's deltas (2026-05-12)
+
+PR #44 merged to `private/main` (Render auto-deploy triggered). 12 commits, ships v4.0.5 buildability hard/soft split + the A2 silent-zero fix:
+
+| Commit | What |
+|---|---|
+| `77a1863` → `3c2dded` (6 commits) | v4.0.5 buildability split + slider override semantic + ground-mounted MWp column + CSV export (#40 pts 1-6, #42) |
+| `1482321` | A2 fix pt 1: 2 km centroid buffer fallback for the 21 sites that had no fence-line polygon. New `polygon_source_tier="none"` row tag + frontend ⚠ low-trust badge. 13 of 21 sites surface real hard-ceiling numbers; 8 stay at 0 (dense urban / buildability raster coverage gap). (#45 pt 1) |
+| `77b5dd9` | A2 fix pt 2: hunted OSM polygons for 5 HIGH-priority A2 sites. 2 found (Pupuk Kaltim, Dexin Steel via parent IMIP polygon); 3 OSM gaps documented for tier-3 follow-up (Nusantara, Inalum, Buli). Reproducible record in `scripts/hunt_v4_0_5_osm_polygons.py`. (#45 pt 2) |
+| 4 base doc commits | Methodology proposal (#40), v4.2 IDS spec (#39), v4.3 M-AT5 spec, methodology typo fix. Were on `origin/main` but missing from `private/main`; landing this PR also synced the two remotes. |
+
+**Issues closed by PR #44:** #40 (buildability umbrella), #42 (non-KEK within-boundary), #45 (silent-zero bug).
+
+**Issues opened/rescoped during PR #44 review:**
+- **#45** (NEW) — A2 fix tracker, closed by this PR
+- **#46** (NEW) — Bucket B soft-mask default-zero UX (14 sites — soon 19 once user QA confirms — where hard mask finds substantial buildable land but soft mask zeros the default). v4.1 product decision.
+- **#43** (rescoped) — Bucket A1: validate the 39 sites with polygon but zero raster intersection. Likely correct (1km raster too coarse for small KEKs, or dense industrial fully filtered) but needs visual audit on 5 representative sites.
+
+**Polygon provenance distribution now:** `official_kek=25, osm_landuse_industrial=19, claude_building_hull_estimate=18, none=19`. Down from 21 buffer-fallback sites pre-PR.
+
+**Tier-3 polygon hunt** for Nusantara Industri Sejati, Inalum Asahan, Buli Industrial Park — pending. Needs either Claude-traced building hulls (established pattern in rooftop pipeline) or a government source. Tracked as a sub-task on #45 status comment.
+
+**Test suite:** 847 passing (was 730 pre-v4.0.5). New: `tests/test_within_boundary_hard_soft.py` (269 lines).
 
 ---
 
@@ -37,7 +63,7 @@ Last updated: 2026-05-07 (8 commits shipped: prod OOM fixed via Tier 1A per-site
 
 | Release | Spec | Effort | Headline | Dependency |
 |---|---|---|---|---|
-| **v4.0.5** ⏳ next | `docs/refinement/v4_0_dashboard_fixes_spec.md` | 5–7 focused days | 13 methodological fixes to current v4.0 (geothermal proximity, Perpres 112 as variable, curtailment cost, Scope 1 abatement flags, RUPTL §V.11 feasibility, hybrid binding-constraint signal, etc.) | None — branches off `main` directly |
+| **v4.0.5** ✅ shipped (PR #44, 2026-05-12) | `docs/refinement/v4_0_dashboard_fixes_spec.md` + `docs/refinement/industrial_canopy_potential_methodology_2026-05-11.md` | 5-day push | Buildability hard/soft split + slider override semantic + ground-mounted MWp column + 2 km buffer fallback for polygon-missing sites + 2 new OSM polygons (Pupuk Kaltim, Dexin Steel). Closes #40, #42, #45. Follow-ups open: #41 (KEK coarse-raster), #43 (bucket A1 spot-check), #46 (bucket B soft-mask UX), tier-3 polygon hunt for Nusantara/Inalum/Buli. | None — branched off `main` directly |
 | **v4.1a** ⏳ blocked | `docs/refinement/v4_1_foundation_spec.md` (§1.5 phase routing) | 6–7 focused days | Foundation: multi-tier IEA-aligned LCOE columns + multi-incumbent refs (BPP, marginal day/night, industrial, captive) + provenance plumbing + LCOS at 4h/8h | Strict — blocked on v4.0.5 shipping (per §1.5 sequencing diagram). v4.1a's 81-site shift report uses the v4.0 baseline already locked in `bda949e`. |
 | **v4.1b** ⏳ blocked | `docs/refinement/v4_1_foundation_spec.md` (§1.5 phase routing) | 5–6 focused days | Foundation: destination-weighted CBAM (per-market shares × per-market prices) + hydro 3-way hybrid optimizer + OEM scope-3 dataset + geothermal NCG pre-empt | Strict — blocked on v4.1a shipping. Additive append to v4.1a's scorecard schema (no `[a]` columns modified). |
 | **v4.2** ⏳ blocked | `docs/refinement/v4_2_project_finance_spec.md` | 7–11 focused days | Project finance metrics (NPV/IRR/DSCR/LLCR) with COD-year-aware CBAM trajectory + flat-real tariff default. Cirata IRR validation target ±1pp. | Blocked on v4.1b shipping (depends on `lcoe_generation_usd_per_mwh` + multi-incumbent refs as offtake-price source) |
