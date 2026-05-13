@@ -34,6 +34,7 @@ type SortKey =
 /** v4.0.5 (#46 close-out): trust ordering for polygon source tier. High trust at top.
  *  Mirrors the tiers defined in `src/model/polygon_provenance.py::PolygonSourceTier`. */
 const POLYGON_TIER_ORDER = {
+  manual_override: 5,
   official_kek: 4,
   osm_landuse_industrial: 3,
   claude_building_hull_estimate: 2,
@@ -44,6 +45,13 @@ const POLYGON_TIER_BADGE: Record<
   string,
   { label: string; bg: string; fg: string; tooltip: string }
 > = {
+  manual_override: {
+    label: 'Manual',
+    bg: 'rgba(98, 175, 232, 0.20)',
+    fg: '#aedbf7',
+    tooltip:
+      'Polygon hand-drawn in the admin-mode polygon editor (#31) against satellite imagery and the buildings overlay, then committed to git. A human verified this fence and chose to override the auto-generated source. Highest trust.',
+  },
   official_kek: {
     label: 'Official',
     bg: 'rgba(76, 175, 80, 0.18)',

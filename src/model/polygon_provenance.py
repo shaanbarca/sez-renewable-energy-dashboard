@@ -13,17 +13,25 @@ seeing a government KEK boundary (high trust) or a Claude-traced estimate
 
 # Tiers (ordered by trust descending)
 
-  1. `official_kek`        — Indonesian KEK boundaries published by OSS/KEK
+  1. `manual_override`     — Polygon hand-drawn in the dashboard's admin-mode
+                             polygon editor (#31) against satellite imagery
+                             + buildings overlay, then saved to
+                             `data/industrial_sites/manual_polygon_overrides.geojson`.
+                             Highest trust — a human verified the fence
+                             against ground-truth imagery, knows the site
+                             context, and committed the polygon to git.
+                             Wins over every auto-generated tier below.
+  2. `official_kek`        — Indonesian KEK boundaries published by OSS/KEK
                              national portal. 25 polygons in
                              `outputs/data/raw/kek_polygons.geojson`.
                              High confidence; government-issued.
-  2. `osm_landuse_industrial`
+  3. `osm_landuse_industrial`
                            — Community-maintained OpenStreetMap polygons
                              tagged `landuse=industrial` or `man_made=works`.
                              Verified by OSM contributors but not government
                              official. Quality varies by region (Java >
                              outer islands).
-  3. `claude_building_hull_estimate`
+  4. `claude_building_hull_estimate`
                            — Polygon traced in-session from the union of
                              GoB+MS detected buildings ≥1500 m² + buffer
                              dilate/erode. Rooftop count is conservative
@@ -31,7 +39,7 @@ seeing a government KEK boundary (high trust) or a Claude-traced estimate
                              verified against any authoritative source.
                              Requires human visual verification before
                              relying on for site selection.
-  4. `none`                — No fence-line polygon found. Both the rooftop
+  5. `none`                — No fence-line polygon found. Both the rooftop
                              building catchment and the within-boundary
                              ground-mounted calculation fall back to a 2 km
                              centroid buffer. Likely over-counts when site
@@ -45,6 +53,7 @@ from __future__ import annotations
 from typing import Literal
 
 PolygonSourceTier = Literal[
+    "manual_override",
     "official_kek",
     "osm_landuse_industrial",
     "claude_building_hull_estimate",
@@ -52,6 +61,7 @@ PolygonSourceTier = Literal[
 ]
 
 TIER_LABELS: dict[str, str] = {
+    "manual_override": "Manual (human-verified)",
     "official_kek": "Official KEK (government)",
     "osm_landuse_industrial": "OSM (community-verified)",
     "claude_building_hull_estimate": "Estimated (Claude vision)",
@@ -59,6 +69,12 @@ TIER_LABELS: dict[str, str] = {
 }
 
 TIER_DESCRIPTIONS: dict[str, str] = {
+    "manual_override": (
+        "Polygon hand-drawn in the admin-mode polygon editor against satellite "
+        "imagery and the buildings overlay, then committed to git. A human "
+        "verified this fence against ground-truth and chose to override the "
+        "auto-generated source. Highest trust."
+    ),
     "official_kek": (
         "Government-published KEK boundary from the Indonesian OSS/KEK national portal. High trust."
     ),

@@ -8,6 +8,7 @@ map_layers.py without modifying them.
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -99,6 +100,15 @@ from src.api.routes.scorecard import router as scorecard_router  # noqa: E402
 app.include_router(auth_router)
 app.include_router(scorecard_router, prefix="/api")
 app.include_router(layers_router, prefix="/api")
+
+# Admin routes (#31 polygon editor) — env-gated. Never mounted in production.
+# When EEZ_ENABLE_ADMIN_TOOLS is unset/blank, the router is not added at all,
+# so admin URLs return a normal 404 instead of leaking the surface via 401/403.
+if os.environ.get("EEZ_ENABLE_ADMIN_TOOLS", "").strip() == "1":
+    from src.api.routes.admin import router as admin_router  # noqa: E402, PLC0415
+
+    app.include_router(admin_router)
+    print("Admin tools enabled — /api/admin/* routes mounted.")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
