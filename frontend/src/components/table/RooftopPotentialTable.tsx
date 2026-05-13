@@ -28,7 +28,51 @@ type SortKey =
   | 'usable_area'
   | 'site_name'
   | 'sector'
-  | 'confidence';
+  | 'confidence'
+  | 'polygon';
+
+/** v4.0.5 (#46 close-out): trust ordering for polygon source tier. High trust at top.
+ *  Mirrors the tiers defined in `src/model/polygon_provenance.py::PolygonSourceTier`. */
+const POLYGON_TIER_ORDER = {
+  official_kek: 4,
+  osm_landuse_industrial: 3,
+  claude_building_hull_estimate: 2,
+  none: 1,
+} as const;
+
+const POLYGON_TIER_BADGE: Record<
+  string,
+  { label: string; bg: string; fg: string; tooltip: string }
+> = {
+  official_kek: {
+    label: 'Official',
+    bg: 'rgba(76, 175, 80, 0.18)',
+    fg: '#81c784',
+    tooltip:
+      'Government-published KEK boundary from the Indonesian OSS / KEK national portal. High trust.',
+  },
+  osm_landuse_industrial: {
+    label: 'OSM',
+    bg: 'rgba(56, 142, 235, 0.18)',
+    fg: '#7eb8f5',
+    tooltip:
+      'OpenStreetMap polygon (landuse=industrial / man_made=works). Community-verified, not government-issued. Quality varies by region (Java > outer islands).',
+  },
+  claude_building_hull_estimate: {
+    label: 'Estimated',
+    bg: 'rgba(255, 152, 0, 0.16)',
+    fg: '#ffb74d',
+    tooltip:
+      'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Rooftop number is conservative, but the polygon itself has not been independently verified. Treat as an estimate.',
+  },
+  none: {
+    label: 'Buffer',
+    bg: 'rgba(244, 67, 54, 0.16)',
+    fg: '#e57373',
+    tooltip:
+      'No fence-line polygon yet. Both rooftop and ground-mounted estimates use a 2 km centroid buffer. Likely over-counts adjacent land in dense corridors. Lowest trust.',
+  },
+};
 
 /** v4.0.5 (methodology #40): client-side ground-mounted MWp with override math.
  *
@@ -273,6 +317,11 @@ export default function RooftopPotentialTable() {
         const bv = CONFIDENCE_ORDER[b.building_data_confidence ?? 'low'] ?? 0;
         return (av - bv) * dir;
       }
+      if (k === 'polygon') {
+        const av = POLYGON_TIER_ORDER[a.polygon_source_tier ?? 'none'] ?? 0;
+        const bv = POLYGON_TIER_ORDER[b.polygon_source_tier ?? 'none'] ?? 0;
+        return (av - bv) * dir;
+      }
       const av = String(a[k as keyof ScorecardRow] ?? '');
       const bv = String(b[k as keyof ScorecardRow] ?? '');
       return av.localeCompare(bv) * dir;
@@ -337,6 +386,7 @@ export default function RooftopPotentialTable() {
       'building_count_standard',
       'usable_roof_area_ha',
       'data_confidence',
+      'polygon_source_tier',
       'baseline_capacity_mwp',
       'hard_max_capacity_mwp',
       'land_use_override_pct_applied',
@@ -357,6 +407,7 @@ export default function RooftopPotentialTable() {
         r.building_count_standard_roof ?? '',
         usableHa ?? '',
         r.building_data_confidence ?? '',
+        r.polygon_source_tier ?? '',
         r.within_boundary_capacity_mwp != null ? r.within_boundary_capacity_mwp.toFixed(1) : '',
         r.within_boundary_capacity_hard_max_mwp != null
           ? r.within_boundary_capacity_hard_max_mwp.toFixed(1)
@@ -521,6 +572,15 @@ export default function RooftopPotentialTable() {
                 active={sort.key}
                 dir={sort.dir}
                 onSort={onSort}
+                tooltip="§14 building-classifier confidence in the rooftop polygon detection. High = clean factory geometry; Low = ambiguous shapes or sparse polygons. Reason flag (if any) shown on hover."
+              />
+              <SortHeader
+                label="Polygon"
+                sortKey="polygon"
+                active={sort.key}
+                dir={sort.dir}
+                onSort={onSort}
+                tooltip="Trust level of the fence-line polygon used for both rooftop clipping and within-boundary ground-mounted calculation. Official (gov KEK boundary) > OSM (community-verified) > Estimated (Claude-traced from buildings) > Buffer (2 km centroid fallback when no polygon exists). Affects both rooftop and ground-mounted MWp credibility. Hover any badge for tier-specific details."
               />
             </tr>
           </thead>
@@ -582,9 +642,19 @@ export default function RooftopPotentialTable() {
                       row.polygon_source_tier === 'none'
                         ? 'Low-trust: no fence-line polygon — using 2 km centroid buffer fallback. Likely over-counts adjacent land.'
                         : 'Low-trust: polygon estimated from detected buildings — fence boundary not independently verified.';
+                    // v4.0.5 (#46 close-out): orthogonal to polygon trust — a site is
+                    // "fully slider-derived" when the strict raster baseline is 0 but
+                    // the hard ceiling is positive (KEK Palu, Petrokimia, all
+                    // operating plants where land cover excludes the polygon).
+                    // The entire displayed MWp comes from the slider's override,
+                    // with no rastered floor underneath. Worth distinguishing
+                    // visually from sites like Industropolis Batang where the
+                    // baseline already accounts for most of the displayed MWp.
+                    const fullySliderDerived = baseline === 0 && hardMax > 0 && groundMwp != null;
+                    const sliderDerivedTooltip = `Fully slider-derived: no rastered-floor buildable area at this site. The ${groundMwp?.toFixed(1) ?? '—'} MWp is 100% from the soft-exclusion override (slider). Range: 0 MWp at slider = 0% to ${hardMax.toFixed(1)} MWp at slider = 100%.`;
                     const groundTitle =
                       groundMwp != null
-                        ? `Baseline ${baseline.toFixed(1)} MWp + ${(buildoutPct * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax.toFixed(1)} MWp)${lowTrustPolygon ? ` — ${lowTrustTooltip}` : ''}`
+                        ? `Baseline ${baseline.toFixed(1)} MWp + ${(buildoutPct * 100).toFixed(0)}% × ${softExcluded.toFixed(1)} MWp soft-excluded override (hard-max ${hardMax.toFixed(1)} MWp)${lowTrustPolygon ? ` — ${lowTrustTooltip}` : ''}${fullySliderDerived ? ` — ${sliderDerivedTooltip}` : ''}`
                         : 'No buildable land within fence (or 2 km buffer for no-polygon sites). Slope, peat, or Kawasan Hutan filters eliminated all in-boundary pixels.';
                     return (
                       <>
@@ -598,6 +668,21 @@ export default function RooftopPotentialTable() {
                           title={groundTitle}
                         >
                           {groundMwp != null ? formatMwp(groundMwp) : '—'}
+                          {fullySliderDerived && (
+                            <span
+                              role="img"
+                              style={{
+                                marginLeft: 2,
+                                color: 'var(--text-muted)',
+                                fontStyle: 'italic',
+                                cursor: 'help',
+                              }}
+                              title={sliderDerivedTooltip}
+                              aria-label="fully slider-derived MWp"
+                            >
+                              *
+                            </span>
+                          )}
                           {groundMwp != null && lowTrustPolygon && (
                             <span
                               role="img"
@@ -669,6 +754,30 @@ export default function RooftopPotentialTable() {
                       {conf}
                     </span>
                   </td>
+                  {(() => {
+                    const tier = row.polygon_source_tier ?? 'none';
+                    const polyBadge = POLYGON_TIER_BADGE[tier] ?? POLYGON_TIER_BADGE.none;
+                    return (
+                      <td style={{ padding: '6px 12px' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            background: polyBadge.bg,
+                            color: polyBadge.fg,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                          }}
+                          title={polyBadge.tooltip}
+                        >
+                          {polyBadge.label}
+                        </span>
+                      </td>
+                    );
+                  })()}
                 </tr>
               );
             })}

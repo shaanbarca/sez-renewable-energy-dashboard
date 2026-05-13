@@ -443,15 +443,37 @@ WB_SOLAR_FRACTION: float = 0.10
 # Note: At 10%, a 500 ha KEK yields 50 ha × (1 MWp / 1.5 ha) ≈ 33 MWp.
 
 WB_BUILDOUT_FOOTPRINT_RATIO: float = 0.20
-# Share of the KEK area that is realistically available for on-site solar
-# buildout after factories, roads, utilities, and operational buffers. Applied
-# as a haircut to `within_boundary_coverage_pct` before the V3.9 gate checks
-# it against `meaningful_share_pct`. Only affects the grid_integration_category
-# decision (does the KEK qualify as `within_boundary` and skip connection/
-# transmission/upgrade costs?) — LCOE per MWh is unchanged because CAPEX and
-# CF don't depend on installed volume.
-# Default 0.20 = operating industrial park (most land already spoken for).
-# Range: 0.05–1.00 (greenfield KEK with nothing built yet = closer to 1.0).
+# v4.0.5: re-semanticized as the "Land-use override % (global)" slider — the
+# fraction of soft-excluded land (zoned built-up / agricultural / road-distant
+# inside the polygon) the site owner overrides back into deployable. The new
+# math is `deployable = baseline + (hard_max - baseline) × slider%` per
+# METHODOLOGY §5.1.1. Previously this was a multiplicative haircut on raster
+# output, but the new semantic actually controls override-back-in, not
+# haircut-down.
+#
+# Why default = 0.20 (the conservative anchor):
+# - LBNL urban-pavement studies of industrial parks find 15-25% of parking +
+#   logistics area is canopy-viable without changing operations (deployable
+#   today, low cost). The 20% midpoint anchors there.
+# - California SB 49 (2024) mandates 50% solar canopy coverage on >5-acre
+#   parking lots — the regulatory ceiling, but assumes purpose-built canopy
+#   structures, which is more aggressive than the "override soft exclusions"
+#   semantic here. We're conservative vs. the regulatory case.
+# - The slider IS the user's local knowledge: at a greenfield KEK the owner
+#   may push to 0.50+; at a fully-built smelter to 0.10. 0.20 starts the
+#   dashboard in defensible territory without underclaiming so hard that
+#   industrial sites with land-cover-zero baselines show 0 MWp by default.
+# - At Petrokimia Gresik (hard 171 MWp, baseline 0): 0.20 → 34 MWp captive,
+#   ≈3% of demand. Realistic for "modest rooftop canopy program." Sliding to
+#   1.0 yields 171 MWp = aggressive full-site override.
+#
+# Applied client-side in ResourceTab.tsx + RooftopPotentialTable.tsx for
+# instant slider feedback; server reconverges via the within_boundary
+# coverage feed in src/dash/logic/grid.py:112.
+# Range: 0.00–1.00. Below 0.05 the slider rarely makes a visible difference;
+# above 0.50 the override becomes politically loaded (assuming aggressive
+# land-use change). Default tuned for the dashboard's "operating industrial
+# park" use case.
 # Source: resolved after Galang Batang flagged ~59% of its KEK area as
 # "buildable" from the raster filter — vacant land inside a greenfield KEK
 # counts even when earmarked for future factories, so raw buildable area

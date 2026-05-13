@@ -111,6 +111,7 @@ outputs/             Pipeline output CSVs
 | [Architecture](ARCHITECTURE.md) | System diagram, pipeline dependency graph, design decisions |
 | [Design Spec](DESIGN.md) | Dashboard UX spec, component architecture, color system |
 | [Personas](PERSONAS.md) | User journeys for 5 target personas |
+| [UI Conventions](docs/UI_CONVENTIONS.md) | Frontend rules that bind across contributors — tooltip requirements on ambiguous columns, etc. |
 
 ## Testing
 
