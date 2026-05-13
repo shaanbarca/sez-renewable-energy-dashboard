@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from src.pipeline.manual_polygon_overrides import (
@@ -48,7 +48,38 @@ from src.pipeline.manual_polygon_overrides import (
     save_override,
 )
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+# Loopback addresses we accept for admin endpoints. IPv4 + IPv6 + the
+# hostname form that Starlette sometimes reports for dev-server requests.
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
+def require_localhost(request: Request) -> None:
+    """Reject any request whose `client.host` isn't a loopback address.
+
+    Defense in depth on top of the env-flag gate in `src/api/main.py`. The
+    env flag prevents the router from being mounted at all in production
+    (Render), but on a dev machine with `EEZ_ENABLE_ADMIN_TOOLS=1` set,
+    the CORSMiddleware's `allow_origins=["*"]` would otherwise let a
+    malicious page from a different origin issue admin requests in the
+    dev browser. Binding admin routes to localhost-only closes that hole.
+
+    Returns None on success; raises 403 otherwise. The 'testclient' host
+    is included so Starlette's TestClient (used by pytest) doesn't have
+    to spoof an IP — the test suite is trusted.
+    """
+    host = request.client.host if request.client else None
+    if host not in _LOOPBACK_HOSTS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(f"admin endpoints are bound to localhost; client.host={host!r} rejected"),
+        )
+
+
+router = APIRouter(
+    prefix="/api/admin",
+    tags=["admin"],
+    dependencies=[Depends(require_localhost)],
+)
 
 
 class PolygonOverridePayload(BaseModel):

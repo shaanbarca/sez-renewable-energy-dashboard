@@ -162,25 +162,110 @@ def test_features_sorted_by_site_id_for_clean_git_diffs(override_path: Path):
     assert site_ids == sorted(site_ids)
 
 
+def test_save_rejects_projected_coordinates(override_path: Path):
+    """GeoJSON spec requires WGS84. Saving a polygon in projected meters
+    (e.g. EPSG:23830 UTM coords in the hundreds of thousands) should be
+    rejected at the boundary — the rest of the pipeline rasterizes against
+    EPSG:4326 and would silently produce nonsense otherwise.
+
+    Eng review #52 §failure-modes flagged this as a critical gap.
+    """
+    # Indonesia UTM zone 49S, central Java — y is ~9,000,000 in meters.
+    projected = {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [600000, 9230000],
+                [600100, 9230000],
+                [600100, 9230100],
+                [600000, 9230100],
+                [600000, 9230000],
+            ]
+        ],
+    }
+    with pytest.raises(ValueError, match="out of range"):
+        mpo.save_override("inalum-asahan", projected, path=override_path)
+
+
+def test_save_accepts_multipolygon_round_trip(override_path: Path):
+    """KEK Tanjung Sauh is a real MultiPolygon (6 island fragments per
+    `_load_kek_polygons`). The save_override type signature accepts
+    `Polygon | MultiPolygon`, but every other test uses a simple Polygon.
+    Cover the MultiPolygon path explicitly so Phase 2 (editor) can trust
+    the contract."""
+    multi = {
+        "type": "MultiPolygon",
+        "coordinates": [
+            # Two non-overlapping square islands
+            [[[99.40, 3.30], [99.41, 3.30], [99.41, 3.31], [99.40, 3.31], [99.40, 3.30]]],
+            [[[99.50, 3.40], [99.51, 3.40], [99.51, 3.41], [99.50, 3.41], [99.50, 3.40]]],
+        ],
+    }
+    saved = mpo.save_override("tanjung-sauh", multi, notes="2 islands", path=override_path)
+    assert saved["geometry"]["type"] == "MultiPolygon"
+    assert len(saved["geometry"]["coordinates"]) == 2
+
+    loaded = mpo.load_overrides(override_path)
+    assert "tanjung-sauh" in loaded
+    # MultiPolygon survives shapely round-trip — bounds span both pieces.
+    minx, miny, maxx, maxy = loaded["tanjung-sauh"].bounds
+    assert pytest.approx(minx, abs=1e-9) == 99.40
+    assert pytest.approx(maxx, abs=1e-9) == 99.51
+
+
+def test_save_is_atomic_no_temp_file_leak(override_path: Path):
+    """The `_safe_write` helper writes to a temp file and atomically renames.
+    Verify no `.tmp` file is left behind after a successful save."""
+    mpo.save_override("inalum-asahan", _square_polygon(99.45, 3.36), path=override_path)
+    tmp_files = list(override_path.parent.glob(f"{override_path.name}.*.tmp"))
+    assert tmp_files == [], f"temp file leaked after successful save: {tmp_files}"
+
+
 # ---------------------------------------------------------------------------
 # Admin API tests — env-flag gating + happy path
 # ---------------------------------------------------------------------------
 
 
-def _reload_app_with_flag(value: str | None) -> object:
-    """Reload src.api.main with EEZ_ENABLE_ADMIN_TOOLS set to `value` (or
-    unset if None). The flag is read at import time so each test that flips
-    it needs a fresh import."""
-    if value is None:
-        os.environ.pop("EEZ_ENABLE_ADMIN_TOOLS", None)
-    else:
-        os.environ["EEZ_ENABLE_ADMIN_TOOLS"] = value
+@pytest.fixture
+def admin_enabled(monkeypatch, tmp_path):
+    """Reload `src.api.main` with EEZ_ENABLE_ADMIN_TOOLS=1, redirect the
+    override file to a tmp path, and yield the reloaded app. Teardown
+    (via fixture finalization) ALWAYS unsets the env var and reloads back
+    to disabled — fires even if the test fails mid-execution, preventing
+    env-state leak into other test modules.
+
+    Eng review #52 §3B flagged the leak risk in the prior ad-hoc cleanup.
+    """
     import src.api.main as _main_module  # noqa: PLC0415
 
-    return importlib.reload(_main_module)
+    tmp_overrides = tmp_path / "manual_polygon_overrides.geojson"
+    monkeypatch.setattr(mpo, "OVERRIDES_PATH", tmp_overrides)
+
+    os.environ["EEZ_ENABLE_ADMIN_TOOLS"] = "1"
+    importlib.reload(_main_module)
+    try:
+        yield _main_module
+    finally:
+        os.environ.pop("EEZ_ENABLE_ADMIN_TOOLS", None)
+        importlib.reload(_main_module)
 
 
-def test_admin_routes_404_when_env_flag_off():
+@pytest.fixture
+def admin_disabled():
+    """Reload `src.api.main` with EEZ_ENABLE_ADMIN_TOOLS unset, yield the
+    reloaded app. Teardown reloads again to ensure clean state."""
+    import src.api.main as _main_module  # noqa: PLC0415
+
+    os.environ.pop("EEZ_ENABLE_ADMIN_TOOLS", None)
+    importlib.reload(_main_module)
+    try:
+        yield _main_module
+    finally:
+        os.environ.pop("EEZ_ENABLE_ADMIN_TOOLS", None)
+        importlib.reload(_main_module)
+
+
+def test_admin_routes_404_when_env_flag_off(admin_disabled):
     """Without EEZ_ENABLE_ADMIN_TOOLS=1 the router isn't mounted — production safety.
 
     Uses POST so the SPA fallback handler (which only catches GET) doesn't
@@ -190,20 +275,14 @@ def test_admin_routes_404_when_env_flag_off():
     """
     from starlette.testclient import TestClient  # noqa: PLC0415
 
-    main = _reload_app_with_flag(None)
-    with TestClient(main.app) as client:
-        # POST to the admin endpoint — won't be caught by GET-only SPA fallback.
+    with TestClient(admin_disabled.app) as client:
         r = client.post(
             "/api/admin/polygons/inalum-asahan",
             json={"geometry": _square_polygon(99.4484, 3.3611)},
         )
-        # Either FastAPI 404 or 405 (method not allowed) — both mean
-        # "this route is not actually mounted as an admin endpoint."
         assert r.status_code in (404, 405), (
             f"admin POST reachable when flag off (status={r.status_code}, body: {r.text[:200]})"
         )
-        # Crucially the response is NOT a saved Feature — if it were JSON
-        # with site_id we'd know admin actually ran.
         if r.headers.get("content-type", "").startswith("application/json"):
             body = r.json()
             assert "site_id" not in (body if isinstance(body, dict) else {}), (
@@ -211,17 +290,11 @@ def test_admin_routes_404_when_env_flag_off():
             )
 
 
-def test_admin_routes_mounted_when_env_flag_on(monkeypatch, tmp_path):
-    """Set the flag, point overrides path at temp, hit the endpoints end-to-end."""
+def test_admin_routes_mounted_when_env_flag_on(admin_enabled):
+    """Full end-to-end cycle: list / get / post / delete via TestClient."""
     from starlette.testclient import TestClient  # noqa: PLC0415
 
-    # Redirect the override file to a temp location so the test doesn't
-    # mutate the real one.
-    tmp_overrides = tmp_path / "manual_polygon_overrides.geojson"
-    monkeypatch.setattr(mpo, "OVERRIDES_PATH", tmp_overrides)
-
-    main = _reload_app_with_flag("1")
-    with TestClient(main.app) as client:
+    with TestClient(admin_enabled.app) as client:
         # LIST is empty initially
         r = client.get("/api/admin/polygons")
         assert r.status_code == 200, r.text
@@ -263,8 +336,42 @@ def test_admin_routes_mounted_when_env_flag_on(monkeypatch, tmp_path):
         assert client.delete("/api/admin/polygons/inalum-asahan").status_code == 404
         assert client.get("/api/admin/polygons").json() == {"site_ids": [], "count": 0}
 
-    # Cleanup: reset env flag so other test files don't see admin routes.
-    _reload_app_with_flag(None)
+
+def test_require_localhost_rejects_non_loopback_host():
+    """Admin routes carry a `require_localhost` dependency that rejects any
+    request whose client.host isn't a loopback address. TestClient reports
+    host='testclient' which IS in the loopback allowlist (test suite trusted),
+    so verify the rejection path directly against the dependency function.
+
+    Eng review #52 §1C decision — defense in depth against CORS-allowed cross-
+    origin JS hitting admin routes when the env flag is on locally.
+    """
+    from fastapi import HTTPException  # noqa: PLC0415
+
+    from src.api.routes.admin import _LOOPBACK_HOSTS, require_localhost  # noqa: PLC0415
+
+    # Sanity: loopback addresses are accepted (no exception).
+    class _MockClient:
+        def __init__(self, host: str):
+            self.host = host
+
+    class _MockRequest:
+        def __init__(self, host: str | None):
+            self.client = _MockClient(host) if host is not None else None
+
+    for host in _LOOPBACK_HOSTS:
+        require_localhost(_MockRequest(host))  # should not raise
+
+    # Non-loopback rejected
+    for host in ("203.0.113.5", "10.0.0.1", "evil.example.com"):
+        with pytest.raises(HTTPException) as exc_info:
+            require_localhost(_MockRequest(host))
+        assert exc_info.value.status_code == 403
+
+    # No client info → reject (defensive)
+    with pytest.raises(HTTPException) as exc_info:
+        require_localhost(_MockRequest(None))
+    assert exc_info.value.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -295,3 +402,98 @@ def test_load_all_site_polygons_applies_manual_override(monkeypatch, tmp_path):
     # Provenance also reports manual_override for that site.
     tiers = bfr._load_all_site_provenance()
     assert tiers["kek-palu"] == "manual_override"
+
+
+def test_load_all_site_polygons_appends_new_site_via_override(monkeypatch, tmp_path):
+    """Resource pipeline: an override for a site NOT in any auto-generated
+    source (e.g. one of the 21 'none'-tier sites currently on buffer fallback)
+    should be added to the polygon dict by the merge step.
+
+    Eng review #52 §3A: covers the append path in `_load_all_site_polygons`.
+    """
+    from src.pipeline import build_fct_site_resource as bfr  # noqa: PLC0415
+
+    tmp_overrides = tmp_path / "manual_polygon_overrides.geojson"
+    monkeypatch.setattr(mpo, "OVERRIDES_PATH", tmp_overrides)
+
+    # `inalum-asahan` has no entry in kek_polygons.geojson or
+    # data/industrial_sites/site_polygons.geojson (#50 OSM-gap site).
+    geom = _square_polygon(99.4484, 3.3611)
+    mpo.save_override("inalum-asahan", geom, path=tmp_overrides)
+
+    polygons = bfr._load_all_site_polygons()
+    assert "inalum-asahan" in polygons, "override did not append new site"
+
+    tiers = bfr._load_all_site_provenance()
+    assert tiers.get("inalum-asahan") == "manual_override"
+
+
+# ---------------------------------------------------------------------------
+# Solar potential pipeline — eng review #52 §3A required these
+# ---------------------------------------------------------------------------
+
+
+def test_solar_potential_load_site_polygons_applies_override(monkeypatch, tmp_path):
+    """The OTHER polygon consumer: build_fct_site_solar_potential.py. If this
+    wiring breaks, rooftop calculations silently use auto-generated polygons
+    even when an override exists — exactly the bug-by-omission this whole
+    feature is meant to prevent.
+
+    Verifies override REPLACES an existing KEK polygon in `_load_site_polygons`
+    (which returns a GeoDataFrame, unlike the resource pipeline's dict).
+    """
+    from src.pipeline import build_fct_site_solar_potential as bfsp  # noqa: PLC0415
+
+    tmp_overrides = tmp_path / "manual_polygon_overrides.geojson"
+    monkeypatch.setattr(mpo, "OVERRIDES_PATH", tmp_overrides)
+
+    # Override kek-palu with a far-away polygon to detect the swap.
+    far_geom = _square_polygon(50.0, 0.0, side_deg=0.001)
+    mpo.save_override("kek-palu", far_geom, path=tmp_overrides)
+
+    polygons_gdf = bfsp._load_site_polygons()
+    assert polygons_gdf is not None
+    palu_rows = polygons_gdf[polygons_gdf["site_id"] == "kek-palu"]
+    assert len(palu_rows) == 1, f"expected 1 kek-palu row, got {len(palu_rows)}"
+    minx, _, _, _ = palu_rows.iloc[0].geometry.bounds
+    assert 49.9 < minx < 50.1, (
+        f"override didn't win in solar pipeline — bounds {palu_rows.iloc[0].geometry.bounds}"
+    )
+
+
+def test_solar_potential_load_site_polygons_appends_new_site(monkeypatch, tmp_path):
+    """Solar pipeline: override for a site NOT in any auto-generated source
+    (one of the OSM-gap sites from #50) should be appended as a new row.
+
+    Verifies the append branch in `_load_site_polygons` where overrides
+    populate sites the auto-generated sources don't cover.
+    """
+    from src.pipeline import build_fct_site_solar_potential as bfsp  # noqa: PLC0415
+
+    tmp_overrides = tmp_path / "manual_polygon_overrides.geojson"
+    monkeypatch.setattr(mpo, "OVERRIDES_PATH", tmp_overrides)
+
+    geom = _square_polygon(99.4484, 3.3611)
+    mpo.save_override("inalum-asahan", geom, path=tmp_overrides)
+
+    polygons_gdf = bfsp._load_site_polygons()
+    assert polygons_gdf is not None
+    inalum_rows = polygons_gdf[polygons_gdf["site_id"] == "inalum-asahan"]
+    assert len(inalum_rows) == 1, "override-only site was not appended"
+
+
+def test_solar_potential_polygon_source_tiers_stamps_manual_override(monkeypatch, tmp_path):
+    """Solar pipeline's `_load_polygon_source_tiers` must report
+    `manual_override` for any site present in the override file — the
+    feature's promise of 'highest trust wins' depends on this stamp
+    propagating to the rooftop output's polygon_source_tier column."""
+    from src.pipeline import build_fct_site_solar_potential as bfsp  # noqa: PLC0415
+
+    tmp_overrides = tmp_path / "manual_polygon_overrides.geojson"
+    monkeypatch.setattr(mpo, "OVERRIDES_PATH", tmp_overrides)
+
+    geom = _square_polygon(50.0, 0.0, side_deg=0.001)
+    mpo.save_override("kek-palu", geom, path=tmp_overrides)
+
+    tiers = bfsp._load_polygon_source_tiers()
+    assert tiers.get("kek-palu") == "manual_override"

@@ -46,7 +46,10 @@ Overrides win over every auto-generated tier in
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -83,6 +86,81 @@ def _load_raw(path: Path | None = None) -> dict[str, Any]:
         raise ValueError(f"{path}: expected FeatureCollection, got {data.get('type')}")
     data.setdefault("features", [])
     return data
+
+
+def _safe_write(path: Path, content: str) -> None:
+    """Atomically write `content` to `path` with exclusive file locking.
+
+    Addresses two correctness concerns from the eng review (PR #52):
+    1. Concurrent writes from two POSTs are serialized via `fcntl.flock`
+       on a sibling lock file. The lock is held only for the duration of
+       the write — a few ms at most — so contention is negligible.
+    2. The write itself is atomic: content goes to a temp file in the
+       same directory, then `os.replace()` swaps it into place. POSIX
+       guarantees `os.replace` is atomic on the same filesystem, so a
+       crash mid-write leaves the original file intact (not half-rewritten).
+
+    Same-directory temp file matters: `os.replace` only atomic when source
+    and destination are on the same filesystem. Using `tempfile.gettempdir()`
+    could land on a different mount; using `path.parent` is safe.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with open(lock_path, "w") as lock_fp:
+        fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX)
+        try:
+            # tempfile in the same directory so os.replace is atomic.
+            fd, tmp_path_str = tempfile.mkstemp(
+                prefix=path.name + ".",
+                suffix=".tmp",
+                dir=str(path.parent),
+            )
+            tmp_path = Path(tmp_path_str)
+            try:
+                with os.fdopen(fd, "w") as tmp_fp:
+                    tmp_fp.write(content)
+                os.replace(tmp_path, path)
+            except Exception:
+                # Best-effort cleanup of the temp file if anything fails
+                # before the atomic replace. After replace there is no
+                # tmp_path to clean up.
+                if tmp_path.exists():
+                    tmp_path.unlink()
+                raise
+        finally:
+            fcntl.flock(lock_fp.fileno(), fcntl.LOCK_UN)
+
+
+# GeoJSON spec (RFC 7946) requires coordinates in WGS84 lon/lat. The override
+# file participates in that contract — projected coordinates (e.g. UTM meters)
+# would silently corrupt every downstream pipeline that rasterizes against
+# `EPSG:4326`. Validate at the save boundary so the file format guarantee
+# holds for all readers.
+_LON_MIN, _LON_MAX = -180.0, 180.0
+_LAT_MIN, _LAT_MAX = -90.0, 90.0
+
+
+def _validate_wgs84_bounds(geom_obj: BaseGeometry) -> None:
+    """Raise ValueError if any coordinate falls outside valid lon/lat bounds.
+
+    Catches the common mistake of saving a projected polygon (e.g. EPSG:23830
+    UTM meters in the millions) into a GeoJSON file that the rest of the
+    pipeline treats as WGS84. Doesn't prove the geometry IS in WGS84 — it
+    just rejects the values that obviously aren't.
+    """
+    minx, miny, maxx, maxy = geom_obj.bounds
+    if not (_LON_MIN <= minx <= _LON_MAX and _LON_MIN <= maxx <= _LON_MAX):
+        raise ValueError(
+            f"longitude out of range — got bounds lon=[{minx}, {maxx}], "
+            f"expected within [{_LON_MIN}, {_LON_MAX}]. "
+            f"GeoJSON requires WGS84 (lon/lat); did you save projected coordinates?"
+        )
+    if not (_LAT_MIN <= miny <= _LAT_MAX and _LAT_MIN <= maxy <= _LAT_MAX):
+        raise ValueError(
+            f"latitude out of range — got bounds lat=[{miny}, {maxy}], "
+            f"expected within [{_LAT_MIN}, {_LAT_MAX}]. "
+            f"GeoJSON requires WGS84 (lon/lat); did you save projected coordinates?"
+        )
 
 
 def load_overrides(path: Path | None = None) -> dict[str, BaseGeometry]:
@@ -149,6 +227,7 @@ def save_override(
         raise ValueError(
             f"geometry is not a valid polygon (shapely.is_valid=False): {explain_validity(geom_obj)}"
         )
+    _validate_wgs84_bounds(geom_obj)
 
     data = _load_raw(path)
     feature: dict[str, Any] = {
@@ -174,8 +253,7 @@ def save_override(
     # Sort by site_id so git diffs are clean and reviewable.
     data["features"].sort(key=lambda f: (f.get("properties") or {}).get("site_id", ""))
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    _safe_write(path, json.dumps(data, indent=2) + "\n")
     return feature
 
 
@@ -191,8 +269,7 @@ def delete_override(site_id: str, path: Path | None = None) -> bool:
     after = len(data["features"])
     if after == before:
         return False
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    _safe_write(path, json.dumps(data, indent=2) + "\n")
     return True
 
 
