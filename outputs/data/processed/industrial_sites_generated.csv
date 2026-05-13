@@ -48,7 +48,7 @@ stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),cluster,nickel,mix
 industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),cluster,nickel,mixed_nickel,,0.4789,127.9984,,1741000 TPA,1741000.0,Nickel Pig Iron,,iron_steel
 buli-industrial-park,Buli Industrial Park,cluster,nickel,mixed_nickel,,0.8408315536,128.2559372,,40500 TPA,40500.0,Ferro Nickel,,iron_steel
 indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),cluster,nickel,mixed_nickel,,-3.016794486,121.8324283,,,,Mixed RKEF/HPAL,,iron_steel
-inalum-asahan,Inalum Asahan,standalone,aluminium,primary_aluminium,North Sumatra,2.703,99.243,,250000 TPA,250000.0,Hall-Heroult,Indonesia Asahan Aluminium (Inalum),aluminium
+inalum-asahan,Inalum Asahan,standalone,aluminium,primary_aluminium,North Sumatra,3.3611,99.4484,,250000 TPA,250000.0,Hall-Heroult,Indonesia Asahan Aluminium (Inalum),aluminium
 freeport-smelter-gresik,Freeport Smelter Gresik,standalone,aluminium,copper_cathode,East Java,-7.07726,112.62635,,300000 TPA,300000.0,Flash Smelting,Freeport Indonesia / Inalum,aluminium
 pupuk-kaltim-bontang,Pupuk Kaltim Bontang,standalone,fertilizer,urea,East Kalimantan,0.121,117.5,,2400000 TPA,2400000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
 pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,standalone,fertilizer,urea,South Sumatra,-2.9782,104.802,,2000000 TPA,2000000.0,Ammonia Synthesis,Pupuk Indonesia Group,fertilizer
