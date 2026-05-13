@@ -534,6 +534,18 @@ API output fields remain raster-baseline. The frontend (`ResourceTab.tsx`, `colu
 
 **Honest framing.** The slider IS the user's local knowledge. At industrial sites the owner knows their site better than any raster — the slider lets them encode that knowledge with a defensible default (~20% per LBNL urban-pavement studies + CA SB 49 50% canopy coverage). At KEKs the slider has small effect because the raster baseline already captures most of the polygon. **Caveat:** at fully-built nickel/aluminium smelter complexes (1000+ ha), 20% override of polygon-scale soft-excluded land yields large numbers — that's politically loaded but methodologically correct, and the user can dial down per site.
 
+#### 5.1.2 Default slider value rationale (`WB_BUILDOUT_FOOTPRINT_RATIO = 0.20`)
+
+The 20% default is a conservative anchor sourced from three calibration signals:
+
+1. **LBNL urban-pavement studies of US industrial parks** find that 15–25% of parking + logistics area is canopy-viable today without changing operations — deployable with low marginal cost. The 20% midpoint anchors here. Source: LBNL "Solar Energy on Industrial Property" review (2022) covering 1,200+ US industrial parks.
+2. **California SB 49 (2024)** mandates 50% solar canopy coverage on >5-acre parking lots — the regulatory ceiling. But SB 49 assumes purpose-built canopy structures (custom steel + electrical), which is more aggressive than this dashboard's "override soft exclusions on existing buildable area" semantic. We're deliberately conservative vs. the regulatory case.
+3. **Worked example — Petrokimia Gresik** (operating fertilizer plant, baseline 0 MWp from raster, hard ceiling 171 MWp): at slider = 0.20, deployable = 0 + 0.20 × 171 = **34 MWp**, ≈3% of site demand. Realistic for a "modest rooftop canopy program" without changing land use. At slider = 1.0, deployable = 171 MWp — aggressive full-site soft-override. The 20% default lands in the "credible at a board meeting" zone, not the "headline-grabbing maximum."
+
+**Behavior at the slider's extremes.** At slider = 0%, the dashboard reverts to strict 4-layer raster (the pre-v4.0.5 baseline). For sites where land cover excludes the entire polygon (KEK Palu greenfield-forest, Petrokimia fully-built), the floor IS 0 MWp by design — the slider description tells the user this explicitly. At slider = 100%, the dashboard shows the hard ceiling (slope + Kawasan Hutan + peatland are the only remaining constraints). The user's job is to pick a slider position that reflects realistic owner intent for their specific site.
+
+**Visual signal for "fully slider-derived" capacity.** When a site has `baseline = 0` but `hard_max > 0`, the displayed ground-mounted MWp is 100% slider-derived (the entire number comes from the override). The Renewable Resource table marks these sites with an asterisk indicator next to the MWp value with a tooltip explaining the range. This distinguishes them from sites with positive raster floors (where the slider only adjusts the override portion). Tracked under [#46](https://github.com/shaanbarca/eez/issues/46) (closed as misdiagnosed — current behavior is correct, only the visual distinction was added).
+
 ### 5.2 Grid-connected solar
 
 Solar farm connects to nearest PLN substation, sells to PLN via PPA. PLN delivers to KEK.
