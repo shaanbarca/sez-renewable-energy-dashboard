@@ -40,7 +40,7 @@ Open http://localhost:5173.
 ## Running tests
 
 ```bash
-# Backend: 686 tests across model, pipeline, API, and rooftop solar pipeline modules
+# Backend: 847 tests across model, pipeline, API, and rooftop solar pipeline modules
 uv run pytest tests/
 
 # Frontend: type-check
@@ -69,6 +69,42 @@ Both ruff and biome run as pre-commit hooks.
 2. Make your changes. If you're modifying the model (`src/model/basic_model.py`), add or update tests in `tests/`.
 3. Run `uv run pytest tests/` and `cd frontend && npx tsc --noEmit` before pushing.
 4. Open a PR. Describe what you changed and why. CI will run tests automatically.
+5. If the work surfaced **follow-ups** that aren't being fixed in the same PR — file a GitHub issue for each (see "Tracking follow-ups" below).
+
+## Tracking follow-ups
+
+Whenever a PR or review surfaces a follow-up that isn't being fixed in the current branch — a deferred bug, a bucket of sites needing validation, a methodology gap, a "we'll do this in v4.1" item — **file a GitHub issue immediately**. Don't rely on memory, chat threads, or PR-body bullets alone. Issues are the only durable tracking layer; everything else decays.
+
+### What warrants an issue
+
+- A bug found but explicitly deferred (e.g., "21 polygon-missing sites — buffer fallback now, real polygons later")
+- A scope split surfaced during root-cause analysis or review ("bucket B is a separate UX problem from bucket A")
+- A methodology gap noted in passing ("KEK coarse-raster optimism — measure properly in v4.1")
+- A `/codex review` or `/plan-eng-review` finding classified as deferred / non-blocking
+- A `TODO` / `FIXME` / `HACK` comment that represents real future work, not a trivial inline note
+- Tier-3 polygon hunts, sector-specific calibrations, or any "the dashboard isn't lying but we know it could be better" item
+
+### What doesn't
+
+- Things you're fixing in the same PR (those go in the PR body)
+- Polish ideas without acceptance criteria (those go in `TODOS.md` if anywhere)
+- Anything already covered by an open issue (link to it, don't duplicate)
+
+### Pattern
+
+```bash
+gh issue create --repo shaanbarca/eez \
+  --title "v<target-release>: <one-liner>" \
+  --body "<context: what was found + why deferred + acceptance criteria>"
+```
+
+Reference the new issue number in the surfacing PR's body (`Closes #X` if fixed here; `Follow-up: #Y` if deferred) and add it to `TODOS.md`'s "Today's deltas" section so the next session sees it. The next "what's next" question starts with:
+
+```bash
+gh issue list --repo shaanbarca/eez --state open
+```
+
+**Why this matters in practice.** The PR #44 → #45 / #46 / #43-rescope / #47 / #48 chain in May 2026 surfaced 5+ loose threads across one feature. Every one of them got a GitHub issue at the moment it was identified — that's why none got lost when the session ended. Without that discipline, half of them would be sitting in a Slack thread or a forgotten PR comment, and we'd rediscover them as "didn't we already know about this?" weeks later.
 
 ## Data notes
 
