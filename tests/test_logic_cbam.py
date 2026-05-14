@@ -263,3 +263,138 @@ def test_f9_methodology_note_is_explicit_about_indicative_status() -> None:
     assert note is not None
     assert "Indicative" in note
     assert "deferred" in note.lower()
+
+
+# ─── #63 (v4.0.7) — CBAM Scope 2 sectoral pricing per EU Reg 2025/2547 ─────────
+
+
+def test_scope_2_priced_flag_true_for_cement() -> None:
+    """EU Implementing Reg 2025/2547: cement prices both Scope 1 and Scope 2 in
+    the initial definitive phase."""
+    out = compute_cbam_trajectory(
+        ["cement"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["cbam_scope_2_priced"] is True
+
+
+def test_scope_2_priced_flag_true_for_fertilizer_and_ammonia() -> None:
+    out_f = compute_cbam_trajectory(
+        ["fertilizer"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    out_a = compute_cbam_trajectory(
+        ["ammonia"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out_f["cbam_scope_2_priced"] is True
+    assert out_a["cbam_scope_2_priced"] is True
+
+
+def test_scope_2_priced_flag_false_for_aluminium() -> None:
+    """EU Implementing Reg 2025/2547: aluminium prices Scope 1 only in initial
+    phase. Scope 2 is reported but not in the CBAM bill."""
+    out = compute_cbam_trajectory(
+        ["aluminium"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["cbam_scope_2_priced"] is False
+
+
+def test_scope_2_priced_flag_false_for_steel_eaf_and_bfbof() -> None:
+    out_eaf = compute_cbam_trajectory(
+        ["steel_eaf"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    out_bfbof = compute_cbam_trajectory(
+        ["steel_bfbof"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out_eaf["cbam_scope_2_priced"] is False
+    assert out_bfbof["cbam_scope_2_priced"] is False
+
+
+def test_aluminium_re_savings_are_zero_under_current_rules() -> None:
+    """Core regression for #63 / refinement Finding 1. Pre-v4.0.7 the dashboard
+    showed aluminium RE-switching saving the full Scope 2 × CBAM rate (~$500/t
+    by 2030). Under EU Reg 2025/2547 those savings are not creditable until the
+    EU extends Scope 2 — RE-addressable savings must be exactly zero."""
+    out = compute_cbam_trajectory(
+        ["aluminium"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["cbam_savings_2026_usd_per_tonne"] == 0.0
+    assert out["cbam_savings_2030_usd_per_tonne"] == 0.0
+    assert out["cbam_savings_2034_usd_per_tonne"] == 0.0
+
+
+def test_steel_eaf_re_savings_are_zero_under_current_rules() -> None:
+    out = compute_cbam_trajectory(
+        ["steel_eaf"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    assert out["cbam_savings_2030_usd_per_tonne"] == 0.0
+
+
+def test_cement_re_savings_remain_positive_under_current_rules() -> None:
+    """Scope-2-priced sectors keep their CBAM savings. The fix must not regress
+    the cement / fertilizer / ammonia signal."""
+    out = compute_cbam_trajectory(
+        ["cement"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    # Cement is 12% RE-addressable on 0.9 MWh/t * 0.8 t/MWh * $88 * (1-0.485)
+    # ≈ $3.9 — must be positive, not silently zero.
+    assert out["cbam_savings_2030_usd_per_tonne"] > 0
+
+
+def test_aluminium_cost_drops_when_scope_2_not_priced() -> None:
+    """Cost calculation must use Scope 1 only for aluminium. With Scope 1 = 1.5
+    tCO2/t (anode consumption) and the 2030 effective rate $88 × 1.10 × (1 −
+    0.485) ≈ $43.32/t, aluminium 2030 cost should be ≈ $65, not the previous
+    1.5 + 12.0 = 13.5 × $43.32 ≈ $585."""
+    out = compute_cbam_trajectory(
+        ["aluminium"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    cost_2030 = out["cbam_cost_2030_usd_per_tonne"]
+    # Hard bounds — must be in the Scope-1-only zone, not the (Scope 1 + 2) zone.
+    assert 50 <= cost_2030 <= 80, (
+        f"Expected aluminium 2030 cost in [50, 80] (Scope 1 only); got {cost_2030}. "
+        "If this is in the ~500 range, the Scope 2 priced gate is broken."
+    )
+
+
+def test_steel_bfbof_cost_dominated_by_scope_1() -> None:
+    """BF-BOF Scope 1 (1.8 tCO2/t coke) dominates. Removing the Scope 2 component
+    (0.25 MWh/t × 0.8 = 0.2 tCO2/t) drops the cost by only ~10%."""
+    out = compute_cbam_trajectory(
+        ["steel_bfbof"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    cost_2030 = out["cbam_cost_2030_usd_per_tonne"]
+    # Scope 1 only: 1.8 × $43.32 ≈ $78.
+    assert 70 <= cost_2030 <= 85, f"Expected BF-BOF 2030 cost ~$78 (Scope 1 only); got {cost_2030}."
+
+
+def test_emission_intensity_current_reports_total_even_when_unpriced() -> None:
+    """The reported `emission_intensity_current` includes Scope 2 even for
+    sectors where it isn't priced — the EU reg still requires Scope 2
+    reporting. Only the cost/savings math gates on `scope_2_priced`."""
+    out = compute_cbam_trajectory(
+        ["aluminium"], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10
+    )
+    # Aluminium: 1.5 Scope 1 + (15.0 × 0.8 = 12.0 Scope 2) = 13.5 reported.
+    assert out["cbam_emission_intensity_current"] == 13.5
+    # Solar/Scope-1-only is just the process emissions.
+    assert out["cbam_emission_intensity_solar"] == 1.5
+
+
+def test_scope_2_priced_is_none_for_non_cbam_site() -> None:
+    """Sites with no CBAM exposure get null for the flag too."""
+    out = compute_cbam_trajectory([], grid_ef_t_co2_mwh=0.8, cbam_price_eur=80.0, eur_usd_rate=1.10)
+    assert out["cbam_scope_2_priced"] is None
+
+
+def test_unknown_ctype_defaults_to_scope_2_priced_true() -> None:
+    """Conservative default: a new sector that lands without an explicit entry
+    in CBAM_SCOPE_2_PRICED falls back to True (pre-v4.0.7 behavior). Prevents
+    silent under-counting of new sectors before the assumption is reviewed."""
+    out = compute_cbam_trajectory(
+        ["new_sector_xyz"],
+        grid_ef_t_co2_mwh=0.8,
+        cbam_price_eur=80.0,
+        eur_usd_rate=1.10,
+    )
+    # When unknown, the function returns 0 intensity (missing dict entries) so
+    # cost will be 0 but the FLAG defaults to True. Verify the flag specifically.
+    assert out["cbam_scope_2_priced"] is True

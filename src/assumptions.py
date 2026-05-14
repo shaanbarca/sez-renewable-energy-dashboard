@@ -927,6 +927,38 @@ CBAM_SCOPE1_TCO2_PER_TONNE: dict[str, float] = {
     "cement": 0.52,  # Calcination (CaCO₃ → CaO + CO₂) — ~60% of total cement emissions
 }
 
+# Whether CBAM prices Scope 2 (indirect electricity emissions) for each sector in
+# the initial definitive phase. Per EU Commission Implementing Regulation (EU)
+# 2025/2547 (10 December 2025):
+#   - Cement + fertilizer (incl. ammonia) → embedded emissions include Scope 1 AND
+#     Scope 2 (priced)
+#   - Steel (BF-BOF + EAF), aluminium, hydrogen → only Scope 1 priced; Scope 2 is
+#     reported but NOT included in the CBAM bill
+# Pre-v4.0.7 the dashboard treated all sectors as Scope 1 + Scope 2 priced,
+# overstating the CBAM signal for aluminium (~3-4×), steel EAF (~2×), and steel
+# BF-BOF (~15-20%) — distorting the architecture-menu rankings. Issue #63 filed
+# this fix; full refinement at
+# docs/refinement/methodology_cbam_scope2_coverage_review_2026-05-14.md.
+#
+# Nickel is kept True to preserve the dashboard's existing indirect-exposure
+# semantic (China ETS + EU OEM Scope-3 via downstream battery flows). Direct EU
+# CBAM does not cover nickel; the refinement doc defers nickel re-treatment.
+#
+# EU may extend Scope 2 to all Annex I sectors in future review (Sandbag policy
+# briefs Aug 2025 argue for this). The dashboard surfaces this asymmetry via the
+# `cbam_scope_2_priced` per-site column so frontend can show the sectoral status
+# and (in v4.3) toggle a "post-expansion" sensitivity scenario (proposed M-AT7).
+CBAM_SCOPE_2_PRICED: dict[str, bool] = {
+    "cement": True,
+    "fertilizer": True,
+    "ammonia": True,
+    "steel_eaf": False,
+    "steel_bfbof": False,
+    "aluminium": False,
+    "nickel_rkef": True,  # indirect exposure proxy; not direct EU CBAM
+}
+
+
 # Fraction of CBAM Scope 2 savings that is actually RE-addressable.
 # CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE is thermal-inclusive for cement / fertilizer /
 # ammonia — most of that energy is coke, kiln fuel, or SMR gas feedstock that switching

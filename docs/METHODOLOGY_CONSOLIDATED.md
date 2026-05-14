@@ -1884,19 +1884,40 @@ $$P_{\text{CBAM}} = \text{EU ETS price} \times \text{EUR/USD rate} = \text{€}8
 | 2033 | 14.0% | 86.0% |
 | 2034 | 0.0% | 100.0% |
 
-**Cost per tonne of product at year Y** (EU bills the full scope2 at the border):
-$$C_{\text{CBAM}}(Y) = EI_{\text{current}} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
+**Sectoral Scope 2 pricing (v4.0.7 — issue #63):**
 
-**Savings per tonne from switching to solar at year Y** (solar only cuts the RE-addressable fraction of scope2 — see §14.3):
-$$S_{\text{CBAM}}(Y) = \text{scope2\_addressable} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
+EU Commission Implementing Regulation (EU) 2025/2547 (10 December 2025) establishes that **Scope 2 (indirect electricity emissions) is priced in the initial definitive phase only for cement and fertilizers** (incl. ammonia). For steel (BF-BOF + EAF), aluminium, and hydrogen, only Scope 1 is priced; Scope 2 is reported but **not** included in the CBAM bill. The EU may extend Scope 2 to all Annex I sectors in a future review.
+
+| `cbam_product_type` | Scope 2 priced? | Rationale |
+|---|---|---|
+| `cement` | **Yes** | Reg 2025/2547 — both direct and indirect emissions priced |
+| `fertilizer` / `ammonia` | **Yes** | Reg 2025/2547 — both direct and indirect emissions priced |
+| `steel_eaf` / `steel_bfbof` | **No** | Initial phase: only direct (Scope 1) priced |
+| `aluminium` | **No** | Initial phase: only direct (Scope 1) priced |
+| `hydrogen` (future) | **No** | Initial phase: only direct (Scope 1) priced |
+| `nickel_rkef` | n/a (proxy) | Nickel is not in EU CBAM Annex I; the dashboard's nickel CBAM cost models indirect exposure via downstream battery OEMs (China ETS + EU OEM Scope-3). Flag kept `True` to preserve that semantic. |
+
+**Cost per tonne of product at year Y:**
+$$C_{\text{CBAM}}(Y) = (EI_{\text{scope1}} + \mathbb{1}_{\text{scope2 priced}} \cdot EI_{\text{scope2}}) \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
+
+where $\mathbb{1}_{\text{scope2 priced}}$ is 1 for cement/fertilizer/ammonia, 0 otherwise.
+
+**Savings per tonne from switching to renewable electricity at year Y:**
+$$S_{\text{CBAM}}(Y) = \mathbb{1}_{\text{scope2 priced}} \cdot \text{scope2\_addressable} \times P_{\text{CBAM}} \times (1 - \text{free\_alloc}(Y)) \quad [\text{USD/t product}]$$
 
 $$\text{where } \text{scope2\_addressable} = \text{electricity\_intensity} \times EF_{\text{grid}} \times \text{RE\_addressable\_fraction}$$
 
-For sectors where the intensity table is pure electricity (nickel_rkef, steel_eaf, aluminium), RE_addressable_fraction = 1.0 and savings equal the full Scope 2 × price. For thermal-inclusive sectors (cement, ammonia, fertilizer, steel_bfbof), RE_addressable_fraction < 1.0 and savings are correspondingly smaller — because solar doesn't electrify a cement kiln.
+For sectors where Scope 2 isn't priced (steel, aluminium, hydrogen), RE-switching produces real physical emission reductions but **zero CBAM relief in the initial phase** — the financial signal flows entirely from Scope 1 abatement pathways (process change, CCS) until Scope 2 is included.
 
-**Output fields:** `cbam_cost_2026/2030/2034_usd_per_tonne`, `cbam_savings_2026/2030/2034_usd_per_tonne`. Three snapshot years capture the trajectory shape: 2026 (minimal), 2030 (mid-transition), 2034 (full exposure).
+**The electrification loophole.** Because Scope 1 is priced but Scope 2 is not, switching steel/aluminium/H₂ from coal-fired heat (Scope 1) to electric heat (Scope 2) under current rules eliminates the CBAM bill regardless of electricity carbon intensity — even if the electricity comes from a new captive coal plant. This is an asymmetric (likely unintended) feature of the initial phase that the EU may close in future Scope 2 expansion. Dashboard architecture-menu rankings reflect today's rules; a v4.3 sensitivity scenario will toggle the flag for what-if analysis.
 
-**Constants:** `CBAM_CERTIFICATE_PRICE_EUR_TCO2`, `CBAM_EUR_USD_RATE`, `CBAM_FREE_ALLOCATION` in `src/assumptions.py`.
+For thermal-inclusive sectors (cement, ammonia, fertilizer, steel_bfbof), RE_addressable_fraction < 1.0 and savings are correspondingly smaller — solar doesn't electrify a cement kiln. For pure-electricity sectors (nickel_rkef, steel_eaf, aluminium), RE_addressable_fraction = 1.0.
+
+**Output fields:** `cbam_cost_2026/2030/2034_usd_per_tonne`, `cbam_savings_2026/2030/2034_usd_per_tonne`, `cbam_scope_2_priced`. Three snapshot years capture the trajectory shape: 2026 (minimal), 2030 (mid-transition), 2034 (full exposure).
+
+**Constants:** `CBAM_CERTIFICATE_PRICE_EUR_TCO2`, `CBAM_EUR_USD_RATE`, `CBAM_FREE_ALLOCATION`, `CBAM_SCOPE_2_PRICED` in `src/assumptions.py`.
+
+**Refinement anchor:** `docs/refinement/methodology_cbam_scope2_coverage_review_2026-05-14.md` (full citations + Finding 2 electrification loophole + proposed v4.3 M-AT7 transparency pattern).
 
 ### 14.5 CBAM-adjusted competitive gap
 

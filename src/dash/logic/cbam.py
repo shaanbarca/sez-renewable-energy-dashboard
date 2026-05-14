@@ -18,6 +18,7 @@ from src.assumptions import (
     CBAM_FREE_ALLOCATION,
     CBAM_RE_ADDRESSABLE_FRACTION,
     CBAM_SCOPE1_TCO2_PER_TONNE,
+    CBAM_SCOPE_2_PRICED,
     SCOPE1_ABATEMENT_METHODOLOGY_NOTE,
     SCOPE1_ABATEMENT_PATHWAYS_BY_PRODUCT,
 )
@@ -136,6 +137,7 @@ def compute_cbam_trajectory(
         out["cbam_per_product"] = None
         out["cbam_emission_intensity_current"] = None
         out["cbam_emission_intensity_solar"] = None
+        out["cbam_scope_2_priced"] = None  # #63 — null for non-CBAM-exposed sites
         for year in [2026, 2030, 2034]:
             out[f"cbam_cost_{year}_usd_per_tonne"] = None
             out[f"cbam_savings_{year}_usd_per_tonne"] = None
@@ -155,25 +157,43 @@ def compute_cbam_trajectory(
         re_fraction = CBAM_RE_ADDRESSABLE_FRACTION.get(ctype, 1.0)
         scope2 = elec_intensity * grid_ef
         scope2_re_addressable = scope2 * re_fraction
-        total_ei = scope2 + scope1
+        # #63 (v4.0.7) — EU Implementing Reg 2025/2547 sectoral split. Cement +
+        # fertilizer (incl. ammonia) price Scope 1 + Scope 2. Steel / aluminium /
+        # hydrogen price Scope 1 only in the initial definitive phase. Defaults
+        # to True for unknown ctypes (conservative — keeps pre-v4.0.7 behavior
+        # if a new sector lands without an explicit entry).
+        scope_2_priced = CBAM_SCOPE_2_PRICED.get(ctype, True)
+        priced_ei = scope1 + (scope2 if scope_2_priced else 0)
+        # Reported emission intensity always includes Scope 2 (the reg requires
+        # Scope 2 reporting even where it isn't priced). Use this for the
+        # "current intensity" disclosure; gate the priced cost separately.
+        reported_ei = scope1 + scope2
 
         metrics: dict = {
-            "emission_intensity_current": round(total_ei, 1),
+            "emission_intensity_current": round(reported_ei, 1),
             "emission_intensity_solar": round(scope1, 1),
+            "scope_2_priced": scope_2_priced,
         }
         for year in [2026, 2030, 2034]:
             free_alloc = CBAM_FREE_ALLOCATION.get(year, 0.0)
             effective_rate = price_usd * (1 - free_alloc)
-            metrics[f"cost_{year}_usd_per_tonne"] = round(total_ei * effective_rate, 0)
-            metrics[f"savings_{year}_usd_per_tonne"] = round(
-                scope2_re_addressable * effective_rate, 0
-            )
+            metrics[f"cost_{year}_usd_per_tonne"] = round(priced_ei * effective_rate, 0)
+            # RE-addressable savings only flow into the CBAM bill when Scope 2 is
+            # priced. For steel / aluminium / H₂ under current rules, RE-switching
+            # delivers physical emission reductions but zero CBAM relief.
+            re_savings = scope2_re_addressable if scope_2_priced else 0.0
+            metrics[f"savings_{year}_usd_per_tonne"] = round(re_savings * effective_rate, 0)
         per_product[ctype] = metrics
 
     out["cbam_per_product"] = per_product
     primary = per_product[cbam_types[0]]
     out["cbam_emission_intensity_current"] = primary["emission_intensity_current"]
     out["cbam_emission_intensity_solar"] = primary["emission_intensity_solar"]
+    # #63 (v4.0.7) — per-site Scope 2 pricing flag. Mirrors the primary product
+    # type. Frontend uses this to render the sectoral status (and v4.3 M-AT7
+    # transparency pattern can toggle a sensitivity scenario where this flips
+    # True for all sectors, simulating an EU Scope 2 expansion).
+    out["cbam_scope_2_priced"] = primary["scope_2_priced"]
     for year in [2026, 2030, 2034]:
         out[f"cbam_cost_{year}_usd_per_tonne"] = primary[f"cost_{year}_usd_per_tonne"]
         out[f"cbam_savings_{year}_usd_per_tonne"] = primary[f"savings_{year}_usd_per_tonne"]
