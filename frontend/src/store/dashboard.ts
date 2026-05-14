@@ -110,6 +110,11 @@ interface DashboardStore {
   // #26 — polygon override actions
   setPolygonOverride: (siteId: string, featureIndex: number) => void;
   clearPolygonOverride: (siteId: string) => void;
+
+  // #59 — manually re-trigger a fetch for a layer that exhausted auto-retries.
+  // Used by FailedLayerToast's Retry button. Deletes the cache entry so
+  // useMapLayers' effect picks it up on the next render.
+  retryLayer: (name: string) => void;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -283,12 +288,21 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   setMapStyle: (style) => set({ mapStyle: style }),
 
   toggleLayer: (name) =>
-    set((state) => ({
-      layerVisibility: {
-        ...state.layerVisibility,
-        [name]: !state.layerVisibility[name],
-      },
-    })),
+    set((state) => {
+      const willBeVisible = !state.layerVisibility[name];
+      const next: Partial<DashboardStore> = {
+        layerVisibility: { ...state.layerVisibility, [name]: willBeVisible },
+      };
+      // #59 — toggling a `_failed` layer back ON deletes the failed cache
+      // entry so useMapLayers re-fetches from scratch. This is the manual-
+      // retry path documented in the FailedLayerToast comments.
+      if (willBeVisible && state.layers[name]?._failed) {
+        const nextLayers = { ...state.layers };
+        delete nextLayers[name];
+        next.layers = nextLayers;
+      }
+      return next;
+    }),
 
   recomputeScorecard: async () => {
     const { assumptions, thresholds, benchmarkMode, polygonOverrideBySite } = get();
@@ -500,5 +514,16 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       // the field in the request body.
       const { [siteId]: _removed, ...rest } = state.polygonOverrideBySite;
       return { polygonOverrideBySite: rest };
+    }),
+
+  // #59 — Retry button in FailedLayerToast. Removes the `_failed` entry from
+  // the cache so useMapLayers' effect picks the layer back up on the next
+  // render and fires a fresh fetchWithRetry. Visibility stays as-is.
+  retryLayer: (name) =>
+    set((state) => {
+      if (!state.layers[name]?._failed) return {};
+      const nextLayers = { ...state.layers };
+      delete nextLayers[name];
+      return { layers: nextLayers };
     }),
 }));

@@ -167,6 +167,79 @@ describe('setEnergyMode — substation/grid invariant (#60)', () => {
   }
 });
 
+describe('layer fetch failure handling (#59)', () => {
+  // useMapLayers marks `_failed` on terminal fetch failure. Toggling a failed
+  // layer off→on, or hitting the FailedLayerToast Retry button, must clear
+  // the cache entry so the next render re-fetches.
+
+  it('toggleLayer off→on clears a _failed cache entry', () => {
+    useDashboardStore.setState({
+      layerVisibility: { substations: false },
+      layers: { substations: { _failed: true, _attempt: 3 } },
+    });
+    useDashboardStore.getState().toggleLayer('substations');
+    const s = useDashboardStore.getState();
+    expect(s.layerVisibility.substations).toBe(true);
+    // The _failed entry must be gone so useMapLayers picks the layer up.
+    expect('substations' in s.layers).toBe(false);
+  });
+
+  it('toggleLayer on→off leaves a _failed entry alone', () => {
+    // Toggling visibility off should not destroy state. The user could be
+    // hiding a broken layer temporarily; the failure status survives.
+    useDashboardStore.setState({
+      layerVisibility: { substations: true },
+      layers: { substations: { _failed: true, _attempt: 3 } },
+    });
+    useDashboardStore.getState().toggleLayer('substations');
+    const s = useDashboardStore.getState();
+    expect(s.layerVisibility.substations).toBe(false);
+    expect(s.layers.substations?._failed).toBe(true);
+  });
+
+  it('toggleLayer off→on does NOT touch a successfully-loaded cache entry', () => {
+    // Sanity: only _failed entries are evicted. Loaded data must survive
+    // toggle cycles to avoid wasteful refetches.
+    const data = { features: [], _loadedAt: 'snapshot' };
+    useDashboardStore.setState({
+      layerVisibility: { substations: false },
+      layers: { substations: data },
+    });
+    useDashboardStore.getState().toggleLayer('substations');
+    expect(useDashboardStore.getState().layers.substations).toBe(data);
+  });
+
+  it('retryLayer clears a _failed cache entry', () => {
+    useDashboardStore.setState({
+      layers: { substations: { _failed: true, _attempt: 3 } },
+    });
+    useDashboardStore.getState().retryLayer('substations');
+    expect('substations' in useDashboardStore.getState().layers).toBe(false);
+  });
+
+  it('retryLayer is a no-op for a non-failed cache entry', () => {
+    // Defensive — Retry button click on a layer that recovered between
+    // render and click should not nuke valid data.
+    const data = { features: [], _loadedAt: 'snapshot' };
+    useDashboardStore.setState({
+      layers: { substations: data },
+    });
+    useDashboardStore.getState().retryLayer('substations');
+    expect(useDashboardStore.getState().layers.substations).toBe(data);
+  });
+
+  it('retryLayer leaves visibility unchanged', () => {
+    // Retry is a fetch-only concern. It must not flip the layer on/off
+    // (the user controls visibility via LayerControl).
+    useDashboardStore.setState({
+      layerVisibility: { substations: false },
+      layers: { substations: { _failed: true, _attempt: 3 } },
+    });
+    useDashboardStore.getState().retryLayer('substations');
+    expect(useDashboardStore.getState().layerVisibility.substations).toBe(false);
+  });
+});
+
 describe('polygon override (#26)', () => {
   it('setPolygonOverride writes the feature_index for the given site', () => {
     useDashboardStore.getState().setPolygonOverride('kek-palu', 42);
