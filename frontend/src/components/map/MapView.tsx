@@ -13,6 +13,7 @@ import {
 import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import FailedLayerToast from './FailedLayerToast';
 import InfraMarkers from './InfraMarkers';
 import ManualOverrideBadges from './ManualOverrideBadges';
 import MeasureTool from './MeasureTool';
@@ -851,6 +852,11 @@ export default function MapView() {
           Loading rooftop tiles…
         </div>
       )}
+
+      {/* #59 — corner toast for layers whose fetch exhausted retries. Only
+          renders when something is broken. Bottom-left so it doesn't fight
+          LayerControl (top-right) or the Back-to-National button (top-center). */}
+      <FailedLayerToast />
 
       {/* Back to National View button — sits below the legend strip. Header
           is 61px (measured), strip is 62-94, so button at 106 leaves a 12px
