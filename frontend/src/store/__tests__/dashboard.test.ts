@@ -85,6 +85,52 @@ describe('selectSite — layer defaults (#26 / #60)', () => {
   });
 });
 
+describe('selectSite(null) — "Back to national view" cleanup (#60)', () => {
+  // At national scale (81 sites, 2913 substations, 1595 grid line segments)
+  // the per-site context layers become visual noise. Going back to national
+  // view should drop them so the map reads cleanly.
+
+  it('clears substations on selectSite(null)', () => {
+    useDashboardStore.getState().selectSite('kek-palu');
+    expect(useDashboardStore.getState().layerVisibility.substations).toBe(true);
+    useDashboardStore.getState().selectSite(null);
+    expect(useDashboardStore.getState().layerVisibility.substations).toBeUndefined();
+  });
+
+  it('clears grid_lines on selectSite(null)', () => {
+    useDashboardStore.getState().selectSite('kek-palu');
+    expect(useDashboardStore.getState().layerVisibility.grid_lines).toBe(true);
+    useDashboardStore.getState().selectSite(null);
+    expect(useDashboardStore.getState().layerVisibility.grid_lines).toBeUndefined();
+  });
+
+  it('re-enables substations + grid_lines on the next site-select', () => {
+    // The round-trip: select → deselect → select again should restore the
+    // auto-enabled layers. Deleting (rather than setting to false) on
+    // selectSite(null) is what makes this work — the `if undefined` guard
+    // sees the cleared key as a fresh first-time selection.
+    useDashboardStore.getState().selectSite('kek-palu');
+    useDashboardStore.getState().selectSite(null);
+    useDashboardStore.getState().selectSite('kek-bitung');
+    expect(useDashboardStore.getState().layerVisibility.substations).toBe(true);
+    expect(useDashboardStore.getState().layerVisibility.grid_lines).toBe(true);
+  });
+
+  it('preserves other layer toggles on selectSite(null)', () => {
+    // Only substations + grid_lines should clear. The user's other layer
+    // choices (peatland, protected_forest, nickel_smelters, etc.) stay
+    // wherever they were.
+    useDashboardStore.setState({
+      layerVisibility: { peatland: true, nickel_smelters: true },
+    });
+    useDashboardStore.getState().selectSite('kek-palu');
+    useDashboardStore.getState().selectSite(null);
+    const lv = useDashboardStore.getState().layerVisibility;
+    expect(lv.peatland).toBe(true);
+    expect(lv.nickel_smelters).toBe(true);
+  });
+});
+
 describe('setEnergyMode — substation/grid invariant (#60)', () => {
   // Energy-mode changes legitimately toggle PVOUT / wind / geothermal /
   // buildable layers. They must NOT touch substations or grid_lines — those

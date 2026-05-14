@@ -185,8 +185,20 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   selectSite: (id) =>
     set((state) => {
-      if (!id)
-        return { selectedSite: null, drawerOpen: false, layerVisibility: state.layerVisibility };
+      if (!id) {
+        // "Back to national view" — clear the per-site context layers that
+        // selectSite auto-enables. Substations + grid lines are useful when
+        // a single site is in focus, but at national scale (81 sites, 2913
+        // substations, 1595 grid line segments) they're visual noise.
+        // We DELETE the keys (rather than set to false) so the next
+        // selectSite call re-enables them via the `if undefined` guard.
+        // This matches the user's mental model of back-to-national as a
+        // soft reset, not a "never show again" toggle.
+        const lv = { ...state.layerVisibility };
+        delete lv.substations;
+        delete lv.grid_lines;
+        return { selectedSite: null, drawerOpen: false, layerVisibility: lv };
+      }
       const lv = { ...state.layerVisibility };
       // Always show solar buildable polygons so the amber chosen-polygon highlight is visible.
       lv.buildable_polygons = true;
