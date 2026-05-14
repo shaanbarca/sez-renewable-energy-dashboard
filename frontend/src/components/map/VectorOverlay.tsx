@@ -107,14 +107,7 @@ function createGeothermalIcon(color: string, size: number, filled: boolean): Ima
     ctx.beginPath();
     ctx.moveTo(x, plumeYBottom);
     // S-curl: bend right then left as we rise
-    ctx.bezierCurveTo(
-      x + s * 0.08,
-      s * 0.4,
-      x - s * 0.08,
-      s * 0.25,
-      x,
-      plumeYTop,
-    );
+    ctx.bezierCurveTo(x + s * 0.08, s * 0.4, x - s * 0.08, s * 0.25, x, plumeYTop);
     ctx.stroke();
   }
 
@@ -254,14 +247,19 @@ export default function VectorOverlay() {
   const layers = useDashboardStore((s) => s.layers);
   const scorecard = useDashboardStore((s) => s.scorecard);
   const selectedSite = useDashboardStore((s) => s.selectedSite);
+  // #26 — global polygon override map (replaces the prior local-state-only
+  // `overriddenFeatureIndex`). The click handler dispatches into the store
+  // so the override survives site switches, flows to the API request, and
+  // can be displayed/reset from the Score Drawer.
+  const polygonOverrideBySite = useDashboardStore((s) => s.polygonOverrideBySite);
+  const setPolygonOverride = useDashboardStore((s) => s.setPolygonOverride);
   const { current: mapRef } = useMap();
 
-  // Part 2B: user override — clicking a different buildable polygon overrides the picker's choice.
-  // Resets whenever the selected site changes.
-  const [overriddenFeatureIndex, setOverriddenFeatureIndex] = useState<number | null>(null);
-  useEffect(() => {
-    setOverriddenFeatureIndex(null);
-  }, [selectedSite]);
+  // Override for the currently selected site (if any). null when no override set.
+  const overriddenFeatureIndex: number | null =
+    selectedSite && polygonOverrideBySite[selectedSite] !== undefined
+      ? polygonOverrideBySite[selectedSite]
+      : null;
 
   // Part 2A: resolve the buildable polygon that the picker anchored to for the selected site.
   // PIP against best_solar_site_lat/lon; falls back to nearest centroid if no polygon contains it.
@@ -454,10 +452,13 @@ export default function VectorOverlay() {
           avg_pvout_annual: feat.properties?.avg_pvout_annual ?? 0,
           capacity_mwp: feat.properties?.capacity_mwp ?? 0,
         });
-        // Part 2B: if a site is selected, override the picker's chosen polygon.
+        // #26 — if a site is selected, dispatch the override into the Zustand
+        // store. The useScorecard hook picks up the change and re-fires the
+        // debounced /api/scorecard POST with polygon_overrides set; the Score
+        // Drawer shows the "Selected polygon" chip + Reset button.
         if (selectedSite) {
           const fi = feat.properties?.feature_index;
-          if (typeof fi === 'number') setOverriddenFeatureIndex(fi);
+          if (typeof fi === 'number') setPolygonOverride(selectedSite, fi);
         }
       }
     };
@@ -469,7 +470,7 @@ export default function VectorOverlay() {
       map.off('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
       map.off('click', 'overlay-buildable-polygons-fill', onClick);
     };
-  }, [mapRef, selectedSite]);
+  }, [mapRef, selectedSite, setPolygonOverride]);
 
   // Wind buildable polygon click + hover cursor
   useEffect(() => {
@@ -699,18 +700,16 @@ export default function VectorOverlay() {
         });
       }
       if (!map.hasImage('geo-pipeline-pre2030-icon')) {
-        map.addImage(
-          'geo-pipeline-pre2030-icon',
-          createGeothermalIcon('#FFB300', 32, false),
-          { sdf: false, pixelRatio: 2 },
-        );
+        map.addImage('geo-pipeline-pre2030-icon', createGeothermalIcon('#FFB300', 32, false), {
+          sdf: false,
+          pixelRatio: 2,
+        });
       }
       if (!map.hasImage('geo-pipeline-post2030-icon')) {
-        map.addImage(
-          'geo-pipeline-post2030-icon',
-          createGeothermalIcon('#9E9E9E', 32, false),
-          { sdf: false, pixelRatio: 2 },
-        );
+        map.addImage('geo-pipeline-post2030-icon', createGeothermalIcon('#9E9E9E', 32, false), {
+          sdf: false,
+          pixelRatio: 2,
+        });
       }
     };
     // Always attach the style.load listener so icons are re-registered every
@@ -776,11 +775,7 @@ export default function VectorOverlay() {
                 id="overlay-substations-symbol"
                 type="symbol"
                 layout={{
-                  'icon-image': [
-                    'coalesce',
-                    ['image', 'bolt-png'],
-                    ['image', 'bolt-icon'],
-                  ],
+                  'icon-image': ['coalesce', ['image', 'bolt-png'], ['image', 'bolt-icon']],
                   'icon-size': 0.4,
                   'icon-allow-overlap': true,
                   'icon-ignore-placement': true,
@@ -823,15 +818,11 @@ export default function VectorOverlay() {
             >
               Substation
             </div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              {subHover.name || '—'}
-            </div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>{subHover.name || '—'}</div>
             {subHover.voltage != null && subHover.voltage !== '' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Voltage</span>
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {subHover.voltage}
-                </span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{subHover.voltage}</span>
               </div>
             )}
             {subHover.capacity_mva != null && subHover.capacity_mva !== '' && (
@@ -1704,7 +1695,8 @@ export default function VectorOverlay() {
               {geoOpHover.name} PLTP
             </div>
             <div style={{ color: 'var(--text-secondary)' }}>
-              {geoOpHover.capacity_mw.toFixed(0)} MW · operating since {geoOpHover.year_commissioned}
+              {geoOpHover.capacity_mw.toFixed(0)} MW · operating since{' '}
+              {geoOpHover.year_commissioned}
             </div>
             {geoOpHover.operator && (
               <div style={{ color: 'var(--text-muted)' }}>{geoOpHover.operator}</div>

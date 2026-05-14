@@ -371,3 +371,130 @@ def test_normal_keks_not_affected_by_no_solar_flag(client):
     palu = next((r for r in data["scorecard"] if r["site_id"] == "kek-palu"), None)
     assert palu is not None, "kek-palu not found in scorecard"
     assert palu["action_flag"] != "no_solar_resource"
+
+
+# ---------------------------------------------------------------------------
+# #26 — polygon_overrides flow
+# ---------------------------------------------------------------------------
+
+
+def _grid_lcoe_for(scorecard: list[dict], site_id: str) -> float | None:
+    """Pull the grid_connected_solar pre-curtailment LCOE for a site.
+
+    `lcoe_grid_connected_pre_curtailment_usd_mwh` is always the grid-connected
+    scenario, regardless of which scenario the scorecard chooses as primary
+    via `grid_integration_category`. That makes it the direct measurement of
+    the override's effect (whereas `lcoe_mid_usd_mwh` follows the gi_category
+    and only shifts on KEKs where gi_cat != within_boundary)."""
+    row = next((r for r in scorecard if r.get("site_id") == site_id), None)
+    if row is None:
+        return None
+    val = row.get("lcoe_grid_connected_pre_curtailment_usd_mwh")
+    if val is None or (isinstance(val, float) and (val != val)):  # NaN check
+        return None
+    return float(val)
+
+
+def test_polygon_override_changes_grid_connected_lcoe(client):
+    """#26 — Applying a polygon override for a KEK must shift its
+    grid_connected_solar LCOE. Picks the first buildable polygon (feature_index=0)
+    and confirms that the new LCOE differs from the auto-picked baseline by more
+    than rounding tolerance."""
+    body = _default_body(client)
+
+    baseline_resp = client.post("/api/scorecard", json=body)
+    assert baseline_resp.status_code == 200
+    baseline = baseline_resp.json()["scorecard"]
+
+    # Find a KEK with a finite baseline grid_connected LCOE to override
+    site_id = next(
+        (
+            r["site_id"]
+            for r in baseline
+            if r["site_id"].startswith("kek-")
+            and _grid_lcoe_for(baseline, r["site_id"]) is not None
+        ),
+        None,
+    )
+    assert site_id is not None, "no KEK with a finite grid_connected LCOE to override"
+
+    baseline_lcoe = _grid_lcoe_for(baseline, site_id)
+
+    body_with_override = {**body, "polygon_overrides": {site_id: 0}}
+    override_resp = client.post("/api/scorecard", json=body_with_override)
+    assert override_resp.status_code == 200, override_resp.text
+    override_lcoe = _grid_lcoe_for(override_resp.json()["scorecard"], site_id)
+
+    assert override_lcoe is not None, "override produced NaN LCOE"
+    assert abs(override_lcoe - baseline_lcoe) > 0.5, (
+        f"Polygon override for {site_id} did not shift grid_connected LCOE: "
+        f"baseline={baseline_lcoe:.2f}, with-override={override_lcoe:.2f}"
+    )
+
+
+def test_polygon_override_does_not_affect_within_boundary_lcoe(client):
+    """#26 scope invariant — within_boundary captive LCOE uses the KEK polygon's
+    avg PVOUT and must stay constant across overrides. If this test flips, the
+    override scope leaked into the captive scenario."""
+    body = _default_body(client)
+    baseline = client.post("/api/scorecard", json=body).json()["scorecard"]
+
+    # Pick first KEK with finite within_boundary LCOE
+    def wb_lcoe(rows: list[dict], sid: str) -> float | None:
+        row = next((r for r in rows if r["site_id"] == sid), None)
+        if row is None:
+            return None
+        v = row.get("lcoe_within_boundary_usd_mwh")
+        if v is None or (isinstance(v, float) and v != v):
+            return None
+        return float(v)
+
+    site_id = next(
+        (
+            r["site_id"]
+            for r in baseline
+            if r["site_id"].startswith("kek-") and wb_lcoe(baseline, r["site_id"]) is not None
+        ),
+        None,
+    )
+    assert site_id is not None
+
+    baseline_wb = wb_lcoe(baseline, site_id)
+    override = client.post(
+        "/api/scorecard", json={**body, "polygon_overrides": {site_id: 0}}
+    ).json()["scorecard"]
+    override_wb = wb_lcoe(override, site_id)
+
+    assert override_wb == pytest.approx(baseline_wb, abs=0.01), (
+        f"#26 scope invariant violated: within_boundary LCOE shifted from "
+        f"{baseline_wb} to {override_wb} when polygon override applied"
+    )
+
+
+def test_polygon_override_out_of_bounds_returns_422(client):
+    """Invalid override (feature_index > #features) must surface a clean 422 so
+    the frontend can clear the stale selection."""
+    body = _default_body(client)
+    body["polygon_overrides"] = {"kek-palu": 999_999}
+    resp = client.post("/api/scorecard", json=body)
+    assert resp.status_code == 422
+    assert "out of bounds" in resp.text.lower() or "feature_index" in resp.text.lower()
+
+
+def test_polygon_override_no_override_matches_baseline(client):
+    """Sending `polygon_overrides: null` must be identical to omitting the field
+    entirely — the per-request copy of resource_df is a transparent no-op."""
+    body_with_null = {**_default_body(client), "polygon_overrides": None}
+    body_without = _default_body(client)
+    sc_a = client.post("/api/scorecard", json=body_with_null).json()["scorecard"]
+    sc_b = client.post("/api/scorecard", json=body_without).json()["scorecard"]
+
+    def lcoe(rows, sid):
+        return _grid_lcoe_for(rows, sid)
+
+    keks = [r["site_id"] for r in sc_b if r["site_id"].startswith("kek-")]
+    for sid in keks:
+        assert lcoe(sc_a, sid) == lcoe(sc_b, sid), (
+            f"polygon_overrides=None changed grid LCOE for {sid}: "
+            f"{lcoe(sc_a, sid)} vs {lcoe(sc_b, sid)}"
+        )

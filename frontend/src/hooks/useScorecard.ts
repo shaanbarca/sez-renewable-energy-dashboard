@@ -12,12 +12,15 @@ export function useScorecard() {
   const recomputeScorecard = useDashboardStore((s) => s.recomputeScorecard);
   // benchmarkMode changes should trigger recomputation (grid cost benchmark affects action flags)
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
+  // #26 — polygon override map. New click or reset triggers the same
+  // debounced recompute path.
+  const polygonOverrideBySite = useDashboardStore((s) => s.polygonOverrideBySite);
 
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const initializedRef = useRef(false);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: benchmarkMode intentionally triggers recomputation even though it's not read inside the effect body
+  // biome-ignore lint/correctness/useExhaustiveDependencies: benchmarkMode + polygonOverrideBySite intentionally trigger recomputation even though they're not read inside the effect body
   useEffect(() => {
     // Skip the very first render (initial load is handled by initialize())
     if (!initializedRef.current) {
@@ -58,7 +61,7 @@ export function useScorecard() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [assumptions, thresholds, benchmarkMode, recomputeScorecard]);
+  }, [assumptions, thresholds, benchmarkMode, polygonOverrideBySite, recomputeScorecard]);
 
   return { loading };
 }

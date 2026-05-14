@@ -95,6 +95,24 @@ export default function ScoreDrawer() {
   const manualOverrideSiteIds = useDashboardStore((s) => s.manualOverrideSiteIds);
   const enterPolygonEdit = useDashboardStore((s) => s.enterPolygonEdit);
 
+  // #26 — polygon click override. When set, the grid-connected LCOE in this
+  // drawer reflects the user-picked polygon instead of the substation-anchored
+  // auto-pick. Reset button clears the override and re-fires the recompute.
+  const polygonOverrideBySite = useDashboardStore((s) => s.polygonOverrideBySite);
+  const clearPolygonOverride = useDashboardStore((s) => s.clearPolygonOverride);
+  const buildablePolygonsLayer = useDashboardStore((s) => s.layers.buildable_polygons);
+  const activeOverrideIndex =
+    selectedSite && polygonOverrideBySite[selectedSite] !== undefined
+      ? polygonOverrideBySite[selectedSite]
+      : null;
+  const activeOverridePolygon =
+    activeOverrideIndex !== null &&
+    buildablePolygonsLayer &&
+    !buildablePolygonsLayer._loading &&
+    buildablePolygonsLayer.features
+      ? buildablePolygonsLayer.features[activeOverrideIndex]
+      : null;
+
   const effectiveTier = row ? getEffectiveEconomicTier(row, energyMode, costBasis) : null;
   const tierColor = effectiveTier ? (ECONOMIC_TIER_COLORS[effectiveTier] ?? '#666') : '#666';
   const tierLabel = effectiveTier ? getEconomicTierLabel(effectiveTier, energyMode) : '';
@@ -183,6 +201,52 @@ export default function ScoreDrawer() {
                 </div>
               )}
             </div>
+
+            {/* #26 — Polygon override chip. Surfaces "Auto-picked" vs the
+                clicked polygon's stats so the user knows what's driving the
+                grid-connected LCOE. Reset reverts to the substation-anchored
+                auto-pick. Only renders when a buildable polygon has been
+                clicked for this site. */}
+            {activeOverridePolygon && (
+              <div
+                className="mt-2 px-3 py-1.5 rounded flex items-center justify-between gap-2"
+                style={{
+                  background: 'rgba(64, 165, 120, 0.12)',
+                  border: '1px solid rgba(64, 165, 120, 0.45)',
+                }}
+              >
+                <div className="text-[11px] min-w-0" style={{ color: 'var(--text-primary)' }}>
+                  <span style={{ color: '#56C593', fontWeight: 600 }}>● Selected polygon</span>
+                  <span
+                    className="ml-1.5"
+                    style={{ color: 'var(--text-secondary)' }}
+                    title="Grid-connected LCOE now uses this polygon's centroid, average PVOUT, and capacity instead of the substation-anchored auto-pick."
+                  >
+                    {Number(activeOverridePolygon.properties?.area_ha ?? 0).toLocaleString()} ha
+                    {' · '}
+                    {Number(
+                      activeOverridePolygon.properties?.avg_pvout_annual ?? 0,
+                    ).toLocaleString()}{' '}
+                    PVOUT
+                    {' · '}
+                    {Number(activeOverridePolygon.properties?.capacity_mwp ?? 0).toLocaleString()}{' '}
+                    MWp
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => selectedSite && clearPolygonOverride(selectedSite)}
+                  className="text-[10px] px-1.5 py-0.5 rounded transition-colors flex-shrink-0"
+                  style={{
+                    color: '#56C593',
+                    border: '1px solid rgba(64, 165, 120, 0.45)',
+                  }}
+                  title="Revert to auto-picked polygon (substation-anchored)"
+                >
+                  Reset to auto-pick
+                </button>
+              </div>
+            )}
 
             {/* Admin polygon editor entry (#31 phase 2) — only when
                 EEZ_ENABLE_ADMIN_TOOLS=1 on the backend. Never shows on

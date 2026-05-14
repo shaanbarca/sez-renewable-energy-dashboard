@@ -61,6 +61,12 @@ interface DashboardStore {
   manualOverrideSiteIds: Set<string>;
   editingPolygonForSite: string | null;
 
+  // #26 — per-site polygon override (click to recompute grid-connected LCOE).
+  // Map of site_id → feature_index of the clicked buildable polygon. Cleared
+  // when the user switches sites or hits the Score Drawer's Reset button.
+  // Sent verbatim in /api/scorecard POST body.
+  polygonOverrideBySite: Record<string, number>;
+
   // Actions
   setAssumptions: (a: Partial<UserAssumptions>) => void;
   setThresholds: (t: Partial<UserThresholds>) => void;
@@ -100,6 +106,10 @@ interface DashboardStore {
   enterPolygonEdit: (siteId: string) => void;
   exitPolygonEdit: () => void;
   refreshManualOverrides: () => Promise<void>;
+
+  // #26 — polygon override actions
+  setPolygonOverride: (siteId: string, featureIndex: number) => void;
+  clearPolygonOverride: (siteId: string) => void;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -145,6 +155,9 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   adminMode: false,
   manualOverrideSiteIds: new Set<string>(),
   editingPolygonForSite: null,
+
+  // #26 — polygon override map. Starts empty (auto-pick everywhere).
+  polygonOverrideBySite: {},
 
   // Compare scenarios
   flipAssumptions: null,
@@ -259,16 +272,27 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     })),
 
   recomputeScorecard: async () => {
-    const { assumptions, thresholds, benchmarkMode } = get();
+    const { assumptions, thresholds, benchmarkMode, polygonOverrideBySite } = get();
     if (!assumptions || !thresholds) return;
 
     set({ loading: true });
     try {
-      const data = await fetchScorecard(assumptions, thresholds, benchmarkMode);
+      const data = await fetchScorecard(
+        assumptions,
+        thresholds,
+        benchmarkMode,
+        polygonOverrideBySite,
+      );
       set({ scorecard: data.scorecard, loading: false });
     } catch (err) {
       console.error('Failed to recompute scorecard:', err);
       set({ loading: false });
+      // #26 — if the server rejected one of our overrides (e.g. stale
+      // feature_index after a pipeline regen), clear all overrides so the
+      // next request goes through cleanly. The user can re-click if needed.
+      if (err instanceof Error && /422/.test(err.message)) {
+        set({ polygonOverrideBySite: {} });
+      }
     }
   },
 
@@ -444,4 +468,18 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       set({ loading: false });
     }
   },
+
+  // #26 — polygon override actions
+  setPolygonOverride: (siteId, featureIndex) =>
+    set((state) => ({
+      polygonOverrideBySite: { ...state.polygonOverrideBySite, [siteId]: featureIndex },
+    })),
+
+  clearPolygonOverride: (siteId) =>
+    set((state) => {
+      // Drop the site_id key entirely so empty-map check in fetchScorecard skips
+      // the field in the request body.
+      const { [siteId]: _removed, ...rest } = state.polygonOverrideBySite;
+      return { polygonOverrideBySite: rest };
+    }),
 }));
