@@ -143,6 +143,9 @@ data_cache/
 testing/
 data/*.zip
 data/*.html
+
+# Polygon editor (#31) — flock target, never commit
+data/industrial_sites/*.lock
 outputs/
 !outputs/data/processed/
 !outputs/data/raw/
