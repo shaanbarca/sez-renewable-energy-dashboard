@@ -14,6 +14,7 @@ import { MAP_STYLES } from '../../lib/constants';
 import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
+import ManualOverrideBadges from './ManualOverrideBadges';
 import MeasureTool from './MeasureTool';
 import PolygonEditor from './PolygonEditor';
 import RasterOverlay from './RasterOverlay';
@@ -542,6 +543,10 @@ export default function MapView() {
             admin probe in store.initialize succeeded AND the user
             clicked the admin button in ScoreDrawer. No-op otherwise. */}
         <PolygonEditor />
+        {/* Manual-override marker badges (#31 phase 3) — overlays a small
+            "M" pill on every site that has a hand-drawn polygon. Gated
+            internally on adminMode + a non-empty override set. */}
+        <ManualOverrideBadges />
 
         {/* 50km radius circle around selected KEK */}
         {radiusCircle && (
