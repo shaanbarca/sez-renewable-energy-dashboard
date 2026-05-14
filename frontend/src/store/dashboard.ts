@@ -198,6 +198,13 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       // immediately see the fence polygon (KEK blue / industrial orange) and
       // can sanity-check the rooftop number against the actual plant area.
       if (lv.site_boundaries === undefined) lv.site_boundaries = true;
+      // Substations + transmission lines on by default on first site-select.
+      // The grid-connected LCOE depends on substation distance; users need to
+      // see what's nearby to evaluate the picker's choice (or pick a polygon
+      // near a different substation, per #26). Same `if undefined` guard so
+      // users who explicitly toggle them off via LayerControl keep them off.
+      if (lv.substations === undefined) lv.substations = true;
+      if (lv.grid_lines === undefined) lv.grid_lines = true;
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;
         lv.wind = true;

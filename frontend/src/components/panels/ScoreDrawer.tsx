@@ -101,6 +101,11 @@ export default function ScoreDrawer() {
   const polygonOverrideBySite = useDashboardStore((s) => s.polygonOverrideBySite);
   const clearPolygonOverride = useDashboardStore((s) => s.clearPolygonOverride);
   const buildablePolygonsLayer = useDashboardStore((s) => s.layers.buildable_polygons);
+  // Empty-state hint visibility: only show "click a polygon to override" when
+  // the buildable polygons layer is actually rendered on the map (otherwise
+  // we'd promise an action the user can't perform). Layer visibility lives
+  // in the Zustand store and is on by default after first selectSite (#26).
+  const buildablePolygonsVisible = useDashboardStore((s) => s.layerVisibility.buildable_polygons);
   const activeOverrideIndex =
     selectedSite && polygonOverrideBySite[selectedSite] !== undefined
       ? polygonOverrideBySite[selectedSite]
@@ -245,6 +250,25 @@ export default function ScoreDrawer() {
                 >
                   Reset to auto-pick
                 </button>
+              </div>
+            )}
+
+            {/* #26 discoverability — empty-state hint. Surfaces only when no
+                override is active AND the buildable polygons are visible on
+                the map. Same slot as the active chip; intentionally muted
+                (no border, smaller text, gray) so it teaches without shouting. */}
+            {!activeOverridePolygon && buildablePolygonsVisible && (
+              <div
+                className="mt-2 px-3 py-1 text-[11px] leading-snug"
+                style={{ color: 'var(--text-muted)' }}
+                title="The grid-connected LCOE uses the substation-anchored solar site by default. Click any cyan polygon on the map to use it for this site instead."
+              >
+                <span style={{ opacity: 0.7 }}>○</span> Auto-picked solar site
+                <span className="mx-1" style={{ opacity: 0.5 }}>
+                  ·
+                </span>
+                <span style={{ color: '#4DD0E1' }}>Click any cyan polygon on the map</span> to
+                override
               </div>
             )}
 

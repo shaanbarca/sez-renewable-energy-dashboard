@@ -281,6 +281,13 @@ export default function VectorOverlay() {
   const [subHover, setSubHover] = useState<SubHover | null>(null);
   const [gridHover, setGridHover] = useState<GridLineHover | null>(null);
   const [buildableClick, setBuildableClick] = useState<BuildableClick | null>(null);
+  // #26 — physical-affordance hover state for buildable polygons. Tracks the
+  // feature_index under the cursor so the polygon brightens, signalling "I'm
+  // interactive". Reset on mouseleave or when the underlying click-handler
+  // effect is torn down (e.g. selectedSite change).
+  const [hoveredBuildableFeatureIndex, setHoveredBuildableFeatureIndex] = useState<number | null>(
+    null,
+  );
   const [windBuildableClick, setWindBuildableClick] = useState<WindBuildableClick | null>(null);
   const [nickelHover, setNickelHover] = useState<NickelHover | null>(null);
   const [coalHover, setCoalHover] = useState<CoalHover | null>(null);
@@ -431,15 +438,26 @@ export default function VectorOverlay() {
     };
   }, [mapRef]);
 
-  // Buildable polygon click + hover cursor
+  // Buildable polygon click + hover (#26)
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
-    const onEnter = () => {
+    const onEnter = (e: maplibregl.MapLayerMouseEvent) => {
       map.getCanvas().style.cursor = 'pointer';
+      // #26 discoverability — brighten the polygon under the cursor so
+      // "this is interactive" reads at a glance, not on commit.
+      const fi = e.features?.[0]?.properties?.feature_index;
+      if (typeof fi === 'number') setHoveredBuildableFeatureIndex(fi);
+    };
+    const onMove = (e: maplibregl.MapLayerMouseEvent) => {
+      // Cursor can drag from one polygon to a neighbor without firing
+      // mouseleave; update the hover index on move to follow the cursor.
+      const fi = e.features?.[0]?.properties?.feature_index;
+      if (typeof fi === 'number') setHoveredBuildableFeatureIndex(fi);
     };
     const onLeave = () => {
       map.getCanvas().style.cursor = '';
+      setHoveredBuildableFeatureIndex(null);
     };
     const onClick = (e: maplibregl.MapLayerMouseEvent) => {
       const feat = e.features?.[0];
@@ -463,10 +481,12 @@ export default function VectorOverlay() {
       }
     };
     map.on('mouseenter', 'overlay-buildable-polygons-fill', onEnter);
+    map.on('mousemove', 'overlay-buildable-polygons-fill', onMove);
     map.on('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
     map.on('click', 'overlay-buildable-polygons-fill', onClick);
     return () => {
       map.off('mouseenter', 'overlay-buildable-polygons-fill', onEnter);
+      map.off('mousemove', 'overlay-buildable-polygons-fill', onMove);
       map.off('mouseleave', 'overlay-buildable-polygons-fill', onLeave);
       map.off('click', 'overlay-buildable-polygons-fill', onClick);
     };
@@ -993,6 +1013,26 @@ export default function VectorOverlay() {
                 type="line"
                 paint={{ 'line-color': '#00ACC1', 'line-width': 1, 'line-opacity': 0.5 }}
               />
+              {/* #26 discoverability — hover state. Brighter fill + thicker
+                  outline under the cursor signals "this is clickable" without
+                  needing prior knowledge. Sits below the selected layers so
+                  the amber highlight on a chosen polygon still wins. */}
+              {hoveredBuildableFeatureIndex !== null && (
+                <Layer
+                  id="overlay-buildable-polygons-hover-fill"
+                  type="fill"
+                  filter={['==', ['get', 'feature_index'], hoveredBuildableFeatureIndex]}
+                  paint={{ 'fill-color': '#4DD0E1', 'fill-opacity': 0.45 }}
+                />
+              )}
+              {hoveredBuildableFeatureIndex !== null && (
+                <Layer
+                  id="overlay-buildable-polygons-hover-outline"
+                  type="line"
+                  filter={['==', ['get', 'feature_index'], hoveredBuildableFeatureIndex]}
+                  paint={{ 'line-color': '#00ACC1', 'line-width': 2, 'line-opacity': 0.95 }}
+                />
+              )}
               {selectedBuildableFeatureIndex !== null && (
                 <Layer
                   id="overlay-buildable-polygons-selected-fill"
