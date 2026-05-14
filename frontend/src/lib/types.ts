@@ -177,6 +177,12 @@ export interface ScorecardRow {
   /** Captive solar — total MWp that fits inside the site fence (sum across all buildable polygons). */
   within_boundary_capacity_mwp?: number;
   within_boundary_area_ha?: number;
+  /** v4.1 (#43): total fence-polygon area in ha — distinct from
+   *  within_boundary_area_ha which is buildable area only. The frontend
+   *  uses this to render different empty-state messages for sub-pixel
+   *  polygons (<100 ha — raster resolution limit) vs large polygons
+   *  whose buildable area is genuinely zero (Kawasan Hutan overlap). */
+  polygon_area_ha?: number;
   within_boundary_avg_pvout?: number;
   /** v4.0.5 (methodology #40): HARD-only mask area + capacity — what's physically/legally
    * buildable inside the polygon regardless of zoning. Frontend slider interpolates
