@@ -89,6 +89,12 @@ export default function ScoreDrawer() {
     return () => document.removeEventListener('keydown', handler);
   }, [drawerOpen, handleClose]);
 
+  // Admin polygon editor (#31 phase 2) — only surfaced when the backend
+  // probe in store.initialize() detected EEZ_ENABLE_ADMIN_TOOLS=1.
+  const adminMode = useDashboardStore((s) => s.adminMode);
+  const manualOverrideSiteIds = useDashboardStore((s) => s.manualOverrideSiteIds);
+  const enterPolygonEdit = useDashboardStore((s) => s.enterPolygonEdit);
+
   const effectiveTier = row ? getEffectiveEconomicTier(row, energyMode, costBasis) : null;
   const tierColor = effectiveTier ? (ECONOMIC_TIER_COLORS[effectiveTier] ?? '#666') : '#666';
   const tierLabel = effectiveTier ? getEconomicTierLabel(effectiveTier, energyMode) : '';
@@ -177,6 +183,28 @@ export default function ScoreDrawer() {
                 </div>
               )}
             </div>
+
+            {/* Admin polygon editor entry (#31 phase 2) — only when
+                EEZ_ENABLE_ADMIN_TOOLS=1 on the backend. Never shows on
+                Render. Lets a local operator hand-draw a fence polygon
+                that supersedes the auto-generated source for this site. */}
+            {adminMode && (
+              <button
+                type="button"
+                onClick={() => enterPolygonEdit(row.site_id)}
+                className="mt-2 w-full px-3 py-1.5 text-[11px] rounded transition-colors cursor-pointer"
+                style={{
+                  background: 'rgba(255, 152, 0, 0.10)',
+                  color: '#FFB74D',
+                  border: '1px solid rgba(255, 152, 0, 0.40)',
+                }}
+                title="Draw a manual fence polygon for this site (admin)"
+              >
+                {manualOverrideSiteIds.has(row.site_id)
+                  ? '✎ Edit fence polygon (override exists — will replace)'
+                  : '✎ Draw fence polygon'}
+              </button>
+            )}
           </div>
 
           {/* Tabs */}

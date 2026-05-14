@@ -119,6 +119,11 @@ def _safe_write(path: Path, content: str) -> None:
             try:
                 with os.fdopen(fd, "w") as tmp_fp:
                     tmp_fp.write(content)
+                # tempfile.mkstemp creates the file with mode 0600; without
+                # this chmod the override file would silently drop from 644
+                # to 600 on the first save, which then shows up as a noisy
+                # permissions change in git diffs.
+                os.chmod(tmp_path, 0o644)
                 os.replace(tmp_path, path)
             except Exception:
                 # Best-effort cleanup of the temp file if anything fails

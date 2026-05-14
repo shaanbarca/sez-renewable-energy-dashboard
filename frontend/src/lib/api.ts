@@ -91,3 +91,86 @@ export async function fetchMethodology(): Promise<string> {
   if (!res.ok) throw new Error(`GET /api/methodology failed: ${res.status}`);
   return res.text();
 }
+
+// ---------------------------------------------------------------------------
+// Admin polygon override API (#31 phase 2)
+//
+// All these routes are env-gated server-side: when EEZ_ENABLE_ADMIN_TOOLS is
+// unset the router isn't mounted, so calls return either a normal 404 or the
+// SPA index.html (depending on whether the SPA fallback is in play). The
+// frontend infers admin availability via `probeAdminMode` — it resolves true
+// ONLY when the response is real JSON with the expected shape, never on the
+// SPA fallback. The localhost-only dependency on the backend additionally
+// rejects 403 for non-loopback requests; that also returns false here.
+// ---------------------------------------------------------------------------
+
+export interface PolygonOverrideFeature {
+  type: 'Feature';
+  geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  properties: {
+    site_id: string;
+    edited_at: string;
+    edited_by: string | null;
+    notes: string | null;
+  };
+}
+
+/** Probe `/api/admin/polygons` to determine whether admin tooling is enabled.
+ *  Resolves true only when the response is real JSON with the expected shape.
+ *  Never throws — admin availability is a soft check; failure means "off." */
+export async function probeAdminMode(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/admin/polygons', { method: 'GET' });
+    if (!res.ok) return false;
+    const ct = res.headers.get('content-type') ?? '';
+    if (!ct.includes('application/json')) return false;
+    const body = await res.json();
+    return typeof body === 'object' && body !== null && 'site_ids' in body;
+  } catch {
+    return false;
+  }
+}
+
+export async function getPolygonOverride(siteId: string): Promise<PolygonOverrideFeature | null> {
+  const res = await fetch(`/api/admin/polygons/${encodeURIComponent(siteId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET admin polygon ${siteId} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function listPolygonOverrides(): Promise<string[]> {
+  const res = await fetch('/api/admin/polygons');
+  if (!res.ok) throw new Error(`GET admin polygons list failed: ${res.status}`);
+  const body = (await res.json()) as { site_ids: string[]; count: number };
+  return body.site_ids;
+}
+
+export async function savePolygonOverride(
+  siteId: string,
+  geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon,
+  opts: { notes?: string | null; editedBy?: string | null } = {},
+): Promise<PolygonOverrideFeature> {
+  const res = await fetch(`/api/admin/polygons/${encodeURIComponent(siteId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      geometry,
+      notes: opts.notes ?? null,
+      edited_by: opts.editedBy ?? null,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`POST admin polygon ${siteId} failed: ${res.status} ${detail}`);
+  }
+  return res.json();
+}
+
+export async function deletePolygonOverride(siteId: string): Promise<void> {
+  const res = await fetch(`/api/admin/polygons/${encodeURIComponent(siteId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`DELETE admin polygon ${siteId} failed: ${res.status}`);
+  }
+}

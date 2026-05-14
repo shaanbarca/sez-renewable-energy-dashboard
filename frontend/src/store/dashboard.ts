@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { fetchDefaults, fetchScorecard } from '../lib/api';
+import { fetchDefaults, fetchScorecard, listPolygonOverrides, probeAdminMode } from '../lib/api';
 import { defaultCostBasis, isBasisSupported } from '../lib/costBasis';
 import { computeFlipDiff, type FlipDiffRow, type FlipSummary } from '../lib/flipDiff';
 import { applyFlipPreset, type FlipPreset } from '../lib/flipPresets';
@@ -56,6 +56,11 @@ interface DashboardStore {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   layers: Record<string, any>;
 
+  // Admin polygon editor (#31 phase 2)
+  adminMode: boolean;
+  manualOverrideSiteIds: Set<string>;
+  editingPolygonForSite: string | null;
+
   // Actions
   setAssumptions: (a: Partial<UserAssumptions>) => void;
   setThresholds: (t: Partial<UserThresholds>) => void;
@@ -90,6 +95,11 @@ interface DashboardStore {
   computeFlip: () => Promise<void>;
   clearFlip: () => void;
   flipDiff: () => { rows: FlipDiffRow[]; summary: FlipSummary } | null;
+
+  // Admin polygon editor actions (#31 phase 2)
+  enterPolygonEdit: (siteId: string) => void;
+  exitPolygonEdit: () => void;
+  refreshManualOverrides: () => Promise<void>;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -129,6 +139,12 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   })(),
   flyToTarget: null,
   filteredSiteIds: null,
+
+  // Admin polygon editor (#31 phase 2) — disabled by default; `initialize`
+  // probes /api/admin/polygons to detect when dev has EEZ_ENABLE_ADMIN_TOOLS=1.
+  adminMode: false,
+  manualOverrideSiteIds: new Set<string>(),
+  editingPolygonForSite: null,
 
   // Compare scenarios
   flipAssumptions: null,
@@ -286,6 +302,18 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   clearFlyTo: () => set({ flyToTarget: null }),
   setFilteredSiteIds: (ids) => set({ filteredSiteIds: ids }),
 
+  enterPolygonEdit: (siteId) => set({ editingPolygonForSite: siteId, drawerOpen: false }),
+  exitPolygonEdit: () => set({ editingPolygonForSite: null }),
+  refreshManualOverrides: async () => {
+    if (!get().adminMode) return;
+    try {
+      const ids = await listPolygonOverrides();
+      set({ manualOverrideSiteIds: new Set(ids) });
+    } catch (err) {
+      console.warn('listPolygonOverrides failed:', err);
+    }
+  },
+
   setFlipAssumptions: (a) =>
     set((state) => ({
       flipAssumptions: state.flipAssumptions
@@ -392,6 +420,25 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
       const data = await fetchScorecard(mergedAssumptions, defaults.thresholds, mergedBenchmark);
       set({ scorecard: data.scorecard, loading: false });
+
+      // Admin polygon editor (#31 phase 2): detect whether the backend has
+      // admin tooling enabled. Probe is silent on failure — admin off is the
+      // expected production state, not an error.
+      probeAdminMode()
+        .then(async (enabled) => {
+          set({ adminMode: enabled });
+          if (enabled) {
+            try {
+              const ids = await listPolygonOverrides();
+              set({ manualOverrideSiteIds: new Set(ids) });
+            } catch (err) {
+              console.warn('listPolygonOverrides failed:', err);
+            }
+          }
+        })
+        .catch(() => {
+          // probeAdminMode never throws by contract; defensive.
+        });
     } catch (err) {
       console.error('Failed to initialize dashboard:', err);
       set({ loading: false });

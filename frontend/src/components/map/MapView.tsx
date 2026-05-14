@@ -15,6 +15,7 @@ import type { ActionFlag, EconomicTier, InfrastructureReadiness } from '../../li
 import { useDashboardStore } from '../../store/dashboard';
 import InfraMarkers from './InfraMarkers';
 import MeasureTool from './MeasureTool';
+import PolygonEditor from './PolygonEditor';
 import RasterOverlay from './RasterOverlay';
 import type { HoverInfo } from './SiteMarkers';
 import SiteMarkers from './SiteMarkers';
@@ -536,6 +537,11 @@ export default function MapView() {
         <VectorOverlay />
         <InfraMarkers />
         <MeasureTool onMeasuringChange={setMeasuring} />
+        {/* Admin polygon editor (#31 phase 2) — internally gated on
+            store.editingPolygonForSite, which only gets set when the
+            admin probe in store.initialize succeeded AND the user
+            clicked the admin button in ScoreDrawer. No-op otherwise. */}
+        <PolygonEditor />
 
         {/* 50km radius circle around selected KEK */}
         {radiusCircle && (
