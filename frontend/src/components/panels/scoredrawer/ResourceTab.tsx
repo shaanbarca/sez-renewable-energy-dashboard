@@ -387,6 +387,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               label="Polygon source"
               value={
                 {
+                  manual_override: 'Manual (human-verified)',
                   official_kek: 'Official KEK',
                   osm_landuse_industrial: 'OSM',
                   claude_building_hull_estimate: 'Estimated',
@@ -396,6 +397,8 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
               unit=""
               tip={
                 {
+                  manual_override:
+                    'Polygon hand-drawn in the admin-mode polygon editor against satellite imagery and committed to git. A human verified this fence and chose to override the auto-generated source. Highest trust.',
                   official_kek:
                     'Government-published KEK boundary from the Indonesian OSS portal. High trust.',
                   osm_landuse_industrial:

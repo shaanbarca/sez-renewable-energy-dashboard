@@ -130,6 +130,12 @@ def _load_polygon_source_tiers(
             # (KEK takes precedence — official > community-verified > estimated).
             if sid not in tiers:
                 tiers[sid] = classify_industrial_polygon_props(props)
+    # Manual overrides (#31) win over every auto-generated tier. Loaded last
+    # so a human-verified fence supersedes any KEK / OSM / Claude source.
+    from src.pipeline.manual_polygon_overrides import list_override_site_ids  # noqa: PLC0415
+
+    for sid in list_override_site_ids():
+        tiers[sid] = "manual_override"
     return tiers
 
 
@@ -173,7 +179,33 @@ def _load_site_polygons(
             frames[i] = f.to_crs(target_crs)
 
     combined = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=target_crs)
-    return combined.dissolve(by="site_id", as_index=False)[["site_id", "geometry"]]
+    dissolved = combined.dissolve(by="site_id", as_index=False)[["site_id", "geometry"]]
+
+    # Manual overrides (#31) supersede the auto-generated polygon for any site
+    # present in `data/industrial_sites/manual_polygon_overrides.geojson`.
+    # Replace geometry in place; sites without an override pass through.
+    from src.pipeline.manual_polygon_overrides import load_overrides  # noqa: PLC0415
+
+    overrides = load_overrides()
+    if overrides:
+        override_mask = dissolved["site_id"].isin(overrides.keys())
+        dissolved.loc[override_mask, "geometry"] = dissolved.loc[override_mask, "site_id"].map(
+            overrides
+        )
+        # Append any override sites that the auto-generated sources didn't cover
+        # at all (e.g. tier-3 sites currently on the buffer fallback).
+        existing = set(dissolved["site_id"])
+        new_sites = [sid for sid in overrides if sid not in existing]
+        if new_sites:
+            new_rows = gpd.GeoDataFrame(
+                {"site_id": new_sites, "geometry": [overrides[s] for s in new_sites]},
+                crs=target_crs,
+            )
+            dissolved = gpd.GeoDataFrame(
+                pd.concat([dissolved, new_rows], ignore_index=True), crs=target_crs
+            )
+
+    return dissolved
 
 
 def _clip_buildings_to_site_polygons(

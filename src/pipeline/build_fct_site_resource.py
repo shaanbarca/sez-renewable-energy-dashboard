@@ -311,18 +311,32 @@ def _load_all_site_polygons(
     kek_path: Path = KEK_POLYGONS_GEOJSON,
     industrial_path: Path = INDUSTRIAL_POLYGONS_GEOJSON,
 ) -> dict[str, object]:
-    """Union the KEK + industrial polygon sources by site_id.
+    """Union the KEK + industrial polygon sources by site_id, then apply manual
+    overrides on top.
 
-    KEK polygons win when both files have the same key — KEK boundaries are
-    the canonical fence-line where they exist. Industrial polygons fill the
-    gap for standalone cement / steel / nickel / aluminium / fertilizer
-    sites that aren't in `kek_polygons.geojson`.
+    Trust order (highest first):
+      1. `manual_override` from data/industrial_sites/manual_polygon_overrides.geojson (#31)
+      2. `official_kek` from outputs/data/raw/kek_polygons.geojson
+      3. `osm_landuse_industrial` or `claude_building_hull_estimate` from
+         data/industrial_sites/site_polygons.geojson
+
+    A manual override completely replaces the auto-generated polygon for the
+    same site — humans editing the fence in the dashboard supersede every
+    machine-generated source. Industrial polygons fill the gap where KEK
+    polygons are absent. KEK polygons win over industrial when both exist.
     """
     polygons = _load_kek_polygons(kek_path)
     industrial = _load_industrial_polygons(industrial_path)
     for site_id, geom in industrial.items():
         if site_id not in polygons:
             polygons[site_id] = geom
+    # Manual overrides win over everything else. Loaded lazily so the pipeline
+    # works fine before the editor (#31) ever writes a file.
+    # noqa: PLC0415 — local import keeps top-of-file clean (~ same pattern as solar_potential).
+    from src.pipeline.manual_polygon_overrides import load_overrides  # noqa: PLC0415
+
+    for site_id, geom in load_overrides().items():
+        polygons[site_id] = geom
     return polygons
 
 
@@ -336,6 +350,10 @@ def _load_all_site_provenance(
     so the rooftop and within-boundary pipelines stay aligned on which sites
     have which tier. Sites without an entry default to "none" (the 2 km buffer
     fallback wired into the main loop).
+
+    Manual overrides (#31) win over every auto-generated tier — a site present
+    in manual_polygon_overrides.geojson always reports `manual_override`
+    regardless of what KEK or industrial files say.
     """
     tiers: dict[str, PolygonSourceTier] = {}
     if kek_path.exists():
@@ -354,6 +372,12 @@ def _load_all_site_provenance(
                 # > community-verified > estimated).
                 continue
             tiers[sid] = classify_industrial_polygon_props(props)
+    # Manual overrides supersede everything else. Loaded last so they overwrite.
+    # noqa: PLC0415 — local import to match _load_all_site_polygons above.
+    from src.pipeline.manual_polygon_overrides import list_override_site_ids  # noqa: PLC0415
+
+    for sid in list_override_site_ids():
+        tiers[sid] = "manual_override"
     return tiers
 
 
