@@ -115,6 +115,8 @@ from src.pipeline.assumptions import (
 )
 from src.pipeline.buildability_filters import (
     HA_PER_MWP,
+    KAWASAN_HUTAN_HARD_CATEGORIES,
+    KAWASAN_HUTAN_SOFT_CATEGORIES,
     LAND_COVER_BUILDABLE_THRESHOLD,
     LAND_COVER_EXCLUDE_CODES,
     apply_exclusion_mask,
@@ -266,6 +268,54 @@ def _rasterize_shp(
         fill=0,
         dtype=np.uint8,
     )
+
+
+def _rasterize_kawasan_hutan_split(
+    shp_path: Path,
+    bbox: tuple[float, float, float, float],
+    out_shape: tuple[int, int],
+    win_transform: rasterio.transform.Affine,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Rasterize kawasan_hutan.shp into separate HARD and SOFT masks.
+
+    The shapefile bundles every KLHK forest-estate category — including APL
+    ("Areal Penggunaan Lain") which is non-forest land. Treating the whole
+    file as one HARD exclusion mis-flagged 8 of 11 audited KEKs (issue #56).
+    This split classifies each feature by `legend_in`:
+      - HARD: Hutan Lindung + Konservasi (KSA-KPA) — no conversion pathway
+      - SOFT: Hutan Produksi (3 sub-types) — convertible via ministerial decree
+      - DROPPED: APL — not forest at all
+    See `buildability_filters.KAWASAN_HUTAN_HARD_CATEGORIES` and
+    `KAWASAN_HUTAN_SOFT_CATEGORIES` for the canonical sets.
+    """
+    zeros = np.zeros(out_shape, dtype=np.uint8)
+    try:
+        gdf = gpd.read_file(shp_path, bbox=bbox)
+    except Exception as e:
+        print(f"  WARNING: Could not read {shp_path.name}: {e}")
+        return zeros, zeros.copy()
+
+    if gdf.empty or "legend_in" not in gdf.columns:
+        return zeros, zeros.copy()
+
+    if gdf.crs is not None and gdf.crs.to_epsg() != 4326:
+        gdf = gdf.to_crs(epsg=4326)
+
+    def _rast(subset_gdf: gpd.GeoDataFrame) -> np.ndarray:
+        valid = [g for g in subset_gdf.geometry if g is not None and g.is_valid]
+        if not valid:
+            return np.zeros(out_shape, dtype=np.uint8)
+        return rasterio.features.rasterize(
+            [(g, 1) for g in valid],
+            out_shape=out_shape,
+            transform=win_transform,
+            fill=0,
+            dtype=np.uint8,
+        )
+
+    hard_gdf = gdf[gdf["legend_in"].isin(KAWASAN_HUTAN_HARD_CATEGORIES)]
+    soft_gdf = gdf[gdf["legend_in"].isin(KAWASAN_HUTAN_SOFT_CATEGORIES)]
+    return _rast(hard_gdf), _rast(soft_gdf)
 
 
 def _load_kek_polygons(path: Path) -> dict[str, object]:
@@ -916,22 +966,33 @@ def _compute_buildable_pvout(
 
     pvout_working = np.where(valid, pvout_patch, 0.0).astype(float)
 
-    # ── Layer 1a: Kawasan Hutan (skip if file absent) ─────────────────────────
+    # ── Layer 1a: Kawasan Hutan (split HARD vs SOFT, skip if file absent) ────
+    # Per issue #56: kawasan_hutan.shp contains 7 sub-categories under
+    # `legend_in`. The fix splits them by Indonesia Forestry Law UU 41/1999:
+    #   HARD  — Hutan Lindung + Konservasi (no legal conversion pathway).
+    #   SOFT  — Hutan Produksi (3 sub-types). Convertible via "pelepasan
+    #           kawasan hutan" ministerial decree, so slider-overridable.
+    #   DROP  — Areal Penggunaan Lain (APL). Non-forest land; must NOT be
+    #           excluded. Pre-fix this category alone mis-flagged ~32k
+    #           polygons as forest at 7 of 8 audited KEKs.
     if "kawasan_hutan.shp" in available:
-        kh_mask = _rasterize_shp(
+        kh_hard_mask, kh_soft_mask = _rasterize_kawasan_hutan_split(
             data_dir / "kawasan_hutan.shp", bbox, (height, width), win_transform
         )
-        pvout_after_1a = apply_exclusion_mask(pvout_working, kh_mask)
+        pvout_after_1a_hard = apply_exclusion_mask(pvout_working, kh_hard_mask)
+        pvout_after_1a = apply_exclusion_mask(pvout_after_1a_hard, kh_soft_mask)
     else:
+        pvout_after_1a_hard = pvout_working
         pvout_after_1a = pvout_working
     n_after_1a = int((pvout_after_1a > 0).sum())
 
     # ── Layer 1b: Peatland (vector shapefile preferred, raster fallback) ─────
+    # peat_mask is hoisted so the HARD-only cascade below can reuse it.
+    peat_mask: np.ndarray | None = None
     if "peatland_klhk.shp" in available:
         peat_mask = _rasterize_shp(
             data_dir / "peatland_klhk.shp", bbox, (height, width), win_transform
         )
-        pvout_after_1b = apply_exclusion_mask(pvout_after_1a, peat_mask)
     elif "peatland.vrt" in available:
         peat_arr = _read_raster_window_to_pvout_grid(
             data_dir / "peatland.vrt",
@@ -942,9 +1003,9 @@ def _compute_buildable_pvout(
         )
         if peat_arr is not None:
             peat_mask = (np.nan_to_num(peat_arr, nan=0) > 0).astype(np.uint8)
-            pvout_after_1b = apply_exclusion_mask(pvout_after_1a, peat_mask)
-        else:
-            pvout_after_1b = pvout_after_1a
+
+    if peat_mask is not None:
+        pvout_after_1b = apply_exclusion_mask(pvout_after_1a, peat_mask)
     else:
         pvout_after_1b = pvout_after_1a
     n_after_1b = int((pvout_after_1b > 0).sum())
@@ -1002,24 +1063,29 @@ def _compute_buildable_pvout(
     filtered_mask = apply_min_area_filter(buildable_mask, pix_ha)
     n_after_4 = int(filtered_mask.sum())
 
-    # ── HARD-only cascade (v4.0.5, methodology #40) ─────────────────────────
-    # Re-apply only the HARD exclusion layers (Kawasan Hutan, peat, slope+elev)
-    # — skipping SOFT layers (land cover, road distance) — to produce a parallel
-    # mask of land that's physically/legally buildable regardless of zoning.
+    # ── HARD-only cascade (v4.0.5, methodology #40; #56 KH split) ─────────────
+    # Re-apply only the HARD exclusion layers (Kawasan Hutan HARD sub-set, peat,
+    # slope+elev) — skipping SOFT layers (Kawasan Hutan SOFT sub-set, land cover,
+    # road distance) — to produce a parallel mask of land that's physically/
+    # legally buildable regardless of zoning.
     # See src/dash/constants.py:BUILDABILITY_LAYER_CLASSIFICATION.
     #
-    #   FULL cascade:  pvout_working → Kawasan Hutan → peat → land cover →
+    #   FULL cascade:  pvout_working → KH(hard+soft) → peat → land cover →
     #                                  road distance → slope+elev → min_area
-    #   HARD cascade:  pvout_working → Kawasan Hutan → peat → slope+elev → min_area
+    #   HARD cascade:  pvout_working → KH(hard only) → peat → slope+elev → min_area
     #
-    # The site owner can override SOFT exclusions (canopy over parking, etc.);
-    # HARD exclusions are physical/legal facts that the dashboard cannot waive.
-    # The frontend slider expresses what fraction of (hard_max - baseline) the
-    # user wants to override.
-    if slope_arr is not None and dem_arr is not None:
-        pvout_hard_after_2 = apply_slope_elevation_mask(pvout_after_1b, slope_arr, dem_arr)
+    # The site owner can override SOFT exclusions (canopy over parking, legal
+    # production-forest conversion permits, etc.); HARD exclusions are
+    # physical/legal facts that the dashboard cannot waive. The frontend slider
+    # expresses what fraction of (hard_max − baseline) the user wants to override.
+    if peat_mask is not None:
+        pvout_hard_after_1b = apply_exclusion_mask(pvout_after_1a_hard, peat_mask)
     else:
-        pvout_hard_after_2 = pvout_after_1b
+        pvout_hard_after_1b = pvout_after_1a_hard
+    if slope_arr is not None and dem_arr is not None:
+        pvout_hard_after_2 = apply_slope_elevation_mask(pvout_hard_after_1b, slope_arr, dem_arr)
+    else:
+        pvout_hard_after_2 = pvout_hard_after_1b
     hard_buildable_mask = pvout_hard_after_2 > 0
     hard_filtered_mask = apply_min_area_filter(hard_buildable_mask, pix_ha)
 

@@ -14,6 +14,8 @@ import numpy as np
 import rasterio.transform
 
 from src.pipeline.buildability_filters import (
+    KAWASAN_HUTAN_HARD_CATEGORIES,
+    KAWASAN_HUTAN_SOFT_CATEGORIES,
     MAX_ELEV_M,
     MAX_SLOPE_DEG,
     ROAD_MAX_DIST_KM,
@@ -366,3 +368,42 @@ class TestComputeDistanceMaskKm:
         transform = self._make_transform(100.0, 5.0, 0.01)
         dist = compute_distance_mask_km(-3.0, 100.05, transform, (5, 5))
         assert np.all(dist >= 0)
+
+
+# ── Kawasan Hutan category split (#56) ──────────────────────────────────────
+
+
+class TestKawasanHutanCategories:
+    """The kawasan_hutan.shp shapefile bundles 7 KLHK forest-estate categories
+    under `legend_in`. Pre-#56 the pipeline treated every feature as a HARD
+    exclusion, which mis-flagged ~32k non-forest APL polygons. The split below
+    must hold for the methodology to remain coherent.
+    """
+
+    def test_hard_set_contains_conservation_and_protection(self):
+        # Hutan Lindung (protection) + KSA-KPA (conservation) must be HARD.
+        # These are protected by Indonesia Forestry Law UU 41/1999 with no
+        # legal conversion pathway, so the slider cannot override them.
+        assert "Hutan Lindung" in KAWASAN_HUTAN_HARD_CATEGORIES
+        assert "KSA-KPA dan TB" in KAWASAN_HUTAN_HARD_CATEGORIES
+
+    def test_soft_set_contains_all_production_forest_subtypes(self):
+        # Hutan Produksi (HP, HPT, HPK) is legally convertible via "pelepasan
+        # kawasan hutan" — must be SOFT (slider-overridable).
+        expected = {
+            "Hutan Produksi",
+            "Hutan Produksi Terbatas",
+            "Hutan Produksi yang dapat dikonversi",
+        }
+        assert expected.issubset(KAWASAN_HUTAN_SOFT_CATEGORIES)
+
+    def test_apl_is_in_neither_set(self):
+        # Areal Penggunaan Lain is explicitly NOT in the forest estate. Including
+        # it in either set re-introduces the #56 bug.
+        assert "Areal Penggunaan Lain" not in KAWASAN_HUTAN_HARD_CATEGORIES
+        assert "Areal Penggunaan Lain" not in KAWASAN_HUTAN_SOFT_CATEGORIES
+
+    def test_hard_and_soft_are_disjoint(self):
+        # No category should appear in both — would double-count and break the
+        # invariant that hard_max >= baseline.
+        assert KAWASAN_HUTAN_HARD_CATEGORIES.isdisjoint(KAWASAN_HUTAN_SOFT_CATEGORIES)

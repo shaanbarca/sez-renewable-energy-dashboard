@@ -44,7 +44,9 @@ ROAD_MAX_DIST_KM: float = 10.0  # Layer 3a: pixels >10km from motorable road exc
 
 VALID_CONSTRAINTS: frozenset[str] = frozenset(
     [
-        "kawasan_hutan",
+        "kawasan_hutan",  # legacy alias; new code emits kawasan_hutan_hard / _soft
+        "kawasan_hutan_hard",  # Hutan Lindung + Konservasi
+        "kawasan_hutan_soft",  # Hutan Produksi sub-types (slider-overridable)
         "slope",
         "peat",
         "land_cover",  # ESA WorldCover layer 1c/d: tree cover, cropland, urban, water, wetland, mangrove
@@ -52,6 +54,33 @@ VALID_CONSTRAINTS: frozenset[str] = frozenset(
         "area_too_small",
         "unconstrained",
         "data_unavailable",
+    ]
+)
+
+# Kawasan Hutan forest-estate categories per Indonesia Forestry Law UU 41/1999.
+# The kawasan_hutan.shp shapefile carries a `legend_in` (Indonesian legend)
+# column on every feature; we classify each feature into HARD, SOFT, or
+# NEITHER (Areal Penggunaan Lain — non-forest land that happens to share
+# the shapefile and must NOT be excluded from buildability).
+#
+# HARD: no legal pathway to convert. Solar/wind cannot be permitted.
+# SOFT: convertible via "pelepasan kawasan hutan" ministerial decree.
+#       Treated like other SOFT exclusions (slider-overridable) since a
+#       developer can legally clear and convert these areas for industrial
+#       use. Production-forest conversion is the standard pathway by which
+#       Indonesia's palm-oil and pulp-plantation expansion happened.
+KAWASAN_HUTAN_HARD_CATEGORIES: frozenset[str] = frozenset(
+    [
+        "Hutan Lindung",  # Protected Forest
+        "KSA-KPA dan TB",  # Conservation areas + hunting parks
+        "KSA-KPA Laut",  # Marine conservation (irrelevant for land but classified hard)
+    ]
+)
+KAWASAN_HUTAN_SOFT_CATEGORIES: frozenset[str] = frozenset(
+    [
+        "Hutan Produksi",  # Production Forest (HP)
+        "Hutan Produksi Terbatas",  # Limited Production Forest (HPT)
+        "Hutan Produksi yang dapat dikonversi",  # Convertible Production Forest (HPK)
     ]
 )
 
