@@ -117,6 +117,15 @@ class ScorecardRequest(BaseModel):
     assumptions: AssumptionsInput
     thresholds: ThresholdsInput
     benchmark_mode: Literal["bpp", "tariff"] = "tariff"
+    polygon_overrides: dict[str, int] | None = Field(
+        default=None,
+        description=(
+            "Per-site polygon override: {site_id: feature_index}. When set, the "
+            "grid_connected_solar LCOE for that site uses the clicked polygon's "
+            "centroid + avg PVOUT + capacity instead of the substation-anchored "
+            "auto-pick. within_boundary captive LCOE is unaffected. See #26."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -224,10 +233,14 @@ def get_defaults():
 def post_scorecard(req: ScorecardRequest):
     """Recompute LCOE + action flags for all 25 KEKs."""
     from src.api.main import (  # noqa: PLC0415 — avoid circular import (main ← routes)
+        layers,
         resource_df,
         ruptl_metrics_df,
         tables,
         wind_tech,
+    )
+    from src.dash.logic.polygon_override import (  # noqa: PLC0415 — local import keeps cold-start fast
+        apply_polygon_overrides,
     )
 
     assumptions = UserAssumptions.from_dict(req.assumptions.model_dump())
@@ -239,8 +252,25 @@ def post_scorecard(req: ScorecardRequest):
         grid_df = tables["fct_grid_cost_proxy"]
         grid_cost_by_region = grid_df.groupby("grid_region_id")["bpp_usd_mwh"].first().to_dict()
 
+    # Per-request copy: `resource_df` is a module-level cached df loaded at
+    # startup. Mutating it in-place (via polygon overrides below) would leak
+    # state across requests. Cheap (~130 KB, microseconds) so always copy —
+    # even when no overrides are supplied, since compute_scorecard_live now
+    # owns the working df.
+    working_df = resource_df.copy()
+
+    # #26 — Apply per-site polygon overrides (if any) before LCOE compute.
+    # Raises 422 HTTPException on invalid override; route returns the error
+    # naturally via FastAPI's exception handler.
+    working_df = apply_polygon_overrides(
+        resource_df=working_df,
+        overrides=req.polygon_overrides,
+        polygons_geojson=layers.get("buildable_polygons"),
+        substations=layers.get("substations"),
+    )
+
     scorecard_df = compute_scorecard_live(
-        resource_df=resource_df,
+        resource_df=working_df,
         assumptions=assumptions,
         thresholds=thresholds,
         ruptl_metrics_df=ruptl_metrics_df,

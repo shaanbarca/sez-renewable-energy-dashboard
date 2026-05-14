@@ -61,6 +61,12 @@ interface DashboardStore {
   manualOverrideSiteIds: Set<string>;
   editingPolygonForSite: string | null;
 
+  // #26 — per-site polygon override (click to recompute grid-connected LCOE).
+  // Map of site_id → feature_index of the clicked buildable polygon. Cleared
+  // when the user switches sites or hits the Score Drawer's Reset button.
+  // Sent verbatim in /api/scorecard POST body.
+  polygonOverrideBySite: Record<string, number>;
+
   // Actions
   setAssumptions: (a: Partial<UserAssumptions>) => void;
   setThresholds: (t: Partial<UserThresholds>) => void;
@@ -100,6 +106,10 @@ interface DashboardStore {
   enterPolygonEdit: (siteId: string) => void;
   exitPolygonEdit: () => void;
   refreshManualOverrides: () => Promise<void>;
+
+  // #26 — polygon override actions
+  setPolygonOverride: (siteId: string, featureIndex: number) => void;
+  clearPolygonOverride: (siteId: string) => void;
 }
 
 // Store the original defaults so resetDefaults can restore them
@@ -146,6 +156,9 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   manualOverrideSiteIds: new Set<string>(),
   editingPolygonForSite: null,
 
+  // #26 — polygon override map. Starts empty (auto-pick everywhere).
+  polygonOverrideBySite: {},
+
   // Compare scenarios
   flipAssumptions: null,
   flipPreset: null,
@@ -172,8 +185,20 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
 
   selectSite: (id) =>
     set((state) => {
-      if (!id)
-        return { selectedSite: null, drawerOpen: false, layerVisibility: state.layerVisibility };
+      if (!id) {
+        // "Back to national view" — clear the per-site context layers that
+        // selectSite auto-enables. Substations + grid lines are useful when
+        // a single site is in focus, but at national scale (81 sites, 2913
+        // substations, 1595 grid line segments) they're visual noise.
+        // We DELETE the keys (rather than set to false) so the next
+        // selectSite call re-enables them via the `if undefined` guard.
+        // This matches the user's mental model of back-to-national as a
+        // soft reset, not a "never show again" toggle.
+        const lv = { ...state.layerVisibility };
+        delete lv.substations;
+        delete lv.grid_lines;
+        return { selectedSite: null, drawerOpen: false, layerVisibility: lv };
+      }
       const lv = { ...state.layerVisibility };
       // Always show solar buildable polygons so the amber chosen-polygon highlight is visible.
       lv.buildable_polygons = true;
@@ -185,6 +210,13 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       // immediately see the fence polygon (KEK blue / industrial orange) and
       // can sanity-check the rooftop number against the actual plant area.
       if (lv.site_boundaries === undefined) lv.site_boundaries = true;
+      // Substations + transmission lines on by default on first site-select.
+      // The grid-connected LCOE depends on substation distance; users need to
+      // see what's nearby to evaluate the picker's choice (or pick a polygon
+      // near a different substation, per #26). Same `if undefined` guard so
+      // users who explicitly toggle them off via LayerControl keep them off.
+      if (lv.substations === undefined) lv.substations = true;
+      if (lv.grid_lines === undefined) lv.grid_lines = true;
       if (state.energyMode === 'wind') {
         lv.wind_buildable_polygons = true;
         lv.wind = true;
@@ -259,16 +291,27 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
     })),
 
   recomputeScorecard: async () => {
-    const { assumptions, thresholds, benchmarkMode } = get();
+    const { assumptions, thresholds, benchmarkMode, polygonOverrideBySite } = get();
     if (!assumptions || !thresholds) return;
 
     set({ loading: true });
     try {
-      const data = await fetchScorecard(assumptions, thresholds, benchmarkMode);
+      const data = await fetchScorecard(
+        assumptions,
+        thresholds,
+        benchmarkMode,
+        polygonOverrideBySite,
+      );
       set({ scorecard: data.scorecard, loading: false });
     } catch (err) {
       console.error('Failed to recompute scorecard:', err);
       set({ loading: false });
+      // #26 — if the server rejected one of our overrides (e.g. stale
+      // feature_index after a pipeline regen), clear all overrides so the
+      // next request goes through cleanly. The user can re-click if needed.
+      if (err instanceof Error && /422/.test(err.message)) {
+        set({ polygonOverrideBySite: {} });
+      }
     }
   },
 
@@ -444,4 +487,18 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
       set({ loading: false });
     }
   },
+
+  // #26 — polygon override actions
+  setPolygonOverride: (siteId, featureIndex) =>
+    set((state) => ({
+      polygonOverrideBySite: { ...state.polygonOverrideBySite, [siteId]: featureIndex },
+    })),
+
+  clearPolygonOverride: (siteId) =>
+    set((state) => {
+      // Drop the site_id key entirely so empty-map check in fetchScorecard skips
+      // the field in the request body.
+      const { [siteId]: _removed, ...rest } = state.polygonOverrideBySite;
+      return { polygonOverrideBySite: rest };
+    }),
 }));

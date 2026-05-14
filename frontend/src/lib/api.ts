@@ -16,15 +16,22 @@ export async function fetchScorecard(
   assumptions: UserAssumptions,
   thresholds: UserThresholds,
   benchmarkMode: BenchmarkMode,
+  polygonOverrides?: Record<string, number> | null,
 ): Promise<ScorecardResponse> {
+  const body: Record<string, unknown> = {
+    assumptions,
+    thresholds,
+    benchmark_mode: benchmarkMode,
+  };
+  // #26 — only include polygon_overrides when at least one site has an active
+  // override. Empty/null is the no-op signal so the server can return faster.
+  if (polygonOverrides && Object.keys(polygonOverrides).length > 0) {
+    body.polygon_overrides = polygonOverrides;
+  }
   const res = await fetch('/api/scorecard', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      assumptions,
-      thresholds,
-      benchmark_mode: benchmarkMode,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`POST /api/scorecard failed: ${res.status}`);
   return res.json();
