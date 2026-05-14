@@ -35,6 +35,8 @@ from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.warp import reproject
 
 from src.pipeline.buildability_filters import (
+    KAWASAN_HUTAN_HARD_CATEGORIES,
+    KAWASAN_HUTAN_SOFT_CATEGORIES,
     LAND_COVER_BUILDABLE_THRESHOLD,
     LAND_COVER_EXCLUDE_CODES,
     apply_exclusion_mask,
@@ -71,10 +73,21 @@ def _rasterize_shp_full(
     shp_path: Path,
     out_shape: tuple[int, int],
     transform: rasterio.transform.Affine,
+    keep_legend_in: frozenset[str] | None = None,
 ) -> np.ndarray:
-    """Rasterize a shapefile to match the PVOUT grid. Returns binary mask (1=excluded)."""
+    """Rasterize a shapefile to match the PVOUT grid. Returns binary mask (1=excluded).
+
+    `keep_legend_in` (optional) filters features to only those whose `legend_in`
+    column matches one of the given values. Used for kawasan_hutan.shp to drop
+    APL (non-forest land) — see #56.
+    """
     print(f"    Rasterizing {shp_path.name}...")
     gdf = gpd.read_file(shp_path)
+
+    if keep_legend_in is not None and "legend_in" in gdf.columns:
+        before = len(gdf)
+        gdf = gdf[gdf["legend_in"].isin(keep_legend_in)]
+        print(f"      legend_in filter: {before:,} → {len(gdf):,} features")
 
     if gdf.crs is not None and gdf.crs.to_epsg() != 4326:  # noqa: PLR2004 — EPSG 4326 = WGS84
         gdf = gdf.to_crs(epsg=4326)
@@ -194,10 +207,17 @@ def build_buildable_raster():
     valid_before = np.count_nonzero(np.isfinite(pvout))
     result = pvout.copy()
 
-    # 2. Kawasan Hutan
+    # 2. Kawasan Hutan — keep HARD ∪ SOFT forest categories; drop APL (non-forest).
+    # Nationwide raster reflects current state (no slider override), so SOFT forest
+    # categories stay excluded here even though per-site they're overridable. See #56.
     kh_path = BUILD_DIR / "kawasan_hutan.shp"
     if kh_path.exists():
-        kh_mask = _rasterize_shp_full(kh_path, (h, w), transform)
+        kh_mask = _rasterize_shp_full(
+            kh_path,
+            (h, w),
+            transform,
+            keep_legend_in=KAWASAN_HUTAN_HARD_CATEGORIES | KAWASAN_HUTAN_SOFT_CATEGORIES,
+        )
         result = apply_exclusion_mask(result, kh_mask)
         excluded = valid_before - np.count_nonzero(result > 0)
         print(

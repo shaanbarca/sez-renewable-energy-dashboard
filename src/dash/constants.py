@@ -323,11 +323,12 @@ MAP_ZOOM = 4
 
 BUILDABILITY_LAYER_CLASSIFICATION: dict[str, str] = {
     # HARD physical / legal exclusions
-    "kawasan_hutan": "hard",  # Indonesian state-protected forest, legal protection
+    "kawasan_hutan_hard": "hard",  # Hutan Lindung + Konservasi — no legal conversion pathway
     "peatland": "hard",  # Peat-soil subsidence, engineering infeasibility
     "slope": "hard",  # Slope >8° (solar) / >20° (wind), terracing prohibitive at scale
     "elevation": "hard",  # Elevation >1500m, paired with slope in apply_slope_elevation_mask
     # SOFT zoning / current-use exclusions
+    "kawasan_hutan_soft": "soft",  # Hutan Produksi sub-types — convertible via ministerial decree (#56)
     "land_cover": "soft",  # ESA WorldCover built-up / agricultural / forest (non-Kawasan-Hutan)
     "road_distance": "soft",  # >10km from motorable road; owner can build access for large projects
 }

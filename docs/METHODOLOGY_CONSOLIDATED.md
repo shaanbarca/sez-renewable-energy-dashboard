@@ -501,8 +501,8 @@ Solar plant inside KEK boundary, behind-the-meter. No PLN involvement.
 
 The 4-layer buildability filter described in §3.3 (slope, land cover, Kawasan Hutan, peatland) treats all exclusions as equivalent. In reality the layers split into two methodological categories with different override semantics:
 
-- **HARD filters** (physical / legal): slope >8°, peatland, Kawasan Hutan protected forest. These exclude land that **truly cannot host solar** regardless of intent. The site owner cannot override these.
-- **SOFT filters** (zoning / current use): built-up land cover, agricultural cover. These exclude land that is currently in another use but **the site owner can choose to redeploy** (canopy over parking, repurpose storage yards, convert ag land within their own fence-line).
+- **HARD filters** (physical / legal): slope >8°, peatland, Kawasan Hutan HARD sub-categories (Hutan Lindung + Konservasi). These exclude land that **truly cannot host solar** regardless of intent. The site owner cannot override these.
+- **SOFT filters** (zoning / current use): built-up land cover, agricultural cover, Kawasan Hutan SOFT sub-categories (Hutan Produksi HP/HPT/HPK), road distance. These exclude land that is currently in another use or zoning class but **the site owner can choose to redeploy or convert** (canopy over parking, repurpose storage yards, secure "pelepasan kawasan hutan" decree for production-forest land within their fence-line). The Kawasan Hutan split is documented in Appendix A §1a and resolved by [#56](https://github.com/shaanbarca/eez/issues/56).
 
 `src/pipeline/build_fct_site_resource.py::_compute_buildable_pvout` runs both cascades in a single pass and emits two columns:
 
@@ -542,7 +542,7 @@ The 20% default is a conservative anchor sourced from three calibration signals:
 2. **California SB 49 (2024)** mandates 50% solar canopy coverage on >5-acre parking lots — the regulatory ceiling. But SB 49 assumes purpose-built canopy structures (custom steel + electrical), which is more aggressive than this dashboard's "override soft exclusions on existing buildable area" semantic. We're deliberately conservative vs. the regulatory case.
 3. **Worked example — Petrokimia Gresik** (operating fertilizer plant, baseline 0 MWp from raster, hard ceiling 171 MWp): at slider = 0.20, deployable = 0 + 0.20 × 171 = **34 MWp**, ≈3% of site demand. Realistic for a "modest rooftop canopy program" without changing land use. At slider = 1.0, deployable = 171 MWp — aggressive full-site soft-override. The 20% default lands in the "credible at a board meeting" zone, not the "headline-grabbing maximum."
 
-**Behavior at the slider's extremes.** At slider = 0%, the dashboard reverts to strict 4-layer raster (the pre-v4.0.5 baseline). For sites where land cover excludes the entire polygon (KEK Palu greenfield-forest, Petrokimia fully-built), the floor IS 0 MWp by design — the slider description tells the user this explicitly. At slider = 100%, the dashboard shows the hard ceiling (slope + Kawasan Hutan + peatland are the only remaining constraints). The user's job is to pick a slider position that reflects realistic owner intent for their specific site.
+**Behavior at the slider's extremes.** At slider = 0%, the dashboard reverts to strict 4-layer raster (the pre-v4.0.5 baseline). For sites where land cover excludes the entire polygon (KEK Palu greenfield-forest, Petrokimia fully-built), the floor IS 0 MWp by design — the slider description tells the user this explicitly. At slider = 100%, the dashboard shows the hard ceiling (slope + Kawasan Hutan HARD sub-categories + peatland are the only remaining constraints). The user's job is to pick a slider position that reflects realistic owner intent for their specific site.
 
 **Visual signal for "fully slider-derived" capacity.** When a site has `baseline = 0` but `hard_max > 0`, the displayed ground-mounted MWp is 100% slider-derived (the entire number comes from the override). The Renewable Resource table marks these sites with an asterisk indicator next to the MWp value with a tooltip explaining the range. This distinguishes them from sites with positive raster floors (where the slider only adjusts the override portion). Tracked under [#46](https://github.com/shaanbarca/eez/issues/46) (closed as misdiagnosed — current behavior is correct, only the visual distinction was added).
 
@@ -2104,13 +2104,19 @@ See the [Indonesian Regulatory Framework](#indonesian-regulatory-framework) tabl
 
 ### Layer 1: Hard Regulatory Exclusions
 
-**1a. Kawasan Hutan:** All sub-categories treated as excluded (conservative). PPKH permits take 3-5 years, infeasible for captive solar timelines.
+**1a. Kawasan Hutan:** The shapefile bundles 7 KLHK forest-estate categories under the `legend_in` column, including non-forest land. Pre-#56 the model treated every feature as HARD-excluded, which mis-flagged ~32k polygons of Areal Penggunaan Lain (APL — non-forest) as forest and forced 8 of 11 audited KEKs to zero hard-ceiling. The v4.0.5 fix splits the shapefile by category:
 
-| Sub-category | Solar permissible? |
-|---|---|
-| Conservation Areas (Suaka Alam / Pelestarian Alam) | No, hard exclusion |
-| Protection Forest (Hutan Lindung) | No, hard exclusion |
-| Production Forest (HP, HPT, HPK) | Possible with PPKH but excluded in model |
+| `legend_in` category | English | Features | Treatment |
+|---|---|---|---|
+| Hutan Lindung | Protection Forest | 8,366 | **HARD** — no legal conversion pathway |
+| KSA-KPA dan TB | Conservation Areas + Hunting Parks | 2,775 | **HARD** — strict legal protection |
+| KSA-KPA Laut | Marine Conservation | 69 | **HARD** — kept for completeness (no land overlap) |
+| Hutan Produksi | Production Forest (HP) | 8,539 | **SOFT** — convertible via "pelepasan kawasan hutan" decree |
+| Hutan Produksi Terbatas | Limited Production Forest (HPT) | 5,146 | **SOFT** — convertible with environmental review |
+| Hutan Produksi yang dapat dikonversi | Convertible Production Forest (HPK) | 5,269 | **SOFT** — explicitly designated for conversion |
+| Areal Penggunaan Lain | Other Utilization Area (APL) | 31,830 | **NOT EXCLUDED** — not in the forest estate |
+
+HARD categories pin the hard-ceiling. SOFT categories sit in the (hard_max − baseline) gap so the slider can override them, matching the realpolitik that production forest is the standard conversion pathway for Indonesia's plantation/industrial expansion (palm oil, pulp, cement quarries). Authoritative source: Indonesia Forestry Law UU 41/1999 + KLHK 2017 Kawasan Hutan dataset.
 
 **1b. Peatland:** PP No. 57/2016 restricts development on peatland ecosystem function zones. Excluded in model.
 

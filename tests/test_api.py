@@ -342,16 +342,22 @@ def test_kek_substations_unranked_have_nulls(client):
 
 
 def test_no_solar_resource_flag_for_zero_capacity(client):
-    """18. KEKs with buildable_area=0 get no_solar_resource flag, not invest_battery."""
+    """18. Sites with buildable_area=0 get no_solar_resource flag, not invest_battery.
+
+    Originally targeted kek-bitung when its 50km regional buildable area was
+    zero. After #56 (Kawasan Hutan APL fix) every KEK has non-zero regional
+    buildable, so the canary moved to a small industrial site whose 50km
+    radius is entirely sea/conservation forest. semen-padang-indarung is on
+    Sumatra's west coast next to Bukit Barisan protected forest.
+    """
     body = _default_body(client)
     resp = client.post("/api/scorecard", json=body)
     data = resp.json()
 
-    # Bitung has 0 buildable area — should get no_solar_resource
-    bitung = next((r for r in data["scorecard"] if r["site_id"] == "kek-bitung"), None)
-    assert bitung is not None, "kek-bitung not found in scorecard"
-    assert bitung["action_flag"] == "no_solar_resource", (
-        f"Expected no_solar_resource for Bitung, got {bitung['action_flag']}"
+    site = next((r for r in data["scorecard"] if r["site_id"] == "semen-padang-indarung"), None)
+    assert site is not None, "semen-padang-indarung not found in scorecard"
+    assert site["action_flag"] == "no_solar_resource", (
+        f"Expected no_solar_resource for semen-padang-indarung, got {site['action_flag']}"
     )
 
 

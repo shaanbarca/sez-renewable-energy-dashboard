@@ -42,6 +42,8 @@ from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.warp import reproject
 
 from src.pipeline.buildability_filters import (
+    KAWASAN_HUTAN_HARD_CATEGORIES,
+    KAWASAN_HUTAN_SOFT_CATEGORIES,
     apply_exclusion_mask,
     apply_road_distance_mask,
     apply_slope_elevation_mask,
@@ -73,10 +75,21 @@ def _rasterize_shp_full(
     shp_path: Path,
     out_shape: tuple[int, int],
     transform: rasterio.transform.Affine,
+    keep_legend_in: frozenset[str] | None = None,
 ) -> np.ndarray:
-    """Rasterize a shapefile to match the target grid. Returns binary mask (1=excluded)."""
+    """Rasterize a shapefile to match the target grid. Returns binary mask (1=excluded).
+
+    `keep_legend_in` (optional) filters features to only those whose `legend_in`
+    column matches one of the given values. Used for kawasan_hutan.shp to drop
+    APL (non-forest land) — see #56.
+    """
     print(f"    Rasterizing {shp_path.name}...")
     gdf = gpd.read_file(shp_path)
+
+    if keep_legend_in is not None and "legend_in" in gdf.columns:
+        before = len(gdf)
+        gdf = gdf[gdf["legend_in"].isin(keep_legend_in)]
+        print(f"      legend_in filter: {before:,} → {len(gdf):,} features")
 
     if gdf.crs is not None and gdf.crs.to_epsg() != 4326:  # noqa: PLR2004 — EPSG 4326 = WGS84
         gdf = gdf.to_crs(epsg=4326)
@@ -209,10 +222,15 @@ def build_wind_buildable_raster() -> Path:
     result = data.copy()
     print(f"    Valid pixels: {valid_before:,}")
 
-    # 3. Kawasan Hutan
+    # 3. Kawasan Hutan — keep HARD ∪ SOFT forest categories; drop APL (non-forest). See #56.
     kh_path = BUILD_DIR / "kawasan_hutan.shp"
     if kh_path.exists():
-        kh_mask = _rasterize_shp_full(kh_path, (target_h, target_w), target_transform)
+        kh_mask = _rasterize_shp_full(
+            kh_path,
+            (target_h, target_w),
+            target_transform,
+            keep_legend_in=KAWASAN_HUTAN_HARD_CATEGORIES | KAWASAN_HUTAN_SOFT_CATEGORIES,
+        )
         result = apply_exclusion_mask(result, kh_mask)
         excluded = valid_before - np.count_nonzero(result > 0)
         print(

@@ -267,3 +267,44 @@ def test_regression_no_polygon_site(site_lookup: dict[str, pd.Series]) -> None:
 
     for slider in [0.0, 0.20, 1.0]:
         assert _deployable(baseline, hard_max, slider) == 0.0
+
+
+# ─── 4. #56 Kawasan Hutan category split — regression lock ─────────────────────
+
+
+# 8 KEKs flagged by the visual audit (2026-05-14) as 100% Kawasan-Hutan-excluded
+# despite obvious built/agricultural/resort land. The #56 fix splits the
+# kawasan_hutan.shp by `legend_in`: APL dropped, Hutan Lindung+Konservasi stay
+# HARD, Hutan Produksi (3 sub-types) becomes SOFT. Every site below MUST now
+# have non-zero hard_max — if a future change re-introduces the bug, this lock
+# fires immediately.
+_KH_FIX_TARGETS_2026_05_14: list[str] = [
+    "kek-nongsa",  # 91% APL (golf + resort + mangrove)
+    "kek-kura-kura",  # 88% APL (marina + resort, Bali)
+    "kek-bitung",  # 100% APL (dense urban + agriculture)
+    "kek-mandalika",  # 100% APL (MotoGP circuit + resort)
+    "kek-tanjung-lesung",  # 100% APL (agriculture + settlements)
+    "kek-sei-mangkei",  # 100% APL (oil palm plantation + industrial)
+    "kek-arun-lhokseumawe",  # 99% APL (LNG / refinery)
+    "setangga",  # 89% Hutan Produksi (aquaculture + mangrove)
+]
+
+
+def test_kawasan_hutan_split_unblocks_audited_keks(resource_df: pd.DataFrame) -> None:
+    """The 8 KEKs/sites surfaced in the bucket-A1 audit must all have non-zero
+    hard_max post-#56. Each one is at least 88% in either APL (non-forest) or
+    Hutan Produksi (production forest — legally convertible), so the
+    HARD-only cascade must see real buildable land."""
+    rows = resource_df[resource_df["site_id"].isin(_KH_FIX_TARGETS_2026_05_14)]
+    found = set(rows["site_id"])
+    missing = set(_KH_FIX_TARGETS_2026_05_14) - found
+    assert not missing, f"Missing audit targets in resource_df: {missing}"
+    failed = []
+    for _, row in rows.iterrows():
+        hard_max = float(row["within_boundary_capacity_hard_max_mwp"] or 0)
+        if hard_max <= 0:
+            failed.append(row["site_id"])
+    assert not failed, (
+        f"#56 regression: hard_max == 0 at sites where the audit confirmed "
+        f"non-forest or production-forest land: {failed}"
+    )
