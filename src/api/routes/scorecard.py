@@ -290,6 +290,10 @@ def post_scorecard(req: ScorecardRequest):
                 Col.REGIONAL_GROUNDMOUNT_POTENTIAL_MWP_50KM,
                 "pvout_centroid",
                 "pvout_best_50km",
+                # #43 — total polygon area, used by frontend to render the
+                # "raster resolution limit" message for sub-pixel polygons
+                # rather than the misleading "Kawasan Hutan exclusion" one.
+                "polygon_area_ha",
             ],
         ),
         ("fct_grid_cost_proxy", ["dashboard_rate_usd_mwh", "bpp_usd_mwh"]),

@@ -353,9 +353,23 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
             </>
           ) : (
             <div className="text-xs italic py-1" style={{ color: 'var(--text-muted)' }}>
-              {row.polygon_source_tier === 'none' || row.polygon_source_tier == null
-                ? 'No buildable land within 2 km centroid buffer (entire buffer excluded by slope, peat, Kawasan Hutan, or buildability data coverage gap). Hunt a real fence-line polygon to refine.'
-                : 'No buildable area within fence (entire polygon excluded by slope, peat, or Kawasan Hutan).'}
+              {(() => {
+                // v4.1 (#43): distinguish three different "zero buildable" stories.
+                // The 1 km PVOUT/buildability raster can't measure polygons smaller
+                // than one pixel (~100 ha at the equator) — those return 0 by
+                // construction, not because of HARD exclusions. The old message
+                // ("entire polygon excluded by slope, peat, or Kawasan Hutan")
+                // was honest for the large-polygon case but misleading for sites
+                // like BSD (60 ha), Sanur (41 ha), Batam Tourism (47 ha), and
+                // Batam Aero Technic (31 ha) where the polygon is sub-pixel.
+                if (row.polygon_source_tier === 'none' || row.polygon_source_tier == null) {
+                  return 'No buildable land within 2 km centroid buffer (entire buffer excluded by slope, peat, Kawasan Hutan, or buildability data coverage gap). Hunt a real fence-line polygon to refine.';
+                }
+                if (row.polygon_area_ha != null && row.polygon_area_ha < 100) {
+                  return `Polygon (${row.polygon_area_ha.toFixed(0)} ha) is smaller than the 1 km buildability raster — at this resolution, no buildable pixel can be measured inside it. May represent real-world capacity (visible on the satellite layer) that the dashboard can't yet score. Hand-draw a tighter polygon or use the slider to surface override potential.`;
+                }
+                return 'No buildable area within fence (entire polygon excluded by slope, peat, or Kawasan Hutan).';
+              })()}
             </div>
           )}
 

@@ -33,6 +33,15 @@ Output columns (PVOUT values in kWh/kWp/year, CF values unitless 0–1):
                                NaN if buildability data not present
     best_solar_site_lon        longitude of the best buildable PVOUT pixel (V2)
                                NaN if buildability data not present
+    polygon_area_ha            total fence-polygon area in ha — distinct from
+                               within_boundary_area_ha (which is buildable area
+                               after the 4-layer cascade). For "none"-tier
+                               sites this is ~1257 ha (the 2 km buffer fallback);
+                               for real polygons it ranges from <50 ha (BSD,
+                               Sanur — sub-pixel) to >2000 ha (Sei Mangkei).
+                               Frontend uses this to distinguish raster-
+                               resolution artifacts from real HARD exclusions
+                               in the within-boundary empty state. (#43)
     within_boundary_area_ha    buildable area within KEK polygon boundary (V2.1)
                                Computed by clipping the 4-layer buildable mask to KEK polygon.
                                Falls back to area_ha × WB_SOLAR_FRACTION when KEK polygon
@@ -1387,15 +1396,31 @@ def build_fct_site_resource(
             wb_hard_max_capacity_mwp = np.nan
             wb_source = "theoretical"
 
-            if build_mask is not None and build_win_tf is not None and kek_polygon is not None:
-                pix_ha = _pixel_area_ha(build_win_tf, lat)
-                # Compute KEK polygon area in ha for capping
-                kek_geom_area_ha = (
+            # Compute polygon total area (independent of buildability data
+            # availability). This is the polygon used for within-boundary
+            # masking — buffer-fallback polygons for "none"-tier sites are
+            # ~1257 ha (the 2 km buffer), real polygons range from <50 ha
+            # (BSD, Sanur, Batam Tourism — sub-1km-pixel) to >2000 ha
+            # (Sei Mangkei). The frontend uses this column to distinguish
+            # "0 buildable because polygon is sub-pixel-small (raster limit)"
+            # from "0 buildable because the polygon overlaps Kawasan Hutan"
+            # — different empty-state messages tell different stories.
+            polygon_area_ha: float | None
+            if kek_polygon is not None:
+                polygon_area_ha = round(
                     kek_polygon.area
                     * (KM_PER_DEGREE_LAT**2)
                     * math.cos(math.radians(lat))
-                    * 100  # km² → ha
+                    * 100,  # km² → ha
+                    1,
                 )
+            else:
+                polygon_area_ha = None
+
+            if build_mask is not None and build_win_tf is not None and kek_polygon is not None:
+                pix_ha = _pixel_area_ha(build_win_tf, lat)
+                # Reuse the polygon area for raster-pixel capping below.
+                kek_geom_area_ha = polygon_area_ha if polygon_area_ha is not None else 0.0
                 wb_area_ha, wb_pvout_daily, wb_capacity_mwp = _compute_within_boundary_buildable(
                     build_mask, pvout_patch, build_win_tf, kek_polygon, pix_ha, kek_geom_area_ha
                 )
@@ -1497,6 +1522,13 @@ def build_fct_site_resource(
                     "best_solar_site_dist_km": best_solar_dist_km
                     if np.isfinite(best_solar_dist_km)
                     else np.nan,
+                    # v4.1 (#43): total polygon area in ha — distinct from
+                    # within_boundary_area_ha which is BUILDABLE area only.
+                    # Frontend uses this to detect sub-pixel polygons (<100 ha
+                    # don't enclose any 1 km raster pixel centers) so the
+                    # empty-state message can explain "resolution limit" vs
+                    # "Kawasan Hutan exclusion".
+                    "polygon_area_ha": polygon_area_ha if polygon_area_ha is not None else np.nan,
                     # V2.1: within-boundary solar from spatial KEK×raster intersection
                     "within_boundary_area_ha": round(wb_area_ha, 1)
                     if np.isfinite(wb_area_ha)
