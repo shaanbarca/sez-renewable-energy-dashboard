@@ -73,6 +73,7 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv) | fact | variable | Per-site cement plant aggregation — dual-mode | `dim_sites` · GEM Cement Tracker | CBAM-exposed cement plants. High process emissions (0.52 tCO₂/t calcination). Feeds Industry tab + sector summary. | ✅ |
 | [fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv) | fact | 81 | Wind speed, capacity factor, and buildability per site (centroid + best 50km + buildable-area metrics) | `dim_sites` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_site_resource`. Answers "how much wind does each site get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
 | [fct_geothermal_proximity](#313-outputsdataprocessedfct_geothermal_proximitycsv) | fact | 81 | Nearest operating + pipeline PLTP per site, plus the adjacency tier that drives F1's Supply Blend dispatchable-RE layer | `dim_sites` · `data/raw/geothermal_operating.geojson` · `data/raw/geothermal_pipeline.geojson` | F2 (v4.0.5): activates the dispatchable-RE layer of the Supply Blend cascade for sites within reach of geothermal. Tier translator in `src/model/geothermal_adjacency.py` produces (coverage_pct, LCOE) inputs that F1 reads off `SiteContext`. | ✅ |
+| [fct_site_classifications](#314-outputsdataprocessedfct_site_classificationscsv) | fact | 81 | Per-site electricity arrangement + captive fuel type (v4.1a §3.1a subset). Gates captive coal/gas LCOE columns on the scorecard. Defaults apply §3.2 sector × region rule table; per-site overrides in `data/raw/site_classifications.csv` trump defaults. | `dim_sites` · `data/raw/site_classifications.csv` (overrides) | v4.1a §3 (#70): classifies each site into one of 4 electricity arrangements + 6 captive fuel types. Read by `fct_site_scorecard` to populate `electricity_arrangement` + `captive_fuel_type` + `classification_confidence` columns. Captive cost gating happens via these. v4.1b extends additively with export-share columns. | ✅ |
 
 ---
 
@@ -894,6 +895,11 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `captive_phaseout_year_baseline` | int | F6, 2026-05-09 | 2050 under current Perpres 112. |
 | `captive_phaseout_year_strict_scenario` | int | F6, 2026-05-09 | 2035 if Art. 10 exemption tightened in 2026+ regulatory cycle (v4.3 strict-pathway default). 2050 for non-exempt sites. |
 | `captive_subject_to_strict_scenario` | bool | F6, 2026-05-09 | True if the strict scenario phase-out year is earlier than baseline (i.e. site relies on the exemption today). |
+| `electricity_arrangement` | str enum | v4.1a §3 (#70) | One of `grid_only` / `grid_primary_with_captive` / `hybrid_captive_primary` / `pure_captive`. From `fct_site_classifications`. Drives the right incumbent comparator. |
+| `captive_fuel_type` | str enum | v4.1a §3 (#70) | One of `coal_subcritical` / `coal_supercritical` / `natural_gas` / `oil_diesel` / `hybrid` / `none`. From `fct_site_classifications`. Gates the captive cost LCOE columns below. |
+| `classification_confidence` | str enum | v4.1a §3 (#70) | `high` / `medium` / `low`. `medium` = sectoral default applied; `high` = override row from `data/raw/site_classifications.csv`. |
+| `captive_coal_lcoe_usd_mwh` | float/null | v4.1a §4 (#71) | Levelized cost ($/MWh) of on-site captive coal for sites where `captive_fuel_type` starts `coal_`. Override values from `data/raw/captive_generation_overrides.csv` (IMIP $50, IWIP $55, Obi $60, Konawe $52, Krakatau Posco $48); otherwise formula default from `CAPTIVE_COAL_DEFAULTS` (~$55/MWh). NULL for non-coal sites. |
+| `captive_gas_lcoe_usd_mwh` | float/null | v4.1a §5 (#72) | Levelized cost ($/MWh) of on-site captive gas for sites where `captive_fuel_type == 'natural_gas'`. Pupuk Kaltim Bontang override $65; otherwise formula default from `CAPTIVE_GAS_DEFAULTS` (~$77/MWh). NULL for non-gas sites. |
 | `captive_perpres_112_source` | str/null | F6, 2026-05-09 | Citation for the classification (e.g. "Perpres 112/2022 Art. 10 (sector default)" or specific rulings like Perpres 70/2014). |
 | `captive_perpres_112_verification_status` | str enum | F6, 2026-05-09 | `sector_default` (auto from sector rule) or `verified` (legal review confirmed). |
 | `recommended_grid_link_status` | str enum | F5, 2026-05-09 | RUPTL §V.9 worst-case status for the region's transmission links: `in_construction` / `pre_construction` / `under_study` / `not_feasible` / `cross_border`, or `not_in_ruptl` if the region has no flagged links. From `fct_transmission_link_ruptl_signal.csv`. |
@@ -1129,6 +1135,52 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 **Tier distribution at v4.0.5 (81 sites):** `none` 38 / `operating_within_200km` 23 / `pipeline_within_200km_post2030` 10 / `operating_within_50km` 9 / `pipeline_within_200km_pre2030` 1.
 
 **Deferred:** `geothermal_transmission_feasibility` (same_island_connected / grid_first / cross_island_unconnected) lands when v4.1b adds the broader dispatchable-RE adjacency model — needs site/plant `regpln` plus `inter_substation_connected` from `fct_substation_proximity`.
+
+---
+
+### 3.14 `outputs/data/processed/fct_site_classifications.csv`
+
+**Rows:** 81 (one per site)
+**Built from:** `outputs/data/processed/dim_sites.csv` + `data/raw/site_classifications.csv` (overrides)
+**Pipeline:** `build_fct_site_classifications.py` (depends on `dim_sites`)
+**Phase:** v4.1a §3.1a subset; v4.1b adds export-share columns to the same table (additive — no migration).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `site_id` | str | Site identifier (join key) |
+| `site_name` | str | Human-readable site name |
+| `sector` | str | nickel / steel / cement / fertilizer / aluminium / mixed |
+| `subsector` | str | Inferred from `primary_product` — e.g. `nickel_npi`, `nickel_matte`, `steel_eaf`, `steel_bfbof`, `ammonia` |
+| `region` | str | Province (passthrough from dim_sites) |
+| `grid_region` | str | JAVA_BALI / SUMATERA / KALIMANTAN / SULAWESI / MALUKU / PAPUA / NTB |
+| `electricity_arrangement` | enum | `grid_only` / `grid_primary_with_captive` / `hybrid_captive_primary` / `pure_captive` |
+| `captive_fuel_type` | enum | `coal_subcritical` / `coal_supercritical` / `natural_gas` / `oil_diesel` / `hybrid` / `none` |
+| `captive_capacity_mw` | float | Nameplate of on-site captive plant (overrides only; NaN for default rows) |
+| `captive_share_estimated` | float | 0.0–1.0 share of facility electricity from captive (overrides only) |
+| `last_updated` | str | ISO date (set to today on build) |
+| `classification_confidence` | enum | `high` (override + verified) / `medium` (sectoral default) / `low` |
+| `notes` | str | Rationale text (free) |
+
+**Default rule table (§3.2)** applied when no override row exists for the site:
+
+| Sector | Region | Default electricity_arrangement | Default captive_fuel_type |
+|---|---|---|---|
+| Nickel | Sulawesi / Maluku | `pure_captive` | `coal_subcritical` |
+| Aluminium | All | `hybrid_captive_primary` | `hybrid` |
+| Cement | Java | `grid_only` | `none` |
+| Cement | Outside Java | `grid_primary_with_captive` | `coal_subcritical` |
+| Fertilizer | All | `pure_captive` | `natural_gas` |
+| Steel | Java | `grid_primary_with_captive` | `natural_gas` |
+| Steel | Sulawesi | `pure_captive` | `coal_subcritical` |
+| KEK (mixed) | Java | `grid_only` | `none` |
+| KEK (mixed) | Maluku / Papua / NTB | `pure_captive` | `coal_subcritical` |
+| KEK (mixed) | Other (Sumatera / Kalimantan / Sulawesi) | `grid_primary_with_captive` | `none` |
+
+**Override mechanism.** Each row in `data/raw/site_classifications.csv` (matched on `site_id`) replaces the corresponding default fields. Sites with overrides typically carry `classification_confidence='high'`; default-only sites get `classification_confidence='medium'`.
+
+v4.1a ships overrides for 6 anchor sites (IMIP, IWIP, Pupuk Kaltim, Krakatau Posco, Inalum, Freeport Gresik).
+
+**Downstream.** `fct_site_scorecard` left-joins this table and uses `captive_fuel_type` to gate the new `captive_coal_lcoe_usd_mwh` (#71) and `captive_gas_lcoe_usd_mwh` (#72) columns.
 
 ---
 

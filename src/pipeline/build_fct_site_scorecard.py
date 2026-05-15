@@ -63,6 +63,13 @@ from src.model.basic_model import (
     invest_resilience,
     resolve_demand,
 )
+from src.model.captive_economics import (
+    captive_coal_lcoe_usd_mwh,
+    captive_gas_lcoe_usd_mwh,
+    load_captive_overrides,
+    site_captive_coal_lcoe,
+    site_captive_gas_lcoe,
+)
 from src.model.columns import Col
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
 from src.pipeline.build_fct_site_resource import (
@@ -83,6 +90,7 @@ FGCP_CSV = PROCESSED / "fct_grid_cost_proxy.csv"
 FRUPTL_CSV = PROCESSED / "fct_ruptl_pipeline.csv"
 FCT_DEMAND_CSV = PROCESSED / "fct_site_demand.csv"
 FSUB_CSV = PROCESSED / "fct_substation_proximity.csv"
+FCT_SITE_CLASSIFICATIONS_CSV = PROCESSED / "fct_site_classifications.csv"
 
 
 def _ruptl_region_summary(ruptl: pd.DataFrame) -> pd.DataFrame:
@@ -112,6 +120,7 @@ def build_fct_site_scorecard(
     fct_ruptl_pipeline_csv: Path = FRUPTL_CSV,
     fct_site_demand_csv: Path = FCT_DEMAND_CSV,
     fct_substation_proximity_csv: Path = FSUB_CSV,
+    fct_site_classifications_csv: Path = FCT_SITE_CLASSIFICATIONS_CSV,
     base_wacc: float = BASE_WACC,
 ) -> pd.DataFrame:
     """Join all upstream tables into one dashboard-ready scorecard."""
@@ -126,6 +135,34 @@ def build_fct_site_scorecard(
     fct_demand_raw = pd.read_csv(fct_site_demand_csv)
     fct_demand = resolve_demand(fct_demand_raw)
     fct_sub = pd.read_csv(fct_substation_proximity_csv)
+
+    # v4.1a §3 (#70) — site classification table.
+    # Defensive: classification CSV may not exist on first pipeline runs from
+    # a fresh checkout; fall back to an empty frame and the merge produces
+    # NaN columns that flow through as None.
+    if fct_site_classifications_csv.exists():
+        classifications = pd.read_csv(fct_site_classifications_csv)[
+            [
+                "site_id",
+                "electricity_arrangement",
+                "captive_fuel_type",
+                "classification_confidence",
+            ]
+        ]
+    else:
+        classifications = pd.DataFrame(
+            columns=[
+                "site_id",
+                "electricity_arrangement",
+                "captive_fuel_type",
+                "classification_confidence",
+            ]
+        )
+
+    # v4.1a §4-§5 (#71/#72) — captive cost overrides + defaults.
+    captive_overrides = load_captive_overrides()
+    captive_coal_default = captive_coal_lcoe_usd_mwh()
+    captive_gas_default = captive_gas_lcoe_usd_mwh()
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
     # LCOE at base WACC, within_boundary scenario (on-site solar, no connection cost)
@@ -292,6 +329,23 @@ def build_fct_site_scorecard(
         .merge(sub, on="site_id", how="left")
         .merge(lcoe_wind_wb, on="site_id", how="left")
         .merge(lcoe_wind_rc, on="site_id", how="left")
+        .merge(classifications, on="site_id", how="left")
+    )
+
+    # v4.1a §4-§5 (#71/#72): captive coal + gas LCOE columns.
+    # Population gated on `captive_fuel_type` from #70 classification; NULL
+    # for sites that don't have that fuel type.
+    df["captive_coal_lcoe_usd_mwh"] = df.apply(
+        lambda r: site_captive_coal_lcoe(
+            r["site_id"], r.get("captive_fuel_type"), captive_overrides, captive_coal_default
+        ),
+        axis=1,
+    )
+    df["captive_gas_lcoe_usd_mwh"] = df.apply(
+        lambda r: site_captive_gas_lcoe(
+            r["site_id"], r.get("captive_fuel_type"), captive_overrides, captive_gas_default
+        ),
+        axis=1,
     )
 
     # Ensure buildability columns exist (NaN if data/buildability/ not yet populated)
@@ -908,6 +962,12 @@ def build_fct_site_scorecard(
             "grid_emission_factor_t_co2_mwh",
             "carbon_breakeven_usd_tco2",
             "clean_power_advantage",
+            # v4.1a §3-§5 (#70/#71/#72) — site classification + captive economics.
+            "electricity_arrangement",
+            "captive_fuel_type",
+            "classification_confidence",
+            "captive_coal_lcoe_usd_mwh",
+            "captive_gas_lcoe_usd_mwh",
             "data_completeness",
         ]
     ]

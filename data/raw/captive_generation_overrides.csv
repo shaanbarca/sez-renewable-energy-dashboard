@@ -1,0 +1,7 @@
+site_id,captive_lcoe_usd_mwh,fuel_type,source,last_updated
+indonesia-morowali-industrial-park-imip,50,coal_subcritical,industry estimate (IESR 2024),2024-12-01
+industrial-weda-bay-industrial-park-iwip,55,coal_subcritical,newer plants higher capital recovery,2024-12-01
+obi-island-industrial-park,60,coal_subcritical,remote higher fuel transport,2024-12-01
+indonesia-konawe-industrial-park-ikip,52,coal_subcritical,Sulawesi Tenggara industry est,2024-12-01
+krakatau-posco-cilegon,48,coal_supercritical,Java steel BF-BOF USC plant,2024-12-01
+pupuk-kaltim-bontang,65,natural_gas,industry estimate Indonesia gas captive,2024-12-01

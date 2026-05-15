@@ -71,6 +71,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
+from src.model.captive_economics import (
+    is_coal_anchor_site,
+    is_gas_anchor_site,
+    load_captive_overrides,
+)
+
 ConfidenceLevel = Literal["high", "medium", "low"]
 _VALID_CONFIDENCES: tuple[ConfidenceLevel, ...] = ("high", "medium", "low")
 
@@ -288,7 +294,123 @@ PROVENANCE_REGISTRY: dict[str, tuple[ProvenanceFlag, SiteOverrideLoader | None]]
         ),
         None,
     ),
+    # ─── v4.1a §3 (#70) — site classification fields ──────────────────────
+    # Default confidence is 'medium' (sectoral default rule applied);
+    # site-level confidence comes through `classification_confidence` on
+    # the scorecard itself, sourced from data/raw/site_classifications.csv.
+    "electricity_arrangement": (
+        ProvenanceFlag(
+            source="classification logic (default rule)",
+            vintage="2024",
+            confidence="medium",
+            citation=(
+                "v4.1a §3.2 sector × region default rule table. Indonesia "
+                "Dashboard Methodology §3. Site-specific overrides where "
+                "public disclosure exists upgrade to confidence='high'."
+            ),
+        ),
+        None,
+    ),
+    "captive_fuel_type": (
+        ProvenanceFlag(
+            source="dim_sites + GEM tracker + sectoral defaults",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "Global Energy Monitor coal plant tracker (2024) for captive "
+                "coal sites; sectoral defaults applied otherwise per v4.1a §3.2. "
+                "Indonesia Dashboard Methodology §3."
+            ),
+        ),
+        None,
+    ),
+    # ─── v4.1a §4 (#71) — captive coal LCOE ───────────────────────────────
+    # Default flag is 'medium' confidence (formula output with literature
+    # defaults). The 5 anchor sites with overrides bump to 'high' via the
+    # override loader assigned at module load (below).
+    "captive_coal_lcoe_usd_mwh": (
+        ProvenanceFlag(
+            source="CAPTIVE_COAL_DEFAULTS formula (literature mid-range)",
+            vintage="2024",
+            confidence="medium",
+            citation=(
+                "Berkeley Goldman School (2023). 'Indonesia Can "
+                "Cost-effectively Supplant Captive Coal-fired Power Plants "
+                "with Solar Energy.' + IESR (2024). 'Captive Power Plants: "
+                "Indonesia's hidden coal expansion.' v4.1a §4 default."
+            ),
+        ),
+        None,  # see captive_coal_override_loader assigned below
+    ),
+    # ─── v4.1a §5 (#72) — captive gas LCOE ────────────────────────────────
+    # Defaults are medium confidence; Pupuk Kaltim Bontang override bumps
+    # to high via captive_gas_override_loader (assigned below).
+    "captive_gas_lcoe_usd_mwh": (
+        ProvenanceFlag(
+            source="CAPTIVE_GAS_DEFAULTS formula (literature mid-range)",
+            vintage="2024",
+            confidence="medium",
+            citation=(
+                "IESR (2024). 'Indonesia captive gas economics — fertilizer "
+                "+ petrochemical sectoral defaults.' v4.1a §5 default."
+            ),
+        ),
+        None,  # see captive_gas_override_loader assigned below
+    ),
 }
+
+
+# ─── Per-site override loaders for captive cost provenance ──────────────────
+# These run after the registry is constructed so they can read the override
+# CSV via the captive_economics module. We rebuild the registry entries with
+# the loader callable attached.
+
+
+def _captive_coal_override_loader(site_id: str) -> ProvenanceFlag | None:
+    """Bump confidence to 'high' for sites with a coal_* override row.
+
+    Returns None (use default) for sites without an override.
+    """
+    overrides = load_captive_overrides()
+    if is_coal_anchor_site(site_id, overrides):
+        return ProvenanceFlag(
+            source="data/raw/captive_generation_overrides.csv",
+            vintage="2024-12",
+            confidence="high",
+            citation=(
+                "Site-specific captive coal LCOE from IESR (2024) industry "
+                "estimates + plant-level engineering data. v4.1a §4.4 anchor."
+            ),
+        )
+    return None
+
+
+def _captive_gas_override_loader(site_id: str) -> ProvenanceFlag | None:
+    """Bump confidence to 'high' for Pupuk Kaltim Bontang (gas anchor)."""
+    overrides = load_captive_overrides()
+    if is_gas_anchor_site(site_id, overrides):
+        return ProvenanceFlag(
+            source="data/raw/captive_generation_overrides.csv",
+            vintage="2024-12",
+            confidence="high",
+            citation=(
+                "Pupuk Indonesia disclosures + IEA Indonesia gas price 2024. "
+                "v4.1a §5.4 anchor case."
+            ),
+        )
+    return None
+
+
+# Replace the None override-loader slots for the captive LCOE fields with
+# the real loaders. Tuples are immutable, so reconstruct the entries.
+PROVENANCE_REGISTRY["captive_coal_lcoe_usd_mwh"] = (
+    PROVENANCE_REGISTRY["captive_coal_lcoe_usd_mwh"][0],
+    _captive_coal_override_loader,
+)
+PROVENANCE_REGISTRY["captive_gas_lcoe_usd_mwh"] = (
+    PROVENANCE_REGISTRY["captive_gas_lcoe_usd_mwh"][0],
+    _captive_gas_override_loader,
+)
 
 
 def build_sidecar_rows(

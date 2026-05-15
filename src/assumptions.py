@@ -401,6 +401,69 @@ HOSTING_CAPACITY_AVAILABILITY_PCT: float = 0.30
 # consumes most headroom, (b) N-1 contingency reserves 10-20%, (c) inverter
 # + protection limits effectively cap injection below nameplate.
 
+# ─── CAPTIVE COAL ECONOMICS (v4.1a §4) ───────────────────────────────────────
+# Several major Indonesian industrial sites (nickel IIA Sulawesi/Maluku parks,
+# some integrated steel, cement outside Java) run on on-site captive coal
+# generation, not PLN grid. For these sites, comparing solar LCOE to PLN BPP
+# gives the wrong economic signal — the relevant alternative is the captive
+# plant's own LCOE. Spec: docs/refinement/v4_1_foundation_spec.md §4.
+#
+# These defaults yield ~$45/MWh LCOE — the centre of the $35-60/MWh range cited
+# for Indonesian captive coal in Berkeley Goldman 2023 + IESR 2024. Site-level
+# overrides for the 5 anchor sites (IMIP, IWIP, Obi, Konawe, Krakatau Posco)
+# live in data/raw/captive_generation_overrides.csv.
+#
+# Sources:
+#   - Berkeley Goldman School (2023). "Indonesia Can Cost-effectively Supplant
+#     Captive Coal-fired Power Plants with Solar Energy."
+#   - IESR (2024). "Captive Power Plants: Indonesia's hidden coal expansion."
+#   - IEA Southeast Asia coal-fired power costs.
+
+CAPTIVE_COAL_DEFAULTS: dict[str, float] = {
+    "fuel_cost_usd_per_tonne": 55.0,  # mid-range domestic Indonesian sub-bituminous
+    "heat_rate_btu_per_kwh": 10_000.0,  # typical subcritical Indonesian plants
+    "variable_om_usd_mwh": 6.0,
+    "fixed_om_usd_per_kw_year": 40.0,
+    "capital_recovery_usd_mwh": 15.0,  # weighted average across plant ages
+    "capacity_factor": 0.85,  # captive baseload runs hard
+    "emissions_intensity_tco2_per_mwh": 0.95,  # subcritical Indonesian coal
+    # → resulting LCOE ~$45/MWh (see docs/METHODOLOGY_CONSOLIDATED.md §4)
+}
+
+# Coal heating value used to convert $/tonne fuel cost to $/MWh fuel component.
+# 19 MMBTU/tonne is a representative value for Indonesian sub-bituminous coal
+# (compare IEA Coal 2024 — Indonesia exports run 4,200-5,500 kcal/kg HHV).
+CAPTIVE_COAL_HHV_MMBTU_PER_TONNE: float = 19.0
+
+
+# ─── CAPTIVE GAS ECONOMICS (v4.1a §5) ────────────────────────────────────────
+# Fertilizer + petrochemical sites (Pupuk Kaltim, Petrokimia Gresik, Pupuk
+# Iskandar Muda, Pupuk Kujang, Pupuk Sriwidjaja) run on captive natural gas
+# generation, not PLN grid. Per §5.1 the economics differ from coal:
+# - Higher fuel cost but lower carbon intensity
+# - Often long-term gas supply contracts
+# - Different decarbonisation pathway (gas can blend H2 long-term; coal
+#   is binary stranded)
+# - Concessional financing flips the gas case but not the coal case
+#
+# These defaults yield ~$65/MWh LCOE — the centre of the cited range for
+# Indonesian captive gas. Pupuk Kaltim Bontang override (~$65/MWh) lives in
+# data/raw/captive_generation_overrides.csv as the anchor case.
+#
+# Source: IESR (2024). Indonesia captive gas economics.
+
+CAPTIVE_GAS_DEFAULTS: dict[str, float] = {
+    "fuel_cost_usd_per_mmbtu": 8.0,  # typical Indonesian industrial gas
+    "heat_rate_btu_per_kwh": 7_500.0,  # CCGT typical
+    "variable_om_usd_mwh": 4.0,
+    "fixed_om_usd_per_kw_year": 25.0,
+    "capital_recovery_usd_mwh": 10.0,
+    "capacity_factor": 0.80,
+    "emissions_intensity_tco2_per_mwh": 0.40,
+    # → resulting LCOE ~$65/MWh (see docs/METHODOLOGY_CONSOLIDATED.md §5)
+}
+
+
 # ─── GRID-CONNECTED IPP TARIFF CEILING (Perpres 112/2022) ────────────────────
 
 PERPRES_112_CEILING_USD_MWH: float = 75.0

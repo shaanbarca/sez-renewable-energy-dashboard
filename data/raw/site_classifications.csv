@@ -1,0 +1,7 @@
+site_id,electricity_arrangement,captive_fuel_type,captive_capacity_mw,captive_share_estimated,classification_confidence,notes
+inalum-asahan,hybrid_captive_primary,hybrid,603,0.85,high,"PT Inalum Asahan operates the 603 MW Sigura-gura + Tangga hydropower complex feeding the smelter (Asahan-1); captive hydro with coal backup. Source: PT Inalum 2023 annual report."
+freeport-smelter-gresik,grid_primary_with_captive,natural_gas,,,medium,"Freeport's Manyar smelter in JIIPE Gresik operates as a grid-primary facility with on-site captive gas generation; sectoral norm for Java aluminium. Source: PTFI sustainability report 2023."
+krakatau-posco-cilegon,grid_primary_with_captive,coal_supercritical,200,0.50,high,"Krakatau Posco BF-BOF integrated steel uses USC captive coal alongside PLN grid. Source: POSCO Indonesia disclosures; see also captive_generation_overrides.csv for LCOE."
+indonesia-morowali-industrial-park-imip,pure_captive,coal_subcritical,3850,1.0,high,"IMIP nickel park operates large captive coal (3,850 MW per GEM tracker 2024). Anchor for Sulawesi nickel default."
+industrial-weda-bay-industrial-park-iwip,pure_captive,coal_subcritical,2090,1.0,high,"IWIP nickel park captive coal (2,090 MW per GEM tracker 2024). Confirms Maluku nickel default."
+pupuk-kaltim-bontang,pure_captive,natural_gas,275,1.0,high,"Pupuk Kaltim Bontang ammonia + urea complex with 5 captive natural gas units (~275 MW combined); fertilizer sector norm. Source: Pupuk Indonesia disclosures."

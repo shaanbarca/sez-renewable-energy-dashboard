@@ -64,3 +64,43 @@ Each file should:
 **Coverage today.** 8 seed entries from RUPTL §V.9 cross-island interconnection passages (Sumatra–Java, Java–Lombok, Bangka–Belitung, Sulawesi internal, Sulbagsel–Baubau, Seram–Ambon, Malaka, Papua–PNG). All marked `inferred` pending domain review. Full regional substation pipeline transcription is a separate follow-up data task.
 
 **Implementation.** Loaded by `src/pipeline/build_fct_transmission_link_ruptl_signal.py`. Output `outputs/data/processed/fct_transmission_link_ruptl_signal.csv` consumed by the scorecard enricher, which maps a site's `grid_region_id` to the worst-case feasibility status of its path to grid integration.
+
+---
+
+## `site_classifications.csv`
+
+**Purpose (v4.1a §3, [#70](https://github.com/shaanbarca/eez/issues/70)).** Per-site override for `electricity_arrangement` + `captive_fuel_type` + `captive_capacity_mw` + `captive_share_estimated`. Per-site rows trump the §3.2 sectoral defaults in `build_fct_site_classifications.py`. Sites without overrides fall back to defaults with `classification_confidence='medium'`.
+
+**Schema:**
+
+| Column | Type | Description |
+|---|---|---|
+| `site_id` | str | Site identifier (must exist in `dim_sites`). |
+| `electricity_arrangement` | enum | `grid_only` / `grid_primary_with_captive` / `hybrid_captive_primary` / `pure_captive`. Optional — leave blank to use sectoral default. |
+| `captive_fuel_type` | enum | `coal_subcritical` / `coal_supercritical` / `natural_gas` / `oil_diesel` / `hybrid` / `none`. Optional. |
+| `captive_capacity_mw` | float | Nameplate MW of on-site captive plant if applicable. |
+| `captive_share_estimated` | float | 0.0–1.0 share of facility electricity from captive. |
+| `classification_confidence` | enum | `high` (cited disclosure) / `medium` / `low`. Defaults to `high` for override rows when blank. |
+| `notes` | str | Free-form rationale + citation. |
+
+**Coverage today.** 6 anchor rows: IMIP, IWIP, Pupuk Kaltim Bontang, Krakatau Posco, Inalum (hydro-anchored hybrid), Freeport Gresik (gas-anchored grid-primary). All other 75 sites fall back to defaults.
+
+---
+
+## `captive_generation_overrides.csv`
+
+**Purpose (v4.1a §4–§5, [#71](https://github.com/shaanbarca/eez/issues/71) + [#72](https://github.com/shaanbarca/eez/issues/72)).** Per-site LCOE override for captive coal + captive gas plants. Overrides surface in `fct_site_scorecard.captive_coal_lcoe_usd_mwh` / `captive_gas_lcoe_usd_mwh` columns. Sites without overrides use the formula default from `CAPTIVE_COAL_DEFAULTS` / `CAPTIVE_GAS_DEFAULTS` in `src/assumptions.py`.
+
+**Schema:**
+
+| Column | Type | Description |
+|---|---|---|
+| `site_id` | str | Site identifier (kebab-case — must match `dim_sites`). |
+| `captive_lcoe_usd_mwh` | float | Site-specific captive LCOE ($/MWh). Coal anchors $48–60, gas anchor $65. |
+| `fuel_type` | str | `coal_subcritical` / `coal_supercritical` / `natural_gas`. Distinguishes which column the override populates. |
+| `source` | str | Primary reference (industry estimate, IESR report, annual report disclosure). |
+| `last_updated` | YYYY-MM-DD | Date of last verification. |
+
+**Coverage today.** 5 coal anchors (IMIP $50, IWIP $55, Obi $60, Konawe $52, Krakatau Posco $48) + 1 gas anchor (Pupuk Kaltim Bontang $65). Spec §4.4 site_ids were corrected from snake_case (`imip_morowali`) to kebab-case (`indonesia-morowali-industrial-park-imip`) per eng-review finding A4.
+
+**Confidence bump.** Provenance sidecar (`fct_field_provenance.csv`) reflects the override status: anchor sites get `confidence='high'` for the captive LCOE columns, default-only sites get `confidence='medium'`. See `src/utils/provenance.py::_captive_coal_override_loader` + `_captive_gas_override_loader`.
