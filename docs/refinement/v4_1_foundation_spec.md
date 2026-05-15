@@ -10,6 +10,11 @@
 
 **Status:** Ready for implementation, supersedes baseline `v4_1_foundation_spec.md`.
 
+**Amendment 2026-05-15 (`/plan-eng-review` finding A1).** This spec previously claimed a `lcoe_usd_per_mwh` column exists in v4.0 and proposed deprecating it. **That column does not exist** — the actual v4.0 columns use `_usd_mwh` (no `per_`): `lcoe_mid_usd_mwh`, `lcoe_grid_connected_usd_mwh`, `lcoe_within_boundary_usd_mwh`, etc. Two corrections applied throughout this spec:
+
+1. **Column-name convention.** `_usd_per_mwh` → `_usd_mwh` everywhere (matches existing v4.0 codebase convention — `_per_` is reserved for $/kW, $/tonne, $/tCO2). 159 occurrences renamed.
+2. **Migration story.** Replaced "rename + one-release deprecation alias on `lcoe_usd_per_mwh`" with **"additive — v4.1 adds new IEA columns alongside; v4.0 columns stay unchanged"**. This eliminates the silent-miscalibration risk by not touching any v4.0 column's semantics. §15.1's alias scheme is replaced by a v4.0 → IEA translation table. Issues #66 + #67 implement under this amended convention.
+
 ---
 
 ## What This Release Addresses
@@ -22,10 +27,10 @@ v4.1 is the foundation refactor — every subsequent release builds on it. This 
 
 | Section | What's changing | Why |
 |---|---|---|
-| [§2.1 Multi-tier solar cost outputs (IEA-aligned)](#21-multi-tier-solar-cost-outputs-refined--iea-aligned-column-names) | `lcoe_generation_usd_per_mwh` (LCOE), `full_system_lcoe_delivered_*`, `full_system_lcoe_firm_4h/8h_*` replace v4.1-baseline `lcoe_generation` / `lcoe_delivered` / `lcoe_firm_*` | v4.0 outputs single LCOE; v4.1's multi-tier is what investment decisions actually need. IEA-aligned naming reduces translation friction with DFI analysts and the energy-economist literature. |
+| [§2.1 Multi-tier solar cost outputs (IEA-aligned)](#21-multi-tier-solar-cost-outputs-refined--iea-aligned-column-names) | `lcoe_generation_usd_mwh` (LCOE), `full_system_lcoe_delivered_*`, `full_system_lcoe_firm_4h/8h_*` replace v4.1-baseline `lcoe_generation` / `lcoe_delivered` / `lcoe_firm_*` | v4.0 outputs single LCOE; v4.1's multi-tier is what investment decisions actually need. IEA-aligned naming reduces translation friction with DFI analysts and the energy-economist literature. |
 | [§2.2 Multi-incumbent cost references](#22-multi-incumbent-cost-references) | BPP, marginal-daytime, marginal-nighttime, industrial tariff, captive incumbents | Different sites compete against different incumbents (grid-connected vs captive coal vs captive gas vs PLN). v4.0's "everyone vs PLN BPP" misranks captive sites by 30–50%. |
 | [§2.6 IEA terminology alignment (column names ARE IEA-named)](#26-iea-terminology-alignment-refined--column-names-are-iea-named) | IEA terms as primary column-name convention; T1/T2/T3 framing preserved as parallel cross-walk | Column names show up in CSV exports analysts paste into investment memos. IEA-aligned names remove translation at the column-header level, not just UI labels. |
-| [§10.1 Schema](#101-new-fields-added-refined--iea-aligned-column-names) + [§15.1 Backwards-compat aliases](#151-field-aliases-refined--iea-rename--v40-deprecation-handling) | 30+ new fields; v4.0 column kept as deprecation alias for one release | (Refined 2026-05-07) v4.0's `lcoe_usd_per_mwh` meant *delivered* LCOE; v4.1 adds `lcoe_generation_usd_per_mwh` as a NEW column for IEA generation-only semantics rather than reusing the bare name. v4.0's column survives one release with a deprecation warning, then is removed in v4.2. Eliminates silent-miscalibration risk for any v4.0 CSV already in stakeholder spreadsheets. |
+| [§10.1 Schema](#101-new-fields-added-refined--iea-aligned-column-names) + [§15.1 v4.0 → IEA translation table](#151-v40--iea-translation-table-amended-2026-05-15--additive-migration) | 30+ new fields, additive | (Amended 2026-05-15) v4.1 is additive on the LCOE column front — v4.0 columns (`lcoe_mid_usd_mwh`, `lcoe_grid_connected_usd_mwh`, `lcoe_within_boundary_usd_mwh`, etc.) stay populated with their existing semantics; v4.1a adds the four new IEA-named columns alongside. No rename, no deprecation, no silent-miscalibration risk. The earlier hard-rename plan was anchored on a phantom `lcoe_usd_per_mwh` column that doesn't exist. |
 
 ### 2. Site classification & captive economics — 3 changes
 
@@ -61,7 +66,7 @@ v4.1 is the foundation refactor — every subsequent release builds on it. This 
 
 | Section | What's changing | Why |
 |---|---|---|
-| [§8 Storage and Firm LCOE methodology](#8-storage-and-firm-lcoe-methodology) | LCOS at 4h and 8h durations as IEA-named separate cost outputs (`lcos_4h_usd_per_mwh`, `lcos_8h_usd_per_mwh`) | Firmed solar's cost is two distinct things: solar LCOE and storage LCOS. Conflating them (as v4.0 does in `lcoe_with_battery`) hides which cost is the binding lever. Investors ask "is BESS or solar the constraint?" — separating the costs answers it. |
+| [§8 Storage and Firm LCOE methodology](#8-storage-and-firm-lcoe-methodology) | LCOS at 4h and 8h durations as IEA-named separate cost outputs (`lcos_4h_usd_mwh`, `lcos_8h_usd_mwh`) | Firmed solar's cost is two distinct things: solar LCOE and storage LCOS. Conflating them (as v4.0 does in `lcoe_with_battery`) hides which cost is the binding lever. Investors ask "is BESS or solar the constraint?" — separating the costs answers it. |
 | [§9 Confidence and provenance tracking](#9-confidence-and-provenance-tracking) | Per-field `<field>_source / vintage / confidence / citation` built in from v4.1 | Without provenance, every numeric output is unauditable. DFI investment committees can't use unauditable numbers. Building it in from v4.1 (vs retrofitting later) is dramatically cheaper. |
 | [Appendix A: Geothermal NCG handling (preventive)](#appendix-a-geothermal-ncg-handling-preventive--refined) | When geothermal lands, NCG emissions 42–73 g/kWh not zero (Wayang Windu 73, Kamojang 73, Ulubelu 43 per ESDM 2024 §1) | Indonesian geothermal NCG is non-trivial; treating as zero overstates Scope 2 savings by 5–10%. Pre-empt the bug before geothermal lands in scenario 6 architecture (v4.0.5 / v4.1). |
 | [Appendix C: Six-scenario coverage cross-reference](#appendix-c-six-scenario-coverage-cross-reference-refined--new-appendix) | Maps wiki's six scenarios to where each is computed across v4.0/v4.0.5/v4.1/v4.2/v4.3.5 | Scenarios computed across multiple releases and code modules; cross-reference table prevents methodology gaps from hiding ("we cover scenario 5"; "actually you don't because hydro is reserved for v5"). Makes JETP-style analysis end-to-end reproducible. |
@@ -137,7 +142,7 @@ Per-phase to-do lists, validation strategies, and success criteria are separated
 - **§9 Provenance** is built once in v4.1a and used by both phases. v4.1b's new fields (e.g. `cbam_destination_weighted_*`) carry the standard `_source/_vintage/_confidence` pattern from day one.
 - **§3 Site Classification** spans both. v4.1a needs §3.1–3.2 (electricity arrangement + captive fuel type) for captive cost matching; v4.1b needs §3.3–3.5 (export market shares + per-market carbon prices) for destination-weighted CBAM. Both write to `fct_site_classifications.csv` — v4.1a creates the table with the columns it needs, v4.1b extends it with the export-share columns.
 - **§10 Output schema** has a column subset per phase. The v4.1a column block (multi-tier LCOE, incumbents, captive cost) is locked when v4.1a ships; v4.1b appends the destination-weighted-CBAM columns and hydro proximity columns without modifying v4.1a's columns.
-- **§15 Migration** applies to v4.1a only (the IEA rename + bare `lcoe_usd_per_mwh` deprecation alias). v4.1b is purely additive — no breaking changes vs v4.1a.
+- **§15 Migration** applies to v4.1a only (amended 2026-05-15: now an additive migration — new IEA columns added alongside existing v4.0 columns, no rename, no deprecation). v4.1b is purely additive — no breaking changes vs v4.1a.
 
 ### Sequencing
 
@@ -155,7 +160,7 @@ v4.0 (current)
    │
    └── v4.1b (CBAM + hydro)
          │
-         ├── builds on v4.1a (depends on lcoe_generation_usd_per_mwh, multi-incumbent refs)
+         ├── builds on v4.1a (depends on lcoe_generation_usd_mwh, multi-incumbent refs)
          │
          └── ships independently with its own Zenodo DOI
 
@@ -184,12 +189,12 @@ Per site, output four solar cost variants. **Column names follow the IEA cost-te
 
 | Column | IEA term | Includes | Use case |
 |---|---|---|---|
-| `lcoe_generation_usd_per_mwh` | **LCOE** (base) | CAPEX + OPEX + financing | Comparison to global benchmarks; pure technology cost |
-| `full_system_lcoe_delivered_usd_per_mwh` | **Full System LCOE** (delivered) | LCOE + gen-tie transmission | Grid-connected IPP screening; PLN procurement comparison |
-| `full_system_lcoe_firm_4h_usd_per_mwh` | **Full System LCOE** (firm 4h) | LCOE + transmission + 4-hour storage at 20% nameplate | Daily peak shifting; partial firm capability |
-| `full_system_lcoe_firm_8h_usd_per_mwh` | **Full System LCOE** (firm 8h) | LCOE + transmission + 8-hour storage at 50% nameplate | Near-baseload competition; captive coal replacement |
+| `lcoe_generation_usd_mwh` | **LCOE** (base) | CAPEX + OPEX + financing | Comparison to global benchmarks; pure technology cost |
+| `full_system_lcoe_delivered_usd_mwh` | **Full System LCOE** (delivered) | LCOE + gen-tie transmission | Grid-connected IPP screening; PLN procurement comparison |
+| `full_system_lcoe_firm_4h_usd_mwh` | **Full System LCOE** (firm 4h) | LCOE + transmission + 4-hour storage at 20% nameplate | Daily peak shifting; partial firm capability |
+| `full_system_lcoe_firm_8h_usd_mwh` | **Full System LCOE** (firm 8h) | LCOE + transmission + 8-hour storage at 50% nameplate | Near-baseload competition; captive coal replacement |
 
-**⚠ Breaking-change note for v4.0 consumers (Refined — 2026-05-07 hard-rename decision).** v4.0's `lcoe_usd_per_mwh` column means *delivered* LCOE (LCOE + transmission). v4.1 introduces a NEW column `lcoe_generation_usd_per_mwh` for IEA generation-only semantics — does NOT reuse the `lcoe_usd_per_mwh` name. The original `lcoe_usd_per_mwh` column survives one release with a deprecation warning (now points at `full_system_lcoe_delivered_usd_per_mwh`), then is removed in v4.2. This eliminates the silent-miscalibration risk where same-name-different-value would have broken any v4.0 number already in a spreadsheet. See §15.1.
+**Additive migration for v4.0 consumers (Amended 2026-05-15 — A1 fix).** v4.0 has no bare `lcoe_usd_mwh` column — the actual v4.0 LCOE columns are `lcoe_mid_usd_mwh` (scenario-aware primary), `lcoe_grid_connected_usd_mwh` (delivered semantics), `lcoe_within_boundary_usd_mwh` (captive semantics). v4.1a adds the four new IEA columns above **alongside the existing v4.0 columns** — no rename, no deprecation. v4.0 columns stay populated with unchanged semantics through v4.1; future cleanup happens in v5.0 with a clean break. The translation table mapping v4.0 columns to closest IEA equivalents lives in §15.1.
 
 #### 2.1.1 Cost-stack progression and UI toggle alignment (Refined 2026-05-07)
 
@@ -198,22 +203,22 @@ The four IEA-aligned solar cost columns form a strict cost stack — each tier a
 ```
    $/MWh                       Cost layer added              Stakeholder question
   ──────────────────────────────────────────────────────────────────────────────
-  lcoe_generation_usd_per_mwh           ← CAPEX + OPEX + financing                  "How cheap is the
+  lcoe_generation_usd_mwh           ← CAPEX + OPEX + financing                  "How cheap is the
    IEA LCOE (base)                        No transmission, no storage                generation tech itself?"
        │                                  Pure technology benchmark
        │   + transmission (gen-tie + connection cost: ~$10-25/MWh)
        ▼
-  full_system_lcoe_delivered_usd_per_mwh ← LCOE + transmission, no storage          "What does grid-connected
+  full_system_lcoe_delivered_usd_mwh ← LCOE + transmission, no storage          "What does grid-connected
    IEA Full System LCOE (delivered)       Daytime hours only effective               solar cost the offtaker?
        │                                                                             PLN IPP screening."
        │   + 4h storage at 20% nameplate (~$30-50/MWh adder)
        ▼
-  full_system_lcoe_firm_4h_usd_per_mwh   ← LCOE + transmission + LCOS_4h            "Daily peak shifting;
+  full_system_lcoe_firm_4h_usd_mwh   ← LCOE + transmission + LCOS_4h            "Daily peak shifting;
    IEA Full System LCOE (firm 4h)         Covers evening peak                        partial firm capability."
        │
        │   + 8h storage at 50% nameplate (~$80-130/MWh adder)
        ▼
-  full_system_lcoe_firm_8h_usd_per_mwh   ← LCOE + transmission + LCOS_8h            "Can solar replace
+  full_system_lcoe_firm_8h_usd_mwh   ← LCOE + transmission + LCOS_8h            "Can solar replace
    IEA Full System LCOE (firm 8h)         Near-baseload                              captive coal? Compete
                                                                                      for 24/7 industrial loads?"
 ```
@@ -224,13 +229,13 @@ Typical Indonesian site progression: $50 LCOE → $70 Delivered → $100 Firm 4h
 
 | UI label | `CostBasis` enum | IEA column the toggle reads | Notes |
 |---|---|---|---|
-| **Solar LCOE** | `raw` | `lcoe_generation_usd_per_mwh` | v4.1a redefines this cleanly as IEA generation-only. v4.0's `lcoe_mid_usd_mwh` (which mixed transmission in) deprecates. |
-| **Solar 24/7** | `firmed` | `full_system_lcoe_firm_8h_usd_per_mwh` | Replaces today's `lcoe_with_battery_usd_mwh` 14h-bridge approximation with the IEA firm 8h tier. |
+| **Solar LCOE** | `raw` | `lcoe_generation_usd_mwh` | v4.1a redefines this cleanly as IEA generation-only. v4.0's `lcoe_mid_usd_mwh` (which mixed transmission in) deprecates. |
+| **Solar 24/7** | `firmed` | `full_system_lcoe_firm_8h_usd_mwh` | Replaces today's `lcoe_with_battery_usd_mwh` 14h-bridge approximation with the IEA firm 8h tier. |
 | **Supply Blend** | `delivered` | `delivered_cost_usd_mwh` | **Different beast — not part of the stack.** Tenant cascade: weighted average of within-boundary captive + remote IPP + grid backfill. Lands $80-110/MWh typical for an Indonesian site because grid backfill drags the mix down. |
 
-**Optional 4th toggle (deferred to v4.2 polish):** A `Solar Delivered` toggle reading `full_system_lcoe_delivered_usd_per_mwh` would expose the full system LCOE without storage — useful for DFI investors evaluating grid-connected IPP screening. Today this number is computed but buried inside `lcoe_grid_connected_usd_mwh`. v4.1a does the back-end column work; the UI option can ship later.
+**Optional 4th toggle (deferred to v4.2 polish):** A `Solar Delivered` toggle reading `full_system_lcoe_delivered_usd_mwh` would expose the full system LCOE without storage — useful for DFI investors evaluating grid-connected IPP screening. Today this number is computed but buried inside `lcoe_grid_connected_usd_mwh`. v4.1a does the back-end column work; the UI option can ship later.
 
-**Why this ordering matters for the eng review.** The cost-stack progression is what makes the "hard-rename" strategy load-bearing: today's `lcoe_mid_usd_mwh` quietly straddles "LCOE" and "Delivered" semantics. v4.1a separates them cleanly so the stack is monotone-rising and each toggle answers a distinct stakeholder question. The deprecation alias on the bare `lcoe_usd_per_mwh` name (= `full_system_lcoe_delivered_usd_per_mwh` for one release) keeps v4.0 CSV consumers reading the same numbers they read before the rename.
+**Why this ordering matters for the eng review.** The cost-stack progression is what makes the additive strategy load-bearing: today's `lcoe_mid_usd_mwh` quietly straddles "LCOE generation" and "Full System LCOE delivered" semantics depending on `grid_integration_category`. v4.1a separates them cleanly via the four new IEA columns so the stack is monotone-rising and each toggle answers a distinct stakeholder question. **v4.0's `lcoe_mid_usd_mwh` keeps its existing scenario-aware semantic** — no rename, no deprecation. Consumers reading the old column continue to read the same numbers; consumers wanting the unambiguous IEA tiers read the new columns.
 
 ### 2.2 Multi-incumbent cost references
 
@@ -281,22 +286,22 @@ The dashboard's multi-tier cost framework adopts the standard IEA cost terminolo
 
 | IEA term | v4.1 column name | What it captures | Where computed |
 |---|---|---|---|
-| **LCOE** (base) | `lcoe_generation_usd_per_mwh` | Lifetime cost / lifetime generation of the asset, before transmission, storage, or system effects. The IEA pure-technology LCOE. (Refined 2026-05-07: uses the explicit `_generation_` qualifier rather than reusing the bare `lcoe_usd_per_mwh` name from v4.0, which referred to delivered LCOE.) | §2.1 |
-| **Full System LCOE** (delivered) | `full_system_lcoe_delivered_usd_per_mwh` | LCOE + transmission + connection costs. Approximates IEA Full System LCOE — full Full System LCOE also includes ancillary services, balancing, and capacity value (deferred to v5.x). | §2.1 |
-| **Full System LCOE** (firm 4h / firm 8h) | `full_system_lcoe_firm_4h_usd_per_mwh`, `full_system_lcoe_firm_8h_usd_per_mwh` | LCOE + transmission + LCOS at 4h or 8h duration. Composes Full System LCOE with the LCOS component. | §2.1, §8 |
-| **LCOS** | `lcos_4h_usd_per_mwh`, `lcos_8h_usd_per_mwh` | Storage-only cost per MWh delivered through storage. Per IEA / Lazard LCOS+ methodology. | §8 |
-| **Hybrid LCOE** | `hybrid_lcoe_usd_per_mwh` | Blended generation LCOE across solar + wind + hydro before storage. | §6A |
-| **Hybrid LCOS** | `hybrid_lcos_usd_per_mwh` | Storage cost adder at reduced sizing in the hybrid mix. | §6A |
-| **Hybrid Full System LCOE** | `hybrid_full_system_lcoe_usd_per_mwh` | Hybrid LCOE + Hybrid LCOS — the architecture-menu cost output for the optimal mix. | §6A |
-| **VALCOE elements** (partial — time-of-day) | `incumbent_pln_marginal_daytime_usd_per_mwh`, `incumbent_pln_marginal_nighttime_usd_per_mwh` | Daytime vs nighttime marginal cost split captures the time-of-day value component of VALCOE. Capacity value (partially via hybrid BESS-reduction) and flexibility value (not modeled) are deferred. | §6.2 |
-| (no IEA term) — destination-weighted carbon-adjusted incumbent | `cbam_destination_weighted_incumbent_*_usd_per_mwh` | Per-market carbon price weighted by export market shares (M3 from [[Powering 24-7 Industrial Loads in Indonesia]]). Sits alongside Full System LCOE as an incumbent-side adjustment. | §7 |
+| **LCOE** (base) | `lcoe_generation_usd_mwh` | Lifetime cost / lifetime generation of the asset, before transmission, storage, or system effects. The IEA pure-technology LCOE. (Amended 2026-05-15: ships alongside v4.0's `lcoe_within_boundary_usd_mwh`, which is the closest existing v4.0 equivalent. The new column is unambiguous about the IEA generation-only semantic.) | §2.1 |
+| **Full System LCOE** (delivered) | `full_system_lcoe_delivered_usd_mwh` | LCOE + transmission + connection costs. Approximates IEA Full System LCOE — full Full System LCOE also includes ancillary services, balancing, and capacity value (deferred to v5.x). | §2.1 |
+| **Full System LCOE** (firm 4h / firm 8h) | `full_system_lcoe_firm_4h_usd_mwh`, `full_system_lcoe_firm_8h_usd_mwh` | LCOE + transmission + LCOS at 4h or 8h duration. Composes Full System LCOE with the LCOS component. | §2.1, §8 |
+| **LCOS** | `lcos_4h_usd_mwh`, `lcos_8h_usd_mwh` | Storage-only cost per MWh delivered through storage. Per IEA / Lazard LCOS+ methodology. | §8 |
+| **Hybrid LCOE** | `hybrid_lcoe_usd_mwh` | Blended generation LCOE across solar + wind + hydro before storage. | §6A |
+| **Hybrid LCOS** | `hybrid_lcos_usd_mwh` | Storage cost adder at reduced sizing in the hybrid mix. | §6A |
+| **Hybrid Full System LCOE** | `hybrid_full_system_lcoe_usd_mwh` | Hybrid LCOE + Hybrid LCOS — the architecture-menu cost output for the optimal mix. | §6A |
+| **VALCOE elements** (partial — time-of-day) | `incumbent_pln_marginal_daytime_usd_mwh`, `incumbent_pln_marginal_nighttime_usd_mwh` | Daytime vs nighttime marginal cost split captures the time-of-day value component of VALCOE. Capacity value (partially via hybrid BESS-reduction) and flexibility value (not modeled) are deferred. | §6.2 |
+| (no IEA term) — destination-weighted carbon-adjusted incumbent | `cbam_destination_weighted_incumbent_*_usd_mwh` | Per-market carbon price weighted by export market shares (M3 from [[Powering 24-7 Industrial Loads in Indonesia]]). Sits alongside Full System LCOE as an incumbent-side adjustment. | §7 |
 
 **Column-name conventions:**
 - IEA term (`lcoe`, `lcos`, `full_system_lcoe`, `valcoe` when modelled) is the family prefix.
 - Variant qualifier follows (`_delivered`, `_firm_4h`, `_firm_8h`).
-- Unit suffix is always `_usd_per_mwh` for $/MWh quantities, `_usd_per_tco2` for carbon prices, `_pct` for percentages. Existing inconsistencies (e.g., `hybrid_lcoe_usd_mwh` without `per_`) are corrected in this refinement.
+- Unit suffix is `_usd_mwh` for $/MWh, `_usd_per_kw` for $/kW (one-time costs), `_usd_per_tonne` for $/tonne product, `_usd_per_tco2` for carbon prices, `_pct` for percentages. The `_per_` particle is reserved for unit denominators other than MWh (where every column is per-MWh by default in the LCOE world).
 
-**Backwards compatibility (v4.0 → v4.1 IEA rename — Refined 2026-05-07).** v4.0's `lcoe_usd_per_mwh` column means *delivered* LCOE (LCOE + transmission). v4.1 introduces `lcoe_generation_usd_per_mwh` as a NEW column for IEA generation-only semantics — the `lcoe_usd_per_mwh` name is NOT reused with a different meaning. The v4.0 column persists for one release as a deprecation alias for `full_system_lcoe_delivered_usd_per_mwh`, then is removed in v4.2. This was an explicit eng-review decision (2026-05-07) to eliminate the silent-miscalibration risk: any v4.0 CSV already pasted into an investment memo continues to read correctly until consumers migrate. See §15.1 for the alias table and the CHANGELOG breaking-change flag.
+**Backwards compatibility (Amended 2026-05-15 — A1 fix).** v4.1 is **additive** on the LCOE column front. v4.0's existing LCOE columns (`lcoe_mid_usd_mwh`, `lcoe_grid_connected_usd_mwh`, `lcoe_within_boundary_usd_mwh`, `lcoe_with_battery_usd_mwh`, etc.) **remain populated unchanged** with their existing scenario-aware semantics. v4.1a adds the four new IEA-named columns alongside; future v5.0 may consolidate the older columns once the new IEA columns are the canonical reads. See §15.1 for the v4.0 → IEA translation table.
 
 **Gap: VALCOE proper is not computed as a single metric.** VALCOE adjusts LCOE for three value dimensions:
 
@@ -306,16 +311,16 @@ The dashboard's multi-tier cost framework adopts the standard IEA cost terminolo
 | **Capacity value** | Dispatchable RE (geothermal, hydro) has higher firm-capacity value than intermittent (solar, wind); contributes to peak adequacy | **Partial** — captured implicitly through hybrid optimizer's BESS-reduction when dispatchable RE is in the mix (§6A) |
 | **Flexibility value** | Storage and flexible coal cycling provide ramping/balancing services; intermittent RE typically *consumes* flexibility | **Not modeled** — deferred to v5.0 PyPSA |
 
-A full VALCOE output column (`valcoe_usd_per_mwh`) would require explicit valuation of capacity-payment-equivalent and flexibility-service-equivalent on top of the existing LCOE variants. Deferred to v5.x.
+A full VALCOE output column (`valcoe_usd_mwh`) would require explicit valuation of capacity-payment-equivalent and flexibility-service-equivalent on top of the existing LCOE variants. Deferred to v5.x.
 
 **UI labelling.** Score Drawer cost displays use the IEA term as the primary label with the column name in monospace tooltip for codebase traceability:
 
-- "**LCOE**: $X/MWh" → from `lcoe_generation_usd_per_mwh`
-- "**Full System LCOE (delivered)**: $X/MWh" → from `full_system_lcoe_delivered_usd_per_mwh`
-- "**Full System LCOE (firm 8h)**: $X/MWh" → from `full_system_lcoe_firm_8h_usd_per_mwh`
-- "**LCOS (4h)**: $X/MWh" / "**LCOS (8h)**: $X/MWh" → from `lcos_*_usd_per_mwh`
-- "**Hybrid Full System LCOE (solar + wind + hydro)**: $X/MWh" → from `hybrid_full_system_lcoe_usd_per_mwh`
-- "**Carbon-adjusted incumbent (destination-weighted, 2030)**: $X/MWh" → from `cbam_destination_weighted_incumbent_2030_usd_per_mwh`
+- "**LCOE**: $X/MWh" → from `lcoe_generation_usd_mwh`
+- "**Full System LCOE (delivered)**: $X/MWh" → from `full_system_lcoe_delivered_usd_mwh`
+- "**Full System LCOE (firm 8h)**: $X/MWh" → from `full_system_lcoe_firm_8h_usd_mwh`
+- "**LCOS (4h)**: $X/MWh" / "**LCOS (8h)**: $X/MWh" → from `lcos_*_usd_mwh`
+- "**Hybrid Full System LCOE (solar + wind + hydro)**: $X/MWh" → from `hybrid_full_system_lcoe_usd_mwh`
+- "**Carbon-adjusted incumbent (destination-weighted, 2030)**: $X/MWh" → from `cbam_destination_weighted_incumbent_2030_usd_mwh`
 
 This aligns dashboard outputs end-to-end (column names + UI labels + methodology narrative) with the IEA-aligned literature, removing translation friction. The wiki's [[Levelized Cost of Energy]] comparison table is the authoritative reference for what each term covers, includes, excludes, and the limitations of each.
 
@@ -558,9 +563,9 @@ Indonesian captive coal LCOE varies but falls in a defensible range based on:
 CAPTIVE_COAL_DEFAULTS = {
     'fuel_cost_usd_per_tonne': 55,           # mid-range domestic Indonesian thermal
     'heat_rate_btu_per_kwh': 10000,          # typical subcritical
-    'variable_om_usd_per_mwh': 6,
+    'variable_om_usd_mwh': 6,
     'fixed_om_usd_per_kw_year': 40,
-    'capital_recovery_usd_per_mwh': 15,      # weighted average
+    'capital_recovery_usd_mwh': 15,      # weighted average
     'capacity_factor': 0.85,                  # captive baseload runs hard
     'emissions_intensity_tco2_per_mwh': 0.95, # subcritical Indonesian coal
 }
@@ -573,7 +578,7 @@ CAPTIVE_COAL_DEFAULTS = {
 Where public data exists, override defaults. Maintain in `data/raw/captive_generation_overrides.csv`:
 
 ```
-site_id, captive_lcoe_usd_per_mwh, fuel_type, source, last_updated
+site_id, captive_lcoe_usd_mwh, fuel_type, source, last_updated
 imip_morowali, 50, coal_subcritical, "industry estimate (IESR 2024)", 2024-12-01
 iwip_weda_bay, 55, coal_subcritical, "newer plants, higher capital recovery", 2024-12-01
 obi_island, 60, coal_subcritical, "remote, higher fuel transport", 2024-12-01
@@ -608,9 +613,9 @@ Indonesian captive gas plants (Pupuk Kaltim, Petrokimia Gresik, Pertamina facili
 CAPTIVE_GAS_DEFAULTS = {
     'fuel_cost_usd_per_mmbtu': 8,            # typical Indonesian industrial gas
     'heat_rate_btu_per_kwh': 7500,           # combined cycle
-    'variable_om_usd_per_mwh': 4,
+    'variable_om_usd_mwh': 4,
     'fixed_om_usd_per_kw_year': 25,
-    'capital_recovery_usd_per_mwh': 18,
+    'capital_recovery_usd_mwh': 18,
     'capacity_factor': 0.85,
     'emissions_intensity_tco2_per_mwh': 0.42,
 }
@@ -629,7 +634,7 @@ This is fundamentally different from captive coal sites which need significant c
 Where public data exists, override defaults. Maintained alongside captive coal overrides in `data/raw/captive_generation_overrides.csv` (with `fuel_type` column distinguishing them):
 
 ```
-site_id, captive_lcoe_usd_per_mwh, fuel_type, source, last_updated
+site_id, captive_lcoe_usd_mwh, fuel_type, source, last_updated
 pupuk_kaltim_bontang, 62, gas_ccgt, "Pupuk Indonesia disclosures + IEA gas price", 2024-12-01
 petrokimia_gresik, 68, gas_ccgt, "longer LNG supply chain; higher fuel cost", 2024-12-01
 ```
@@ -789,10 +794,10 @@ def hybrid_lcoe_optimized_3way(solar, wind, hydro):
 | `hybrid_solar_share` | — | float | Optimal solar fraction |
 | `hybrid_wind_share` | — | float | Optimal wind fraction (Refined — was implicit) |
 | `hybrid_hydro_share` | — | float | Optimal hydro fraction (NEW) |
-| `hybrid_lcoe_usd_per_mwh` | **Hybrid LCOE** (blended base) | float | Blended generation LCOE across solar + wind + hydro before storage |
+| `hybrid_lcoe_usd_mwh` | **Hybrid LCOE** (blended base) | float | Blended generation LCOE across solar + wind + hydro before storage |
 | `hybrid_bess_hours` | — | float | Reduced BESS sizing (0–14h) |
-| `hybrid_lcos_usd_per_mwh` | **Hybrid LCOS** (reduced) | float | Storage cost adder at reduced sizing — was `hybrid_bess_adder_usd_mwh` |
-| `hybrid_full_system_lcoe_usd_per_mwh` | **Hybrid Full System LCOE** | float | Blended LCOE + reduced LCOS — the architecture-menu cost output. Was `hybrid_allin_usd_mwh`. |
+| `hybrid_lcos_usd_mwh` | **Hybrid LCOS** (reduced) | float | Storage cost adder at reduced sizing — was `hybrid_bess_adder_usd_mwh` |
+| `hybrid_full_system_lcoe_usd_mwh` | **Hybrid Full System LCOE** | float | Blended LCOE + reduced LCOS — the architecture-menu cost output. Was `hybrid_allin_usd_mwh`. |
 | `hybrid_supply_coverage_pct` | — | float | Combined generation / demand |
 | `hybrid_nighttime_coverage_pct` | — | float | Wind + hydro nighttime fill fraction |
 | `hybrid_bess_reduction_pct` | — | float | `1 - hybrid_bess_hours / 14` |
@@ -1010,7 +1015,7 @@ For every cost field, also output:
 
 Example for captive cost:
 ```
-captive_cost_usd_per_mwh: 50
+captive_cost_usd_mwh: 50
 captive_cost_source: "industry_estimate"
 captive_cost_vintage: "2024"
 captive_cost_confidence: "medium"
@@ -1052,31 +1057,31 @@ Per the §1.5 release split, every column below is tagged `[a]` (v4.1a, ships fi
 
 ```
 # Solar cost variants — IEA-aligned naming convention (§2.6)  [v4.1a]
-lcoe_generation_usd_per_mwh                       # [a] IEA LCOE (base, generation only) — Refined 2026-05-07: explicit name, not bare lcoe_usd_per_mwh
-full_system_lcoe_delivered_usd_per_mwh            # [a] IEA Full System LCOE (delivered, no storage)
-full_system_lcoe_firm_4h_usd_per_mwh              # [a] IEA Full System LCOE (firm 4h)
-full_system_lcoe_firm_8h_usd_per_mwh              # [a] IEA Full System LCOE (firm 8h)
+lcoe_generation_usd_mwh                       # [a] IEA LCOE (base, generation only). Closest v4.0 equivalent: lcoe_within_boundary_usd_mwh (within-boundary captive has minimal transmission).
+full_system_lcoe_delivered_usd_mwh            # [a] IEA Full System LCOE (delivered, no storage)
+full_system_lcoe_firm_4h_usd_mwh              # [a] IEA Full System LCOE (firm 4h)
+full_system_lcoe_firm_8h_usd_mwh              # [a] IEA Full System LCOE (firm 8h)
 
 # LCOS — IEA standard  [v4.1a]
-lcos_4h_usd_per_mwh                               # [a] IEA LCOS at 4h duration
-lcos_8h_usd_per_mwh                               # [a] IEA LCOS at 8h duration
+lcos_4h_usd_mwh                               # [a] IEA LCOS at 4h duration
+lcos_8h_usd_mwh                               # [a] IEA LCOS at 8h duration
 
 # Incumbent costs (Refined — daytime/nighttime split)  [v4.1a]
-incumbent_pln_bpp_usd_per_mwh                     # [a] renamed/clarified from existing bpp
-incumbent_pln_marginal_daytime_usd_per_mwh        # [a] NEW (VALCOE time-of-day component)
-incumbent_pln_marginal_nighttime_usd_per_mwh      # [a] NEW (VALCOE time-of-day component)
-incumbent_industrial_tariff_usd_per_mwh           # [a] NEW
-incumbent_captive_usd_per_mwh                     # [a] NEW (null for grid-only sites)
+incumbent_pln_bpp_usd_mwh                     # [a] renamed/clarified from existing bpp
+incumbent_pln_marginal_daytime_usd_mwh        # [a] NEW (VALCOE time-of-day component)
+incumbent_pln_marginal_nighttime_usd_mwh      # [a] NEW (VALCOE time-of-day component)
+incumbent_industrial_tariff_usd_mwh           # [a] NEW
+incumbent_captive_usd_mwh                     # [a] NEW (null for grid-only sites)
 incumbent_captive_fuel_type                       # [a] NEW
 
 # CBAM destination-weighted (Refined — replaces single eu_export_share)  [v4.1b]
-cbam_destination_weighted_incumbent_2025_usd_per_mwh    # [b]
-cbam_destination_weighted_incumbent_2030_usd_per_mwh    # [b]
-cbam_destination_weighted_incumbent_2034_usd_per_mwh    # [b]
-cbam_full_incumbent_2025_usd_per_mwh              # [b] 100% stress test
-cbam_full_incumbent_2030_usd_per_mwh              # [b]
-cbam_china_only_incumbent_2025_usd_per_mwh        # [b] 100% China stress test
-cbam_china_only_incumbent_2030_usd_per_mwh        # [b]
+cbam_destination_weighted_incumbent_2025_usd_mwh    # [b]
+cbam_destination_weighted_incumbent_2030_usd_mwh    # [b]
+cbam_destination_weighted_incumbent_2034_usd_mwh    # [b]
+cbam_full_incumbent_2025_usd_mwh              # [b] 100% stress test
+cbam_full_incumbent_2030_usd_mwh              # [b]
+cbam_china_only_incumbent_2025_usd_mwh        # [b] 100% China stress test
+cbam_china_only_incumbent_2030_usd_mwh        # [b]
 
 # Hydro proximity (Refined — new)  [v4.1b]
 nearest_hydro_operating_id                        # [b]
@@ -1093,10 +1098,10 @@ hydro_transmission_feasibility                    # [b]
 hybrid_solar_share                                # [b]
 hybrid_wind_share                                 # [b]
 hybrid_hydro_share                                # [b]
-hybrid_lcoe_usd_per_mwh                           # [b] IEA Hybrid LCOE (blended generation)
+hybrid_lcoe_usd_mwh                           # [b] IEA Hybrid LCOE (blended generation)
 hybrid_bess_hours                                 # [b]
-hybrid_lcos_usd_per_mwh                           # [b] IEA Hybrid LCOS (reduced storage)
-hybrid_full_system_lcoe_usd_per_mwh               # [b] IEA Hybrid Full System LCOE (blended + LCOS)
+hybrid_lcos_usd_mwh                           # [b] IEA Hybrid LCOS (reduced storage)
+hybrid_full_system_lcoe_usd_mwh               # [b] IEA Hybrid Full System LCOE (blended + LCOS)
 hybrid_supply_coverage_pct                        # [b]
 hybrid_nighttime_coverage_pct                     # [b]
 hybrid_bess_reduction_pct                         # [b]
@@ -1119,11 +1124,19 @@ firm_solar_below_captive                          # [a] bool (where applicable)
 solar_below_marginal_daytime                      # [a] bool (Refined — was single solar_below_marginal)
 hybrid_below_captive                              # [b] bool (NEW)
 
-# v4.0 backwards-compatibility read aliases (Refined 2026-05-07: hard-rename strategy)  [v4.1a]
-lcoe_usd_per_mwh                                  # [a] ⚠ DEPRECATED in v4.1, REMOVED in v4.2. Aliases full_system_lcoe_delivered_usd_per_mwh — keeps v4.0's delivered semantics until consumers migrate. Header carries deprecation warning.
+# v4.0 columns (preserved unchanged in v4.1 — additive migration per Amendment 2026-05-15)
+# No v4.0 columns are renamed or deprecated in v4.1a. The new IEA columns above
+# coexist with the existing v4.0 LCOE columns (lcoe_mid_usd_mwh, lcoe_grid_connected_usd_mwh,
+# lcoe_within_boundary_usd_mwh, lcoe_with_battery_usd_mwh, etc.) — semantics
+# unchanged. See §15.1 for the v4.0 → IEA translation table for consumers wanting
+# to migrate to the unambiguous IEA tiers.
 
-# Provenance fields (one set per major numeric output)  [v4.1a — built once, used by both phases]
-<field>_source, <field>_vintage, <field>_confidence, <field>_citation
+# Provenance — sidecar table (not inline). Amendment 2026-05-15 / eng-review A2.
+# Provenance fields are NOT denormalized into fct_site_scorecard.csv. Instead they
+# live in a sidecar `fct_field_provenance.csv` keyed by (site_id, field_name) with
+# columns source / vintage / confidence / citation. Keeps the scorecard width stable,
+# makes the provenance schema uniform across releases, and lets size-conscious
+# consumers drop provenance from the main payload. See §9.
 ```
 
 ### 10.2 New separate datasets
@@ -1134,17 +1147,17 @@ lcoe_usd_per_mwh                                  # [a] ⚠ DEPRECATED in v4.1, 
 
 `dim_carbon_price_by_market.csv` (Refined — new) — per-market carbon price trajectory.
 
-### 10.3 Backwards compatibility (Refined 2026-05-07 — hard-rename strategy)
+### 10.3 Backwards compatibility (Amended 2026-05-15 — additive migration)
 
-The new IEA generation-only LCOE ships under a NEW column name: `lcoe_generation_usd_per_mwh`. The bare `lcoe_usd_per_mwh` name is **not reused** — it would silently miscalibrate any v4.0 number already pasted into a stakeholder spreadsheet. Instead:
+v4.1 is **additive** on the LCOE column front. No v4.0 columns are renamed or deprecated in v4.1a; their semantics are unchanged. v4.1a ships the four new IEA-named columns (`lcoe_generation_usd_mwh`, `full_system_lcoe_delivered_usd_mwh`, `full_system_lcoe_firm_4h_usd_mwh`, `full_system_lcoe_firm_8h_usd_mwh`) **alongside** the existing v4.0 columns.
 
-- v4.0's existing `lcoe_usd_per_mwh` (delivered LCOE semantics) **survives one release** as a deprecation alias for `full_system_lcoe_delivered_usd_per_mwh`. CSV header carries a `DEPRECATED in v4.2 — use full_system_lcoe_delivered_usd_per_mwh` warning. Consumers have one release window to migrate.
-- v4.1 ships `lcoe_generation_usd_per_mwh` as the new column for IEA generation-only semantics (the column the §2.1 multi-tier table describes).
-- v4.2 removes the `lcoe_usd_per_mwh` alias entirely. Reading v4.2 with v4.0-era expectations produces a missing-column error (visible failure), not a silent value drift.
+This is a deliberate amendment from the prior "hard-rename + deprecation alias" plan (2026-05-07), driven by `/plan-eng-review` finding A1 (2026-05-15) which showed the spec was anchored on a phantom v4.0 column name (`lcoe_usd_per_mwh`) that does not exist. The additive approach eliminates the silent-miscalibration risk entirely: any v4.0 CSV already pasted into a stakeholder spreadsheet keeps reading the same numbers, indefinitely. Consumers wanting the unambiguous IEA tiers migrate to the new column names at their own pace. Future cleanup (e.g., dropping ambiguous columns like `lcoe_mid_usd_mwh` once the IEA columns are the canonical reads) is deferred to v5.0 where a clean break is acceptable.
+
+See §15.1 for the v4.0 → IEA translation table.
 
 Document both in CHANGELOG with the **breaking-change** flag prominent. The eng-review decision (2026-05-07) to use a hard-rename rather than a same-name semantic swap is the load-bearing rationale: investment-memo CSVs paste numbers, not column-name attribution.
 
-The existing `bpp_usd_per_mwh` field gets renamed/clarified. Same one-release-alias approach.
+The existing `bpp_usd_mwh` field gets renamed/clarified. Same one-release-alias approach.
 
 The v4.1 baseline `eu_export_share` field gets deprecated in favour of `export_market_shares_json`. Compute `eu_export_share` for backwards compatibility as the sum of `direct_eu_uk_us` + `battery_supply_chain_eu_oem` shares.
 
@@ -1320,7 +1333,7 @@ Combined v4.1a + v4.1b: **~11–13 focused work days** (vs the bundled v4.1 esti
 | 18 | (Refined) Build `fct_site_export_market_shares.csv` + `dim_carbon_price_by_market.csv` | 0.5 day | Code |
 | 19 | Update `build_fct_site_scorecard.py` to compute all new variants | 1 day | Code |
 | 20 | Implement comparison flags | 0.25 day | Code |
-| 21 | Backwards compatibility aliases (lcoe_usd_per_mwh, bpp_usd_per_mwh, eu_export_share) | 0.25 day | Code |
+| 21 | Additive backwards-compat: v4.0 columns kept populated unchanged; v4.0 → IEA translation table documented in §15.1 + CHANGELOG entry | 0.1 day | Doc |
 | 22 | Integration test: pipeline rebuilds successfully | 0.5 day | Test |
 
 ### Day 7: Validation and documentation
@@ -1346,7 +1359,7 @@ Combined v4.1a + v4.1b: **~11–13 focused work days** (vs the bundled v4.1 esti
 
 ### 13.1 Regression validation
 
-**Critical (Refined 2026-05-07):** v4.0's `lcoe_usd_per_mwh` (delivered semantics) must be preserved as a deprecation alias for `full_system_lcoe_delivered_usd_per_mwh` for one release. Two regression checks: (1) `lcoe_usd_per_mwh` from v4.1 output ≡ v4.0's `lcoe_usd_per_mwh` within ±0.01 USD/MWh (the alias preserves v4.0 reads); (2) the new `lcoe_generation_usd_per_mwh` column is populated for all 81 sites and equals (delivered LCOE − transmission cost) within ±0.01 USD/MWh.
+**Critical (Amended 2026-05-15):** v4.0 columns stay populated unchanged in v4.1. Two regression checks: (1) every v4.0 LCOE column in `tests/fixtures/scorecard_v4_0_baseline.csv` reads back from v4.1's `fct_site_scorecard.csv` within ±0.01 USD/MWh (no semantic drift); (2) the new `lcoe_generation_usd_mwh` column is populated for all 81 sites and equals the IEA pure-technology LCOE (CAPEX + OPEX + financing, no transmission, no storage) within ±0.01 USD/MWh.
 
 If divergence exceeds rounding error, investigate. Most likely cause: capacity factor or transmission cost calculation changed inadvertently.
 
@@ -1367,7 +1380,7 @@ If divergence exceeds rounding error, investigate. Most likely cause: capacity f
 
 **Destination-weighted CBAM (Refined — new):**
 - [[Powering 24-7 Industrial Loads in Indonesia]] worked example: IMIP nickel effective price ~$35/t (2025), ~$70/t (2030)
-- Target: dashboard's `cbam_destination_weighted_incumbent_2025_usd_per_mwh` minus base produces $30–50/t for IMIP-class nickel sites
+- Target: dashboard's `cbam_destination_weighted_incumbent_2025_usd_mwh` minus base produces $30–50/t for IMIP-class nickel sites
 - Pass criteria: Within ±$10/t
 
 **Hydro hybrid optimization (Refined — new):**
@@ -1397,17 +1410,17 @@ For each, verify:
 
 ### 13.4 Sanity checks (IEA-aligned column names)
 
-- `lcoe_generation_usd_per_mwh < full_system_lcoe_delivered_usd_per_mwh < full_system_lcoe_firm_4h_usd_per_mwh < full_system_lcoe_firm_8h_usd_per_mwh` for every site (cost rises as more system effects are layered in). Note: bare `lcoe_usd_per_mwh` (the v4.0 deprecation alias) equals `full_system_lcoe_delivered_usd_per_mwh` by definition for v4.1, so the IEA generation-only check uses the explicit `lcoe_generation_usd_per_mwh` column.
-- `lcos_4h_usd_per_mwh < lcos_8h_usd_per_mwh` for every site (longer storage costs more per MWh delivered)
-- `incumbent_pln_marginal_daytime_usd_per_mwh >= incumbent_pln_bpp_usd_per_mwh` for every site (marginal at least equals average during peak)
-- `incumbent_pln_marginal_nighttime_usd_per_mwh >= incumbent_pln_bpp_usd_per_mwh` for every site
+- `lcoe_generation_usd_mwh < full_system_lcoe_delivered_usd_mwh < full_system_lcoe_firm_4h_usd_mwh < full_system_lcoe_firm_8h_usd_mwh` for every site (cost rises as more system effects are layered in). The IEA generation-only check uses the explicit `lcoe_generation_usd_mwh` column.
+- `lcos_4h_usd_mwh < lcos_8h_usd_mwh` for every site (longer storage costs more per MWh delivered)
+- `incumbent_pln_marginal_daytime_usd_mwh >= incumbent_pln_bpp_usd_mwh` for every site (marginal at least equals average during peak)
+- `incumbent_pln_marginal_nighttime_usd_mwh >= incumbent_pln_bpp_usd_mwh` for every site
 - `cbam_full_incumbent >= cbam_destination_weighted_incumbent` for every site (full EU is the upper bound)
 - `cbam_destination_weighted_incumbent_2025 < cbam_destination_weighted_incumbent_2030 < cbam_destination_weighted_incumbent_2034` (carbon trajectory rises)
-- For pure_captive sites, `incumbent_captive_usd_per_mwh` is populated
-- For grid_only sites, `incumbent_captive_usd_per_mwh` is null
+- For pure_captive sites, `incumbent_captive_usd_mwh` is populated
+- For grid_only sites, `incumbent_captive_usd_mwh` is null
 - `hybrid_solar_share + hybrid_wind_share + hybrid_hydro_share = 1.0` (within rounding)
 - `hybrid_hydro_share = 0` when `hydro_adjacency_tier = "none"`
-- `hybrid_lcoe_usd_per_mwh <= hybrid_full_system_lcoe_usd_per_mwh` for every site (storage adder is non-negative)
+- `hybrid_lcoe_usd_mwh <= hybrid_full_system_lcoe_usd_mwh` for every site (storage adder is non-negative)
 - Sum of per-market shares in `export_market_shares_json` = 1.0 (within rounding)
 
 ---
@@ -1425,7 +1438,7 @@ For each, verify:
 - [ ] Marginal cost computed using daytime/nighttime regional adjustment factors `[a]`
 - [ ] Storage LCOS computed for partial and baseload firming levels `[a]`
 - [ ] Comparison flags populated correctly for v4.1a fields `[a]`
-- [ ] `lcoe_generation_usd_per_mwh` populated for all 81 sites; v4.0 `lcoe_usd_per_mwh` alias preserves delivered semantics with deprecation header `[a]`
+- [ ] `lcoe_generation_usd_mwh` populated for all 81 sites; all v4.0 LCOE columns unchanged (additive migration per Amendment 2026-05-15) `[a]`
 
 ### 14.1b Functional — v4.1b (CBAM + hydro)
 
@@ -1437,8 +1450,8 @@ For each, verify:
 
 ### 14.2a Validation — v4.1a
 
-- [ ] Regression test: v4.0 `lcoe_usd_per_mwh` (delivered) values reproducible via deprecation alias within ±0.01 USD/MWh `[a]`
-- [ ] New `lcoe_generation_usd_per_mwh` column populated for all 81 sites and equals (delivered − transmission) within ±0.01 USD/MWh `[a]`
+- [ ] Regression test: every v4.0 LCOE column (`lcoe_mid_usd_mwh`, `lcoe_grid_connected_usd_mwh`, `lcoe_within_boundary_usd_mwh`, `lcoe_with_battery_usd_mwh`) reads back from v4.1 output within ±0.01 USD/MWh of `tests/fixtures/scorecard_v4_0_baseline.csv` `[a]`
+- [ ] New `lcoe_generation_usd_mwh` column populated for all 81 sites and equals (delivered − transmission) within ±0.01 USD/MWh `[a]`
 - [ ] Captive coal defaults validate within ±20% of IESR/Berkeley benchmarks `[a]`
 - [ ] Storage LCOS validates within ±20% of IRENA/Lazard benchmarks `[a]`
 - [ ] Spot-check sites for v4.1a (Krakatau Steel Cilegon, Petrokimia Gresik, IMIP Morowali, Indocement Citeureup, KEK Sei Mangkei) manually validated `[a]`
@@ -1477,75 +1490,30 @@ For each, verify:
 
 ## 15. Migration and Backwards Compatibility
 
-### 15.1 Field aliases (Refined 2026-05-07 — hard-rename strategy)
+### 15.1 v4.0 → IEA translation table (Amended 2026-05-15 — additive migration)
 
-Maintain these aliases for one release. The v4.0 → v4.1 IEA rename uses a **hard-rename** approach: the new IEA generation-only LCOE ships under a new column `lcoe_generation_usd_per_mwh` rather than reusing the bare `lcoe_usd_per_mwh` name with new semantics. v4.0's `lcoe_usd_per_mwh` (delivered LCOE) survives one release with a deprecation warning, then is removed in v4.2. This eliminates the silent-miscalibration risk where same-name-different-value would have broken any v4.0 number already in a stakeholder spreadsheet.
+**No v4.0 columns are renamed or deprecated in v4.1.** Every v4.0 column stays populated with its existing semantics. v4.1a adds the new IEA-named columns alongside. Consumers wanting the unambiguous IEA tiers migrate to the new column names at their own pace; consumers reading v4.0 columns continue to read the same numbers indefinitely.
 
-```python
-# In src/model/scorecard.py
-def get_legacy_v40_lcoe(scorecard_row):
-    """
-    v4.0 alias: returns the delivered LCOE for one-release backwards compat.
+The actual v4.0 columns and their closest IEA equivalents:
 
-    The v4.0 column `lcoe_usd_per_mwh` (delivered LCOE = LCOE + transmission)
-    is preserved in v4.1 as a deprecation alias for
-    `full_system_lcoe_delivered_usd_per_mwh`. CSV header carries a
-    "DEPRECATED in v4.2 — use full_system_lcoe_delivered_usd_per_mwh" warning.
-    Removed entirely in v4.2.
-    """
-    return scorecard_row['full_system_lcoe_delivered_usd_per_mwh']
+| v4.0 column (preserved) | v4.0 semantic | Closest IEA equivalent in v4.1 | Notes |
+|---|---|---|---|
+| `lcoe_mid_usd_mwh` | Primary scenario-aware LCOE: equals `lcoe_within_boundary_usd_mwh` when `grid_integration_category == 'within_boundary'`, else `lcoe_grid_connected_capped_usd_mwh` | (no single IEA equivalent — scenario-aware) | The ambiguity is exactly why v4.1 adds the unambiguous IEA tiers. Reading `lcoe_mid_usd_mwh` requires also reading `grid_integration_category` to interpret. |
+| `lcoe_within_boundary_usd_mwh` | Captive within-boundary LCOE (minimal transmission, on-site solar) | `lcoe_generation_usd_mwh` | Within-boundary captive ≈ IEA generation-only. |
+| `lcoe_grid_connected_usd_mwh` / `_capped_usd_mwh` | Grid-connected LCOE including substation distance + connection cost | `full_system_lcoe_delivered_usd_mwh` | Grid-connected with transmission = IEA Full System LCOE (delivered). The `_capped_` variant has a tariff cap — no IEA equivalent. |
+| `lcoe_with_battery_usd_mwh` | Solar + 14h-bridge battery approximation | `full_system_lcoe_firm_8h_usd_mwh` | 14h-bridge ≈ IEA firm 8h after BESS sizing alignment. |
+| `lcoe_wind_mid_usd_mwh` | Wind LCOE (generation-only) | `lcoe_generation_usd_mwh` (wind technology) | Same generation-only semantic. |
+| `bpp_usd_mwh` (in `fct_grid_cost_proxy`) | PLN regional BPP | `incumbent_pln_bpp_usd_mwh` | Same value; new column name disambiguates as an "incumbent" reference. |
+| (no v4.0 column) | — | `incumbent_pln_marginal_daytime_usd_mwh` / `_nighttime_usd_mwh` | New in v4.1 — daytime/nighttime split per §6.2. |
 
-def get_legacy_v41_baseline_lcoe_generation(scorecard_row):
-    """
-    v4.1-baseline alias: returns generation-only LCOE.
+**Consumer-facing read pattern in v4.1.** Both old and new columns are populated in `fct_site_scorecard.csv`. Frontend / API / external CSV consumers can:
 
-    The v4.1-baseline name `lcoe_generation_usd_per_mwh` is preserved as the
-    canonical column for IEA generation-only LCOE in the IEA-aligned schema
-    (§2.6) — same column name, no rename needed.
-    """
-    return scorecard_row['lcoe_generation_usd_per_mwh']
+- Keep reading existing v4.0 columns — no migration required.
+- Read the new IEA columns when an unambiguous tier is needed (e.g. comparing pure technology LCOE across countries, or running an IEA-style cost-stack analysis).
 
-def get_legacy_v41_baseline_firm_partial(scorecard_row):
-    """v4.1-baseline alias: lcoe_firm_partial → full_system_lcoe_firm_4h."""
-    return scorecard_row['full_system_lcoe_firm_4h_usd_per_mwh']
+**Future cleanup.** Once the new IEA columns are the canonical reads across all consumers, v5.0 may consolidate the older columns with a clean break. v4.1 makes no commitment to remove the v4.0 columns; v4.2/v4.3 are explicitly additive on top of v4.1.
 
-def get_legacy_v41_baseline_firm_baseload(scorecard_row):
-    """v4.1-baseline alias: lcoe_firm_baseload → full_system_lcoe_firm_8h."""
-    return scorecard_row['full_system_lcoe_firm_8h_usd_per_mwh']
-
-def get_legacy_v41_baseline_lcos_partial(scorecard_row):
-    """v4.1-baseline alias: lcos_partial_firming → lcos_4h."""
-    return scorecard_row['lcos_4h_usd_per_mwh']
-
-def get_legacy_v41_baseline_lcos_baseload(scorecard_row):
-    """v4.1-baseline alias: lcos_near_baseload → lcos_8h."""
-    return scorecard_row['lcos_8h_usd_per_mwh']
-
-def get_legacy_v41_baseline_hybrid_allin(scorecard_row):
-    """v4.1-baseline alias: hybrid_allin → hybrid_full_system_lcoe."""
-    return scorecard_row['hybrid_full_system_lcoe_usd_per_mwh']
-
-def get_legacy_bpp(scorecard_row):
-    """Legacy field alias for v4.0 compatibility."""
-    return scorecard_row['incumbent_pln_bpp_usd_per_mwh']
-
-def get_legacy_eu_export_share(scorecard_row):
-    """Legacy field alias for v4.1-baseline compatibility (Refined)."""
-    market_shares = json.loads(scorecard_row['export_market_shares_json'])
-    return market_shares.get('direct_eu_uk_us', 0) + market_shares.get('battery_supply_chain_eu_oem', 0)
-
-def get_legacy_marginal(scorecard_row):
-    """Legacy field alias mapping single marginal to daytime (Refined)."""
-    return scorecard_row['incumbent_pln_marginal_daytime_usd_per_mwh']
-```
-
-**CSV-level deprecation alias (Refined 2026-05-07 — hard-rename strategy).** The v4.1 pipeline keeps `lcoe_usd_per_mwh` as a one-release deprecation alias pointing at the same data as `full_system_lcoe_delivered_usd_per_mwh` (i.e. v4.0's delivered-LCOE semantics, unchanged). The new IEA generation-only LCOE ships as a separate column `lcoe_generation_usd_per_mwh` — same name is NOT reused with a different meaning. The bare `lcoe_usd_per_mwh` is removed entirely in v4.2.
-
-Mark all aliases as deprecated in the CSV header comment. Plan removal in v4.2.
-
-**CHANGELOG entry must flag this clearly (Refined 2026-05-07):**
-
-> ⚠ **DEPRECATION (not breaking) in v4.1, BREAKING in v4.2:** column `lcoe_usd_per_mwh` is preserved in v4.1 with its v4.0 delivered-LCOE semantics (now an alias for `full_system_lcoe_delivered_usd_per_mwh`) and is removed in v4.2. The new IEA generation-only LCOE ships under a NEW column name `lcoe_generation_usd_per_mwh` to avoid silent miscalibration of v4.0 CSVs already in stakeholder spreadsheets. Frontend/API consumers should migrate from `lcoe_usd_per_mwh` to `full_system_lcoe_delivered_usd_per_mwh` (for delivered-LCOE reads) or to `lcoe_generation_usd_per_mwh` (for IEA generation-only) by v4.2. v4.1 reads of the old column return delivered-LCOE values unchanged.
+**Why this changed from the 2026-05-07 plan.** The earlier plan called for a "hard-rename + one-release deprecation alias" on `lcoe_usd_mwh`. `/plan-eng-review` finding A1 (2026-05-15) showed that column does not exist in v4.0 — the actual v4.0 LCOE columns are listed above. Without a real column to deprecate, the alias plan didn't compose; the cleaner solution is to make v4.1 purely additive on the LCOE column front.
 
 ### 15.2 Frontend compatibility
 
@@ -1618,9 +1586,9 @@ The wiki's six-scenario architecture menu from [[Powering 24-7 Industrial Loads 
 |---|---|---|---|---|---|---|
 | 1 | **Captive coal (BAU)** | v4.1 §4 (Captive Coal Economics) | `incumbent_captive` (subcritical/supercritical) | v4.1 §7 destination-weighted | v4.3.5 architecture menu | **1B**: captive coal + CCS retrofit (gated by `ccs_proximity_tier ∈ {A, B}`) |
 | 2 | **PLN grid + green PPA** | v4.1 §6 (Marginal Cost) + §3 (classification) | `incumbent_pln_bpp`, `incumbent_industrial_tariff` | v4.1 §7 | v4.3.5 architecture menu | n/a (grid Scope 2 addressed via PPA, not CCS) |
-| 3 | **Pure solar + 12hr Li-ion battery** | v4.1 §8 (Storage and Firm LCOE) | `full_system_lcoe_firm_8h_usd_per_mwh` (= LCOE + 8h × 50% LCOS) — wiki Scenario 3 sanity-check baseline. v4.0.5 Finding 1 demotes from primary signal. | v4.1 §7 | v4.3.5 architecture menu (flagged "sanity check, never primary") | n/a (zero-emission generation) |
-| 4 | **Solar + flex coal + 4hr battery** | v4.0.5 Finding 1 (Supply Blend cascade with dispatchable RE) + v4.1 §4 (`incumbent_captive` cycled coal) | Composed: `full_system_lcoe_firm_4h_usd_per_mwh` + cycled `incumbent_captive` | v4.1 §7 | v4.3.5 architecture menu | **4B**: cycled-coal portion + CCS retrofit |
-| 5 | **Solar + hydro + gas (JETP least-cost)** | v4.1 §6A (3-way hybrid optimizer with hydro pulled forward from §6A.8 reserved) | `hybrid_lcoe_usd_per_mwh`, `hybrid_full_system_lcoe_usd_per_mwh` (with `hybrid_hydro_share`) | v4.1 §7 | v4.3.5 architecture menu | **5B**: gas portion + CCS retrofit (Pupuk Kaltim case is the anchor) |
+| 3 | **Pure solar + 12hr Li-ion battery** | v4.1 §8 (Storage and Firm LCOE) | `full_system_lcoe_firm_8h_usd_mwh` (= LCOE + 8h × 50% LCOS) — wiki Scenario 3 sanity-check baseline. v4.0.5 Finding 1 demotes from primary signal. | v4.1 §7 | v4.3.5 architecture menu (flagged "sanity check, never primary") | n/a (zero-emission generation) |
+| 4 | **Solar + flex coal + 4hr battery** | v4.0.5 Finding 1 (Supply Blend cascade with dispatchable RE) + v4.1 §4 (`incumbent_captive` cycled coal) | Composed: `full_system_lcoe_firm_4h_usd_mwh` + cycled `incumbent_captive` | v4.1 §7 | v4.3.5 architecture menu | **4B**: cycled-coal portion + CCS retrofit |
+| 5 | **Solar + hydro + gas (JETP least-cost)** | v4.1 §6A (3-way hybrid optimizer with hydro pulled forward from §6A.8 reserved) | `hybrid_lcoe_usd_mwh`, `hybrid_full_system_lcoe_usd_mwh` (with `hybrid_hydro_share`) | v4.1 §7 | v4.3.5 architecture menu | **5B**: gas portion + CCS retrofit (Pupuk Kaltim case is the anchor) |
 | 6 | **Solar + geothermal + battery** | v4.0.5 Finding 2 (geothermal proximity) + v4.1 §6A (geothermal as RESource) + Appendix A (NCG correction) | Composed via cascade + hybrid; NCG-aware Scope 2 savings | v4.1 §7 (with Appendix A NCG correction) | v4.3.5 architecture menu | n/a (geothermal NCG addressed at source per Appendix A; not via CCS) |
 
 **Process CCS overlays (v4.3 §7.5)** apply orthogonally to the power-side scenarios above, gated by `product_type ∈ {cement, ammonia, fertilizer, steel_bfbof}` AND `ccs_proximity_tier ∈ {A, B}`:
@@ -1632,11 +1600,11 @@ These are *overlays on existing process equipment* (not process change). Process
 
 ### Cross-cutting computations
 
-- **Pure solar (LCOE only):** `lcoe_generation_usd_per_mwh` for any site — IEA LCOE, base technology cost.
-- **Solar + transmission (Full System LCOE delivered):** `full_system_lcoe_delivered_usd_per_mwh` — IEA Full System LCOE without storage.
-- **Solar + battery (Full System LCOE firm):** `full_system_lcoe_firm_4h_usd_per_mwh` and `full_system_lcoe_firm_8h_usd_per_mwh` — equivalent to wiki Scenarios 3a/3b at different firming levels.
-- **Mix / hybrid:** `hybrid_lcoe_usd_per_mwh` (blended generation), `hybrid_lcos_usd_per_mwh` (reduced storage), `hybrid_full_system_lcoe_usd_per_mwh` (combined) — §6A 3-way optimizer covers the solar × wind × hydro space.
-- **CBAM-adjusted any architecture:** §7 destination-weighted CBAM applied per-MWh on top of any LCOE variant — produces `cbam_adjusted_*_usd_per_mwh` for each scenario via M3 formula.
+- **Pure solar (LCOE only):** `lcoe_generation_usd_mwh` for any site — IEA LCOE, base technology cost.
+- **Solar + transmission (Full System LCOE delivered):** `full_system_lcoe_delivered_usd_mwh` — IEA Full System LCOE without storage.
+- **Solar + battery (Full System LCOE firm):** `full_system_lcoe_firm_4h_usd_mwh` and `full_system_lcoe_firm_8h_usd_mwh` — equivalent to wiki Scenarios 3a/3b at different firming levels.
+- **Mix / hybrid:** `hybrid_lcoe_usd_mwh` (blended generation), `hybrid_lcos_usd_mwh` (reduced storage), `hybrid_full_system_lcoe_usd_mwh` (combined) — §6A 3-way optimizer covers the solar × wind × hydro space.
+- **CBAM-adjusted any architecture:** §7 destination-weighted CBAM applied per-MWh on top of any LCOE variant — produces `cbam_adjusted_*_usd_mwh` for each scenario via M3 formula.
 - **Carbon-breakeven price:** v4.0.5 Finding 4 (with solar lifecycle correction applied) + v4.1 — the carbon price at which solar becomes cost-competitive with each incumbent.
 
 ### Scenario availability per release
