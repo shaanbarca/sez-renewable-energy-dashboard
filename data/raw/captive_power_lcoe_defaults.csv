@@ -1,0 +1,42 @@
+site_id,archetype,fuel_type,tier,default_lcoe_usd_mwh,coal_cv_kcal_per_kg,gas_pricing_regime,boiler_tech,cf_default,source_citation
+indonesia-morowali-industrial-park-imip,IMIP nickel RKEF+HPAL,coal_subcritical,T1,50,3500,,subcritical,0.95,Berkeley GSPP 2024 + IESR + CREA captive coal triangulation
+krakatau-posco-cilegon,Krakatau Posco steel BF-BOF,coal_supercritical,T1,62,5500,,supercritical,0.85,JETP CPS + ESDM Tech Catalogue (supercritical USC)
+pupuk-kaltim-bontang,Pupuk Kaltim fertilizer,natural_gas,T1,50,,hgbt,ccgt,0.85,HGBT 2025 regulation + Pupuk Indonesia disclosures
+inalum-asahan,Inalum aluminium Asahan hydroelectric,hydro,T1,30,,,hydro,0.45,Asahan hydroelectric 1980s+ — long-established
+industrial-weda-bay-industrial-park-iwip,IWIP nickel IRNC,coal_subcritical,T2,55,3500,,subcritical,0.90,IMIP archetype + Maluku logistics premium
+obi-island-industrial-park,Obi Island nickel HPAL,coal_subcritical,T2,58,3500,,subcritical,0.90,IMIP archetype + most-remote logistics
+indonesia-konawe-industrial-park-ikip,Konawe nickel,coal_subcritical,T2,55,3500,,subcritical,0.90,IMIP archetype + Sulawesi Tenggara
+pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja fertilizer,natural_gas,T2,55,,hgbt,ccgt,0.85,Pupuk Kaltim archetype + Sumatra pipeline
+petrokimia-gresik,Petrokimia Gresik fertilizer,natural_gas,T2,55,,hgbt,ccgt,0.85,Pupuk Kaltim archetype + East Java pipeline
+pupuk-kujang-cikampek,Pupuk Kujang fertilizer,natural_gas,T2,55,,hgbt,ccgt,0.85,Pupuk Kaltim archetype + West Java pipeline
+pupuk-iskandar-muda-lhokseumawe,Pupuk Iskandar Muda fertilizer,natural_gas,T2,55,,hgbt,ccgt,0.85,Pupuk Kaltim archetype + Aceh pipeline
+freeport-smelter-gresik,Freeport Manyar aluminium smelter,natural_gas,T3,89,,market,ccgt,0.85,Aluminium not HGBT-eligible — market gas pricing (placeholder)
+krakatau-steel-cilegon,Krakatau Steel BF-BOF,natural_gas,T3,70,,hgbt,ccgt,0.85,Java steel HGBT-eligible — formula placeholder
+gunung-raja-paksi-bekasi,Gunung Raja Paksi steel,natural_gas,T3,70,,hgbt,ccgt,0.85,Java steel HGBT-eligible — formula placeholder
+master-steel-jakarta,Master Steel,natural_gas,T3,70,,hgbt,ccgt,0.85,Java steel HGBT-eligible — formula placeholder
+jakarta-prima-steel-industries,Jakarta Prima Steel,natural_gas,T3,70,,hgbt,ccgt,0.85,Java steel HGBT-eligible — formula placeholder
+ispat-indo-sidoarjo,Ispat Indo steel,natural_gas,T3,70,,hgbt,ccgt,0.85,Java steel HGBT-eligible — formula placeholder
+bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP) nickel,coal_subcritical,T3,63,3500,,subcritical,0.90,Sulawesi nickel default — formula placeholder
+buli-industrial-park,Buli Industrial Park nickel,coal_subcritical,T3,63,3500,,subcritical,0.90,Maluku nickel default — formula placeholder
+indonesia-pomalaa-industry-park-ipip,IPIP nickel,coal_subcritical,T3,63,3500,,subcritical,0.90,Sulawesi nickel default — formula placeholder
+nusantara-industri-sejati,Nusantara Industri Sejati nickel,coal_subcritical,T3,63,3500,,subcritical,0.90,Nickel cluster default — formula placeholder
+stardust-estate-invesment-sei,Stardust Estate Investment (SEI),coal_subcritical,T3,63,3500,,subcritical,0.90,Nickel cluster default — formula placeholder
+virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel (VDNIP),coal_subcritical,T3,63,3500,,subcritical,0.90,Sulawesi nickel default — formula placeholder
+dexin-steel-morowali,Dexin Steel Morowali,coal_subcritical,T3,63,3500,,subcritical,0.90,Sulawesi captive steel — formula placeholder
+red-lion-hongshi-tonga,Red Lion Hongshi cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Cement captive — formula placeholder
+sbi-andalas-lhoknga,SBI Andalas Lhoknga cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sumatra cement captive — formula placeholder
+semen-baturaja,Semen Baturaja cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sumatra cement captive — formula placeholder
+semen-bosowa-batam,Semen Bosowa Batam cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sumatra cement captive — formula placeholder
+semen-bosowa-maros,Semen Bosowa Maros cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sulawesi cement captive — formula placeholder
+semen-kupang,Semen Kupang cement,coal_subcritical,T3,63,3500,,subcritical,0.85,NTT cement captive — formula placeholder
+semen-padang-indarung,Semen Padang Indarung cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sumatra cement captive — formula placeholder
+semen-tonasa,Semen Tonasa cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sulawesi cement captive — formula placeholder
+semeru-surya-semen-kutai,Semeru Surya Semen Kutai cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Kalimantan cement captive — formula placeholder
+cemindo-gemilang-batam,Cemindo Gemilang Batam cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Sumatra cement captive — formula placeholder
+conch-cement-north-sulawesi,Conch Cement North Sulawesi,coal_subcritical,T3,63,3500,,subcritical,0.85,Sulawesi cement captive — formula placeholder
+conch-south-kalimantan,Conch South Kalimantan cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Kalimantan cement captive — formula placeholder
+conch-west-kalimantan,Conch West Kalimantan cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Kalimantan cement captive — formula placeholder
+indocement-kotabaru-tarjun,Indocement Kotabaru Tarjun cement,coal_subcritical,T3,63,3500,,subcritical,0.85,Kalimantan cement captive — formula placeholder
+kek-mandalika,KEK Mandalika tourism,coal_subcritical,T3,63,3500,,subcritical,0.85,KEK default — formula placeholder (likely grid-blend in practice)
+kek-morotai,KEK Morotai tourism,coal_subcritical,T3,63,3500,,subcritical,0.85,KEK default — formula placeholder (likely grid-blend in practice)
+kek-sorong,KEK Sorong industrial,coal_subcritical,T3,63,3500,,subcritical,0.85,KEK default — formula placeholder (Papua remote)

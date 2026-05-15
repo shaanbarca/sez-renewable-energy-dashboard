@@ -63,6 +63,10 @@ from src.model.basic_model import (
     invest_resilience,
     resolve_demand,
 )
+from src.model.captive_economics import (
+    load_captive_defaults,
+    resolve_captive_lcoe,
+)
 from src.model.columns import Col
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
 from src.pipeline.build_fct_site_resource import (
@@ -83,6 +87,7 @@ FGCP_CSV = PROCESSED / "fct_grid_cost_proxy.csv"
 FRUPTL_CSV = PROCESSED / "fct_ruptl_pipeline.csv"
 FCT_DEMAND_CSV = PROCESSED / "fct_site_demand.csv"
 FSUB_CSV = PROCESSED / "fct_substation_proximity.csv"
+FCT_SITE_CLASSIFICATIONS_CSV = PROCESSED / "fct_site_classifications.csv"
 
 
 def _ruptl_region_summary(ruptl: pd.DataFrame) -> pd.DataFrame:
@@ -112,6 +117,7 @@ def build_fct_site_scorecard(
     fct_ruptl_pipeline_csv: Path = FRUPTL_CSV,
     fct_site_demand_csv: Path = FCT_DEMAND_CSV,
     fct_substation_proximity_csv: Path = FSUB_CSV,
+    fct_site_classifications_csv: Path = FCT_SITE_CLASSIFICATIONS_CSV,
     base_wacc: float = BASE_WACC,
 ) -> pd.DataFrame:
     """Join all upstream tables into one dashboard-ready scorecard."""
@@ -126,6 +132,34 @@ def build_fct_site_scorecard(
     fct_demand_raw = pd.read_csv(fct_site_demand_csv)
     fct_demand = resolve_demand(fct_demand_raw)
     fct_sub = pd.read_csv(fct_substation_proximity_csv)
+
+    # v4.1a §3 (#70) — site classification table.
+    # Defensive: classification CSV may not exist on first pipeline runs from
+    # a fresh checkout; fall back to an empty frame and the merge produces
+    # NaN columns that flow through as None.
+    if fct_site_classifications_csv.exists():
+        classifications = pd.read_csv(fct_site_classifications_csv)[
+            [
+                "site_id",
+                "electricity_arrangement",
+                "captive_fuel_type",
+                "classification_confidence",
+            ]
+        ].rename(columns={"classification_confidence": "captive_classification_confidence"})
+    else:
+        classifications = pd.DataFrame(
+            columns=[
+                "site_id",
+                "electricity_arrangement",
+                "captive_fuel_type",
+                "captive_classification_confidence",
+            ]
+        )
+
+    # v4.3 M-AT8a — captive power tier defaults (replaces v4.1a's coal+gas split).
+    # Single defaults CSV with T1/T2/T3 tier values per site, gated by
+    # captive_fuel_type from #70 classification.
+    captive_defaults = load_captive_defaults()
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
     # LCOE at base WACC, within_boundary scenario (on-site solar, no connection cost)
@@ -292,6 +326,30 @@ def build_fct_site_scorecard(
         .merge(sub, on="site_id", how="left")
         .merge(lcoe_wind_wb, on="site_id", how="left")
         .merge(lcoe_wind_rc, on="site_id", how="left")
+        .merge(classifications, on="site_id", how="left")
+    )
+
+    # v4.3 M-AT8a: single captive_incumbent_lcoe_usd_mwh column + tier + scenario.
+    # Replaces v4.1a's separate captive_coal_lcoe_usd_mwh + captive_gas_lcoe_usd_mwh
+    # split. The resolver handles coal / gas / hydro internally, gated by
+    # captive_fuel_type from #70 classification. NULL for sites with fuel_type=none.
+    _captive_results = df.apply(
+        lambda r: resolve_captive_lcoe(
+            r["site_id"],
+            r.get("captive_fuel_type"),
+            fuel_price_scenario="default",
+            defaults_df=captive_defaults,
+        ),
+        axis=1,
+    )
+    df["captive_incumbent_lcoe_usd_mwh"] = _captive_results.map(
+        lambda res: res.lcoe_usd_mwh if res is not None else None
+    )
+    df["captive_lcoe_tier"] = _captive_results.map(
+        lambda res: res.tier if res is not None else None
+    )
+    df["captive_lcoe_fuel_price_scenario"] = _captive_results.map(
+        lambda res: res.scenario_used if res is not None else None
     )
 
     # Ensure buildability columns exist (NaN if data/buildability/ not yet populated)
@@ -908,6 +966,13 @@ def build_fct_site_scorecard(
             "grid_emission_factor_t_co2_mwh",
             "carbon_breakeven_usd_tco2",
             "clean_power_advantage",
+            # v4.1a §3 + v4.3 M-AT8a — site classification + captive power LCOE.
+            "electricity_arrangement",
+            "captive_fuel_type",
+            "captive_classification_confidence",
+            "captive_incumbent_lcoe_usd_mwh",
+            "captive_lcoe_tier",
+            "captive_lcoe_fuel_price_scenario",
             "data_completeness",
         ]
     ]

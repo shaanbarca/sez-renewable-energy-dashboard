@@ -93,6 +93,10 @@ This document is the single authoritative methodology reference for the Indonesi
   - [13.5 Map overlays](#135-map-overlays)
   - [13.6 Solar replacement potential](#136-solar-replacement-potential)
   - [13.7 BESS sizing for industrial loads (M19 + V3.3)](#137-bess-sizing-for-industrial-loads-m19--v33)
+  - [13.8 Site classification schema (v4.1a §3, #70)](#138-site-classification-schema-v41a-3-70)
+  - [13.9 Captive power LCOE resolution (v4.3 M-AT8a — coal + gas + hydro)](#139-captive-power-lcoe-resolution-v43-m-at8a--coal--gas--hydro)
+  - [13.10 Tier framing — T1 / T2 / T3 confidence anchors](#1310-tier-framing--t1--t2--t3-confidence-anchors)
+  - [13.11 Captive hydro (Inalum Asahan — structural exception)](#1311-captive-hydro-inalum-asahan--structural-exception)
 - [14. EU CBAM Exposure](#14-eu-cbam-exposure)
   - [14.1 CBAM signal detection](#141-cbam-signal-detection)
   - [14.2 Two kinds of emissions: Energy vs Process](#142-two-kinds-of-emissions-energy-vs-process)
@@ -1945,6 +1949,193 @@ The M19 RKEF 2x multiplier (2h → 4h) is retained as a fallback when `BESS_BRID
 3. Else: **2h** (cloud-firming default)
 
 Rationale: The 2h/4h defaults were identified as the tool's biggest physics vulnerability (see `docs/physics_vs_tool_technical_gaps.md`, Gaps 1-2). A 24/7 industrial load requires ~14h of overnight bridging. At 2h sizing, LCOE with battery was understated by \$170-250/MWh. The bridge-hours model produces honest storage economics without requiring hourly dispatch simulation.
+
+### 13.8 Site classification schema (v4.1a §3, #70)
+
+The dashboard now classifies each of the 81 sites by **electricity arrangement** (how power gets to the boundary) and **captive fuel type** (what powers the on-site plant, if any). This gates the right incumbent cost reference: a grid-connected Java cement plant competes against PLN BPP; a captive coal nickel smelter competes against ~$55/MWh captive coal; a captive gas fertilizer plant against ~$77/MWh captive gas. v4.0's "everyone vs PLN BPP" misranks captive sites by 30-50%.
+
+**Schema (v4.1a §3.1a subset).** A new table `fct_site_classifications.csv` ships with one row per site:
+
+```
+site_id, site_name, sector, subsector, region, grid_region,
+electricity_arrangement, captive_fuel_type, captive_capacity_mw,
+captive_share_estimated, last_updated, classification_confidence, notes
+```
+
+Enums:
+- `electricity_arrangement ∈ {grid_only, grid_primary_with_captive, hybrid_captive_primary, pure_captive}`
+- `captive_fuel_type ∈ {coal_subcritical, coal_supercritical, natural_gas, oil_diesel, hybrid, none}`
+- `classification_confidence ∈ {high, medium, low}`
+
+v4.1b will extend this same table with `export_market_shares_json` + `cbam_exposed` columns (no migration of existing rows; additive only).
+
+**Default classification by sector × region (§3.2 — 8 rules):**
+
+| Sector | Region | electricity_arrangement | captive_fuel_type | Rationale |
+|---|---|---|---|---|
+| Nickel | Sulawesi / Maluku | `pure_captive` | `coal_subcritical` | Almost all major IIA parks run captive coal |
+| Aluminium | All | `hybrid_captive_primary` | `hybrid` | Inalum has hydro+coal; Freeport has gas+grid |
+| Cement | Java | `grid_only` | `none` | Most Java cement on PLN grid |
+| Cement | Outside Java | `grid_primary_with_captive` | `coal_subcritical` | Some have captive backup |
+| Fertilizer | All | `pure_captive` | `natural_gas` | Pupuk / Petrokimia all captive gas |
+| Steel | Java | `grid_primary_with_captive` | `natural_gas` | Krakatau Steel has gas captive supplement |
+| Steel | Sulawesi | `pure_captive` | `coal_subcritical` | Newer integrated steel |
+| KEK | Java | `grid_only` | `none` | Java KEKs on PLN grid |
+| KEK | Maluku / Papua / NTB | `pure_captive` | `coal_subcritical` | Remote KEKs build their own |
+| KEK | Other | `grid_primary_with_captive` | `none` | Middle bucket for Sumatera / Kalimantan / Sulawesi |
+
+**Override mechanism.** Per-site rows in `data/raw/site_classifications.csv` trump the default classification. Each override row supplies any subset of `electricity_arrangement`, `captive_fuel_type`, `captive_capacity_mw`, `captive_share_estimated`, `classification_confidence`, `notes` — missing fields fall back to the sectoral default. Sites with overrides typically carry `classification_confidence='high'` (cited disclosure); sites on defaults get `classification_confidence='medium'`.
+
+v4.1a ships overrides for 6 anchor sites: IMIP, IWIP, Pupuk Kaltim, Krakatau Posco, Inalum (hydro-anchored hybrid), and Freeport Gresik (gas-anchored grid-primary).
+
+**Build step.** `src/pipeline/build_fct_site_classifications.py` runs after `dim_sites` and before `fct_site_scorecard`; the scorecard left-joins the table to populate three columns: `electricity_arrangement`, `captive_fuel_type`, and `captive_classification_confidence` (renamed from `classification_confidence` in v4.3 M-AT8a to disambiguate from the new `captive_lcoe_tier` field). The scorecard then uses `captive_fuel_type` to gate the captive-LCOE references in §13.9–§13.11.
+
+### 13.9 Captive power LCOE resolution (v4.3 M-AT8a — coal + gas + hydro)
+
+Sites with a captive arrangement (per §13.8 classification — `captive_fuel_type` ∈ {`coal_subcritical`, `coal_supercritical`, `natural_gas`, `hydro`}) carry three new scorecard columns:
+
+- `captive_incumbent_lcoe_usd_mwh` — the resolved LCOE value
+- `captive_lcoe_tier` — T1 / T2 / T3 confidence framing per §13.10
+- `captive_lcoe_fuel_price_scenario` — `n/a` for CSV-anchored sites and hydro, or the scenario used for formula-fallback sites (DMO / HBA_2024 / INTERNATIONAL / HGBT / MARKET / SPOT_LNG_JKM)
+
+Sites with `captive_fuel_type = 'none'` get NULL on these columns — the columns are meaningful only where they gate a real economic alternative to PLN grid.
+
+The resolver lives in `src/model/captive_economics.py::resolve_captive_lcoe()` and replaces v4.1a's `captive_coal_lcoe_usd_mwh()` + `captive_gas_lcoe_usd_mwh()` split (deleted). One function handles coal, gas, and hydro paths.
+
+**Priority chain**:
+1. **Per-site tier default** from `data/raw/captive_power_lcoe_defaults.csv`. CSV values are scenario-invariant — anchor sites have site-specific economics (mine-mouth pricing, integrated supply, partially-depreciated plants) that don't track market scenarios.
+2. **Formula fallback** for sites NOT in the CSV. Uses `CAPTIVE_COAL_DEFAULTS` / `CAPTIVE_GAS_DEFAULTS` from `src/assumptions.py` with the active fuel-price scenario substituted into the fuel-cost term.
+3. **None** for non-captive sites.
+
+**Formula** (fallback only). Standard $/MWh build-up:
+
+```
+LCOE = fuel_component
+     + variable_om_usd_mwh
+     + (fixed_om_usd_per_kw_year / (8760 × capacity_factor)) × 1000
+     + capital_recovery_usd_mwh
+```
+
+with the fuel component computed differently per fuel:
+
+```
+Coal: fuel_component = ($/tonne ÷ HHV_MMBtu_per_tonne) × (BTU/kWh ÷ 1000)
+Gas:  fuel_component = $/MMBtu × (BTU/kWh ÷ 1000)
+Hydro: skips the formula — returns CAPTIVE_HYDRO_DEFAULT_USD_MWH = $30/MWh flat.
+```
+
+Coal cost is quoted in $/tonne (Indonesian thermal coal trading convention). The HHV conversion translates to $/MMBtu; default HHV is **19 MMBtu/tonne** (representative of Indonesian sub-bituminous ~4,800 kcal/kg).
+
+**Coal defaults** (`CAPTIVE_COAL_DEFAULTS` in `src/assumptions.py`):
+
+| Parameter | Value | Source |
+|---|---|---|
+| `fuel_cost_usd_per_tonne` | 70 | Berkeley GSPP 2024 Table 1 p.6 — Indonesian DMO baseline |
+| `coal_capital_usd_per_kw` | 1,700 | Berkeley GSPP 2024 Table 1 p.6 — supercritical |
+| `heat_rate_btu_per_kwh` | 10,000 | Subcritical Indonesian convention |
+| `variable_om_usd_mwh` | 6 | Industry range $5-8 |
+| `fixed_om_usd_per_kw_year` | 40 | Industry range $30-50 |
+| `capital_recovery_usd_mwh` | 15 | Weighted across plant ages |
+| `capacity_factor` | 0.85 | Captive baseload |
+
+These yield **~$63/MWh LCOE at the DMO scenario** — within Berkeley's $65-75/MWh range for captive coal at DMO pricing (Figure 4, p.9). At the INTERNATIONAL scenario ($200/ton) the same formula yields ~$110/MWh, close to Berkeley's ~$115/MWh.
+
+**Gas defaults** (`CAPTIVE_GAS_DEFAULTS`):
+
+| Parameter | Value | Source |
+|---|---|---|
+| `fuel_cost_usd_per_mmbtu` | 7 | Indonesia HGBT 2025 regulated rate |
+| `gas_capital_usd_per_kw` | 1,000 | Berkeley GSPP 2024 Table 1 p.6 — CCGT |
+| `heat_rate_btu_per_kwh` | 7,500 | CCGT typical |
+| `variable_om_usd_mwh` | 4 | — |
+| `fixed_om_usd_per_kw_year` | 25 | — |
+| `capital_recovery_usd_mwh` | 10 | — |
+| `capacity_factor` | 0.80 | — |
+
+Yields **~$70/MWh at HGBT scenario** — within the literature range for HGBT-eligible Indonesian gas captive ($65-75/MWh).
+
+#### 13.9.1 Fuel-price scenarios
+
+Fuel prices vary materially over time and across sites. M-AT8a exposes this via top-level scenarios that adjust the formula's fuel-cost term:
+
+**Coal** (`CAPTIVE_COAL_PRICE_SCENARIOS`, $/tonne):
+
+| Scenario | Price | Effect on formula LCOE | Source |
+|---|---|---|---|
+| `DMO` (default) | 70 | ~$63/MWh | Indonesian DMO regulation cap |
+| `HBA_2024` | 130 | ~$95/MWh | 2024 HBA average |
+| `INTERNATIONAL` | 200 | ~$132/MWh | Newcastle / API4 benchmark |
+| Custom user input | 50–400 | Linear interpolation | M-AT8b slider |
+
+**Gas** (`CAPTIVE_GAS_PRICE_SCENARIOS`, $/MMBtu):
+
+| Scenario | Price | Effect on formula LCOE | Source |
+|---|---|---|---|
+| `HGBT` (default) | 7 | ~$70/MWh | Indonesia 2025 HGBT regulation (7 covered sectors) |
+| `MARKET` | 10 | ~$92/MWh | Non-HGBT-eligible (aluminium, etc.) |
+| `SPOT_LNG_JKM` | 14 | ~$122/MWh | JKM-linked LNG |
+| Custom user input | 4–20 | Linear interpolation | M-AT8b slider |
+
+**Important**: scenarios only affect sites in the **formula fallback** path (i.e., sites absent from `captive_power_lcoe_defaults.csv`). CSV-anchored sites are scenario-invariant. This is by design — the anchor sites' LCOEs reflect site-specific arrangements (integrated supply, mine-mouth pricing, partial depreciation) that don't track market scenarios. See `tests/test_captive_economics.py::test_csv_anchors_are_scenario_invariant_t1` for the regression lock.
+
+### 13.10 Tier framing — T1 / T2 / T3 confidence anchors
+
+Per-site values in `data/raw/captive_power_lcoe_defaults.csv` are framed as three confidence tiers, derived from the wiki synthesis at the v4.3 M-AT8 review doc (`docs/refinement/methodology_captive_coal_lcoe_per_site_M-AT8_review_2026-05-15.md`):
+
+**T1 — high confidence** (multi-source verified, site-specific evidence):
+
+| Site | Fuel | $/MWh | Source |
+|---|---|---|---|
+| `indonesia-morowali-industrial-park-imip` | coal_subcritical | 50 | Berkeley GSPP 2024 + IESR + CREA triangulation |
+| `krakatau-posco-cilegon` | coal_supercritical | 62 | JETP CPS + ESDM Tech Catalogue (USC plant) |
+| `pupuk-kaltim-bontang` | natural_gas | 50 | HGBT 2025 regulation + Pupuk Indonesia disclosures |
+| `inalum-asahan` | hydro | 30 | Asahan hydroelectric (well-established since 1980s) |
+
+**T2 — industry-archetype extrapolation** (~7 sites):
+
+| Site | Fuel | $/MWh | Reasoning |
+|---|---|---|---|
+| `industrial-weda-bay-industrial-park-iwip` | coal_subcritical | 55 | IMIP archetype + Maluku remote-island logistics premium |
+| `obi-island-industrial-park` | coal_subcritical | 58 | IMIP archetype + most-remote logistics |
+| `indonesia-konawe-industrial-park-ikip` | coal_subcritical | 55 | IMIP archetype + Sulawesi Tenggara |
+| `pupuk-sriwidjaja-palembang` | natural_gas | 55 | Pupuk Kaltim archetype + Sumatra pipeline |
+| `petrokimia-gresik` | natural_gas | 55 | Pupuk Kaltim archetype + East Java |
+| `pupuk-kujang-cikampek` | natural_gas | 55 | Pupuk Kaltim archetype + West Java |
+| `pupuk-iskandar-muda-lhokseumawe` | natural_gas | 55 | Pupuk Kaltim archetype + Aceh |
+
+**T3 — formula placeholder** (~30 sites, low confidence): generic captive coal at $63/MWh (formula at DMO) or HGBT-eligible captive gas at $70/MWh. Sites in this tier get an explicit `tier='T3'` flag and source citation tagged "placeholder — not site-specific" so consumers know to weight these values lower. Aluminium gas sites (Freeport Manyar) are MARKET-priced at $89/MWh per the non-HGBT classification.
+
+**Why our T1 anchors sit BELOW the literature midpoint.** Berkeley GSPP 2024 Figure 4 (p.9) puts Indonesian captive coal in the $65-75/MWh range at DMO pricing; IESR's LCOE tool (energycost.id) puts NEW captive coal at $77/MWh. Our IMIP anchor at $50/MWh is below both. The discrepancy is real and intentional — IMIP-class anchors have site-specific advantages the literature averages can't capture:
+- Vertically-integrated coal supply (Tsingshan owns IMIP coal mines + power plant + smelter — sub-DMO mine-mouth pricing)
+- Subcritical (not supercritical) capital, reducing capital_recovery_usd_mwh from $15 to ~$8-10
+- Partially-depreciated plant capital (Berkeley assumes new-build levelization over 25 years)
+- ~95% capacity factor on continuous nickel-smelting load (vs Berkeley's 65-100% sensitivity)
+
+The methodology drawer surfaces this explanation per site so DFI committees don't read "$50" and assume it's an industry standard.
+
+### 13.11 Captive hydro (Inalum Asahan — structural exception)
+
+Inalum aluminium runs on the **Asahan hydroelectric** plant (603 MW Sigura-gura + Tangga complex, operational since the 1980s). The economics are structurally different from coal/gas:
+
+- **No fuel cost.** LCOE is amortized capital + O&M only.
+- **No scenario sensitivity.** The dashboard's fuel-price scenarios don't apply; passing `scenario='INTERNATIONAL'` for Inalum is silently ignored.
+- **Long-lived asset.** 40+ years of operation; capital largely depreciated.
+
+The default value is **$30/MWh**, reflecting amortized capital + maintenance. This is exceptionally hard for solar to beat — even concessional-financed solar at $50-60/MWh is uneconomic against a $30 incumbent. For Inalum, the dashboard's value isn't "should they switch to solar?" but "they already have clean cheap power; the CBAM Scope 2 story is different here."
+
+If future sites with captive hydro emerge (Asahan-2/3 expansion has been discussed), they'd be added to the CSV with `fuel_type='hydro'` and an appropriate tier value.
+
+**Citations** (covering §13.9 / §13.10 / §13.11):
+
+- Berkeley GSPP (Chojkiewicz, Abhyankar, Paliwal, Phadke), **March 2024**. "Indonesia Can Cost-effectively Supplant Captive Coal-fired Power Plants with Solar Energy." Working paper. Table 1 (p.6) for cost assumptions; Figure 4 (p.9) for LCOE ranges at DMO vs international coal pricing. https://gspp.berkeley.edu/assets/uploads/page/Indonesia_Can_Cost-effectively_Supplant_Captive_Coal-fired_Power_Plants_with_Solar_Energy.pdf
+- IESR LCOE Tool (energycost.id, 2024). New captive coal LCOE 7.71 USc/kWh (~$77/MWh) at HBA-priced coal, supercritical assumption. Cited via Ember (Feb 2025) "Captive coal expansion plan could undermine Indonesia's climate goals."
+- HGBT regulation 2025 (Indonesia Kementerian ESDM): $7/MMBtu fuel + $6.50/MMBtu feedstock cap for 7 industrial sectors — fertilizer, petrochem, oleochem, steel, ceramics, glass, rubber gloves.
+- Pupuk Indonesia disclosures (2024) — fertilizer captive gas economics.
+- IEA Southeast Asia Energy Outlook 2024 §5 — regional dispatch context.
+- PT Inalum 2023 annual report — Asahan hydroelectric.
+- Global Energy Monitor coal plant tracker 2024 — captive coal capacity per IIA cluster.
+- POSCO Indonesia disclosures — Krakatau Posco supercritical coal.
+- CREA (Centre for Research on Energy and Clean Air) 2023 — Indonesian captive coal sectoral analysis.
 
 ---
 

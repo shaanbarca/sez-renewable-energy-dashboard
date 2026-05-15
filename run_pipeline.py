@@ -67,6 +67,7 @@ from src.pipeline.build_fct_perpres_112_classification import (
     build_fct_perpres_112_classification,
 )
 from src.pipeline.build_fct_ruptl_pipeline import build_fct_ruptl_pipeline
+from src.pipeline.build_fct_site_classifications import build_fct_site_classifications
 from src.pipeline.build_fct_site_demand import build_fct_site_demand
 from src.pipeline.build_fct_site_resource import build_fct_site_resource
 from src.pipeline.build_fct_site_scorecard import build_fct_site_scorecard
@@ -109,6 +110,15 @@ PIPELINE: list[Step] = [
     ),
     Step("dim_tech_cost", build_dim_tech_cost, "dim_tech_cost.csv"),
     Step("dim_tech_cost_wind", build_dim_tech_cost_wind, "dim_tech_cost_wind.csv"),
+    # v4.1a §3 (#70) — site classification (electricity arrangement +
+    # captive fuel type). Runs after dim_sites and BEFORE fct_site_scorecard;
+    # the scorecard reads this to gate captive cost columns (#71/#72).
+    Step(
+        "fct_site_classifications",
+        build_fct_site_classifications,
+        "fct_site_classifications.csv",
+        depends_on=["dim_sites"],
+    ),
     # Stage 2: Facts
     # V3.7: fct_site_demand moved ahead of fct_site_resource so the substation-anchored
     # solar picker can size required_solar_mwp from demand_2030_gwh.
@@ -214,6 +224,7 @@ PIPELINE: list[Step] = [
             "fct_grid_cost_proxy",
             "fct_ruptl_pipeline",
             "fct_site_demand",
+            "fct_site_classifications",
         ],
     ),
     # Stage 5: Sidecar artefacts — read-only consumers of the scorecard

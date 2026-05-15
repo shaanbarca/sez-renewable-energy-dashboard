@@ -71,6 +71,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
+from src.model.captive_economics import (
+    captive_lcoe_tier,
+    is_csv_anchor_site,
+    load_captive_defaults,
+)
+
 ConfidenceLevel = Literal["high", "medium", "low"]
 _VALID_CONFIDENCES: tuple[ConfidenceLevel, ...] = ("high", "medium", "low")
 
@@ -288,7 +294,125 @@ PROVENANCE_REGISTRY: dict[str, tuple[ProvenanceFlag, SiteOverrideLoader | None]]
         ),
         None,
     ),
+    # ─── v4.1a §3 + v4.3 M-AT8a — site classification fields ──────────────
+    # Default confidence is 'medium' (sectoral default rule applied);
+    # site-level confidence comes through `captive_classification_confidence`
+    # on the scorecard itself, sourced from data/raw/site_classifications.csv.
+    # (Renamed from `classification_confidence` in v4.3 M-AT8a to disambiguate
+    # from the new `captive_lcoe_tier` field.)
+    "electricity_arrangement": (
+        ProvenanceFlag(
+            source="classification logic (default rule)",
+            vintage="2024",
+            confidence="medium",
+            citation=(
+                "v4.1a §3.2 sector × region default rule table. Indonesia "
+                "Dashboard Methodology §3. Site-specific overrides where "
+                "public disclosure exists upgrade to confidence='high'."
+            ),
+        ),
+        None,
+    ),
+    "captive_fuel_type": (
+        ProvenanceFlag(
+            source="dim_sites + GEM tracker + sectoral defaults",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "Global Energy Monitor coal plant tracker (2024) for captive "
+                "coal sites; sectoral defaults applied otherwise per v4.1a §3.2. "
+                "Indonesia Dashboard Methodology §3. v4.3 M-AT8a adds 'hydro' "
+                "as a fourth fuel type to handle Inalum Asahan."
+            ),
+        ),
+        None,
+    ),
+    # ─── v4.3 M-AT8a — single captive LCOE column (replaces v4.1a coal+gas split) ────
+    # Default flag is 'medium' (formula fallback for sites not in the tier
+    # defaults CSV). T1/T2 anchors in data/raw/captive_power_lcoe_defaults.csv
+    # bump confidence to 'high' via captive_lcoe_override_loader below.
+    "captive_incumbent_lcoe_usd_mwh": (
+        ProvenanceFlag(
+            source="formula fallback (CAPTIVE_*_DEFAULTS, default scenario)",
+            vintage="2024",
+            confidence="medium",
+            citation=(
+                "Berkeley GSPP (Chojkiewicz, Abhyankar, Paliwal, Phadke), "
+                "March 2024. 'Indonesia Can Cost-effectively Supplant Captive "
+                "Coal-fired Power Plants with Solar Energy.' Table 1 (p.6) + "
+                "Figure 4 (p.9). IESR LCOE Tool (energycost.id) 2024. HGBT "
+                "2025 regulation for gas. See METHODOLOGY §13.9–§13.11."
+            ),
+        ),
+        None,  # see captive_lcoe_override_loader assigned below
+    ),
+    "captive_lcoe_tier": (
+        ProvenanceFlag(
+            source="data/raw/captive_power_lcoe_defaults.csv",
+            vintage="2024-12",
+            confidence="high",
+            citation=(
+                "Tier framing T1/T2/T3 per v4.3 M-AT8a methodology refinement. "
+                "T1 = high-confidence anchors (multi-source verified): IMIP, "
+                "Krakatau Posco, Pupuk Kaltim, Inalum. T2 = industry-archetype "
+                "extrapolation (~7 sites). T3 = formula placeholder (low "
+                "confidence). See METHODOLOGY §13.9–§13.11."
+            ),
+        ),
+        None,
+    ),
+    "captive_lcoe_fuel_price_scenario": (
+        ProvenanceFlag(
+            source="CAPTIVE_*_PRICE_SCENARIOS active scenario",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "Active fuel-price scenario used to compute the formula "
+                "fallback. CSV-anchored sites are scenario-invariant (value "
+                "stays fixed regardless of slider). 'n/a' for CSV anchors and "
+                "hydro sites. See src/assumptions.py::CAPTIVE_*_PRICE_SCENARIOS."
+            ),
+        ),
+        None,
+    ),
 }
+
+
+# ─── Per-site override loader for captive LCOE provenance ───────────────────
+# Sites present in data/raw/captive_power_lcoe_defaults.csv get confidence='high'
+# (their tier values are derived from site-specific evidence, not the formula).
+# Sites absent from the CSV keep the default 'medium' confidence.
+
+
+def _captive_lcoe_override_loader(site_id: str) -> ProvenanceFlag | None:
+    """Bump confidence to 'high' for sites in the tier defaults CSV (any tier).
+
+    Returns None for sites absent from the CSV; the caller uses the default
+    'medium' confidence in that case.
+    """
+    defaults_df = load_captive_defaults()
+    if not is_csv_anchor_site(site_id, defaults_df):
+        return None
+    tier = captive_lcoe_tier(site_id, defaults_df)
+    return ProvenanceFlag(
+        source=f"data/raw/captive_power_lcoe_defaults.csv (tier={tier})",
+        vintage="2024-12",
+        confidence="high",
+        citation=(
+            f"Site-specific captive LCOE anchor ({tier}). See "
+            f"METHODOLOGY §13.9–§13.11 for the tier-by-tier rationale + "
+            f"underlying citations (Berkeley GSPP 2024, IESR LCOE Tool, "
+            f"HGBT 2025 regulation, Pupuk Indonesia disclosures)."
+        ),
+    )
+
+
+# Replace the None override-loader slot with the real loader. Tuples are
+# immutable, so reconstruct the entry.
+PROVENANCE_REGISTRY["captive_incumbent_lcoe_usd_mwh"] = (
+    PROVENANCE_REGISTRY["captive_incumbent_lcoe_usd_mwh"][0],
+    _captive_lcoe_override_loader,
+)
 
 
 def build_sidecar_rows(

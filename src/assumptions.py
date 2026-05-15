@@ -401,6 +401,124 @@ HOSTING_CAPACITY_AVAILABILITY_PCT: float = 0.30
 # consumes most headroom, (b) N-1 contingency reserves 10-20%, (c) inverter
 # + protection limits effectively cap injection below nameplate.
 
+# ─── CAPTIVE POWER ECONOMICS (v4.3 M-AT8a) ───────────────────────────────────
+# Several major Indonesian industrial sites run on-site captive generation,
+# not PLN grid:
+#   - Nickel IIA clusters Sulawesi/Maluku: captive coal (~3,500 kcal/kg LCV)
+#   - Integrated steel (Krakatau Posco): captive supercritical coal (~5,500 kcal)
+#   - Fertilizer + petrochem: captive natural gas, regulated HGBT $7/MMBtu
+#   - Inalum: captive hydro (Asahan 1980s — structural exception, no fuel cost)
+#
+# For these sites, comparing solar LCOE to PLN BPP gives the wrong economic
+# signal — the relevant comparator is the on-site plant's own LCOE.
+#
+# # M-AT8a vs v4.1a — fuel-price scenarios + tier framing
+#
+# v4.1a treated each anchor site as a hardcoded $/MWh override with no scenario
+# awareness. M-AT8a adds two things:
+#   1. Fuel-price scenario constants (CAPTIVE_COAL_PRICE_SCENARIOS,
+#      CAPTIVE_GAS_PRICE_SCENARIOS). The resolver in src/model/captive_economics.py
+#      uses these to compute the fuel component as
+#        fuel_cost_per_mmbtu × heat_rate ÷ 1000.
+#      For coal, fuel_cost is in $/tonne and is converted to $/MMBtu via
+#      CAPTIVE_COAL_HHV_MMBTU_PER_TONNE before applying.
+#   2. Per-site tier defaults (T1/T2/T3) in data/raw/captive_power_lcoe_defaults.csv.
+#      The resolver returns the tier-default value unmodified when the site is
+#      in the CSV (so the spec's per-site disclosures take priority over the
+#      formula). The CAPTIVE_*_DEFAULTS below are only consulted as a fallback
+#      for sites with no CSV row.
+#
+# # Coal defaults — Berkeley GSPP 2024 Table 1 (p.6)
+#
+# CAPTIVE_COAL_DEFAULTS now anchors on Berkeley's Indonesian-coal-price baseline
+# ($70/ton DMO) rather than v4.1a's $55/ton mid-range. With the supercritical
+# capital cost ($1,700/kW per Berkeley Table 1), the formula yields ~$63/MWh
+# at default (DMO) scenario — within Berkeley's stated $65-75/MWh range for
+# captive coal at DMO pricing (Figure 4, p.9). At international coal price
+# ($200/ton) the same formula yields ~$110/MWh, matching Berkeley's ~$115/MWh
+# claim. The anchor LCOE values in the tier defaults CSV ($48-62) sit BELOW
+# the formula output because anchor sites have site-specific advantages:
+# vertically-integrated coal supply (Tsingshan/IMIP), partially-depreciated
+# plant capital, sub-DMO coal pricing through mine-mouth arrangements.
+#
+# # Gas defaults — HGBT regulated pricing
+#
+# Indonesia's 2025 HGBT (Harga Gas Bumi Tertentu) regulation caps fuel gas at
+# $7/MMBtu and feedstock gas at $6.50/MMBtu for 7 industrial sectors:
+# fertilizer, petrochem, oleochem, steel, ceramics, glass, rubber gloves.
+# CAPTIVE_GAS_DEFAULTS uses $7/MMBtu HGBT as the default scenario. Non-HGBT
+# sectors (e.g. aluminium — Freeport Manyar) face market gas pricing
+# ~$10/MMBtu or spot LNG ~$14/MMBtu.
+#
+# Sources:
+#   - Berkeley GSPP (Chojkiewicz, Abhyankar, Paliwal, Phadke), March 2024.
+#     "Indonesia Can Cost-effectively Supplant Captive Coal-fired Power Plants
+#      with Solar Energy." Working paper. Table 1 (p.6) for cost assumptions;
+#      Figure 4 (p.9) for LCOE ranges at DMO vs international coal pricing.
+#   - IESR LCOE Tool (energycost.id, 2024). NEW captive coal LCOE 7.71 USc/kWh
+#     ($77/MWh) at HBA-priced coal, supercritical technology.
+#   - HGBT regulation 2025 (Indonesia Kementerian ESDM): 7-sector $7/MMBtu cap.
+#   - IEA Southeast Asia Energy Outlook 2024 §5 for dispatch context.
+# See docs/METHODOLOGY_CONSOLIDATED.md §13.9 / §13.10 / §13.11 for the full
+# citation trail and per-site tier rationale.
+
+CAPTIVE_COAL_DEFAULTS: dict[str, float] = {
+    "fuel_cost_usd_per_tonne": 70.0,  # Berkeley 2024 Table 1: Indonesian DMO baseline
+    "heat_rate_btu_per_kwh": 10_000.0,  # typical subcritical Indonesian plants
+    "variable_om_usd_mwh": 6.0,
+    "fixed_om_usd_per_kw_year": 40.0,
+    "capital_recovery_usd_mwh": 15.0,  # weighted average across plant ages
+    "capacity_factor": 0.85,  # captive baseload runs hard
+    "emissions_intensity_tco2_per_mwh": 0.95,  # subcritical Indonesian coal
+    "coal_capital_usd_per_kw": 1_700.0,  # Berkeley 2024 Table 1: supercritical
+    # → formula output ~$63/MWh at DMO scenario; ~$110/MWh at international scenario
+}
+
+# Coal heating value used to convert $/tonne fuel cost to $/MWh fuel component.
+# 19 MMBTU/tonne is representative of Indonesian sub-bituminous coal (HHV
+# ~4,800 kcal/kg). Compare IEA Coal 2024 — Indonesia exports run 4,200-5,500.
+CAPTIVE_COAL_HHV_MMBTU_PER_TONNE: float = 19.0
+
+# Fuel-price scenarios (M-AT8a). The resolver in src/model/captive_economics.py
+# applies these to compute the fuel component when no per-site override exists.
+# Coal values are $/tonne; gas values are $/MMBtu. "default" maps to DMO/HGBT.
+CAPTIVE_COAL_PRICE_SCENARIOS: dict[str, float] = {
+    "DMO": 70.0,  # Indonesian domestic market obligation (regulated cap)
+    "HBA_2024": 130.0,  # 2024 average Indonesia Coal Reference Price
+    "INTERNATIONAL": 200.0,  # international benchmark (Newcastle / API4)
+}
+# User-input range bounds for the M-AT8b slider (coal). Below 50 is sub-DMO
+# (mine-mouth) territory; above 400 historic peaks only (HBA 2022 hit $321).
+CAPTIVE_COAL_PRICE_BOUNDS: tuple[float, float] = (50.0, 400.0)
+
+
+CAPTIVE_GAS_DEFAULTS: dict[str, float] = {
+    "fuel_cost_usd_per_mmbtu": 7.0,  # Indonesia HGBT 2025 regulated rate
+    "heat_rate_btu_per_kwh": 7_500.0,  # CCGT typical
+    "variable_om_usd_mwh": 4.0,
+    "fixed_om_usd_per_kw_year": 25.0,
+    "capital_recovery_usd_mwh": 10.0,
+    "capacity_factor": 0.80,
+    "emissions_intensity_tco2_per_mwh": 0.40,
+    "gas_capital_usd_per_kw": 1_000.0,  # Berkeley 2024 Table 1: CCGT
+    # → formula output ~$70/MWh at HGBT scenario; ~$92/MWh at MARKET scenario
+}
+
+# Gas-price scenarios. HGBT applies to 7 industrial sectors covered by the
+# 2025 Indonesian regulated-price regime; MARKET is the non-HGBT alternative;
+# SPOT_LNG_JKM is the worst-case for sites importing LNG.
+CAPTIVE_GAS_PRICE_SCENARIOS: dict[str, float] = {
+    "HGBT": 7.0,  # 7-sector regulated gas: fertilizer, petrochem, etc.
+    "MARKET": 10.0,  # non-HGBT-eligible (aluminium, others)
+    "SPOT_LNG_JKM": 14.0,  # JKM-linked spot LNG
+}
+CAPTIVE_GAS_PRICE_BOUNDS: tuple[float, float] = (4.0, 20.0)
+
+# Hydro — structural exception. Inalum's Asahan hydroelectric carries no fuel
+# cost. Default LCOE captures amortized capital + O&M. Spec: $30/MWh anchor.
+CAPTIVE_HYDRO_DEFAULT_USD_MWH: float = 30.0
+
+
 # ─── GRID-CONNECTED IPP TARIFF CEILING (Perpres 112/2022) ────────────────────
 
 PERPRES_112_CEILING_USD_MWH: float = 75.0
