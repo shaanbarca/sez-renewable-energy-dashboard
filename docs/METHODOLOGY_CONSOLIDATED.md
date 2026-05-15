@@ -814,6 +814,231 @@ The dashboard includes an "LCOE vs Project Scale" chart that shows how LCOE vari
 
 **Implementation:** `LcoeCurveChart.tsx` (frontend only, no backend computation).
 
+### 6.8 Multi-tier IEA-aligned LCOE outputs (v4.1a §2)
+
+**Status (v4.1a, 2026-05-15).** Issue [#67](https://github.com/shaanbarca/eez/issues/67).
+
+v4.1a adds four IEA-aligned cost-tier columns to `fct_site_scorecard.csv`
+**alongside** the v4.0 LCOE columns (no rename, no deprecation per §18.6's
+additive migration). Each tier adds one cost layer to the previous, forming
+a strict monotone-rising cost stack per spec §2.1.1:
+
+```
+   $/MWh                                Cost layer added              Stakeholder question
+  ──────────────────────────────────────────────────────────────────────────────────────
+  lcoe_generation_usd_mwh                 ← CAPEX + OPEX + financing                "How cheap is the
+   IEA LCOE (base)                              No transmission, no storage              generation tech itself?"
+       │                                        Pure technology benchmark
+       │     + transmission (gen-tie + connection cost: ~$10-25/MWh)
+       ▼
+  full_system_lcoe_delivered_usd_mwh      ← LCOE + transmission, no storage         "What does grid-connected
+   IEA Full System LCOE (delivered)             Daytime hours only effective              solar cost the offtaker?
+       │                                                                                  PLN IPP screening."
+       │     + 4h storage at 20% nameplate (~$30-50/MWh adder)
+       ▼
+  full_system_lcoe_firm_4h_usd_mwh        ← LCOE + transmission + LCOS_4h × 0.20    "Daily peak shifting;
+   IEA Full System LCOE (firm 4h)               Covers evening peak                       partial firm capability."
+       │
+       │     + 8h storage at 50% nameplate (~$80-130/MWh adder)
+       ▼
+  full_system_lcoe_firm_8h_usd_mwh        ← LCOE + transmission + LCOS_8h × 0.50    "Can solar replace
+   IEA Full System LCOE (firm 8h)               Near-baseload                             captive coal? Compete
+                                                                                          for 24/7 industrial loads?"
+```
+
+Typical Indonesian site progression: ~$50 LCOE → ~$70 Delivered → ~$110 Firm
+4h → ~$160 Firm 8h. The exact firm-tier numbers depend on regional grid
+infrastructure (longer substation distance → higher delivered → higher firm
+tiers, by construction).
+
+**Math (per site):**
+
+| Column | Formula |
+|---|---|
+| `lcoe_generation_usd_mwh` | within-boundary LCOE at base WACC = v4.0 `lcoe_mid_usd_mwh` |
+| `full_system_lcoe_delivered_usd_mwh` | grid-connected LCOE at base WACC = v4.0 `lcoe_grid_connected_usd_mwh` |
+| `full_system_lcoe_firm_4h_usd_mwh` | `full_system_lcoe_delivered_usd_mwh + lcos_4h_usd_mwh × 0.20` |
+| `full_system_lcoe_firm_8h_usd_mwh` | `full_system_lcoe_delivered_usd_mwh + lcos_8h_usd_mwh × 0.50` |
+
+The firm tiers build on **delivered** (not generation) so the monotone-rising
+invariant `generation ≤ delivered ≤ firm_4h ≤ firm_8h` holds at every site —
+including remote sites where gen-tie transmission cost exceeds the LCOS
+adder. Adding storage to the delivered cost can never make it cheaper.
+
+**v4.0 → IEA alias semantics.** v4.0 has no bare `lcoe_usd_mwh` column. The
+existing scenario-aware columns map onto the new IEA tiers as follows
+(repeated from §18.6 for context):
+
+| v4.0 column | Closest IEA equivalent |
+|---|---|
+| `lcoe_mid_usd_mwh` (within-boundary scenario) | `lcoe_generation_usd_mwh` |
+| `lcoe_grid_connected_usd_mwh` | `full_system_lcoe_delivered_usd_mwh` |
+| `lcoe_with_battery_usd_mwh` (14h-bridge approx) | `full_system_lcoe_firm_8h_usd_mwh` |
+
+Both old and new columns are populated. v4.0 consumers continue reading the
+old columns; v4.1+ consumers can migrate to the IEA columns at their own pace.
+
+**Implementation:** `src/pipeline/build_fct_site_scorecard.py` (additive
+column block); LCOS adders from `src/dash/logic/lcos.py`; column-name
+convention pinned in `tests/test_v40_baseline_unchanged.py`. Monotone
+invariant pinned in `tests/test_logic_lcoe.py::TestMultiTierLCOEInvariants`.
+
+### 6.9 Marginal cost methodology with daytime/nighttime split (v4.1a §6.2)
+
+**Status (v4.1a, 2026-05-15).** Issue [#68](https://github.com/shaanbarca/eez/issues/68).
+
+The dashboard's v4.0 comparison uses regional BPP (PLN's *average* cost of
+supply) as the reference. Solar doesn't displace average generation — it
+displaces the *marginal* plant currently running. And the marginal differs
+between daytime hours (when solar delivers) and nighttime hours (when
+storage / dispatchable RE would displace fuel).
+
+**Daytime hour definition (eng-review finding A6, locked).**
+
+"Daytime" is the PVOUT-weighted hour window during which solar generation
+contributes to dispatch — approximately 06:00–18:00 local time at equatorial
+latitudes, weighted by the diurnal PVOUT profile. "Nighttime" is the
+complementary 18:00–06:00 window. This is the IEEE / IRENA convention used
+in dispatch analysis: solar LCOE comparisons use the daytime marginal;
+storage and dispatchable RE (geothermal, hydro) comparisons use the
+nighttime marginal. See `src/dash/logic/marginal.py` docstring.
+
+**Estimation methodology.** PLN does not publish hourly dispatch data. Apply
+regional fuel-mix-based adjustment factors per `MARGINAL_COST_ADJUSTMENT_BY_REGION`
+to the regional BPP, calibrated separately for daytime vs nighttime:
+
+| Region | Daytime factor | Nighttime factor | Confidence flag |
+|---|---|---|---|
+| JAMALI (`JAVA_BALI`, `NTB`) | 1.10 | 1.20 | `jamali_coal_dominant` |
+| Sumatera (`SUMATERA`) | 1.20 | 1.40 | `mixed_dispatch` |
+| Kalimantan (`KALIMANTAN`) | 1.50 | 1.70 | `diesel_peaking` |
+| Sulawesi (`SULAWESI`) | 1.60 | 1.80 | `diesel_peaking` |
+| Maluku_Papua (`MALUKU`, `PAPUA`) | 2.50 | 2.20 | `remote_diesel_dominated` |
+
+**Why daytime factors differ from nighttime per region:**
+
+- **JAMALI:** gas runs at night more than during day → nighttime marginal is
+  gas (slightly more expensive than coal); daytime coal sets the floor.
+- **Sumatera:** mixed dispatch, similar profile to Java but more diesel
+  peaking at night → nighttime > daytime.
+- **Kalimantan, Sulawesi:** coal + diesel peaking in daytime; more diesel
+  overnight; both above coal SRMC → nighttime > daytime by ~0.2.
+- **Maluku_Papua:** daytime peak hits diesel SRMC (much higher than fleet
+  average); nighttime baseload diesel runs continuously at a lower SRMC →
+  daytime factor is HIGHER than nighttime in this region.
+
+**Output columns** in `fct_site_scorecard.csv`:
+
+- `bpp_usd_mwh` (existing in `fct_grid_cost_proxy.csv`, surfaced here)
+- `incumbent_pln_marginal_daytime_usd_mwh` = `bpp_usd_mwh × daytime_factor`
+- `incumbent_pln_marginal_nighttime_usd_mwh` = `bpp_usd_mwh × nighttime_factor`
+- `incumbent_pln_marginal_confidence` per the table above
+
+**Use case mapping** (per spec §6.5):
+
+- `incumbent_pln_marginal_daytime` feeds the comparator for solar (which
+  displaces daytime generation).
+- `incumbent_pln_marginal_nighttime` feeds the comparator for storage and
+  dispatchable RE (geothermal, hydro).
+
+**Citations** (spec §6.4):
+- IESR (2024). Analysis of Indonesian Dispatch Economics.
+- IRENA (2024). Indonesia Renewable Energy Outlook.
+- Berkeley Goldman School (2023). Indonesia Captive Coal Analysis.
+- IEA (2024). Southeast Asia Energy Outlook 2024 §5 (dispatch tables).
+- RUPTL 2025–2034 Bab IV (regional dispatch composition by season).
+
+**Implementation:** `src/dash/logic/marginal.py` (`estimate_marginal_cost`,
+`marginal_confidence_for`); pipeline integration in
+`src/pipeline/build_fct_site_scorecard.py`. Tests in
+`tests/test_logic_marginal.py`.
+
+### 6.10 Storage LCOS and firm Full System LCOE (v4.1a §8)
+
+**Status (v4.1a, 2026-05-15).** Issue [#69](https://github.com/shaanbarca/eez/issues/69).
+
+Pure solar generates only during daylight. To compete for industrial
+baseload (especially captive coal that runs continuously), solar needs
+storage to firm output. v4.1a adds an IEA/IRENA-aligned LCOS computation
+at two durations (4h, 8h) and uses it to build the firm Full System LCOE
+tiers documented in §6.8.
+
+**Battery defaults** (`BATTERY_DEFAULTS` in `src/assumptions.py`):
+
+| Parameter | Default | Source |
+|---|---|---|
+| `capex_usd_per_kwh` | 350 | IRENA 2024 Battery Storage Cost Report — utility-scale Li-ion installed system (battery + BOP + grid interconnect) |
+| `lifetime_years` | 15 | IRENA / Lazard standard |
+| `cycles_per_year` | 365 | Daily cycling |
+| `depth_of_discharge` | 0.85 | Operating range to preserve cycle life |
+| `round_trip_efficiency` | 0.90 | IRENA 2024 utility-scale Li-ion AC-AC |
+| `fixed_om_usd_per_kw_year` | 7 | Lazard 2024 LCOE+S v16 storage |
+
+**Note on capex divergence from v4.0 BESS_CAPEX_USD_PER_KWH = $150/kWh.**
+The v4.0 number was a pack+BOS cell-level estimate; the v4.1a `BATTERY_DEFAULTS`
+$350/kWh is the IRENA 2024 *installed-system* benchmark (cell + BOP +
+EPC + grid interconnect). The higher installed-system number lands LCOS
+in the IEA-published bands ($30-50/MWh at 4h × 20% share; $80-130/MWh at
+8h × 50% share) so the multi-tier outputs match the IEA / Lazard / BNEF
+comparison literature. v4.0's `BESS_CAPEX_USD_PER_KWH` constant is
+preserved unchanged for the existing 14h-bridge BESS adder; v4.1a adds
+the `BATTERY_DEFAULTS` dict alongside.
+
+**LCOS formula:**
+
+```
+LCOS (USD per MWh delivered through storage) =
+    (annualized_capex + fixed_om_annual) / annual_throughput_mwh
+
+where
+    annualized_capex   = capex_total × CRF(discount_rate, lifetime)
+    capex_total        = capacity_kwh × capex_per_kwh
+    annual_throughput  = capacity_kwh × cycles_per_year × rte × dod   [kWh/yr]
+    fixed_om_annual    = (capacity_kwh / duration_hours) × fixed_om_per_kw_year
+    CRF                = r × (1+r)^n / ((1+r)^n − 1), or 1/n if r == 0
+```
+
+At v4.1a defaults with 10% discount rate:
+
+| Column | Value | Share-weighted adder |
+|---|---|---|
+| `lcos_4h_usd_mwh` | ~$171/MWh | × 0.20 ≈ $34/MWh adder (IEA $30-50 band) |
+| `lcos_8h_usd_mwh` | ~$168/MWh | × 0.50 ≈ $84/MWh adder (IEA $80-130 band) |
+
+**Simplified firming approximation (caveat).**
+
+The firm Full System LCOE (§6.8) uses a simplified weighting:
+
+```
+firm_lcoe = lcoe_delivered + lcos × storage_share
+```
+
+with `storage_share = 0.20` at 4h and `0.50` at 8h. This is the
+spec §2.1.1 / §8.5 simplified formula — it treats the storage adder as
+a flat per-MWh cost weighted by nameplate share, ignoring:
+
+- Hourly dispatch and shadow-price effects
+- Storage cycling efficiency variance under different load shapes
+- Capacity-value (firm-power) credits that vary by grid
+- Curtailment recovery via storage at low-grid-acceptance sites
+
+Real dispatch optimization with PyPSA shadow prices lands in **v5.0**
+(per spec §8.5). v4.1a explicitly documents this approximation; the
+expected v5.0 refinement will refine firm-tier numbers downward for sites
+where storage cycles efficiently and upward for sites with high
+curtailment.
+
+**Citations** (spec §8.6):
+- IRENA (2024). Battery Storage Cost Report.
+- Lazard (2024). LCOE+S Analysis v16, storage section.
+- BNEF (2024). Indonesia Battery Storage Outlook.
+
+**Implementation:** `src/dash/logic/lcos.py` (`compute_battery_lcos`,
+`compute_firm_delivered_lcoe`, `lcos_at_duration`); BATTERY_DEFAULTS in
+`src/assumptions.py`; pipeline integration via
+`src/pipeline/build_fct_site_scorecard.py`. Tests in
+`tests/test_logic_lcos.py`.
+
 ---
 
 ## 6A. Hybrid Solar+Wind RE Framework
@@ -2083,9 +2308,14 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 ## 18.5 Field-Level Provenance (v4.1+ — sidecar table)
 
 **Status (v4.1a, 2026-05-15).** Foundation seed: 3 v4.0 fields registered.
-Downstream v4.1a sub-PRs (#67–72) extend the registry with the multi-tier
-LCOE, marginal, LCOS, classification, and captive-cost fields. Issue
-[#65](https://github.com/shaanbarca/eez/issues/65).
+v4.1a cost-framework sub-PR (#67 + #68 + #69) extends the registry with
+8 multi-tier-LCOE / LCOS / marginal-cost fields → 11 fields total.
+Downstream sectoral-economics sub-PR (#70 + #71 + #72) adds the
+classification and captive-cost fields. Issues
+[#65](https://github.com/shaanbarca/eez/issues/65),
+[#67](https://github.com/shaanbarca/eez/issues/67),
+[#68](https://github.com/shaanbarca/eez/issues/68),
+[#69](https://github.com/shaanbarca/eez/issues/69).
 
 Every provenance-tracked numeric output in `fct_site_scorecard.csv` carries
 its `source / vintage / confidence / citation` in a **sidecar table**

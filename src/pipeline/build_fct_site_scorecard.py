@@ -41,12 +41,18 @@ import numpy as np
 import pandas as pd
 
 from src.assumptions import (
+    BATTERY_DEFAULTS,
     CAPTIVE_REGIME_MAX_KM,
     HOURS_PER_YEAR,
     PERPRES_112_CEILING_USD_MWH,
     REGION_CF_DEFAULT,
     REGION_LOAD_CENTRE_LATLON,
     RUPTL_PRE2030_END,
+)
+from src.dash.logic.lcos import compute_battery_lcos
+from src.dash.logic.marginal import (
+    estimate_marginal_cost,
+    marginal_confidence_for,
 )
 from src.model.basic_model import (
     action_flags,
@@ -188,6 +194,8 @@ def build_fct_site_scorecard(
     ][["site_id", "lcoe_usd_mwh"]].rename(columns={"lcoe_usd_mwh": "lcoe_wind_allin_mid_usd_mwh"})
 
     # Grid cost: one row per grid_region_id
+    # v4.1a (#68): bpp_usd_mwh is now also pulled through so the marginal cost
+    # split (daytime / nighttime) can be computed in this build step.
     grid_cost = grid_cost[
         [
             "grid_region_id",
@@ -196,6 +204,7 @@ def build_fct_site_scorecard(
             "dashboard_rate_flag",
             "tariff_i3_usd_mwh",
             "tariff_i4_usd_mwh",
+            "bpp_usd_mwh",
             "grid_emission_factor_t_co2_mwh",
         ]
     ].rename(columns={"dashboard_rate_flag": "is_grid_cost_provisional"})
@@ -679,6 +688,101 @@ def build_fct_site_scorecard(
         df["lcoe_grid_connected_usd_mwh"],
     )
 
+    # ─── v4.1a IEA-aligned multi-tier LCOE + LCOS + marginal (#67, #68, #69) ──
+    # ADDITIVE columns — v4.0 lcoe_* columns above remain unchanged.
+    #
+    # §2 multi-tier LCOE per spec §2.1.1 cost-stack progression:
+    #   lcoe_generation               = within-boundary LCOE (generation only)
+    #   full_system_lcoe_delivered    = grid-connected LCOE (+ transmission)
+    #   full_system_lcoe_firm_4h      = generation + lcos_4h × 0.20
+    #   full_system_lcoe_firm_8h      = generation + lcos_8h × 0.50
+    # See METHODOLOGY_CONSOLIDATED.md §2.
+
+    # §8 LCOS at 4h and 8h durations (scalar — same value for every site at the
+    # v4.1a defaults; site-specific LCOS lands in v4.2+ with PyPSA dispatch).
+    _lcos_4h = round(
+        compute_battery_lcos(
+            capacity_kwh=4 * 1000.0,
+            duration_hours=4.0,
+            capex_per_kwh=float(BATTERY_DEFAULTS["capex_usd_per_kwh"]),
+            lifetime_years=int(BATTERY_DEFAULTS["lifetime_years"]),
+            cycles_per_year=int(BATTERY_DEFAULTS["cycles_per_year"]),
+            rte=float(BATTERY_DEFAULTS["round_trip_efficiency"]),
+            dod=float(BATTERY_DEFAULTS["depth_of_discharge"]),
+            fixed_om_per_kw_year=float(BATTERY_DEFAULTS["fixed_om_usd_per_kw_year"]),
+        ),
+        2,
+    )
+    _lcos_8h = round(
+        compute_battery_lcos(
+            capacity_kwh=8 * 1000.0,
+            duration_hours=8.0,
+            capex_per_kwh=float(BATTERY_DEFAULTS["capex_usd_per_kwh"]),
+            lifetime_years=int(BATTERY_DEFAULTS["lifetime_years"]),
+            cycles_per_year=int(BATTERY_DEFAULTS["cycles_per_year"]),
+            rte=float(BATTERY_DEFAULTS["round_trip_efficiency"]),
+            dod=float(BATTERY_DEFAULTS["depth_of_discharge"]),
+            fixed_om_per_kw_year=float(BATTERY_DEFAULTS["fixed_om_usd_per_kw_year"]),
+        ),
+        2,
+    )
+    df["lcos_4h_usd_mwh"] = _lcos_4h
+    df["lcos_8h_usd_mwh"] = _lcos_8h
+
+    # §2 IEA-aligned LCOE columns. The within-boundary LCOE at base WACC IS the
+    # IEA generation LCOE (no transmission, no storage). Grid-connected IS the
+    # IEA Full System LCOE (delivered, no storage).
+    df["lcoe_generation_usd_mwh"] = df["lcoe_mid_usd_mwh"]
+    df["full_system_lcoe_delivered_usd_mwh"] = df["lcoe_grid_connected_usd_mwh"]
+
+    # Firm tiers per spec §2.1.1 cost stack: delivered + LCOS × storage_share.
+    # Building firm on top of delivered (NOT generation) preserves the
+    # monotone-rising invariant `generation ≤ delivered ≤ firm_4h ≤ firm_8h`
+    # at every site — including remote sites where gen-tie transmission cost
+    # exceeds the LCOS adder. (At very remote sites, delivered itself is high
+    # — the firm tier inherits that high transmission cost; the stack is still
+    # consistent. Issue #67 acceptance criterion.)
+    df["full_system_lcoe_firm_4h_usd_mwh"] = (
+        df["full_system_lcoe_delivered_usd_mwh"] + _lcos_4h * 0.20
+    ).round(2)
+    df["full_system_lcoe_firm_8h_usd_mwh"] = (
+        df["full_system_lcoe_delivered_usd_mwh"] + _lcos_8h * 0.50
+    ).round(2)
+
+    # §6 marginal cost (daytime / nighttime split). Surface alongside BPP so the
+    # solar comparator (daytime) and storage/dispatchable RE comparator
+    # (nighttime) read the right column per §6.5.
+    def _marginal(row: pd.Series, time_of_day: str) -> float:
+        bpp = row.get("bpp_usd_mwh")
+        region = row.get("grid_region_id")
+        if pd.isna(bpp) or not region:
+            return float("nan")
+        try:
+            return round(
+                estimate_marginal_cost(float(bpp), str(region), time_of_day),  # type: ignore[arg-type]
+                2,
+            )
+        except KeyError:
+            return float("nan")
+
+    df["incumbent_pln_marginal_daytime_usd_mwh"] = df.apply(
+        lambda r: _marginal(r, "daytime"), axis=1
+    )
+    df["incumbent_pln_marginal_nighttime_usd_mwh"] = df.apply(
+        lambda r: _marginal(r, "nighttime"), axis=1
+    )
+
+    def _marginal_confidence(row: pd.Series) -> str:
+        region = row.get("grid_region_id")
+        if not region:
+            return "unknown_region"
+        try:
+            return marginal_confidence_for(str(region))
+        except KeyError:
+            return "unknown_region"
+
+    df["incumbent_pln_marginal_confidence"] = df.apply(_marginal_confidence, axis=1)
+
     return df[
         [
             "site_id",
@@ -745,6 +849,14 @@ def build_fct_site_scorecard(
             "lcoe_grid_connected_capped_usd_mwh",
             "lcoe_grid_connected_low_usd_mwh",
             "lcoe_grid_connected_high_usd_mwh",
+            # v4.1a §2 IEA-aligned multi-tier LCOE (issue #67, additive)
+            "lcoe_generation_usd_mwh",
+            "full_system_lcoe_delivered_usd_mwh",
+            "full_system_lcoe_firm_4h_usd_mwh",
+            "full_system_lcoe_firm_8h_usd_mwh",
+            # v4.1a §8 LCOS at 4h / 8h (issue #69)
+            "lcos_4h_usd_mwh",
+            "lcos_8h_usd_mwh",
             "connection_cost_per_kw",
             "transmission_cost_per_kw",
             "substation_upgrade_cost_per_kw",
@@ -764,6 +876,11 @@ def build_fct_site_scorecard(
             "is_grid_cost_provisional",
             "tariff_i3_usd_mwh",
             "tariff_i4_usd_mwh",
+            # v4.1a §6 marginal cost split (issue #68, additive)
+            "bpp_usd_mwh",
+            "incumbent_pln_marginal_daytime_usd_mwh",
+            "incumbent_pln_marginal_nighttime_usd_mwh",
+            "incumbent_pln_marginal_confidence",
             "solar_competitive_gap_pct",
             "solar_attractive",
             "lcoe_mid_wacc8_usd_mwh",

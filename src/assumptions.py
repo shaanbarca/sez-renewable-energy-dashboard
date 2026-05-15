@@ -545,6 +545,33 @@ BESS_FOM_USD_PER_KW_YR: float = 5.0
 BESS_CYCLES_PER_YEAR: int = 365
 # Number of full discharge cycles per year (once per day = 365).
 
+
+# ─── BATTERY LCOS DEFAULTS (v4.1a §8, issue #69) ─────────────────────────────
+
+BATTERY_DEFAULTS: dict[str, float | int] = {
+    "capex_usd_per_kwh": 350,  # IRENA 2024 Battery Storage Cost Report benchmark
+    "lifetime_years": 15,
+    "cycles_per_year": 365,
+    "depth_of_discharge": 0.85,
+    "round_trip_efficiency": 0.90,
+    "fixed_om_usd_per_kw_year": 7,
+}
+# IEA/IRENA-aligned LCOS inputs used by `src.dash.logic.lcos.compute_battery_lcos`
+# to compute storage cost adders for the multi-tier LCOE framework (issue #67):
+#   full_system_lcoe_firm_4h = lcoe_generation + lcos_4h * 0.20
+#   full_system_lcoe_firm_8h = lcoe_generation + lcos_8h * 0.50
+#
+# `capex_usd_per_kwh` ($350/kWh) intentionally diverges from the older v4.0
+# `BESS_CAPEX_USD_PER_KWH = $150/kWh` constant: the v4.0 number was a pack+BOS
+# cell-level estimate; this is the IRENA 2024 installed-system benchmark
+# (battery + balance-of-plant + grid interconnection at utility scale). The
+# higher number lands LCOS in the IEA-published bands ($30-50/MWh at 4h,
+# $80-130/MWh at 8h) so the multi-tier outputs match the comparison literature.
+#
+# Sources:
+#   IRENA (2024). Battery Storage Cost Report — Utility-scale Li-ion.
+#   Lazard (2024). LCOE+S Analysis v16, storage section.
+
 # ─── LAND ACQUISITION ────────────────────────────────────────────────────────
 
 LAND_COST_USD_PER_KW: float = 45.0

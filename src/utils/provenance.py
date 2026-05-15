@@ -170,6 +170,124 @@ PROVENANCE_REGISTRY: dict[str, tuple[ProvenanceFlag, SiteOverrideLoader | None]]
         ),
         None,
     ),
+    # ─── v4.1a §2 multi-tier LCOE (issue #67) ─────────────────────────────
+    "lcoe_generation_usd_mwh": (
+        ProvenanceFlag(
+            source="NREL ATB 2024",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "NREL (2024). Annual Technology Baseline 2024 — Utility-Scale "
+                "Solar PV, Class 5 site, 2024 vintage. Generation-only LCOE "
+                "(no transmission, no storage). IEA LCOE alignment per "
+                "spec §2.1. Closest v4.0 alias: lcoe_within_boundary_usd_mwh."
+            ),
+        ),
+        None,
+    ),
+    "full_system_lcoe_delivered_usd_mwh": (
+        ProvenanceFlag(
+            source="NREL ATB 2024 + connection cost model",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "Computed: lcoe_generation_usd_mwh + gen-tie transmission + "
+                "substation connection cost per src/model/basic_model.py. "
+                "IEA Full System LCOE (delivered). See METHODOLOGY §2.1."
+            ),
+        ),
+        None,
+    ),
+    "full_system_lcoe_firm_4h_usd_mwh": (
+        ProvenanceFlag(
+            source="Lazard LCOE+S 2024 + IRENA Battery Storage 2024",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "Computed: lcoe_generation_usd_mwh + lcos_4h_usd_mwh × 0.20. "
+                "Lazard (2024) LCOE+S v16 §firming methodology; storage share "
+                "20% of solar nameplate at 4-hour duration. IEA Full System "
+                "LCOE (firm 4h). See METHODOLOGY §2.1 and §8.5."
+            ),
+        ),
+        None,
+    ),
+    "full_system_lcoe_firm_8h_usd_mwh": (
+        ProvenanceFlag(
+            source="Lazard LCOE+S 2024 + IRENA Battery Storage 2024",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "Computed: lcoe_generation_usd_mwh + lcos_8h_usd_mwh × 0.50. "
+                "Lazard (2024) LCOE+S v16 §firming methodology; storage share "
+                "50% of solar nameplate at 8-hour duration. IEA Full System "
+                "LCOE (firm 8h). See METHODOLOGY §2.1 and §8.5."
+            ),
+        ),
+        None,
+    ),
+    # ─── v4.1a §8 storage LCOS (issue #69) ────────────────────────────────
+    "lcos_4h_usd_mwh": (
+        ProvenanceFlag(
+            source="IRENA 2024 + Lazard 2024",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "IRENA (2024). Battery Storage Cost Report — Utility-scale "
+                "Li-ion at 4-hour duration. Cross-checked against Lazard "
+                "LCOE+S v16 (2024) storage section. Defaults: $350/kWh "
+                "installed capex, 15-year life, 365 cycles/year, RTE 0.90, "
+                "DOD 0.85, $7/kW-year fixed O&M. See METHODOLOGY §8."
+            ),
+        ),
+        None,
+    ),
+    "lcos_8h_usd_mwh": (
+        ProvenanceFlag(
+            source="IRENA 2024 + Lazard 2024",
+            vintage="2024",
+            confidence="high",
+            citation=(
+                "IRENA (2024). Battery Storage Cost Report — Utility-scale "
+                "Li-ion at 8-hour duration. Cross-checked against Lazard "
+                "LCOE+S v16 (2024). Same BATTERY_DEFAULTS as lcos_4h. See "
+                "METHODOLOGY §8."
+            ),
+        ),
+        None,
+    ),
+    # ─── v4.1a §6 marginal cost split (issue #68) ─────────────────────────
+    "incumbent_pln_marginal_daytime_usd_mwh": (
+        ProvenanceFlag(
+            source="Kepmen ESDM 169/2021 + regional dispatch adjustment",
+            vintage="2020",
+            confidence="medium",
+            citation=(
+                "Computed: bpp_usd_mwh × MARGINAL_COST_ADJUSTMENT_BY_REGION"
+                "[region]['daytime']. Regional factors calibrated against "
+                "IESR 2024 dispatch analysis, IEA SEA Energy Outlook 2024 §5, "
+                "and RUPTL 2025–2034 Bab IV regional dispatch composition. "
+                "Daytime = PVOUT-weighted ~06:00–18:00 local. See "
+                "METHODOLOGY §6.2 and src/dash/logic/marginal.py."
+            ),
+        ),
+        None,
+    ),
+    "incumbent_pln_marginal_nighttime_usd_mwh": (
+        ProvenanceFlag(
+            source="Kepmen ESDM 169/2021 + regional dispatch adjustment",
+            vintage="2020",
+            confidence="medium",
+            citation=(
+                "Computed: bpp_usd_mwh × MARGINAL_COST_ADJUSTMENT_BY_REGION"
+                "[region]['nighttime']. Same calibration sources as daytime. "
+                "Nighttime = complementary ~18:00–06:00 local. Feeds storage "
+                "/ dispatchable RE comparator per spec §6.5. See METHODOLOGY "
+                "§6.2 and src/dash/logic/marginal.py."
+            ),
+        ),
+        None,
+    ),
 }
 
 
