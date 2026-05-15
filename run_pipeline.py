@@ -58,6 +58,7 @@ from src.pipeline.build_dim_tech_cost import build_dim_tech_cost
 from src.pipeline.build_dim_tech_cost_wind import build_dim_tech_cost_wind
 from src.pipeline.build_fct_captive_coal import build_captive_coal_summary
 from src.pipeline.build_fct_captive_nickel import build_captive_nickel_summary
+from src.pipeline.build_fct_field_provenance import build_fct_field_provenance
 from src.pipeline.build_fct_geothermal_proximity import build_fct_geothermal_proximity
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
 from src.pipeline.build_fct_lcoe import build_fct_lcoe
@@ -214,6 +215,18 @@ PIPELINE: list[Step] = [
             "fct_ruptl_pipeline",
             "fct_site_demand",
         ],
+    ),
+    # Stage 5: Sidecar artefacts — read-only consumers of the scorecard
+    Step(
+        # #65 (v4.1a §9) — Field-level provenance for v4.1+ numeric outputs.
+        # Sidecar table keyed by (site_id, field_name). The static registry
+        # in src/utils/provenance.py declares every tracked field's source /
+        # vintage / confidence / citation. Foundation seed: 3 v4.0 fields;
+        # downstream v4.1a sub-PRs (#67-72) extend the registry.
+        "fct_field_provenance",
+        build_fct_field_provenance,
+        "fct_field_provenance.csv",
+        depends_on=["dim_sites"],
     ),
 ]
 

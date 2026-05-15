@@ -2080,6 +2080,62 @@ Audit performed April 2026 against the current implementation. The codebase is ~
 
 ---
 
+## 18.5 Field-Level Provenance (v4.1+ — sidecar table)
+
+**Status (v4.1a, 2026-05-15).** Foundation seed: 3 v4.0 fields registered.
+Downstream v4.1a sub-PRs (#67–72) extend the registry with the multi-tier
+LCOE, marginal, LCOS, classification, and captive-cost fields. Issue
+[#65](https://github.com/shaanbarca/eez/issues/65).
+
+Every provenance-tracked numeric output in `fct_site_scorecard.csv` carries
+its `source / vintage / confidence / citation` in a **sidecar table**
+`fct_field_provenance.csv` keyed by `(site_id, field_name)`:
+
+```
+site_id, field_name,                source,                vintage, confidence, citation
+kek-palu, pvout_centroid_kwh_kwp_yr, Global Solar Atlas v2, 2020,    high,      World Bank ESMAP / Solargis 2020
+kek-palu, bpp_usd_mwh,               Kepmen ESDM 169/2021,  2020,    high,      Kementerian ESDM Lampiran A
+...
+```
+
+**Schema.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `site_id` | str | Joins to `dim_sites.site_id` |
+| `field_name` | str | Name of the provenance-tracked column in `fct_site_scorecard.csv` |
+| `source` | str | Canonical short source name |
+| `vintage` | str | ISO year / year-quarter / full date the data reflects |
+| `confidence` | enum | `high` / `medium` / `low` |
+| `citation` | str | Full citation reference, suitable for an investment memo |
+
+**Confidence rubric:**
+
+- **high** — primary source (regulatory document, satellite dataset, government registry).
+- **medium** — methodology default with explicit assumption (e.g. `CAPTIVE_COAL_DEFAULTS` yielding ~$45/MWh).
+- **low** — inferred from sectoral norms with no per-site validation.
+
+**Why sidecar (not inline).** Inline denormalization (`<field>_source`,
+`<field>_vintage`, `<field>_confidence`, `<field>_citation` per output)
+would 5x the scorecard width — ~190 → ~950 columns. Bad for CSV consumers,
+frontend type complexity, payload size. The sidecar keeps the scorecard
+width stable, gives provenance a uniform schema across releases, and lets
+size-conscious consumers skip it entirely. Decision logged in
+`/plan-eng-review` 2026-05-15 finding A2.
+
+**Registry pattern.** Field definitions live in
+`src/utils/provenance.py::PROVENANCE_REGISTRY` (`field_name → (default
+ProvenanceFlag, optional per-site override loader)`). Sub-PRs add to the
+dict; the build step `src/pipeline/build_fct_field_provenance.py` joins it
+against the site list automatically. No cross-step coupling.
+
+**Output.** `outputs/data/processed/fct_field_provenance.csv`, regenerated
+by `run_pipeline.py` after `fct_site_scorecard`. Row count = sites × fields
+in registry (minus any (site, field) pairs whose override loader returns
+None for a site missing that field).
+
+---
+
 ## 19. Reproducibility
 
 All primary inputs are publicly available. See the [References](#references) section for full citations, URLs, and access details.
