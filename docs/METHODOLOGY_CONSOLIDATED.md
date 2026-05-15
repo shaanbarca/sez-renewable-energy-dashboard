@@ -2136,6 +2136,39 @@ None for a site missing that field).
 
 ---
 
+## 18.6 v4.0 → v4.1 IEA Column Translation Table
+
+**Status (v4.1a, 2026-05-15).** Documentation only; no code changes in this issue. Issue [#66](https://github.com/shaanbarca/eez/issues/66).
+
+**Migration story: additive.** v4.1 adds new IEA-named LCOE columns alongside the existing v4.0 columns. **No v4.0 columns are renamed or deprecated.** v4.0 columns stay populated with unchanged semantics; consumers reading them keep reading the same numbers indefinitely. Consumers wanting the unambiguous IEA tiers migrate to the new column names at their own pace.
+
+This is a deliberate amendment from the 2026-05-07 plan (which called for a hard-rename + one-release deprecation alias on a `lcoe_usd_per_mwh` column). `/plan-eng-review` finding A1 (2026-05-15) showed that column does not exist in v4.0 — the actual v4.0 columns use `_usd_mwh` (no `per_`). Without a real column to deprecate, the alias plan didn't compose; the cleaner solution is additive migration.
+
+**Translation table — v4.0 → closest IEA equivalent in v4.1+:**
+
+| v4.0 column (preserved) | v4.0 semantic | Closest IEA equivalent in v4.1 | Notes |
+|---|---|---|---|
+| `lcoe_mid_usd_mwh` | Primary scenario-aware LCOE: equals `lcoe_within_boundary_usd_mwh` when `grid_integration_category == 'within_boundary'`, else `lcoe_grid_connected_capped_usd_mwh` | (scenario-aware — no single IEA equivalent) | The ambiguity is exactly why v4.1 adds the unambiguous IEA tiers. Reading `lcoe_mid_usd_mwh` requires also reading `grid_integration_category` to interpret. |
+| `lcoe_within_boundary_usd_mwh` | Captive within-boundary LCOE (minimal transmission, on-site solar) | `lcoe_generation_usd_mwh` (via #67) | Within-boundary captive ≈ IEA generation-only. |
+| `lcoe_grid_connected_usd_mwh` / `_capped_usd_mwh` | Grid-connected LCOE including substation distance + connection cost | `full_system_lcoe_delivered_usd_mwh` (via #67) | Grid-connected with transmission = IEA Full System LCOE (delivered). The `_capped_` variant has a tariff cap — no IEA equivalent. |
+| `lcoe_with_battery_usd_mwh` | Solar + 14h-bridge battery approximation | `full_system_lcoe_firm_8h_usd_mwh` (via #67 + #69) | 14h-bridge ≈ IEA firm 8h after BESS sizing alignment. |
+| `lcoe_wind_mid_usd_mwh` | Wind LCOE (generation-only) | `lcoe_generation_usd_mwh` (wind technology) | Same generation-only semantic. |
+| `bpp_usd_mwh` (in `fct_grid_cost_proxy`) | PLN regional BPP | `incumbent_pln_bpp_usd_mwh` (via #67) | Same value; new column name disambiguates as an incumbent reference. |
+| (no v4.0 column) | — | `incumbent_pln_marginal_daytime_usd_mwh` / `_nighttime_usd_mwh` (via #68) | New in v4.1 — daytime/nighttime split per §6.2. |
+
+**Consumer-facing read pattern in v4.1.** Both old and new columns are populated in `fct_site_scorecard.csv`. Frontend / API / external CSV consumers can:
+
+- Keep reading existing v4.0 columns — no migration required.
+- Read the new IEA columns when an unambiguous tier is needed (e.g. comparing pure technology LCOE across countries, or running an IEA-style cost-stack analysis).
+
+**Future cleanup.** Once the new IEA columns are the canonical reads across all consumers, v5.0 may consolidate the older columns with a clean break. v4.1 makes no commitment to remove the v4.0 columns; v4.2/v4.3 are explicitly additive on top of v4.1.
+
+**Naming convention pinned.** All new $/MWh columns use the `_usd_mwh` suffix (no `per_`), matching the existing v4.0 codebase convention. The `_per_` particle stays reserved for unit denominators other than MWh: `_per_kw` (one-time costs), `_per_tonne` (product), `_per_tco2` (carbon prices). Every LCOE-family column is per-MWh by default in the IEA literature, so the `per_` is redundant.
+
+**Regression invariant.** A test in `tests/test_v40_baseline_unchanged.py` asserts that every v4.0 LCOE column value in `tests/fixtures/scorecard_v4_0_baseline.csv` reads back from the current `fct_site_scorecard.csv` within ±0.01 USD/MWh. Any future change that breaks this invariant is a breaking change and must be flagged in the CHANGELOG.
+
+---
+
 ## 19. Reproducibility
 
 All primary inputs are publicly available. See the [References](#references) section for full citations, URLs, and access details.
