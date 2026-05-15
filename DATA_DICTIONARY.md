@@ -896,10 +896,11 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 | `captive_phaseout_year_strict_scenario` | int | F6, 2026-05-09 | 2035 if Art. 10 exemption tightened in 2026+ regulatory cycle (v4.3 strict-pathway default). 2050 for non-exempt sites. |
 | `captive_subject_to_strict_scenario` | bool | F6, 2026-05-09 | True if the strict scenario phase-out year is earlier than baseline (i.e. site relies on the exemption today). |
 | `electricity_arrangement` | str enum | v4.1a §3 (#70) | One of `grid_only` / `grid_primary_with_captive` / `hybrid_captive_primary` / `pure_captive`. From `fct_site_classifications`. Drives the right incumbent comparator. |
-| `captive_fuel_type` | str enum | v4.1a §3 (#70) | One of `coal_subcritical` / `coal_supercritical` / `natural_gas` / `oil_diesel` / `hybrid` / `none`. From `fct_site_classifications`. Gates the captive cost LCOE columns below. |
-| `classification_confidence` | str enum | v4.1a §3 (#70) | `high` / `medium` / `low`. `medium` = sectoral default applied; `high` = override row from `data/raw/site_classifications.csv`. |
-| `captive_coal_lcoe_usd_mwh` | float/null | v4.1a §4 (#71) | Levelized cost ($/MWh) of on-site captive coal for sites where `captive_fuel_type` starts `coal_`. Override values from `data/raw/captive_generation_overrides.csv` (IMIP $50, IWIP $55, Obi $60, Konawe $52, Krakatau Posco $48); otherwise formula default from `CAPTIVE_COAL_DEFAULTS` (~$55/MWh). NULL for non-coal sites. |
-| `captive_gas_lcoe_usd_mwh` | float/null | v4.1a §5 (#72) | Levelized cost ($/MWh) of on-site captive gas for sites where `captive_fuel_type == 'natural_gas'`. Pupuk Kaltim Bontang override $65; otherwise formula default from `CAPTIVE_GAS_DEFAULTS` (~$77/MWh). NULL for non-gas sites. |
+| `captive_fuel_type` | str enum | v4.1a §3 (#70) — extended in v4.3 M-AT8a | One of `coal_subcritical` / `coal_supercritical` / `natural_gas` / `oil_diesel` / `hydro` / `none`. From `fct_site_classifications`. Gates the captive incumbent LCOE column below. v4.3 M-AT8a added `hydro` (Inalum Asahan reclassified from the v4.1a `hybrid` value). |
+| `captive_classification_confidence` | str enum | v4.1a §3 (#70) — renamed v4.3 M-AT8a | `high` / `medium` / `low`. `medium` = sectoral default applied; `high` = override row from `data/raw/site_classifications.csv`. Renamed from `classification_confidence` to disambiguate from `captive_lcoe_tier`. |
+| `captive_incumbent_lcoe_usd_mwh` | float/null | v4.3 M-AT8a (replaces v4.1a captive_coal/gas split) | Resolved captive-power LCOE ($/MWh). For sites in `data/raw/captive_power_lcoe_defaults.csv` (T1/T2/T3 anchors), this is the CSV value verbatim (scenario-invariant). For other captive sites, formula output from `CAPTIVE_*_DEFAULTS` at the default scenario (DMO for coal, HGBT for gas) — ~$63/MWh coal, ~$70/MWh gas, $30/MWh hydro. NULL for non-captive sites. |
+| `captive_lcoe_tier` | str enum/null | v4.3 M-AT8a | `T1` (high-confidence anchor — multi-source verified, e.g. IMIP, Krakatau Posco, Pupuk Kaltim, Inalum) / `T2` (industry-archetype extrapolation, ~7 sites) / `T3` (formula placeholder, low confidence). NULL for non-captive sites and formula-fallback sites without a CSV row. |
+| `captive_lcoe_fuel_price_scenario` | str/null | v4.3 M-AT8a | `n/a` for CSV-anchored sites and hydro; or active scenario for formula-fallback sites: `DMO` / `HBA_2024` / `INTERNATIONAL` (coal $/tonne), `HGBT` / `MARKET` / `SPOT_LNG_JKM` (gas $/MMBtu), or `custom_{value}` for M-AT8b slider input. |
 | `captive_perpres_112_source` | str/null | F6, 2026-05-09 | Citation for the classification (e.g. "Perpres 112/2022 Art. 10 (sector default)" or specific rulings like Perpres 70/2014). |
 | `captive_perpres_112_verification_status` | str enum | F6, 2026-05-09 | `sector_default` (auto from sector rule) or `verified` (legal review confirmed). |
 | `recommended_grid_link_status` | str enum | F5, 2026-05-09 | RUPTL §V.9 worst-case status for the region's transmission links: `in_construction` / `pre_construction` / `under_study` / `not_feasible` / `cross_border`, or `not_in_ruptl` if the region has no flagged links. From `fct_transmission_link_ruptl_signal.csv`. |
@@ -1180,7 +1181,7 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 
 v4.1a ships overrides for 6 anchor sites (IMIP, IWIP, Pupuk Kaltim, Krakatau Posco, Inalum, Freeport Gresik).
 
-**Downstream.** `fct_site_scorecard` left-joins this table and uses `captive_fuel_type` to gate the new `captive_coal_lcoe_usd_mwh` (#71) and `captive_gas_lcoe_usd_mwh` (#72) columns.
+**Downstream.** `fct_site_scorecard` left-joins this table and uses `captive_fuel_type` to gate the new `captive_incumbent_lcoe_usd_mwh` + `captive_lcoe_tier` + `captive_lcoe_fuel_price_scenario` columns (v4.3 M-AT8a — replaces v4.1a's coal+gas split). The `classification_confidence` column is read in as-is and renamed to `captive_classification_confidence` to disambiguate from the new tier field.
 
 ---
 

@@ -64,11 +64,8 @@ from src.model.basic_model import (
     resolve_demand,
 )
 from src.model.captive_economics import (
-    captive_coal_lcoe_usd_mwh,
-    captive_gas_lcoe_usd_mwh,
-    load_captive_overrides,
-    site_captive_coal_lcoe,
-    site_captive_gas_lcoe,
+    load_captive_defaults,
+    resolve_captive_lcoe,
 )
 from src.model.columns import Col
 from src.pipeline.assumptions import BASE_WACC, FIRMING_PVOUT_THRESHOLD, PROJECT_VIABLE_MIN_MWP
@@ -148,21 +145,21 @@ def build_fct_site_scorecard(
                 "captive_fuel_type",
                 "classification_confidence",
             ]
-        ]
+        ].rename(columns={"classification_confidence": "captive_classification_confidence"})
     else:
         classifications = pd.DataFrame(
             columns=[
                 "site_id",
                 "electricity_arrangement",
                 "captive_fuel_type",
-                "classification_confidence",
+                "captive_classification_confidence",
             ]
         )
 
-    # v4.1a §4-§5 (#71/#72) — captive cost overrides + defaults.
-    captive_overrides = load_captive_overrides()
-    captive_coal_default = captive_coal_lcoe_usd_mwh()
-    captive_gas_default = captive_gas_lcoe_usd_mwh()
+    # v4.3 M-AT8a — captive power tier defaults (replaces v4.1a's coal+gas split).
+    # Single defaults CSV with T1/T2/T3 tier values per site, gated by
+    # captive_fuel_type from #70 classification.
+    captive_defaults = load_captive_defaults()
 
     # ─── STAGING ──────────────────────────────────────────────────────────────
     # LCOE at base WACC, within_boundary scenario (on-site solar, no connection cost)
@@ -332,20 +329,27 @@ def build_fct_site_scorecard(
         .merge(classifications, on="site_id", how="left")
     )
 
-    # v4.1a §4-§5 (#71/#72): captive coal + gas LCOE columns.
-    # Population gated on `captive_fuel_type` from #70 classification; NULL
-    # for sites that don't have that fuel type.
-    df["captive_coal_lcoe_usd_mwh"] = df.apply(
-        lambda r: site_captive_coal_lcoe(
-            r["site_id"], r.get("captive_fuel_type"), captive_overrides, captive_coal_default
+    # v4.3 M-AT8a: single captive_incumbent_lcoe_usd_mwh column + tier + scenario.
+    # Replaces v4.1a's separate captive_coal_lcoe_usd_mwh + captive_gas_lcoe_usd_mwh
+    # split. The resolver handles coal / gas / hydro internally, gated by
+    # captive_fuel_type from #70 classification. NULL for sites with fuel_type=none.
+    _captive_results = df.apply(
+        lambda r: resolve_captive_lcoe(
+            r["site_id"],
+            r.get("captive_fuel_type"),
+            fuel_price_scenario="default",
+            defaults_df=captive_defaults,
         ),
         axis=1,
     )
-    df["captive_gas_lcoe_usd_mwh"] = df.apply(
-        lambda r: site_captive_gas_lcoe(
-            r["site_id"], r.get("captive_fuel_type"), captive_overrides, captive_gas_default
-        ),
-        axis=1,
+    df["captive_incumbent_lcoe_usd_mwh"] = _captive_results.map(
+        lambda res: res.lcoe_usd_mwh if res is not None else None
+    )
+    df["captive_lcoe_tier"] = _captive_results.map(
+        lambda res: res.tier if res is not None else None
+    )
+    df["captive_lcoe_fuel_price_scenario"] = _captive_results.map(
+        lambda res: res.scenario_used if res is not None else None
     )
 
     # Ensure buildability columns exist (NaN if data/buildability/ not yet populated)
@@ -962,12 +966,13 @@ def build_fct_site_scorecard(
             "grid_emission_factor_t_co2_mwh",
             "carbon_breakeven_usd_tco2",
             "clean_power_advantage",
-            # v4.1a §3-§5 (#70/#71/#72) — site classification + captive economics.
+            # v4.1a §3 + v4.3 M-AT8a — site classification + captive power LCOE.
             "electricity_arrangement",
             "captive_fuel_type",
-            "classification_confidence",
-            "captive_coal_lcoe_usd_mwh",
-            "captive_gas_lcoe_usd_mwh",
+            "captive_classification_confidence",
+            "captive_incumbent_lcoe_usd_mwh",
+            "captive_lcoe_tier",
+            "captive_lcoe_fuel_price_scenario",
             "data_completeness",
         ]
     ]

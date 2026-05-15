@@ -87,20 +87,27 @@ Each file should:
 
 ---
 
-## `captive_generation_overrides.csv`
+## `captive_power_lcoe_defaults.csv` (v4.3 M-AT8a)
 
-**Purpose (v4.1a §4–§5, [#71](https://github.com/shaanbarca/eez/issues/71) + [#72](https://github.com/shaanbarca/eez/issues/72)).** Per-site LCOE override for captive coal + captive gas plants. Overrides surface in `fct_site_scorecard.captive_coal_lcoe_usd_mwh` / `captive_gas_lcoe_usd_mwh` columns. Sites without overrides use the formula default from `CAPTIVE_COAL_DEFAULTS` / `CAPTIVE_GAS_DEFAULTS` in `src/assumptions.py`.
+**Purpose.** Per-site captive power LCOE defaults with tier framing (T1/T2/T3). Renamed from `captive_generation_overrides.csv` in v4.3 M-AT8a; semantics expanded to cover **all captive sites** (~40 rows) rather than just the 6 v4.1a anchor overrides. Single column `captive_incumbent_lcoe_usd_mwh` on the scorecard reads from this file (was `captive_coal_lcoe_usd_mwh` + `captive_gas_lcoe_usd_mwh` in v4.1a — those columns are deleted).
 
 **Schema:**
 
 | Column | Type | Description |
 |---|---|---|
 | `site_id` | str | Site identifier (kebab-case — must match `dim_sites`). |
-| `captive_lcoe_usd_mwh` | float | Site-specific captive LCOE ($/MWh). Coal anchors $48–60, gas anchor $65. |
-| `fuel_type` | str | `coal_subcritical` / `coal_supercritical` / `natural_gas`. Distinguishes which column the override populates. |
-| `source` | str | Primary reference (industry estimate, IESR report, annual report disclosure). |
-| `last_updated` | YYYY-MM-DD | Date of last verification. |
+| `archetype` | str | Short descriptor (e.g. "IMIP nickel RKEF+HPAL", "Pupuk Kaltim fertilizer"). |
+| `fuel_type` | str | `coal_subcritical` / `coal_supercritical` / `natural_gas` / `hydro`. Must match the site's `captive_fuel_type` in `fct_site_classifications.csv`. |
+| `tier` | str enum | `T1` (high-confidence anchor) / `T2` (industry-archetype extrapolation) / `T3` (formula placeholder). |
+| `default_lcoe_usd_mwh` | float | Site-specific captive LCOE ($/MWh). Scenario-invariant — anchor values don't track the market fuel-price slider. |
+| `coal_cv_kcal_per_kg` | int/null | Coal calorific value (HHV) for coal-fueled sites. ~3,500 for low-CV imported subcritical; ~5,500 for mid-to-high CV supercritical. Null for non-coal. |
+| `gas_pricing_regime` | str/null | `hgbt` (regulated $7/MMBtu — 7 covered sectors) / `market` (~$10/MMBtu non-HGBT) / `spot_lng` (~$14/MMBtu JKM). Null for non-gas. |
+| `boiler_tech` | str | `subcritical` / `supercritical` / `ccgt` / `hydro`. |
+| `cf_default` | float | Default capacity factor. ~0.85–0.95 captive baseload, ~0.45 hydro. |
+| `source_citation` | str | Primary reference (Berkeley GSPP 2024, IESR LCOE Tool, Pupuk Indonesia disclosures, etc.). Placeholder rows tagged "formula placeholder". |
 
-**Coverage today.** 5 coal anchors (IMIP $50, IWIP $55, Obi $60, Konawe $52, Krakatau Posco $48) + 1 gas anchor (Pupuk Kaltim Bontang $65). Spec §4.4 site_ids were corrected from snake_case (`imip_morowali`) to kebab-case (`indonesia-morowali-industrial-park-imip`) per eng-review finding A4.
+**Coverage today.** 4 T1 anchors (IMIP $50, Krakatau Posco $62, Pupuk Kaltim $50, Inalum $30 hydro), 7 T2 anchors (IWIP $55, Obi $58, Konawe $55, 4 Pupuk fertilizer T2 @ $55), ~30 T3 placeholders (coal at $63 formula at DMO; gas at $70 formula at HGBT; Freeport Manyar at $89 MARKET).
 
-**Confidence bump.** Provenance sidecar (`fct_field_provenance.csv`) reflects the override status: anchor sites get `confidence='high'` for the captive LCOE columns, default-only sites get `confidence='medium'`. See `src/utils/provenance.py::_captive_coal_override_loader` + `_captive_gas_override_loader`.
+**Confidence bump.** Provenance sidecar (`fct_field_provenance.csv`) reflects tier status: any site in the CSV gets `confidence='high'` for `captive_incumbent_lcoe_usd_mwh`. Sites absent from the CSV (using formula fallback) get `confidence='medium'`. See `src/utils/provenance.py::_captive_lcoe_override_loader`.
+
+**See also.** METHODOLOGY §13.9–§13.11 for the formula, tier definitions, and per-site rationale + citation trail.

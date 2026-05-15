@@ -78,7 +78,8 @@ CAPTIVE_FUEL_TYPES = (
     "coal_supercritical",
     "natural_gas",
     "oil_diesel",
-    "hybrid",
+    "hydro",  # v4.3 M-AT8a: Inalum Asahan reclassified from "hybrid"
+    "hybrid",  # kept for back-compat; new sites should use a concrete fuel
     "none",
 )
 CONFIDENCE_LEVELS = ("high", "medium", "low")
