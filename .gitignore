@@ -187,11 +187,12 @@ data/~$*
 
 # Claude Code (AI assistant config, not project content)
 .claude/*
-# ...except project-local skills (workflow tooling, intentionally tracked)
+# ...except project-local skills + shared hooks/settings (workflow tooling, intentionally tracked)
 !.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
 
 # Developer-internal docs (not for publication)
-CLAUDE.md
 PLAN.md
 TODOS.md
 MIGRATION.md
