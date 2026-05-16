@@ -417,6 +417,19 @@ def enrich_carbon_and_viability(ctx: SiteContext, _row: dict[str, Any]) -> dict[
         "fom_usd_per_kw_yr": ctx.assumptions.fom_usd_per_kw_yr,
         "lifetime_yr": ctx.assumptions.lifetime_yr,
         "primary_cf": ctx.primary_cf,
+        # v4.3 M-AT8b — captive power incumbent surfaced for the score drawer.
+        # `effective_incumbent_lcoe_usd_mwh` is the value the gap_pct above was
+        # calculated against — captive_incumbent_lcoe for non-grid_only sites,
+        # grid_cost otherwise. `effective_incumbent_kind` discriminates the
+        # comparator type so the drawer can label the row correctly.
+        "electricity_arrangement": ctx.electricity_arrangement,
+        "captive_fuel_type": ctx.captive_fuel_type,
+        "captive_incumbent_lcoe_usd_mwh": ctx.captive_incumbent_lcoe,
+        "captive_lcoe_tier": ctx.captive_lcoe_tier,
+        "captive_classification_confidence": ctx.captive_classification_confidence,
+        "effective_incumbent_lcoe_usd_mwh": ctx.effective_incumbent_lcoe,
+        "effective_incumbent_kind": ctx.effective_incumbent_kind,
+        "gap_vs_grid_pct": _round(ctx.gap_vs_grid_pct),
     }
 
 

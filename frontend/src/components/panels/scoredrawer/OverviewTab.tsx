@@ -4,9 +4,17 @@ import { capitalize, formatGridRegion } from '../../../lib/format';
 import type { ScorecardRow } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import EnergyBalanceChart from '../../charts/EnergyBalanceChart';
+import { FuelTypePill } from '../../ui/FuelTypePill';
+import { TierPill } from '../../ui/TierPill';
 import { formatGap } from './formatting';
 import { IdentityCard } from './IdentityCard';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
+
+// v4.3 M-AT8b — uniform "Captive Power" label for non-grid_only sites.
+// The fuel-type pill (Coal / Gas / Hydro) discriminates inline so v4.4
+// additions (biomass CHP, oil diesel) don't require new label copy.
+const CAPTIVE_TOOLTIP =
+  'On-site captive power LCOE — what this site actually pays today. The gap below compares RE against this incumbent, not the PLN grid tariff. Fuel-type pill: Coal subcritical/supercritical, Natural Gas (HGBT-regulated), or Hydro (Inalum). See methodology §13.9–§13.11.';
 
 export function OverviewTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
@@ -41,26 +49,78 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
         <SectionHeader
           title="At a Glance"
           subtitle={`Is ${techLabel.toLowerCase()} competitive here, and what's the gap?`}
-          tip={`Key numbers that tell you whether ${techLabel.toLowerCase()} makes sense here. Green gap = RE is cheaper than grid.`}
+          tip={`Key numbers that tell you whether ${techLabel.toLowerCase()} makes sense here. Green gap = RE is cheaper than the incumbent.`}
         />
         <StatRowWithTip
           label={`${techLabel} LCOE`}
           value={activeLcoe?.toFixed(1)}
           unit="$/MWh"
-          tip={`${techLabel} cost per MWh at current assumptions. Compare to grid cost below.`}
+          tip={`${techLabel} cost per MWh at current assumptions. Compare to incumbent cost below.`}
         />
-        <StatRowWithTip
-          label="Grid Cost"
-          value={row.grid_cost_usd_mwh?.toFixed(1)}
-          unit="$/MWh"
-          tip="PLN's cost to supply power here. If LCOE is lower, RE is already cheaper."
-        />
+        {/* v4.3 M-AT8b — context-aware incumbent comparator.
+            - pure_captive site → only show captive row, with tier pill
+            - hybrid site       → show captive (primary) + grid (secondary)
+            - grid_only site    → show only grid row (preserves v4.0 behavior)
+            The `Competitive Gap` row below is computed against the effective
+            (primary) incumbent, so for captive sites the gap is meaningful. */}
+        {(() => {
+          const kind = row.effective_incumbent_kind ?? 'grid';
+          const effInc = row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh;
+          const tier = row.captive_lcoe_tier;
+          const fuel = row.captive_fuel_type;
+          const arr = row.electricity_arrangement;
+          const isHybrid =
+            arr === 'hybrid_captive_primary' || arr === 'grid_primary_with_captive';
+          if (kind === 'grid') {
+            return (
+              <StatRowWithTip
+                label="Grid Cost"
+                value={effInc?.toFixed(1)}
+                unit="$/MWh"
+                tip="PLN's cost to supply power here. If LCOE is lower, RE is already cheaper."
+              />
+            );
+          }
+          return (
+            <>
+              <StatRowWithTip
+                label="Captive Power"
+                value={effInc?.toFixed(1)}
+                unit="$/MWh"
+                tip={CAPTIVE_TOOLTIP}
+                trailing={
+                  <>
+                    <FuelTypePill fuelType={fuel} ml={6} />
+                    <TierPill tier={tier} ml={0} />
+                  </>
+                }
+              />
+              {isHybrid && row.grid_cost_usd_mwh != null && (
+                <StatRowWithTip
+                  label="Grid Cost"
+                  value={row.grid_cost_usd_mwh?.toFixed(1)}
+                  unit="$/MWh"
+                  tip="PLN supply cost. This site also draws from the grid (hybrid arrangement); captive plant is the dominant comparator."
+                />
+              )}
+            </>
+          );
+        })()}
         {gapPct != null && (
           <ColoredStatRow
             label="Competitive Gap"
             value={formatGap(gapPct)}
             color={gapColorVal}
-            tip="Negative = RE beats grid. Positive = RE is more expensive. Below -10% is a strong case."
+            tip={
+              row.captive_lcoe_tier === 'T3'
+                ? 'Negative = RE beats the incumbent. Positive = RE is more expensive. Note: this site uses a T3 (formula placeholder) captive LCOE — the gap range is approximate. See methodology §13.10.'
+                : row.effective_incumbent_kind === 'grid'
+                  ? 'Negative = RE beats grid. Positive = RE is more expensive. Below -10% is a strong case.'
+                  : 'Negative = RE beats the captive incumbent. Positive = RE is more expensive. This gap is vs the site\'s actual incumbent, not the PLN grid tariff.'
+            }
+            trailing={
+              row.captive_lcoe_tier === 'T3' ? <TierPill tier="T3" compact /> : undefined
+            }
           />
         )}
         <StatRow label="Best RE" value={capitalize(row.best_re_technology)} />

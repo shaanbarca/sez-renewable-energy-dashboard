@@ -15,6 +15,8 @@ import { capitalize, formatSnakeLabel } from '../../lib/format';
 import { SITE_TYPES, type SiteType } from '../../lib/siteTypes';
 import type { ActionFlag, ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import { FuelTypePill } from '../ui/FuelTypePill';
+import { TierPill } from '../ui/TierPill';
 
 declare module '@tanstack/react-table' {
   interface FilterFns {
@@ -76,6 +78,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'EU CBAM cost per tonne of product at 2030 rates (51.5% free allocation remaining). By 2034 free allocation reaches 0% and full EU ETS price applies (~€80/tCO₂). Sortable to find highest-exposure KEKs.',
   delivered_cost_usd_mwh:
     'Supply Blend: what the tenant actually pays. Cascaded as on-site (within-boundary) solar first, then a remote IPP with a gentie for the daytime headroom up to the ~42% daylight ceiling, then grid overnight. f_wb × on-site LCOE + f_remote × remote IPP LCOE + f_grid × grid rate.',
+  captive_incumbent_lcoe_usd_mwh:
+    'On-site captive power LCOE ($/MWh) for sites that run their own coal / gas / hydro plant instead of buying from PLN. The fuel pill (Coal / Gas / Hydro) shows what they burn; the LCOE is what they pay; the tier pill (T1 / T2 / T3) signals confidence. The competitive gap column compares solar against THIS value for non-grid sites — not the PLN tariff. Empty = grid-only site. See methodology §13.9–§13.11.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -511,6 +515,54 @@ export const columns = [
         filterFn: 'inRange',
         meta: { groupStart: true },
         cell: (info) => <GridRateCell info={info} />,
+      }),
+      // v4.3 M-AT8b — captive power column. Renders fuel-type pill (Coal / Gas /
+      // Hydro) + LCOE + tier pill. Em-dash for grid-only sites. The pills make
+      // the captive type discoverable at a glance; the LCOE matches the
+      // competitive-gap math in scorecard.py. See methodology §13.9-§13.11.
+      col.accessor('captive_incumbent_lcoe_usd_mwh', {
+        header: () => (
+          <HeaderWithTooltip
+            label="Captive Power"
+            columnId="captive_incumbent_lcoe_usd_mwh"
+          />
+        ),
+        filterFn: (row, _columnId, value: [number | '', number | '']) => {
+          const v = row.original.captive_incumbent_lcoe_usd_mwh;
+          if (v == null) return true; // grid_only sites don't filter out on this range
+          const [lo, hi] = value;
+          if (lo !== '' && v < lo) return false;
+          if (hi !== '' && v > hi) return false;
+          return true;
+        },
+        sortingFn: (rowA, rowB) => {
+          const a = rowA.original.captive_incumbent_lcoe_usd_mwh;
+          const b = rowB.original.captive_incumbent_lcoe_usd_mwh;
+          if (a == null && b == null) return 0;
+          if (a == null) return 1;
+          if (b == null) return -1;
+          return a - b;
+        },
+        cell: (info) => {
+          const v = info.getValue();
+          if (v == null)
+            return (
+              <span
+                title="Grid-only site — no captive power arrangement."
+                style={{ color: 'var(--text-muted)' }}
+              >
+                —
+              </span>
+            );
+          const r = info.row.original;
+          return (
+            <span className="inline-flex items-center">
+              <FuelTypePill fuelType={r.captive_fuel_type} compact />
+              {v.toFixed(0)}
+              <TierPill tier={r.captive_lcoe_tier} compact />
+            </span>
+          );
+        },
       }),
       col.accessor('lcoe_mid_usd_mwh', {
         header: () => <HeaderWithTooltip label="Solar LCOE" columnId="lcoe_mid_usd_mwh" />,

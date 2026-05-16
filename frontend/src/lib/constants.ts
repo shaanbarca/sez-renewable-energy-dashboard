@@ -177,6 +177,12 @@ export const MAP_STYLES: Record<MapStyleKey, { label: string; style: string | ob
     label: 'Satellite',
     style: {
       version: 8,
+      // MapLibre rejects any layer with text-field when the style has no
+      // glyphs URL. Without this entry, adding the substation/grid label
+      // layers tears down the whole symbol layer (icons included). Use the
+      // MapLibre demo glyphs server; switch to a self-hosted font tileset
+      // if traffic grows (~free at demo scale).
+      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
       sources: {
         'esri-satellite': {
           type: 'raster',

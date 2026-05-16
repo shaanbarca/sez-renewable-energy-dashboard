@@ -252,6 +252,43 @@ export interface ScorecardRow {
   ruptl_mva_added_total?: number | null;
   ruptl_match_confidence?: 'high' | 'medium' | 'low' | null;
 
+  // v4.3 M-AT8b — captive power LCOE + tier framing.
+  // electricity_arrangement: classifies whether this site buys power from the
+  //   grid, runs its own captive plant, or both. Drives the score drawer's
+  //   incumbent comparator: pure_captive uses captive_incumbent_lcoe, grid_only
+  //   uses grid_cost, hybrid shows both.
+  // effective_incumbent_lcoe / effective_incumbent_kind: the comparator the
+  //   solar_competitive_gap_pct was computed against, server-side. UI reads
+  //   these directly so per-site logic stays in src/dash/logic/site_context.py.
+  // captive_lcoe_tier: T1 (anchor) / T2 (archetype extrapolation) / T3 (placeholder).
+  // gap_vs_grid_pct: secondary gap for hybrid sites that also want the grid view.
+  electricity_arrangement?:
+    | 'grid_only'
+    | 'grid_primary_with_captive'
+    | 'hybrid_captive_primary'
+    | 'pure_captive'
+    | null;
+  captive_fuel_type?:
+    | 'coal_subcritical'
+    | 'coal_supercritical'
+    | 'natural_gas'
+    | 'hydro'
+    | 'none'
+    | null;
+  captive_classification_confidence?: 'high' | 'medium' | 'low' | null;
+  captive_incumbent_lcoe_usd_mwh?: number | null;
+  captive_lcoe_tier?: 'T1' | 'T2' | 'T3' | null;
+  captive_lcoe_fuel_price_scenario?: string | null;
+  effective_incumbent_lcoe_usd_mwh?: number | null;
+  effective_incumbent_kind?:
+    | 'grid'
+    | 'captive_coal'
+    | 'captive_gas'
+    | 'captive_hydro'
+    | 'captive_other'
+    | null;
+  gap_vs_grid_pct?: number | null;
+
   // H9: Captive power context
   captive_coal_count?: number | null;
   captive_coal_mw?: number | null;

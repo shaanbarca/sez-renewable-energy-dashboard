@@ -45,11 +45,14 @@ export function StatRowWithTip({
   value,
   unit,
   tip,
+  trailing,
 }: {
   label: string;
   value: string | number | null | undefined;
   unit?: string;
   tip: string;
+  /** Optional element rendered after the value (e.g. a TierPill badge). v4.3 M-AT8b. */
+  trailing?: React.ReactNode;
 }) {
   const [showTip, setShowTip] = useState(false);
   const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
@@ -79,8 +82,12 @@ export function StatRowWithTip({
           )}
         </span>
       </span>
-      <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--text-value)' }}>
+      <span
+        className="text-[12px] font-medium tabular-nums inline-flex items-center"
+        style={{ color: 'var(--text-value)' }}
+      >
         {display}
+        {trailing}
       </span>
     </div>
   );
@@ -92,12 +99,15 @@ export function ColoredStatRow({
   unit,
   tip,
   color,
+  trailing,
 }: {
   label: string;
   value: string | number | null | undefined;
   unit?: string;
   tip?: string;
   color?: string;
+  /** Optional element rendered after the value. v4.3 M-AT8b. */
+  trailing?: React.ReactNode;
 }) {
   const [showTip, setShowTip] = useState(false);
   const display = value == null || value === '' ? 'N/A' : `${value}${unit ? ` ${unit}` : ''}`;
@@ -130,10 +140,11 @@ export function ColoredStatRow({
         )}
       </span>
       <span
-        className="text-[12px] font-medium tabular-nums"
+        className="text-[12px] font-medium tabular-nums inline-flex items-center"
         style={{ color: color ?? 'var(--text-value)' }}
       >
         {display}
+        {trailing}
       </span>
     </div>
   );

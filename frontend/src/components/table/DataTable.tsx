@@ -224,13 +224,38 @@ export default function DataTable() {
   const [showFilters, setShowFilters] = useState(false);
   const [cbamOnly, setCbamOnly] = useState(false);
   const [kekOnly, setKekOnly] = useState(false);
+  // v4.3 M-AT8b — captive power filter. Multi-select {coal/gas/hydro/none}
+  // matched against electricity_arrangement + captive_fuel_type. Empty set
+  // means no filter applied (default).
+  const [captiveFilter, setCaptiveFilter] = useState<Set<string>>(new Set());
 
   const data = useMemo(() => {
     let rows = scorecard ?? [];
     if (cbamOnly) rows = rows.filter((r) => r.cbam_exposed);
     if (kekOnly) rows = rows.filter((r) => r.site_type === 'kek');
+    if (captiveFilter.size > 0) {
+      rows = rows.filter((r) => {
+        const fuel = r.captive_fuel_type;
+        // 'None' filter matches grid_only sites (fuel_type=none or null).
+        if (captiveFilter.has('None') && (!fuel || fuel === 'none')) return true;
+        if (captiveFilter.has('Coal') && (fuel === 'coal_subcritical' || fuel === 'coal_supercritical'))
+          return true;
+        if (captiveFilter.has('Gas') && fuel === 'natural_gas') return true;
+        if (captiveFilter.has('Hydro') && fuel === 'hydro') return true;
+        return false;
+      });
+    }
     return rows;
-  }, [scorecard, cbamOnly, kekOnly]);
+  }, [scorecard, cbamOnly, kekOnly, captiveFilter]);
+
+  const toggleCaptive = (kind: string) => {
+    setCaptiveFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  };
 
   const table = useReactTable({
     data,
@@ -414,6 +439,36 @@ export default function DataTable() {
         >
           CBAM
         </button>
+        {/* v4.3 M-AT8b — captive power filter chip. Multi-select toggle
+            buttons sit next to the KEK/CBAM chips. Active = a captive type
+            is selected; rows narrow to that subset. See spec D1D. */}
+        {(['Coal', 'Gas', 'Hydro', 'None'] as const).map((kind) => {
+          const active = captiveFilter.has(kind);
+          const tip =
+            kind === 'None'
+              ? 'Grid-only sites with no captive power arrangement.'
+              : `Sites running captive ${kind.toLowerCase()} power. Click to toggle.`;
+          return (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => toggleCaptive(kind)}
+              title={tip}
+              className="px-2 py-1 text-[10px] rounded cursor-pointer transition-colors"
+              style={
+                active
+                  ? {
+                      color: '#2E7D32',
+                      border: '1px solid rgba(46,125,50,0.4)',
+                      background: 'rgba(46,125,50,0.1)',
+                    }
+                  : { color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }
+              }
+            >
+              {kind === 'Coal' || kind === 'Gas' || kind === 'Hydro' ? `Captive ${kind}` : kind}
+            </button>
+          );
+        })}
         <button
           type="button"
           onClick={() => setShowFilters(!showFilters)}

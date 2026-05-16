@@ -75,6 +75,27 @@ class SiteContext:
     dispatchable_re_coverage_pct: float
     dispatchable_re_lcoe_usd_mwh: float | None
 
+    # v4.3 M-AT8b — captive incumbent for non-grid_only sites.
+    # The site drawer's "Competitive Gap" surfaces the gap to the *actual*
+    # incumbent: captive_incumbent_lcoe for pure_captive / hybrid sites,
+    # grid_cost for grid_only sites. `effective_incumbent_lcoe` is the
+    # value used in gap_pct math. `gap_vs_grid_pct` always references
+    # grid_cost so the secondary comparator stays visible in the drawer.
+    # Hybrid sites surface both via the secondary field.
+    #
+    # Defaults set so existing test code constructing SiteContext directly
+    # with v4.0 positional args keeps working — captive fields default to
+    # None and effective_incumbent collapses back to grid_cost in
+    # build_site_context's resolution logic.
+    electricity_arrangement: str | None = None
+    captive_fuel_type: str | None = None
+    captive_incumbent_lcoe: float | None = None
+    captive_lcoe_tier: str | None = None
+    captive_classification_confidence: str | None = None
+    effective_incumbent_lcoe: float = 0.0
+    effective_incumbent_kind: str = "grid"
+    gap_vs_grid_pct: float = float("nan")
+
 
 def _as_float(x: Any, default: float = 0.0) -> float:
     return float(x) if pd.notna(x) else default
@@ -171,17 +192,81 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
         lcoe_mid = np.nan
         primary_cf = 0.0
 
-    if pd.notna(lcoe_mid) and grid_cost > 0:
-        gap_pct = solar_competitive_gap(lcoe_mid, grid_cost)
+    # v4.3 M-AT8b — resolve the effective incumbent comparator.
+    # For pure_captive / hybrid_captive_primary / grid_primary_with_captive,
+    # the incumbent the user actually pays is the captive plant LCOE, not
+    # the PLN grid tariff. Use captive_incumbent_lcoe when available;
+    # fall back to grid_cost when the site is grid_only or the captive
+    # LCOE wasn't populated (shouldn't happen post-M-AT8a for classified sites).
+    arrangement_raw = kek.get("electricity_arrangement")
+    electricity_arrangement = (
+        str(arrangement_raw) if arrangement_raw is not None and pd.notna(arrangement_raw) else None
+    )
+    captive_fuel_raw = kek.get("captive_fuel_type")
+    captive_fuel_type = (
+        str(captive_fuel_raw)
+        if captive_fuel_raw is not None
+        and pd.notna(captive_fuel_raw)
+        and captive_fuel_raw != "none"
+        else None
+    )
+    captive_inc_val = kek.get("captive_incumbent_lcoe_usd_mwh")
+    captive_incumbent_lcoe = (
+        float(captive_inc_val)
+        if captive_inc_val is not None and pd.notna(captive_inc_val)
+        else None
+    )
+    captive_lcoe_tier_val = kek.get("captive_lcoe_tier")
+    captive_lcoe_tier = (
+        str(captive_lcoe_tier_val)
+        if captive_lcoe_tier_val is not None and pd.notna(captive_lcoe_tier_val)
+        else None
+    )
+    captive_classification_confidence_val = kek.get("captive_classification_confidence")
+    captive_classification_confidence = (
+        str(captive_classification_confidence_val)
+        if captive_classification_confidence_val is not None
+        and pd.notna(captive_classification_confidence_val)
+        else None
+    )
+
+    use_captive = (
+        electricity_arrangement is not None
+        and electricity_arrangement != "grid_only"
+        and captive_incumbent_lcoe is not None
+        and captive_incumbent_lcoe > 0
+    )
+    if use_captive:
+        effective_incumbent_lcoe = captive_incumbent_lcoe
+        if captive_fuel_type and captive_fuel_type.startswith("coal_"):
+            effective_incumbent_kind = "captive_coal"
+        elif captive_fuel_type == "natural_gas":
+            effective_incumbent_kind = "captive_gas"
+        elif captive_fuel_type == "hydro":
+            effective_incumbent_kind = "captive_hydro"
+        else:
+            effective_incumbent_kind = "captive_other"
+    else:
+        effective_incumbent_lcoe = grid_cost
+        effective_incumbent_kind = "grid"
+
+    if pd.notna(lcoe_mid) and effective_incumbent_lcoe > 0:
+        gap_pct = solar_competitive_gap(lcoe_mid, effective_incumbent_lcoe)
         attractive = is_solar_attractive(
             lcoe_mid,
-            grid_cost,
+            effective_incumbent_lcoe,
             pvout_best_50km=kek.get("pvout_best_50km"),
             pvout_threshold=thresholds.pvout_threshold,
         )
     else:
         gap_pct = np.nan
         attractive = False
+
+    gap_vs_grid_pct = (
+        solar_competitive_gap(lcoe_mid, grid_cost)
+        if pd.notna(lcoe_mid) and grid_cost > 0
+        else np.nan
+    )
 
     gap_vs_tariff_pct = (
         solar_competitive_gap(lcoe_mid, tariff_rate)
@@ -235,6 +320,14 @@ def build_site_context(  # noqa: PLR0913 — single builder collects all per-sit
         attractive=attractive,
         gap_vs_tariff_pct=gap_vs_tariff_pct,
         gap_vs_bpp_pct=gap_vs_bpp_pct,
+        electricity_arrangement=electricity_arrangement,
+        captive_fuel_type=captive_fuel_type,
+        captive_incumbent_lcoe=captive_incumbent_lcoe,
+        captive_lcoe_tier=captive_lcoe_tier,
+        captive_classification_confidence=captive_classification_confidence,
+        effective_incumbent_lcoe=effective_incumbent_lcoe,
+        effective_incumbent_kind=effective_incumbent_kind,
+        gap_vs_grid_pct=gap_vs_grid_pct,
         grid_out=grid_out,
         dispatchable_re_coverage_pct=disp_re_coverage,
         dispatchable_re_lcoe_usd_mwh=disp_re_lcoe,

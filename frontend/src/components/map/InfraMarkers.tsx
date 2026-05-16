@@ -132,10 +132,16 @@ function createIconImage(pathData: string, color: string, size = ICON_SIZE): Ima
   return ctx.getImageData(0, 0, size, size);
 }
 
-let iconsRegistered = false;
-
 function registerIcons(map: maplibregl.Map) {
-  if (iconsRegistered) return;
+  // No module-level "registered" flag here. Past bugs (#24 geothermal,
+  // recurring substation disappearance) were caused by a module-level boolean
+  // that survived HMR + React remounts but lost reality with the underlying
+  // maplibre map instance — if the map was recreated, the flag still said
+  // "done" and the new map's image registry stayed empty, so markers
+  // rendered with a missing icon (invisible). The per-image `hasImage()`
+  // checks below are scoped to THIS map instance, so they're cheap and
+  // correct on every call.
+
   // Infrastructure type icons
   for (const type of Object.keys(INFRA_TYPES) as InfraType[]) {
     const id = `infra-${type}`;
@@ -165,7 +171,6 @@ function registerIcons(map: maplibregl.Map) {
       pixelRatio: 2,
     });
   }
-  iconsRegistered = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,16 +243,23 @@ export default function InfraMarkers() {
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const { current: mapInstance } = useMap();
 
-  // Register icons once the map is available
+  // Register icons whenever the map style is ready, and re-register if the
+  // style changes (theme toggle wipes the image registry). Past bug: using
+  // `map.once('style.load')` raced — when the style was already loaded by the
+  // time the effect ran, the listener never fired and icons never got added,
+  // leaving substation markers invisible. `styledata` fires on every style
+  // (re)load, and the per-image `hasImage()` guards inside `registerIcons`
+  // make repeat calls cheap.
   useEffect(() => {
     if (!mapInstance) return;
     const map = mapInstance.getMap();
     const doRegister = () => registerIcons(map);
-    if (map.isStyleLoaded()) {
-      doRegister();
-    } else {
-      map.once('style.load', doRegister);
-    }
+    // Fire immediately — `registerIcons` is no-op when icons exist.
+    doRegister();
+    map.on('styledata', doRegister);
+    return () => {
+      map.off('styledata', doRegister);
+    };
   }, [mapInstance]);
 
   // Set up hover handlers for infra-symbols layer
@@ -499,18 +511,14 @@ export default function InfraMarkers() {
               'icon-size': 1,
               'icon-allow-overlap': true,
               'icon-ignore-placement': true,
-              'text-field': ['get', 'name'],
-              'text-size': 10,
-              'text-offset': [0, 1.4],
-              'text-anchor': 'top',
-              'text-optional': true,
-              'text-max-width': 12,
-            }}
-            paint={{
-              'text-color': '#e0e0e0',
-              'text-halo-color': 'rgba(0,0,0,0.8)',
-              'text-halo-width': 1,
-              'text-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0, 11, 1],
+              // text-field intentionally omitted: the satellite map style has
+              // no `glyphs` property, and MapLibre rejects the whole layer
+              // (icons included) when text-field references a font the style
+              // can't serve. The hover popup carries the substation name,
+              // distance, voltage, and connection cost — the on-map label
+              // was redundant. (`text-optional: true` is a runtime hint, NOT
+              // a validation escape hatch; the style spec check happens at
+              // addLayer time regardless.)
             }}
           />
         </Source>

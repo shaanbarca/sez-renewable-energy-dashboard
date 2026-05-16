@@ -134,6 +134,15 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         "green_share_geas_proportional_pct",
         "green_share_geas_empirical_pct",
         "geas_allocation_used",
+        # v4.3 M-AT8b — captive power LCOE + tier (replaces grid_cost as the
+        # incumbent comparator for non-grid_only sites). The score drawer's
+        # "Competitive Gap" math depends on these being available live.
+        "electricity_arrangement",
+        "captive_fuel_type",
+        "captive_classification_confidence",
+        "captive_incumbent_lcoe_usd_mwh",
+        "captive_lcoe_tier",
+        "captive_lcoe_fuel_price_scenario",
     ]:
         if col not in resource.columns and col in scorecard.columns:
             scorecard_cols.append(col)

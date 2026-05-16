@@ -15,7 +15,9 @@ import {
 } from '../../../lib/constants';
 import type { ScorecardRow } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
+import { FuelTypePill } from '../../ui/FuelTypePill';
 import ModifierBadgePill from '../../ui/ModifierBadgePill';
+import { TierPill } from '../../ui/TierPill';
 import { FlagStep, SectionHeader, StatCard, StatRowWithTip } from './StatComponents';
 
 export function ActionTab({ row }: { row: ScorecardRow }) {
@@ -101,12 +103,46 @@ export function ActionTab({ row }: { row: ScorecardRow }) {
       </StatCard>
       <StatCard>
         <SectionHeader title="Key Numbers" subtitle="The metrics behind this recommendation" />
-        <StatRowWithTip
-          label="Grid Cost Proxy"
-          value={row.grid_cost_usd_mwh?.toFixed(1)}
-          unit="$/MWh"
-          tip="The benchmark used for competitive gap calculation. Either BPP (cost of supply) or I-4/TT tariff, depending on your selected benchmark mode."
-        />
+        {/* v4.3 M-AT8b — show the comparator the gap was actually computed against.
+            For captive sites this is the captive incumbent, not the grid tariff. */}
+        {(() => {
+          const kind = row.effective_incumbent_kind ?? 'grid';
+          const inc = row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh;
+          if (kind === 'grid') {
+            return (
+              <StatRowWithTip
+                label="Grid Cost Proxy"
+                value={inc?.toFixed(1)}
+                unit="$/MWh"
+                tip="PLN benchmark for competitive gap. Either BPP (cost of supply) or I-4/TT tariff, depending on selected benchmark mode."
+              />
+            );
+          }
+          return (
+            <StatRowWithTip
+              label="Captive Power"
+              value={inc?.toFixed(1)}
+              unit="$/MWh"
+              tip="On-site captive plant LCOE — what this site actually pays today. The competitive gap above is computed against this incumbent, not the PLN grid tariff. Fuel pill shows what's burned (Coal / Gas / Hydro). See methodology §13.9–§13.11."
+              trailing={
+                <>
+                  <FuelTypePill fuelType={row.captive_fuel_type} ml={6} />
+                  <TierPill tier={row.captive_lcoe_tier} ml={0} />
+                </>
+              }
+            />
+          );
+        })()}
+        {row.grid_cost_usd_mwh != null &&
+          row.effective_incumbent_kind &&
+          row.effective_incumbent_kind !== 'grid' && (
+            <StatRowWithTip
+              label="Grid Cost Proxy (reference)"
+              value={row.grid_cost_usd_mwh.toFixed(1)}
+              unit="$/MWh"
+              tip="PLN tariff for this grid region. Shown for reference — this site is captive-primary, so the gap above uses the captive incumbent."
+            />
+          )}
         <StatRowWithTip
           label="BPP"
           value={row.bpp_usd_mwh != null ? row.bpp_usd_mwh.toFixed(1) : null}

@@ -355,9 +355,15 @@ export function getEffectiveGapPct(
   const cost = isBasisSupported(energyMode, costBasis)
     ? resolveCost(row, energyMode, costBasis)
     : null;
-  const grid = row.grid_cost_usd_mwh;
-  if (cost == null || !grid || grid <= 0) return null;
-  return ((cost - grid) / grid) * 100;
+  // v4.3 M-AT8b — use the effective incumbent (captive for non-grid_only sites,
+  // grid otherwise) so the score drawer + table gap matches what
+  // src/dash/logic/site_context.py computes server-side. Falls back to
+  // grid_cost when the backend hasn't populated effective_incumbent yet
+  // (e.g. pre-M-AT8b cached responses, or grid_only sites where the two
+  // values are equal anyway).
+  const incumbent = row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh;
+  if (cost == null || !incumbent || incumbent <= 0) return null;
+  return ((cost - incumbent) / incumbent) * 100;
 }
 
 /** Carbon breakeven price (USD/tCO2) for the active (mode, basis).

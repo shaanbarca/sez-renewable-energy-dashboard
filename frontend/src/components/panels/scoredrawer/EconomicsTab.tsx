@@ -426,22 +426,31 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
                 unit="$/MWh"
               />
             )}
-            {bessCompetitive != null && (
-              <ColoredStatRow
-                label="Still Competitive"
-                value={
-                  bessCompetitive
-                    ? 'Yes'
-                    : row.lcoe_with_battery_usd_mwh != null &&
-                        row.grid_cost_usd_mwh != null &&
-                        row.grid_cost_usd_mwh > 0
-                      ? `No (+${(((row.lcoe_with_battery_usd_mwh - row.grid_cost_usd_mwh) / row.grid_cost_usd_mwh) * 100).toFixed(0)}%)`
-                      : 'No'
-                }
-                color={bessCompetitive ? '#4CAF50' : '#EF5350'}
-                tip="Whether solar + battery is still cheaper than grid cost. If yes, the project works even with storage."
-              />
-            )}
+            {bessCompetitive != null &&
+              (() => {
+                // v4.3 M-AT8b — compare LCOE+BESS against the *effective* incumbent
+                // (captive for non-grid_only sites, grid for grid_only).
+                const inc =
+                  row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh ?? null;
+                const incLabel =
+                  row.effective_incumbent_kind && row.effective_incumbent_kind !== 'grid'
+                    ? 'incumbent'
+                    : 'grid';
+                return (
+                  <ColoredStatRow
+                    label="Still Competitive"
+                    value={
+                      bessCompetitive
+                        ? 'Yes'
+                        : row.lcoe_with_battery_usd_mwh != null && inc != null && inc > 0
+                          ? `No (+${(((row.lcoe_with_battery_usd_mwh - inc) / inc) * 100).toFixed(0)}%)`
+                          : 'No'
+                    }
+                    color={bessCompetitive ? '#4CAF50' : '#EF5350'}
+                    tip={`Whether solar + battery is still cheaper than the ${incLabel} cost. If yes, the project works even with storage.`}
+                  />
+                );
+              })()}
           </StatCard>
         )}
 
