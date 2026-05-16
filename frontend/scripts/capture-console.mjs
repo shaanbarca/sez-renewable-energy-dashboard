@@ -191,15 +191,24 @@ async function main() {
       console.log(COLOR.dim('  (no dev hook; relying on marker click is not implemented yet)'));
     }
     // Reveal the bottom table panel if a screenshot path contains 'table'
-    // so we can verify the new Captive Power column + filter chips.
+    // so we can verify column changes. The "Show" toggle lives at the
+    // bottom-center as a sticky button; the click target is whichever
+    // element has text exactly equal to 'Show'.
     if (SCREENSHOT && SCREENSHOT.includes('table')) {
       await page.evaluate(() => {
-        const showBtn = Array.from(document.querySelectorAll('button')).find(
-          (b) => (b.textContent || '').trim() === 'Show',
+        // Find buttons or clickable spans whose innerText is exactly 'Show'.
+        const candidates = Array.from(
+          document.querySelectorAll('button, [role="button"], span'),
         );
-        if (showBtn) showBtn.click();
+        const showBtn = candidates.find(
+          (el) => (el.textContent || '').trim() === 'Show',
+        );
+        if (showBtn instanceof HTMLElement) showBtn.click();
       });
       await page.waitForTimeout(1500);
+      // Scroll to the bottom so the table is in view for the screenshot.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(500);
     }
     await page.waitForTimeout(WAIT_MS);
   } else {

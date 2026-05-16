@@ -252,6 +252,18 @@ export interface ScorecardRow {
   ruptl_mva_added_total?: number | null;
   ruptl_match_confidence?: 'high' | 'medium' | 'low' | null;
 
+  // v4.1a foundation — IEA-aligned cost stack (4-tier monotone-rising).
+  // Spec at docs/refinement/v4_1_foundation_spec.md §2 + METHODOLOGY §18.6.
+  // Generation = on-site LCOE only; Delivered = + gen-tie + connection;
+  // Firm 4h/8h = + storage adder (LCOS × share). Each tier compares
+  // against the same incumbent — gives a 4-rung competitiveness ladder.
+  lcoe_generation_usd_mwh?: number | null;
+  full_system_lcoe_delivered_usd_mwh?: number | null;
+  full_system_lcoe_firm_4h_usd_mwh?: number | null;
+  full_system_lcoe_firm_8h_usd_mwh?: number | null;
+  lcos_4h_usd_mwh?: number | null;
+  lcos_8h_usd_mwh?: number | null;
+
   // v4.3 M-AT8b — captive power LCOE + tier framing.
   // electricity_arrangement: classifies whether this site buys power from the
   //   grid, runs its own captive plant, or both. Drives the score drawer's

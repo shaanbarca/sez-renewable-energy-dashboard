@@ -1,9 +1,9 @@
 import { getEffectiveGapPct } from '../../../lib/actionFlags';
-import { resolveCost } from '../../../lib/costBasis';
 import { capitalize, formatGridRegion } from '../../../lib/format';
 import type { ScorecardRow } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import EnergyBalanceChart from '../../charts/EnergyBalanceChart';
+import IEACostStackWaterfall from '../../charts/IEACostStackWaterfall';
 import { FuelTypePill } from '../../ui/FuelTypePill';
 import { TierPill } from '../../ui/TierPill';
 import { formatGap } from './formatting';
@@ -20,7 +20,6 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
   const costBasis = useDashboardStore((s) => s.costBasis);
 
-  const activeLcoe = resolveCost(row, energyMode, costBasis);
   const gapPct = getEffectiveGapPct(row, energyMode, costBasis);
   const gapColorVal =
     gapPct != null ? (gapPct < 0 ? '#4CAF50' : gapPct > 0 ? '#EF5350' : '#e0e0e0') : '#e0e0e0';
@@ -51,18 +50,13 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
           subtitle={`Is ${techLabel.toLowerCase()} competitive here, and what's the gap?`}
           tip={`Key numbers that tell you whether ${techLabel.toLowerCase()} makes sense here. Green gap = RE is cheaper than the incumbent.`}
         />
-        <StatRowWithTip
-          label={`${techLabel} LCOE`}
-          value={activeLcoe?.toFixed(1)}
-          unit="$/MWh"
-          tip={`${techLabel} cost per MWh at current assumptions. Compare to incumbent cost below.`}
-        />
-        {/* v4.3 M-AT8b — context-aware incumbent comparator.
+        {/* v4.3 M-AT8b — incumbent comparator row(s).
             - pure_captive site → only show captive row, with tier pill
             - hybrid site       → show captive (primary) + grid (secondary)
             - grid_only site    → show only grid row (preserves v4.0 behavior)
-            The `Competitive Gap` row below is computed against the effective
-            (primary) incumbent, so for captive sites the gap is meaningful. */}
+            The IEA Cost Stack waterfall below renders the solar cost ladder;
+            the Competitive Gap row below the waterfall ties it back to the
+            effective incumbent surfaced here. */}
         {(() => {
           const kind = row.effective_incumbent_kind ?? 'grid';
           const effInc = row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh;
@@ -77,7 +71,7 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
                 label="Grid Cost"
                 value={effInc?.toFixed(1)}
                 unit="$/MWh"
-                tip="PLN's cost to supply power here. If LCOE is lower, RE is already cheaper."
+                tip="PLN's cost to supply power here. The waterfall below compares solar cost tiers against this incumbent."
               />
             );
           }
@@ -106,6 +100,13 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
             </>
           );
         })()}
+        {/* v4.1 IEA cost stack — inline waterfall replaces the prior numeric
+            "Solar LCOE" row. Each bar is a tier delta: Generation → Delivered →
+            Firm 4h → Firm 8h. Falls back to legacy lcoe_mid + "[est]" badge
+            when IEA fields are null. Empty-state-safe. */}
+        <div className="mt-2">
+          <IEACostStackWaterfall row={row} height={180} />
+        </div>
         {gapPct != null && (
           <ColoredStatRow
             label="Competitive Gap"
@@ -115,8 +116,8 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
               row.captive_lcoe_tier === 'T3'
                 ? 'Negative = RE beats the incumbent. Positive = RE is more expensive. Note: this site uses a T3 (formula placeholder) captive LCOE — the gap range is approximate. See methodology §13.10.'
                 : row.effective_incumbent_kind === 'grid'
-                  ? 'Negative = RE beats grid. Positive = RE is more expensive. Below -10% is a strong case.'
-                  : 'Negative = RE beats the captive incumbent. Positive = RE is more expensive. This gap is vs the site\'s actual incumbent, not the PLN grid tariff.'
+                  ? 'Negative = RE beats grid. Positive = RE is more expensive. Computed against the Full System (Delivered) tier. Below -10% is a strong case.'
+                  : "Negative = RE beats the captive incumbent. Positive = RE is more expensive. This gap is vs the site's actual incumbent, not the PLN grid tariff."
             }
             trailing={
               row.captive_lcoe_tier === 'T3' ? <TierPill tier="T3" compact /> : undefined

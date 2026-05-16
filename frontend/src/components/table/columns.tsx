@@ -80,6 +80,8 @@ const COLUMN_TOOLTIPS: Record<string, string> = {
     'Supply Blend: what the tenant actually pays. Cascaded as on-site (within-boundary) solar first, then a remote IPP with a gentie for the daytime headroom up to the ~42% daylight ceiling, then grid overnight. f_wb × on-site LCOE + f_remote × remote IPP LCOE + f_grid × grid rate.',
   captive_incumbent_lcoe_usd_mwh:
     'On-site captive power LCOE ($/MWh) for sites that run their own coal / gas / hydro plant instead of buying from PLN. The fuel pill (Coal / Gas / Hydro) shows what they burn; the LCOE is what they pay; the tier pill (T1 / T2 / T3) signals confidence. The competitive gap column compares solar against THIS value for non-grid sites — not the PLN tariff. Empty = grid-only site. See methodology §13.9–§13.11.',
+  full_system_lcoe_delivered_usd_mwh:
+    'IEA-aligned 4-tier LCOE cost stack: Generation (on-site only) → Delivered (+transmission, PPA-relevant) → Firm 4h (+4h battery) → Firm 8h (+8h battery). Each value $/MWh. Column sorts by Delivered (Tier 2). "[est]" badge means the IEA per-tier columns are null and the legacy lcoe_mid is shown as a single estimate. See methodology §18.6.',
 };
 
 function HeaderWithTooltip({ label, columnId }: { label: string; columnId: string }) {
@@ -564,10 +566,103 @@ export const columns = [
           );
         },
       }),
-      col.accessor('lcoe_mid_usd_mwh', {
-        header: () => <HeaderWithTooltip label="Solar LCOE" columnId="lcoe_mid_usd_mwh" />,
-        filterFn: 'inRange',
-        cell: (info) => info.getValue().toFixed(1),
+      // v4.1 IEA cost stack column — single sortable column rendering the
+      // 4-tier ladder inline (Generation → Delivered → Firm 4h → Firm 8h).
+      // Sort defaults to Delivered (the PPA-relevant tier). Falls back to
+      // legacy lcoe_mid + "[est]" when IEA fields are null. Replaces the
+      // bare "Solar LCOE" column. See methodology §18.6.
+      col.accessor('full_system_lcoe_delivered_usd_mwh', {
+        header: () => (
+          <HeaderWithTooltip
+            label="IEA Cost Stack"
+            columnId="full_system_lcoe_delivered_usd_mwh"
+          />
+        ),
+        filterFn: (row, _columnId, value: [number | '', number | '']) => {
+          const v =
+            row.original.full_system_lcoe_delivered_usd_mwh ?? row.original.lcoe_mid_usd_mwh;
+          if (v == null) return true;
+          const [lo, hi] = value;
+          if (lo !== '' && v < lo) return false;
+          if (hi !== '' && v > hi) return false;
+          return true;
+        },
+        sortingFn: (rowA, rowB) => {
+          // Sort by Delivered tier (Tier 2) with lcoe_mid fallback for
+          // legacy / fallback sites. Single sort key keeps the column simple.
+          const a =
+            rowA.original.full_system_lcoe_delivered_usd_mwh ??
+            rowA.original.lcoe_mid_usd_mwh;
+          const b =
+            rowB.original.full_system_lcoe_delivered_usd_mwh ??
+            rowB.original.lcoe_mid_usd_mwh;
+          if (a == null && b == null) return 0;
+          if (a == null) return 1;
+          if (b == null) return -1;
+          return a - b;
+        },
+        cell: (info) => {
+          const r = info.row.original;
+          const gen = r.lcoe_generation_usd_mwh;
+          const delivered = r.full_system_lcoe_delivered_usd_mwh;
+          const firm4h = r.full_system_lcoe_firm_4h_usd_mwh;
+          const firm8h = r.full_system_lcoe_firm_8h_usd_mwh;
+          const hasFullStack =
+            gen != null && delivered != null && firm4h != null && firm8h != null;
+          if (!hasFullStack) {
+            const legacy = r.lcoe_mid_usd_mwh;
+            if (legacy == null)
+              return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+            return (
+              <span
+                className="inline-flex items-center gap-1 tabular-nums"
+                title="IEA cost stack not populated for this site. Showing legacy lcoe_mid as a single Tier-2 estimate."
+              >
+                {legacy.toFixed(0)}
+                <span
+                  className="text-[8px] px-1 rounded"
+                  style={{
+                    background: 'rgba(120,144,156,0.15)',
+                    color: '#78909C',
+                    border: '1px solid rgba(120,144,156,0.4)',
+                  }}
+                >
+                  est
+                </span>
+              </span>
+            );
+          }
+          // Mini-ladder: 4 stacked values with G/D/4h/8h sub-labels below.
+          // Compact (~110px wide), readable at default table density.
+          return (
+            <span
+              className="inline-flex flex-col items-start tabular-nums"
+              style={{ lineHeight: 1.1, minWidth: 110 }}
+              title={`Generation $${gen!.toFixed(0)} → Delivered $${delivered!.toFixed(0)} → Firm 4h $${firm4h!.toFixed(0)} → Firm 8h $${firm8h!.toFixed(0)}. Sort by Delivered. See methodology §18.6.`}
+            >
+              <span className="text-[11px] flex justify-between" style={{ width: 110 }}>
+                <span style={{ color: '#4CAF50' }}>{gen!.toFixed(0)}</span>
+                <span style={{ color: 'var(--text-muted)' }}>›</span>
+                <span style={{ color: '#42A5F5', fontWeight: 600 }}>
+                  {delivered!.toFixed(0)}
+                </span>
+                <span style={{ color: 'var(--text-muted)' }}>›</span>
+                <span style={{ color: '#AB47BC' }}>{firm4h!.toFixed(0)}</span>
+                <span style={{ color: 'var(--text-muted)' }}>›</span>
+                <span style={{ color: '#7E57C2' }}>{firm8h!.toFixed(0)}</span>
+              </span>
+              <span
+                className="text-[8px] flex justify-between"
+                style={{ width: 110, color: 'var(--text-muted)' }}
+              >
+                <span>G</span>
+                <span>D</span>
+                <span>4h</span>
+                <span>8h</span>
+              </span>
+            </span>
+          );
+        },
       }),
       col.accessor('lcoe_wind_mid_usd_mwh', {
         header: () => <HeaderWithTooltip label="Wind LCOE" columnId="lcoe_wind_mid_usd_mwh" />,
