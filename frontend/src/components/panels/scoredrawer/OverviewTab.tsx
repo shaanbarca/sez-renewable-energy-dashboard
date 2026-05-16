@@ -1,13 +1,15 @@
+import { useState } from 'react';
 import { getEffectiveGapPct } from '../../../lib/actionFlags';
 import { capitalize, formatGridRegion } from '../../../lib/format';
 import type { ScorecardRow } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import EnergyBalanceChart from '../../charts/EnergyBalanceChart';
-import IEACostStackWaterfall from '../../charts/IEACostStackWaterfall';
+import IEACostStackWaterfall, { type TierKey } from '../../charts/IEACostStackWaterfall';
 import { FuelTypePill } from '../../ui/FuelTypePill';
 import { TierPill } from '../../ui/TierPill';
 import { formatGap } from './formatting';
 import { IdentityCard } from './IdentityCard';
+import { LcoeWaterfallModal, type TierKey as ModalTierKey } from './LcoeWaterfallModal';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 // v4.3 M-AT8b — uniform "Captive Power" label for non-grid_only sites.
@@ -19,6 +21,13 @@ const CAPTIVE_TOOLTIP =
 export function OverviewTab({ row }: { row: ScorecardRow }) {
   const energyMode = useDashboardStore((s) => s.energyMode);
   const costBasis = useDashboardStore((s) => s.costBasis);
+  // v4.1 — IEA waterfall click → LcoeWaterfallModal with the clicked
+  // tier pre-selected. The modal's 4-tab view shares this state.
+  const [waterfallTier, setWaterfallTier] = useState<ModalTierKey | null>(null);
+  const handleTierClick = (tier: TierKey) => {
+    if (tier === 'estimated') return;
+    setWaterfallTier(tier);
+  };
 
   const gapPct = getEffectiveGapPct(row, energyMode, costBasis);
   const gapColorVal =
@@ -63,8 +72,7 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
           const tier = row.captive_lcoe_tier;
           const fuel = row.captive_fuel_type;
           const arr = row.electricity_arrangement;
-          const isHybrid =
-            arr === 'hybrid_captive_primary' || arr === 'grid_primary_with_captive';
+          const isHybrid = arr === 'hybrid_captive_primary' || arr === 'grid_primary_with_captive';
           if (kind === 'grid') {
             return (
               <StatRowWithTip
@@ -105,7 +113,7 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
             Firm 4h → Firm 8h. Falls back to legacy lcoe_mid + "[est]" badge
             when IEA fields are null. Empty-state-safe. */}
         <div className="mt-2">
-          <IEACostStackWaterfall row={row} height={180} />
+          <IEACostStackWaterfall row={row} height={180} onTierClick={handleTierClick} />
         </div>
         {gapPct != null && (
           <ColoredStatRow
@@ -119,9 +127,7 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
                   ? 'Negative = RE beats grid. Positive = RE is more expensive. Computed against the Full System (Delivered) tier. Below -10% is a strong case.'
                   : "Negative = RE beats the captive incumbent. Positive = RE is more expensive. This gap is vs the site's actual incumbent, not the PLN grid tariff."
             }
-            trailing={
-              row.captive_lcoe_tier === 'T3' ? <TierPill tier="T3" compact /> : undefined
-            }
+            trailing={row.captive_lcoe_tier === 'T3' ? <TierPill tier="T3" compact /> : undefined}
           />
         )}
         <StatRow label="Best RE" value={capitalize(row.best_re_technology)} />
@@ -275,6 +281,12 @@ export function OverviewTab({ row }: { row: ScorecardRow }) {
           )}
         </StatCard>
       )}
+      <LcoeWaterfallModal
+        open={waterfallTier != null}
+        onClose={() => setWaterfallTier(null)}
+        row={row}
+        initialTier={waterfallTier ?? 'delivered'}
+      />
     </>
   );
 }

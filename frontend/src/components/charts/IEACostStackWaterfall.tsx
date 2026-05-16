@@ -38,7 +38,12 @@ import {
 } from 'recharts';
 import type { ScorecardRow } from '../../lib/types';
 
+/** Tier identifier shared with LcoeWaterfallModal — keep in sync. */
+export type TierKey = 'gen' | 'delivered' | 'firm4h' | 'firm8h' | 'estimated';
+
 interface TierDatum {
+  /** Stable key matching the modal's tab keys (or 'estimated' for legacy fallback) */
+  key: TierKey;
   /** Short tick label below each bar */
   name: string;
   /** Full tier label for the tooltip header */
@@ -56,18 +61,24 @@ interface TierDatum {
 }
 
 const TIER_COLORS = {
-  generation: '#4CAF50',  // green — base solar cost
-  delivered: '#42A5F5',   // blue — adds transmission
-  firm4h: '#AB47BC',      // purple — adds 4h storage
-  firm8h: '#7E57C2',      // deeper purple — adds 8h storage
-  estimated: '#78909C',   // grey — legacy lcoe_mid fallback
-  incumbent: '#EF5350',   // red — incumbent reference line
+  generation: '#4CAF50', // green — base solar cost
+  delivered: '#42A5F5', // blue — adds transmission
+  firm4h: '#AB47BC', // purple — adds 4h storage
+  firm8h: '#7E57C2', // deeper purple — adds 8h storage
+  estimated: '#78909C', // grey — legacy lcoe_mid fallback
+  incumbent: '#EF5350', // red — incumbent reference line
 };
 
 interface IEACostStackWaterfallProps {
   row: ScorecardRow;
   /** Height of the chart inline (default 200px — compact for drawer). */
   height?: number;
+  /**
+   * Called when a tier bar is clicked. OverviewTab uses this to open the
+   * LcoeWaterfallModal with the clicked tier's tab preselected. When unset,
+   * bars are non-interactive (no cursor change, no click affordance).
+   */
+  onTierClick?: (tier: TierKey) => void;
 }
 
 function buildTiers(row: ScorecardRow): {
@@ -90,6 +101,7 @@ function buildTiers(row: ScorecardRow): {
       isEstimated: true,
       tiers: [
         {
+          key: 'estimated',
           name: 'Est. LCOE',
           fullLabel: 'Estimated LCOE (legacy)',
           range: [0, lcoeMid],
@@ -109,6 +121,7 @@ function buildTiers(row: ScorecardRow): {
     isEstimated: false,
     tiers: [
       {
+        key: 'gen',
         name: 'Gen',
         fullLabel: 'Tier 1 — Generation',
         range: [0, gen],
@@ -119,6 +132,7 @@ function buildTiers(row: ScorecardRow): {
         color: TIER_COLORS.generation,
       },
       {
+        key: 'delivered',
         name: 'Delivered',
         fullLabel: 'Tier 2 — Full System (Delivered)',
         range: [gen, delivered],
@@ -129,6 +143,7 @@ function buildTiers(row: ScorecardRow): {
         color: TIER_COLORS.delivered,
       },
       {
+        key: 'firm4h',
         name: 'Firm 4h',
         fullLabel: 'Tier 3 — Full System Firm 4h',
         range: [delivered, firm4h],
@@ -139,6 +154,7 @@ function buildTiers(row: ScorecardRow): {
         color: TIER_COLORS.firm4h,
       },
       {
+        key: 'firm8h',
         name: 'Firm 8h',
         fullLabel: 'Tier 4 — Full System Firm 8h',
         range: [firm4h, firm8h],
@@ -155,9 +171,11 @@ function buildTiers(row: ScorecardRow): {
 function TierTooltip({
   active,
   payload,
+  interactive,
 }: {
   active?: boolean;
   payload?: { payload?: TierDatum }[];
+  interactive?: boolean;
 }) {
   if (!active || !payload?.[0]?.payload) return null;
   const d = payload[0].payload;
@@ -183,12 +201,22 @@ function TierTooltip({
       <div className="text-[10px] mt-1" style={{ color: 'rgb(161, 161, 170)' }}>
         {d.description}
       </div>
+      {interactive && (
+        <div className="text-[10px] mt-1.5 italic" style={{ color: 'rgb(120, 144, 156)' }}>
+          Click for detailed breakdown
+        </div>
+      )}
     </div>
   );
 }
 
-export default function IEACostStackWaterfall({ row, height = 200 }: IEACostStackWaterfallProps) {
+export default function IEACostStackWaterfall({
+  row,
+  height = 200,
+  onTierClick,
+}: IEACostStackWaterfallProps) {
   const { tiers, isEstimated } = buildTiers(row);
+  const interactive = onTierClick != null && !isEstimated;
 
   if (tiers.length === 0) {
     return (
@@ -204,8 +232,7 @@ export default function IEACostStackWaterfall({ row, height = 200 }: IEACostStac
   const top = tiers[tiers.length - 1].value;
   // Incumbent reference line — the price this site actually compares against,
   // surfaced by M-AT8b's effective_incumbent_lcoe.
-  const incumbent =
-    (row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh) || null;
+  const incumbent = (row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh) || null;
   const rawMax = Math.max(top, incumbent ?? 0) * 1.15;
   const tickStep = rawMax > 400 ? 100 : rawMax > 200 ? 50 : rawMax > 100 ? 25 : 10;
   const yMax = Math.ceil(rawMax / tickStep) * tickStep;
@@ -257,7 +284,10 @@ export default function IEACostStackWaterfall({ row, height = 200 }: IEACostStac
               ticks={yTicks}
               domain={[0, yMax]}
             />
-            <Tooltip content={<TierTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+            <Tooltip
+              content={<TierTooltip interactive={interactive} />}
+              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            />
             {incumbent != null && incumbent > 0 && (
               <ReferenceLine
                 y={incumbent}
@@ -272,7 +302,20 @@ export default function IEACostStackWaterfall({ row, height = 200 }: IEACostStac
                 }}
               />
             )}
-            <Bar dataKey="range" radius={[2, 2, 0, 0]}>
+            <Bar
+              dataKey="range"
+              radius={[2, 2, 0, 0]}
+              onClick={
+                interactive
+                  ? (data: { key?: TierKey }) => {
+                      if (data?.key && data.key !== 'estimated') {
+                        onTierClick?.(data.key);
+                      }
+                    }
+                  : undefined
+              }
+              style={interactive ? { cursor: 'pointer' } : undefined}
+            >
               {tiers.map((t) => (
                 <Cell key={t.name} fill={t.color} />
               ))}

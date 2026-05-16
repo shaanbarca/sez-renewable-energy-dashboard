@@ -15,6 +15,26 @@ import type { ScorecardRow, UserAssumptions, UserThresholds } from '../../lib/ty
 import { useDashboardStore } from '../../store/dashboard';
 import { columns } from './columns';
 
+// v4.1 IEA cost stack filter — tier keys + per-tier accessor + chip color.
+// Comparator (BPP or Tariff) is resolved at filter time from benchmarkMode.
+type IeaTier = 'gen' | 'delivered' | 'firm4h' | 'firm8h';
+const IEA_TIER_DEFS: {
+  key: IeaTier;
+  label: string;
+  accessor: keyof ScorecardRow;
+  color: string;
+}[] = [
+  { key: 'gen', label: 'Gen', accessor: 'lcoe_generation_usd_mwh', color: '#4CAF50' },
+  {
+    key: 'delivered',
+    label: 'Del',
+    accessor: 'full_system_lcoe_delivered_usd_mwh',
+    color: '#42A5F5',
+  },
+  { key: 'firm4h', label: '4h', accessor: 'full_system_lcoe_firm_4h_usd_mwh', color: '#AB47BC' },
+  { key: 'firm8h', label: '8h', accessor: 'full_system_lcoe_firm_8h_usd_mwh', color: '#7E57C2' },
+];
+
 const ASSUMPTION_LABELS: [keyof UserAssumptions, string, string][] = [
   ['wacc_pct', 'WACC', '%'],
   ['capex_usd_per_kw', 'Solar CAPEX', 'USD/kW'],
@@ -228,6 +248,10 @@ export default function DataTable() {
   // matched against electricity_arrangement + captive_fuel_type. Empty set
   // means no filter applied (default).
   const [captiveFilter, setCaptiveFilter] = useState<Set<string>>(new Set());
+  // v4.1 IEA cost stack filter — multi-select set of tier keys whose tier value
+  // must beat the active benchmark (BPP or Tariff per benchmarkMode). Threshold
+  // tracks the global benchmark toggle so chip semantics stay consistent.
+  const [belowBenchmark, setBelowBenchmark] = useState<Set<IeaTier>>(new Set());
 
   const data = useMemo(() => {
     let rows = scorecard ?? [];
@@ -238,15 +262,36 @@ export default function DataTable() {
         const fuel = r.captive_fuel_type;
         // 'None' filter matches grid_only sites (fuel_type=none or null).
         if (captiveFilter.has('None') && (!fuel || fuel === 'none')) return true;
-        if (captiveFilter.has('Coal') && (fuel === 'coal_subcritical' || fuel === 'coal_supercritical'))
+        if (
+          captiveFilter.has('Coal') &&
+          (fuel === 'coal_subcritical' || fuel === 'coal_supercritical')
+        )
           return true;
         if (captiveFilter.has('Gas') && fuel === 'natural_gas') return true;
         if (captiveFilter.has('Hydro') && fuel === 'hydro') return true;
         return false;
       });
     }
+    if (belowBenchmark.size > 0) {
+      rows = rows.filter((r) => {
+        // Match GridRateCell dispatch in columns.tsx so the comparator
+        // matches the value shown in the Grid Rate column.
+        const benchmark =
+          benchmarkMode === 'bpp' && r.bpp_usd_mwh != null
+            ? r.bpp_usd_mwh
+            : r.dashboard_rate_usd_mwh;
+        if (benchmark == null) return false;
+        for (const tier of belowBenchmark) {
+          const def = IEA_TIER_DEFS.find((d) => d.key === tier);
+          if (!def) return false;
+          const tierVal = r[def.accessor] as number | null | undefined;
+          if (tierVal == null || tierVal >= benchmark) return false;
+        }
+        return true;
+      });
+    }
     return rows;
-  }, [scorecard, cbamOnly, kekOnly, captiveFilter]);
+  }, [scorecard, cbamOnly, kekOnly, captiveFilter, belowBenchmark, benchmarkMode]);
 
   const toggleCaptive = (kind: string) => {
     setCaptiveFilter((prev) => {
@@ -256,6 +301,17 @@ export default function DataTable() {
       return next;
     });
   };
+
+  const toggleBelowBenchmark = (tier: IeaTier) => {
+    setBelowBenchmark((prev) => {
+      const next = new Set(prev);
+      if (next.has(tier)) next.delete(tier);
+      else next.add(tier);
+      return next;
+    });
+  };
+
+  const benchmarkLabel = benchmarkMode === 'bpp' ? 'BPP' : 'Tariff';
 
   const table = useReactTable({
     data,
@@ -469,6 +525,33 @@ export default function DataTable() {
             </button>
           );
         })}
+        {/* v4.1 IEA per-tier below-benchmark filter chips. Each toggles
+            independently; multiple active chips compose AND-style. Threshold
+            (BPP or Tariff) follows the global benchmarkMode toggle so chip
+            semantics match the Grid Rate column. */}
+        {IEA_TIER_DEFS.map((def) => {
+          const active = belowBenchmark.has(def.key);
+          return (
+            <button
+              key={def.key}
+              type="button"
+              onClick={() => toggleBelowBenchmark(def.key)}
+              title={`Sites where the ${def.label === 'Gen' ? 'Generation' : def.label === 'Del' ? 'Delivered' : `Firm ${def.label}`} tier is cheaper than the ${benchmarkLabel} grid cost. Composes AND with other below-${benchmarkLabel} chips.`}
+              className="px-2 py-1 text-[10px] rounded cursor-pointer transition-colors tabular-nums"
+              style={
+                active
+                  ? {
+                      color: def.color,
+                      border: `1px solid ${def.color}66`,
+                      background: `${def.color}1A`,
+                    }
+                  : { color: 'var(--text-secondary)', border: '1px solid var(--text-muted)' }
+              }
+            >
+              {def.label}&lt;{benchmarkLabel}
+            </button>
+          );
+        })}
         <button
           type="button"
           onClick={() => setShowFilters(!showFilters)}
@@ -551,16 +634,15 @@ export default function DataTable() {
                       >
                         {isPlaceholder ? null : (
                           <span
-                            className={`items-center gap-1 ${
-                              isGroupCell ? 'inline-flex' : 'flex'
-                            }`}
+                            className={`items-center gap-1 ${isGroupCell ? 'inline-flex' : 'flex'}`}
                           >
                             {flexRender(header.column.columnDef.header, header.getContext())}
                             {!isGroupCell &&
                               ({
                                 asc: ' \u25B2',
                                 desc: ' \u25BC',
-                              }[header.column.getIsSorted() as string] ?? '')}
+                              }[header.column.getIsSorted() as string] ??
+                                '')}
                           </span>
                         )}
                       </th>
@@ -584,9 +666,7 @@ export default function DataTable() {
                         className="px-2 py-0.5"
                         style={{
                           borderBottom: '1px solid var(--border-subtle)',
-                          borderLeft: isGroupStart
-                            ? '1px solid var(--glass-border)'
-                            : undefined,
+                          borderLeft: isGroupStart ? '1px solid var(--glass-border)' : undefined,
                         }}
                       >
                         {DROPDOWN_COLUMNS.has(header.column.id) && (
@@ -602,6 +682,32 @@ export default function DataTable() {
             )}
           </thead>
           <tbody>
+            {table.getRowModel().rows.length === 0 && (
+              <tr>
+                <td
+                  colSpan={table.getVisibleLeafColumns().length}
+                  className="text-center py-10"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <div className="text-[13px] mb-2">No sites match these filters.</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCbamOnly(false);
+                      setKekOnly(false);
+                      setCaptiveFilter(new Set());
+                      setBelowBenchmark(new Set());
+                      setColumnFilters([]);
+                      setGlobalFilter('');
+                    }}
+                    className="text-[11px] underline cursor-pointer"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    Clear all filters
+                  </button>
+                </td>
+              </tr>
+            )}
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
@@ -622,9 +728,7 @@ export default function DataTable() {
                       style={{
                         color: 'var(--text-primary)',
                         borderBottom: '1px solid var(--tab-border)',
-                        borderLeft: isGroupStart
-                          ? '1px solid var(--glass-border)'
-                          : undefined,
+                        borderLeft: isGroupStart ? '1px solid var(--glass-border)' : undefined,
                       }}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
