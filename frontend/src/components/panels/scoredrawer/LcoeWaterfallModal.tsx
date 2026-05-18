@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -33,6 +33,27 @@ function InfraBadge({ category }: { category: string }) {
 
 const DEGRADATION_ANNUAL_PCT = 0.5;
 
+// IEA tier colors mirror IEACostStackWaterfall.tsx — keep in sync.
+const TIER_COLORS = {
+  gen: '#4CAF50',
+  delivered: '#42A5F5',
+  firm4h: '#AB47BC',
+  firm8h: '#7E57C2',
+};
+
+const COMPONENT_COLORS = {
+  capex: '#4C8DFF',
+  fom: '#8B5CF6',
+  land: '#A16207',
+  connection: '#0288D1',
+  transmission: '#00838F',
+  upgrade: '#EF6C00',
+  lcos: '#AB47BC',
+  total: '#22C55E',
+};
+
+export type TierKey = 'gen' | 'delivered' | 'firm4h' | 'firm8h';
+
 function capitalRecoveryFactor(wacc: number, lifetime: number): number {
   if (wacc <= 0) return 1 / lifetime;
   const factor = (1 + wacc) ** lifetime;
@@ -59,19 +80,14 @@ interface LcoeWaterfallModalProps {
   open: boolean;
   onClose: () => void;
   row: ScorecardRow;
+  /** Pre-select which tier tab is active when the modal opens. Defaults to 'delivered'. */
+  initialTier?: TierKey;
 }
 
-const COMPONENT_COLORS = {
-  capex: '#4C8DFF',
-  fom: '#8B5CF6',
-  land: '#A16207',
-  connection: '#0288D1',
-  transmission: '#00838F',
-  upgrade: '#EF6C00',
-  total: '#22C55E',
-};
-
-function computeWaterfallData(components: Component[]): WaterfallDatum[] {
+function computeWaterfallData(
+  components: Component[],
+  displayedTotal: number | null,
+): WaterfallDatum[] {
   let running = 0;
   const rows: WaterfallDatum[] = components.map((c) => {
     const start = running;
@@ -88,9 +104,9 @@ function computeWaterfallData(components: Component[]): WaterfallDatum[] {
   });
   rows.push({
     name: 'Total',
-    range: [0, running],
-    value: running,
-    description: 'Sum of annuitised components',
+    range: [0, displayedTotal ?? running],
+    value: displayedTotal ?? running,
+    description: 'Total tier value, $/MWh',
     color: COMPONENT_COLORS.total,
     isTotal: true,
   });
@@ -127,7 +143,57 @@ function WaterfallTooltip({
   );
 }
 
-export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalProps) {
+interface TierMeta {
+  key: TierKey;
+  label: string;
+  /** Canonical tier total from the pipeline column, used for tab label + waterfall total. */
+  total: number | null;
+  color: string;
+}
+
+function tierMetas(row: ScorecardRow): TierMeta[] {
+  return [
+    {
+      key: 'gen',
+      label: 'Generation',
+      total: row.lcoe_generation_usd_mwh ?? null,
+      color: TIER_COLORS.gen,
+    },
+    {
+      key: 'delivered',
+      label: 'Delivered',
+      total: row.full_system_lcoe_delivered_usd_mwh ?? null,
+      color: TIER_COLORS.delivered,
+    },
+    {
+      key: 'firm4h',
+      label: 'Firm 4h',
+      total: row.full_system_lcoe_firm_4h_usd_mwh ?? null,
+      color: TIER_COLORS.firm4h,
+    },
+    {
+      key: 'firm8h',
+      label: 'Firm 8h',
+      total: row.full_system_lcoe_firm_8h_usd_mwh ?? null,
+      color: TIER_COLORS.firm8h,
+    },
+  ];
+}
+
+export function LcoeWaterfallModal({
+  open,
+  onClose,
+  row,
+  initialTier = 'delivered',
+}: LcoeWaterfallModalProps) {
+  const [activeTier, setActiveTier] = useState<TierKey>(initialTier);
+
+  // Sync internal tab state when the modal is re-opened with a new initialTier
+  // (e.g. user clicks Firm 8h bar after previously closing on Generation).
+  useEffect(() => {
+    if (open) setActiveTier(initialTier);
+  }, [open, initialTier]);
+
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -151,8 +217,9 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
   const lifetime = row.lifetime_yr;
   const fom = row.fom_usd_per_kw_yr;
   const cf = row.primary_cf;
-  const lcoeDisplayed = row.lcoe_mid_usd_mwh;
   const category = row.grid_integration_category ?? null;
+  const metas = tierMetas(row);
+  const activeMeta = metas.find((m) => m.key === activeTier) ?? metas[1];
 
   const canCompute =
     capex != null &&
@@ -209,7 +276,8 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
   const includeTransmission = category === 'invest_transmission' || category === 'grid_first';
   const includeUpgrade = category === 'invest_substation' || category === 'grid_first';
 
-  const components: Component[] = [
+  // Generation tier components — always present.
+  const genComponents: Component[] = [
     {
       label: 'CAPEX',
       description: `${capex.toFixed(0)} $/kW × CRF ${crf.toFixed(4)}`,
@@ -223,17 +291,19 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
       color: COMPONENT_COLORS.fom,
     },
   ];
-
   if (!isWithinBoundary && row.land_cost_usd_per_kw != null && row.land_cost_usd_per_kw > 0) {
-    components.push({
+    genComponents.push({
       label: 'Land',
       description: `${row.land_cost_usd_per_kw.toFixed(0)} $/kW × CRF`,
       usdPerMwh: perKwToPerMwh(row.land_cost_usd_per_kw, false),
       color: COMPONENT_COLORS.land,
     });
   }
+
+  // Delivered tier components = Generation + grid cost (where applicable).
+  const gridComponents: Component[] = [];
   if (includeConnection && row.connection_cost_per_kw != null && row.connection_cost_per_kw > 0) {
-    components.push({
+    gridComponents.push({
       label: 'Grid connection',
       description: `${row.connection_cost_per_kw.toFixed(0)} $/kW × CRF`,
       usdPerMwh: perKwToPerMwh(row.connection_cost_per_kw, false),
@@ -245,7 +315,7 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
     row.transmission_cost_per_kw != null &&
     row.transmission_cost_per_kw > 0
   ) {
-    components.push({
+    gridComponents.push({
       label: 'New transmission',
       description: `${row.transmission_cost_per_kw.toFixed(0)} $/kW × CRF`,
       usdPerMwh: perKwToPerMwh(row.transmission_cost_per_kw, false),
@@ -257,7 +327,7 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
     row.substation_upgrade_cost_per_kw != null &&
     row.substation_upgrade_cost_per_kw > 0
   ) {
-    components.push({
+    gridComponents.push({
       label: 'Substation upgrade',
       description: `${row.substation_upgrade_cost_per_kw.toFixed(0)} $/kW × CRF`,
       usdPerMwh: perKwToPerMwh(row.substation_upgrade_cost_per_kw, false),
@@ -265,10 +335,54 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
     });
   }
 
-  const waterfallData = computeWaterfallData(components);
-  const totalComputed = waterfallData[waterfallData.length - 1].value;
-  const reconciliationGap = lcoeDisplayed != null ? lcoeDisplayed - totalComputed : null;
-  const rawMax = Math.max(totalComputed, lcoeDisplayed ?? 0) * 1.1;
+  // LCOS adder for the firm tiers = (firm_X - delivered) from the canonical
+  // pipeline columns. We do NOT re-derive from lcos_X * share_factor — that's
+  // a methodology-spec detail the pipeline owns. The bar value here matches
+  // the row's firm-tier column exactly so the waterfall total stays trustworthy.
+  const deliveredTotal = row.full_system_lcoe_delivered_usd_mwh ?? null;
+  const firm4hTotal = row.full_system_lcoe_firm_4h_usd_mwh ?? null;
+  const firm8hTotal = row.full_system_lcoe_firm_8h_usd_mwh ?? null;
+  const lcos4hAdder =
+    deliveredTotal != null && firm4hTotal != null ? firm4hTotal - deliveredTotal : null;
+  const lcos8hAdder =
+    deliveredTotal != null && firm8hTotal != null ? firm8hTotal - deliveredTotal : null;
+
+  let activeComponents: Component[];
+  if (activeTier === 'gen') {
+    activeComponents = genComponents;
+  } else if (activeTier === 'delivered') {
+    activeComponents = [...genComponents, ...gridComponents];
+  } else if (activeTier === 'firm4h') {
+    activeComponents = [...genComponents, ...gridComponents];
+    if (lcos4hAdder != null && lcos4hAdder > 0) {
+      activeComponents.push({
+        label: '+LCOS 4h',
+        description:
+          '4-hour battery storage adder (all-in: BESS CAPEX, cycling, round-trip efficiency). Adjusted for peaking-gas equivalence per IEA stack §18.6.',
+        usdPerMwh: lcos4hAdder,
+        color: COMPONENT_COLORS.lcos,
+      });
+    }
+  } else {
+    // firm8h
+    activeComponents = [...genComponents, ...gridComponents];
+    if (lcos8hAdder != null && lcos8hAdder > 0) {
+      activeComponents.push({
+        label: '+LCOS 8h',
+        description:
+          '8-hour battery storage adder (all-in: BESS CAPEX, cycling, round-trip efficiency). Adjusted for baseload captive coal equivalence per IEA stack §18.6.',
+        usdPerMwh: lcos8hAdder,
+        color: COMPONENT_COLORS.lcos,
+      });
+    }
+  }
+
+  const waterfallData = computeWaterfallData(activeComponents, activeMeta.total);
+  const computedTotal = activeComponents.reduce((s, c) => s + c.usdPerMwh, 0);
+  const displayedTotal = activeMeta.total ?? computedTotal;
+  const reconciliationGap = activeMeta.total != null ? activeMeta.total - computedTotal : null;
+
+  const rawMax = displayedTotal * 1.1;
   const tickStep = rawMax > 400 ? 100 : rawMax > 200 ? 50 : rawMax > 100 ? 25 : 10;
   const yMax = Math.ceil(rawMax / tickStep) * tickStep;
   const yTicks: number[] = [];
@@ -296,7 +410,7 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
           <div>
             <h2 className="text-base font-semibold text-white">LCOE breakdown</h2>
             <p className="text-[11px] text-zinc-400 mt-0.5">
-              {row.site_name} &middot; solar mid ${lcoeDisplayed?.toFixed(1) ?? '–'}/MWh
+              {row.site_name} &middot; IEA cost stack
             </p>
           </div>
           <button
@@ -308,18 +422,75 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
           </button>
         </div>
 
-        <div className="px-5 py-4 overflow-y-auto">
+        {/* Tier tab strip — totals embedded in label so strip is itself
+            the comparison view (per /plan-design-review D2). */}
+        <div
+          role="tablist"
+          aria-label="LCOE tier"
+          className="flex shrink-0 overflow-x-auto"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const idx = metas.findIndex((m) => m.key === activeTier);
+            const dir = e.key === 'ArrowRight' ? 1 : -1;
+            // Skip over disabled tabs in cycle navigation.
+            for (let step = 1; step <= metas.length; step++) {
+              const next = metas[(idx + dir * step + metas.length) % metas.length];
+              if (next.total != null) {
+                setActiveTier(next.key);
+                e.preventDefault();
+                return;
+              }
+            }
+          }}
+        >
+          {metas.map((m) => {
+            const disabled = m.total == null;
+            const active = m.key === activeTier;
+            return (
+              <button
+                type="button"
+                key={m.key}
+                role="tab"
+                aria-selected={active}
+                aria-disabled={disabled}
+                disabled={disabled}
+                onClick={() => !disabled && setActiveTier(m.key)}
+                title={
+                  disabled
+                    ? `Not enough data to render the ${m.label} tier for this site.`
+                    : `${m.label} tier — $${m.total?.toFixed(0)}/MWh`
+                }
+                className="flex-1 px-3 py-2 text-[11px] transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                style={{
+                  background: active ? `${m.color}1A` : 'transparent',
+                  borderBottom: active ? `2px solid ${m.color}` : '2px solid transparent',
+                  color: active ? m.color : 'var(--text-secondary)',
+                  fontWeight: active ? 600 : 500,
+                }}
+              >
+                <span className="block">{m.label}</span>
+                <span
+                  className="block tabular-nums text-[12px] mt-0.5"
+                  style={{ color: active ? m.color : 'var(--text-muted)' }}
+                >
+                  {m.total != null ? `$${m.total.toFixed(0)}` : '—'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div role="tabpanel" className="px-5 py-4 overflow-y-auto">
           <div className="text-[11px] leading-relaxed text-zinc-400 mb-3">
-            Each bar shows how a cost component stacks onto the running LCOE. Formula:{' '}
-            <span className="text-zinc-200">
-              (CAPEX × CRF + FOM + grid costs × CRF) ÷ (CF × 8760 × degradation)
-            </span>
-            . Grid costs only load when applicable to this site's category{' '}
+            Each bar shows how a cost component stacks onto the running LCOE for the{' '}
+            <span style={{ color: activeMeta.color }}>{activeMeta.label}</span> tier. Grid costs
+            only load when applicable to this site's category{' '}
             {category ? <InfraBadge category={category} /> : <span>n/a</span>}.
           </div>
 
           <div className="text-[10px] text-zinc-500 mb-1 ml-1">$/MWh</div>
-          <div style={{ width: '100%', height: 280 }}>
+          <div style={{ width: '100%', height: 260 }}>
             <ResponsiveContainer>
               <BarChart data={waterfallData} margin={{ top: 8, right: 16, left: 8, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -373,16 +544,16 @@ export function LcoeWaterfallModal({ open, onClose, row }: LcoeWaterfallModalPro
             className="mt-4 pt-3 flex items-center justify-between text-[12px]"
             style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
           >
-            <span className="text-zinc-300 font-medium">Total (computed)</span>
-            <span className="tabular-nums text-white font-semibold">
-              ${totalComputed.toFixed(1)}/MWh
+            <span className="text-zinc-300 font-medium">{activeMeta.label} total</span>
+            <span className="tabular-nums font-semibold" style={{ color: activeMeta.color }}>
+              ${displayedTotal.toFixed(1)}/MWh
             </span>
           </div>
-          {lcoeDisplayed != null && reconciliationGap != null && (
+          {reconciliationGap != null && Math.abs(reconciliationGap) > 1.5 && (
             <div className="flex items-center justify-between text-[10px] text-zinc-500 mt-1">
               <span>
-                Displayed LCOE: ${lcoeDisplayed.toFixed(1)}/MWh
-                {Math.abs(reconciliationGap) > 1.5 && ' (gap reflects rounding / firming adders)'}
+                Reconstructed from components: ${computedTotal.toFixed(1)}/MWh (gap reflects
+                rounding / firming adders)
               </span>
               <span className="tabular-nums">
                 &Delta; ${reconciliationGap >= 0 ? '+' : ''}

@@ -134,6 +134,16 @@ def prepare_resource_df(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         "green_share_geas_proportional_pct",
         "green_share_geas_empirical_pct",
         "geas_allocation_used",
+        # v4.1a foundation — IEA-aligned cost stack (Generation → Delivered →
+        # Firm 4h → Firm 8h). Pre-computed at pipeline build time; passed
+        # through unchanged for the score drawer + table to display.
+        # Spec at docs/refinement/v4_1_foundation_spec.md §2 + METHODOLOGY §18.6.
+        "lcoe_generation_usd_mwh",
+        "full_system_lcoe_delivered_usd_mwh",
+        "full_system_lcoe_firm_4h_usd_mwh",
+        "full_system_lcoe_firm_8h_usd_mwh",
+        "lcos_4h_usd_mwh",
+        "lcos_8h_usd_mwh",
         # v4.3 M-AT8b — captive power LCOE + tier (replaces grid_cost as the
         # incumbent comparator for non-grid_only sites). The score drawer's
         # "Competitive Gap" math depends on these being available live.

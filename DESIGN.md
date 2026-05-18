@@ -112,16 +112,23 @@ Triggered by clicking a site marker on map or a row in the ranked table.
 - All slider changes update scorecard + map markers + polygon fill live in zoomed state
 
 **State 3 — LCOE Drilldown** (modal overlay on top of State 2):
-Triggered from the Economics tab by clicking the LCOE value (solar mode only, `activeLcoe != null`). Affordance: dashed blue underline on the LCOE stat + hover tint + tooltip "Click for LCOE cost breakdown".
+Triggered from **two paths** (v4.1):
+  1. Overview tab `IEACostStackWaterfall` bar click — opens modal with that tier's tab preselected. Hover tooltip reads "Click for detailed breakdown".
+  2. Economics tab LCOE value click (solar mode, `activeLcoe != null`) — opens modal on the Delivered tab. Affordance: dashed blue underline + hover tint + tooltip "Click for LCOE cost breakdown".
 - Modal overlay (liquid glass) rendered by `LcoeWaterfallModal.tsx`
-- Header shows site name + infra-readiness badge (color-coded via `INFRA_READINESS_COLORS`)
-- Recharts stacked BarChart as a **waterfall**: each bar spans `[running_start, running_end]` so components visually stack from 0 → total
-- Components (in order): CAPEX annuity, FOM, land lease, grid connection, new transmission, substation upgrade, Total
-- Each component colored per `COMPONENT_COLORS` (capex=blue, fom=purple, land=amber, connection=cyan, transmission=teal, upgrade=orange, total=green)
-- Tooltip per bar: component label + `$/MWh` + description + share-of-total %
+- Header shows site name + "IEA cost stack" subtitle
+- **Tier tab strip** with 4 tabs whose labels embed the tier total: `Generation $93 · Delivered $144 · Firm 4h $179 · Firm 8h $228`. The tab strip is itself a comparison view. Active tab highlighted with tier color (`#4CAF50` / `#42A5F5` / `#AB47BC` / `#7E57C2`). Arrow keys (←/→) cycle tabs, skipping disabled ones. Tabs disabled when the row lacks data for that tier.
+- Recharts stacked BarChart as a **waterfall**: each bar spans `[running_start, running_end]` so components visually stack from 0 → total. Components per tab:
+  - **Generation**: CAPEX annuity, FOM, land lease
+  - **Delivered**: Generation components + grid connection (+ new transmission, substation upgrade where applicable)
+  - **Firm 4h**: Delivered components + single `+LCOS 4h` adder bar
+  - **Firm 8h**: Delivered components + single `+LCOS 8h` adder bar
+- Each component colored per `COMPONENT_COLORS` (capex=blue, fom=purple, land=amber, connection=cyan, transmission=teal, upgrade=orange, lcos=purple, total=green)
+- Waterfall total reconciles to the canonical pipeline column for that tier (`lcoe_generation_usd_mwh` / `full_system_lcoe_delivered_usd_mwh` / etc.). If the components don't reconcile within ±$1.5/MWh, the gap is surfaced as a "Δ +$X.X" annotation.
+- Tooltip per bar: component label + `$/MWh` + description
 - Close (X) or Escape returns to State 2 with site context intact
 - Map and drawer remain behind the modal (scrim darkens but does not hide them)
-- Only renders when `energyMode === 'solar'` and `lcoe_usd_mwh` is defined — hybrid/wind/overall modes don't expose this click path
+- Renders for any solar/hybrid site with at least one populated IEA tier column. Legacy `lcoe_mid`-only sites show the IEACostStackWaterfall in `[est]` fallback mode — bars are non-interactive in that case (no modal opens since there's no tier breakdown to show).
 
 ### View flow (updated)
 

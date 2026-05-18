@@ -58,7 +58,7 @@ semen-kupang,Semen Kupang,7662.7,6743.18,7.6627,102054.65,76626.99,21473.58,251,
 conch-west-kalimantan,Conch West Kalimantan,19356.11,17033.37,19.3561,412649.12,193561.07,187959.16,1657,181,15,0,1,1239,59.0,221,medium,,gob_v3,2026-02-23,none
 krakatau-steel-cilegon,Krakatau Steel Cilegon,87514.04,77012.35,87.514,1129774.13,875140.39,73942.02,1171,324,23,0,1,568,0.0,255,medium,,gob_v3,2023-05,claude_building_hull_estimate
 krakatau-posco-cilegon,Krakatau Posco Cilegon,820.69,722.21,0.8207,11576.87,8206.9,1963.26,42,8,0,0,0,25,0.0,9,medium,,gob_v3,2026-02-23,osm_landuse_industrial
-dexin-steel-morowali,Dexin Steel Morowali,576.65,507.45,0.5767,91061.52,5766.53,84608.16,555,63,7,0,0,382,69.0,103,medium,,gob_v3,2023-05,none
+dexin-steel-morowali,Dexin Steel Morowali,576.65,507.45,0.5767,22031.4,5766.53,15578.04,81,22,2,0,0,6,20.0,51,medium,,gob_v3,2023-05,osm_landuse_industrial
 gunung-raja-paksi-bekasi,Gunung Raja Paksi Bekasi,53959.57,47484.42,53.9596,597806.91,539595.74,16729.24,241,73,7,0,0,106,0.0,55,medium,,gob_v3,2023-05,osm_landuse_industrial
 master-steel-jakarta,Master Steel Jakarta,11756.9,10346.07,11.7569,129008.49,117569.03,8372.66,136,41,1,0,0,65,0.0,29,medium,,gob_v3,2023-05,claude_building_hull_estimate
 jakarta-prima-steel-industries,Jakarta Prima Steel Industries,9146.08,8048.55,9.1461,110735.33,91460.76,16403.35,227,75,0,0,0,135,0.0,17,medium,,gob_v3,2023-05,claude_building_hull_estimate
@@ -67,15 +67,15 @@ virtue-dragon-nickel-industrial-park-vdnip,Virtue Dragon Nickel Industrial Park 
 bantaeng-industrial-park-bip,Bantaeng Industrial Park (BIP),18058.59,15891.56,18.0586,215506.68,180585.91,27032.1,321,61,3,0,0,119,19.0,138,medium,,gob_v3,2023-05,osm_landuse_industrial
 obi-island-industrial-park,Obi Island Industrial Park,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,,0,low,no_buildings_detected,,,osm_landuse_industrial
 indonesia-pomalaa-industry-park-ipip,Indonesia Pomalaa Industry Park (IPIP),12305.6,10828.93,12.3056,153726.24,123056.01,24926.86,341,100,1,0,0,199,0.0,41,medium,,gob_v3,2026-02-23,osm_landuse_industrial
-nusantara-industri-sejati,Nusantara Industri Sejati,0.0,0.0,0.0,51665.84,0.0,51665.84,442,20,0,0,0,265,25.0,157,medium,,gob_v3,2023-05,none
+nusantara-industri-sejati,Nusantara Industri Sejati,0.0,0.0,0.0,51665.84,0.0,51665.84,442,20,0,0,0,265,25.0,157,medium,,gob_v3,2023-05,claude_building_hull_estimate
 indonesia-morowali-industrial-park-imip,Indonesia Morowali Industrial Park (IMIP),75149.09,66131.2,75.1491,966798.4,751490.89,98677.43,1408,328,98,11,23,599,17.0,349,medium,,gob_v3,2023-05,osm_landuse_industrial
 stardust-estate-invesment-sei,Stardust Estate Invesment (SEI),0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,,0,low,no_buildings_detected,,,none
 industrial-weda-bay-industrial-park-iwip,Industrial Weda Bay Industrial Park (IWIP),0.0,0.0,0.0,152.67,0.0,152.67,3,0,0,0,0,0,0.0,3,medium,,gob_v3,2023-05,osm_landuse_industrial
-buli-industrial-park,Buli Industrial Park,0.0,0.0,0.0,43982.15,0.0,43982.15,197,48,0,0,0,68,54.0,81,medium,,gob_v3,2026-02-23,none
+buli-industrial-park,Buli Industrial Park,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,,0,low,no_buildings_detected,,,osm_landuse_industrial
 indonesia-konawe-industrial-park-ikip,Indonesia Konawe Industrial Park (IKIP),0.0,0.0,0.0,710.12,0.0,710.12,9,0,0,0,0,2,0.0,7,medium,,gob_v3,2023-05,none
-inalum-asahan,Inalum Asahan,0.0,0.0,0.0,28616.05,0.0,28616.05,212,19,4,0,0,154,23.0,35,medium,,gob_v3,2026-02-23,none
+inalum-asahan,Inalum Asahan,0.0,0.0,0.0,28491.5,0.0,28491.5,208,19,4,0,0,154,23.0,31,medium,,gob_v3,2026-02-23,claude_building_hull_estimate
 freeport-smelter-gresik,Freeport Smelter Gresik,2777.34,2444.06,2.7773,76590.67,27773.44,36254.2,337,40,6,1,0,119,35.0,171,medium,,gob_v3,2023-05,osm_landuse_industrial
-pupuk-kaltim-bontang,Pupuk Kaltim Bontang,47298.18,41622.4,47.2982,1985939.58,472981.77,1448608.62,11550,876,22,0,0,10328,13.0,324,medium,,gob_v3,2023-05,none
+pupuk-kaltim-bontang,Pupuk Kaltim Bontang,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,,0,low,no_buildings_detected,,,osm_landuse_industrial
 pupuk-sriwidjaja-palembang,Pupuk Sriwidjaja Palembang,16739.47,14730.73,16.7395,214743.09,167394.7,26011.68,406,65,9,0,1,294,0.0,37,medium,,gob_v3,2026-02-23,claude_building_hull_estimate
 petrokimia-gresik,Petrokimia Gresik,68503.63,60283.2,68.5036,873294.06,685036.31,131712.0,1679,347,38,0,5,1128,7.0,161,medium,,gob_v3,2023-05,osm_landuse_industrial
 pupuk-kujang-cikampek,Pupuk Kujang Cikampek,10976.0,9658.88,10.976,226582.41,109760.02,108628.49,1074,132,6,0,0,915,0.0,21,medium,,gob_v3,2023-05,claude_building_hull_estimate

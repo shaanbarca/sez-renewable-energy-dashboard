@@ -52,6 +52,24 @@ from src.model.basic_model import (
 from src.model.basic_model import invest_resilience as invest_resilience_fn
 from src.pipeline.assumptions import TARIFF_I4_RP_KWH, rp_kwh_to_usd_mwh
 
+
+def _kek_float(ctx: Any, key: str) -> float | None:
+    """Read a numeric field from the merged kek row, returning None on NaN/missing.
+
+    Used to pass IEA 4-tier cost stack columns through compute_scorecard_live
+    without recomputation — the pipeline owns these values (spec §2 / §18.6).
+    """
+    val = ctx.kek.get(key) if hasattr(ctx.kek, "get") else None
+    if val is None:
+        return None
+    try:
+        if pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return float(val)
+
+
 Enricher = Callable[[SiteContext, dict[str, Any]], dict[str, Any]]
 
 
@@ -430,6 +448,17 @@ def enrich_carbon_and_viability(ctx: SiteContext, _row: dict[str, Any]) -> dict[
         "effective_incumbent_lcoe_usd_mwh": ctx.effective_incumbent_lcoe,
         "effective_incumbent_kind": ctx.effective_incumbent_kind,
         "gap_vs_grid_pct": _round(ctx.gap_vs_grid_pct),
+        # v4.1a foundation — IEA 4-tier cost stack passed through from the
+        # pre-computed scorecard. compute_scorecard_live doesn't recompute
+        # these; the pipeline owns them (spec §2, METHODOLOGY §18.6). The
+        # frontend's IEACostStackWaterfall renders this stack; null values
+        # trigger the legacy lcoe_mid fallback with an "[est]" badge.
+        "lcoe_generation_usd_mwh": _kek_float(ctx, "lcoe_generation_usd_mwh"),
+        "full_system_lcoe_delivered_usd_mwh": _kek_float(ctx, "full_system_lcoe_delivered_usd_mwh"),
+        "full_system_lcoe_firm_4h_usd_mwh": _kek_float(ctx, "full_system_lcoe_firm_4h_usd_mwh"),
+        "full_system_lcoe_firm_8h_usd_mwh": _kek_float(ctx, "full_system_lcoe_firm_8h_usd_mwh"),
+        "lcos_4h_usd_mwh": _kek_float(ctx, "lcos_4h_usd_mwh"),
+        "lcos_8h_usd_mwh": _kek_float(ctx, "lcos_8h_usd_mwh"),
     }
 
 
