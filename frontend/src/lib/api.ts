@@ -74,6 +74,19 @@ export async function fetchSiteRooftopTiles(siteId: string): Promise<GeoJSON.Fea
   return res.json();
 }
 
+/** Per-building rooftop breakdown (#82) — powers the "View buildings" modal
+ * in the Score Drawer Renewable Resource tab. One row per building detected
+ * inside the site's fence boundary (post-merge, post-clip). footprint_class
+ * is the post-cascade category; exclusion_reason explains WHY a building
+ * contributes 0 m². Totals reconcile exactly with fct_site_solar_potential.csv. */
+export async function fetchSiteRooftopBreakdown(
+  siteId: string,
+): Promise<import('./types').RooftopBreakdownResponse> {
+  const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/rooftop-breakdown`);
+  if (!res.ok) throw new Error(`GET /api/site/${siteId}/rooftop-breakdown failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchSiteSubstations(siteId: string, radiusKm?: number): Promise<unknown> {
   const params = radiusKm != null ? `?radius_km=${radiusKm}` : '';
   const res = await fetch(`/api/site/${encodeURIComponent(siteId)}/substations${params}`);

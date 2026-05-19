@@ -45,6 +45,7 @@ sites_missing_buildings.csv     (~14 rows shortlist for L26)
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import geopandas as gpd
@@ -516,6 +517,11 @@ def _load_exclusion_polygons(
     geometric circularity test misses (because their outline isn't a
     near-perfect circle).
 
+    Also preserves `tag_value` (OSM tag_value) so callers can disambiguate
+    osm_tank vs osm_basin vs osm_water for the #82 exclusion_reason field.
+    Pipeline aggregate output is unaffected — only `geometry` + `site_id`
+    are read downstream for the boolean mask.
+
     Returns None if the file is missing — pipeline runs without the
     exclusion layer, which is fine for graceful degradation.
     """
@@ -524,7 +530,10 @@ def _load_exclusion_polygons(
     gdf = gpd.read_file(path)
     if "site_id" not in gdf.columns:
         return None
-    return gdf[["site_id", "geometry"]]
+    keep = ["site_id", "geometry"]
+    if "tag_value" in gdf.columns:
+        keep.append("tag_value")
+    return gdf[keep]
 
 
 def buildings_inside_exclusions(
@@ -669,6 +678,243 @@ def detect_isolated_suitable_clusters(
     return is_isolated
 
 
+# ─── Per-building dispositions (#82) ───────────────────────────────────────
+#
+# Maps the §14 classifier categories + cascade overrides to a flat per-row
+# data model. The pipeline still consumes the aggregate dict (via
+# `aggregate_site_buildings`), but the API endpoint at
+# /api/site/{site_id}/rooftop-breakdown consumes the per-row list so users
+# (and the #62 audit) can see WHY each building contributes 0 m².
+#
+# 11 exclusion_reason values per locked /plan-eng-review decision 1B:
+#   none, osm_tank, osm_basin, osm_water,
+#   geometric_tank_silo, geometric_complex, geometric_round, geometric_too_small,
+#   residential_cluster, isolated_cluster
+
+
+_OSM_TAG_TO_REASON: dict[str, str] = {
+    "storage_tank": "osm_tank",
+    "reservoir": "osm_tank",
+    "reservoir_covered": "osm_tank",
+    "basin": "osm_basin",
+    "wastewater_plant": "osm_basin",
+    "water": "osm_water",
+    "aquaculture": "osm_water",
+    "greenfield": "osm_water",
+}
+
+# Geometric-classifier categories that produce multiplier 0 (mapped to
+# their exclusion_reason value). 'tank_silo' is excluded — it maps to
+# geometric_tank_silo only when the OSM cascade did NOT flag it.
+_ZERO_MULTIPLIER_GEOMETRIC_REASON: dict[str, str] = {
+    "tank_silo": "geometric_tank_silo",
+    "complex": "geometric_complex",
+    "possibly_round": "geometric_round",
+    "too_small": "geometric_too_small",
+}
+
+
+@dataclass(frozen=True)
+class BuildingDisposition:
+    """One row in the per-building output exposed by the API.
+
+    `category` is the final post-cascade bucket (what the modal shows as
+    "Footprint class"). For Pass-2 flipped buildings this is
+    'isolated_cluster' — the original classifier saw them as
+    standard_roof/elongated/etc.
+
+    `classifier_category` is the pre-Pass-2 view, used internally by
+    `aggregate_site_buildings` to reproduce the pre-refactor count
+    semantics byte-identical: a building that flipped to isolated_cluster
+    still increments its original classifier category count (e.g.,
+    standard_roof += 1) AND increments isolated_cluster += 1. The two
+    counts intentionally overlap; `building_count_total` subtracts
+    isolated_cluster to avoid double-counting.
+
+    `exclusion_reason` explains WHY a building contributes 0 m². 'none'
+    means it contributes (standard_roof, elongated, conveyor).
+    """
+
+    building_id: str
+    area_m2: float
+    category: str
+    classifier_category: str
+    exclusion_reason: str
+    usability_multiplier: float
+    usable_roof_area_m2: float
+
+
+def _per_building_osm_exclusion_reasons(
+    site_buildings_proj: gpd.GeoDataFrame,
+    site_id: str | None,
+    exclusion_polys: gpd.GeoDataFrame | None,
+) -> list[str | None]:
+    """Per-building OSM exclusion reason ('osm_tank' / 'osm_basin' / 'osm_water'),
+    or None if the building's centroid isn't inside any exclusion polygon.
+
+    Refines `buildings_inside_exclusions()` to identify WHICH OSM tag_value
+    matched, not just a boolean. Unknown tag_value falls back to 'osm_tank'
+    (the most common case — 594 of 1224 features in the current dataset).
+    """
+    n = len(site_buildings_proj)
+    reasons: list[str | None] = [None] * n
+    if n == 0 or exclusion_polys is None or exclusion_polys.empty or site_id is None:
+        return reasons
+    site_polys = exclusion_polys[exclusion_polys["site_id"] == site_id]
+    if site_polys.empty:
+        return reasons
+
+    if site_buildings_proj.crs != site_polys.crs:
+        centroids = site_buildings_proj.geometry.centroid.to_crs(site_polys.crs)
+    else:
+        centroids = site_buildings_proj.geometry.centroid
+
+    has_tag_value = "tag_value" in site_polys.columns
+    poly_rows = list(site_polys.itertuples(index=False))
+    for i, c in enumerate(centroids):
+        for row in poly_rows:
+            if c.within(row.geometry):
+                if has_tag_value:
+                    reasons[i] = _OSM_TAG_TO_REASON.get(row.tag_value, "osm_tank")
+                else:
+                    reasons[i] = "osm_tank"
+                break
+    return reasons
+
+
+def _classify_site_buildings_with_dispositions(
+    site_buildings_proj: gpd.GeoDataFrame,
+    *,
+    site_id: str | None = None,
+    exclusion_polys: gpd.GeoDataFrame | None = None,
+) -> list[BuildingDisposition]:
+    """Run the full 3-pass cascade and return one disposition per building.
+
+    Single source of truth for both the pipeline aggregate (which derives
+    counts + areas from this list) and the API endpoint (which serializes
+    this list to JSON for the breakdown modal).
+
+    Cascade:
+      Pass 0 (BEFORE classifier):
+        - is_residential[i]: cluster-aware (≥5 similar-area neighbors within 100m)
+        - osm_reasons[i]: per-row OSM exclusion reason or None
+      Pass 1 (per-building classification):
+        - OSM exclusion wins first → category='tank_silo' + osm_* reason
+        - residential cluster next → category='residential' + residential_cluster
+        - else classify_building() → category + reason if multiplier=0
+      Pass 2 (factory-anchor filter):
+        - suitable buildings (multiplier>0) without a 1500m² anchor in cluster
+          → category overrides to 'isolated_cluster' + reason=isolated_cluster
+    """
+    n = len(site_buildings_proj)
+    if n == 0:
+        return []
+
+    is_residential = detect_residential_clusters(site_buildings_proj)
+    osm_reasons = _per_building_osm_exclusion_reasons(site_buildings_proj, site_id, exclusion_polys)
+
+    # Pass 1: per-building classification. We hold a mutable working list;
+    # suitable buildings (multiplier>0) can flip to isolated_cluster in Pass 2.
+    pre_pass2: list[dict] = []
+    suitable_positions: list[tuple[int, float]] = []  # (idx, area) of multiplier>0 rows
+
+    for i, (_, b) in enumerate(site_buildings_proj.iterrows()):
+        area_m2 = b.geometry.area
+        building_id = str(b.get("building_id", f"row_{i}"))
+
+        if osm_reasons[i] is not None:
+            pre_pass2.append(
+                {
+                    "building_id": building_id,
+                    "area_m2": area_m2,
+                    "classifier_category": "tank_silo",
+                    "exclusion_reason": osm_reasons[i],
+                    "usability_multiplier": 0.0,
+                }
+            )
+            continue
+
+        if is_residential[i]:
+            pre_pass2.append(
+                {
+                    "building_id": building_id,
+                    "area_m2": area_m2,
+                    "classifier_category": "residential",
+                    "exclusion_reason": "residential_cluster",
+                    "usability_multiplier": 0.0,
+                }
+            )
+            continue
+
+        cls = classify_building(b.geometry, area_m2)
+        if cls.usability_multiplier > 0:
+            pre_pass2.append(
+                {
+                    "building_id": building_id,
+                    "area_m2": area_m2,
+                    "classifier_category": cls.category,
+                    "exclusion_reason": "none",
+                    "usability_multiplier": cls.usability_multiplier,
+                }
+            )
+            suitable_positions.append((i, area_m2))
+        else:
+            pre_pass2.append(
+                {
+                    "building_id": building_id,
+                    "area_m2": area_m2,
+                    "classifier_category": cls.category,
+                    "exclusion_reason": _ZERO_MULTIPLIER_GEOMETRIC_REASON.get(
+                        cls.category, f"geometric_{cls.category}"
+                    ),
+                    "usability_multiplier": 0.0,
+                }
+            )
+
+    # Pass 2: factory-anchor cluster filter on suitable buildings.
+    isolated_idx_set: set[int] = set()
+    if suitable_positions:
+        suitable_idxs, suitable_area_arr = zip(*suitable_positions, strict=False)
+        suitable_geoms = [site_buildings_proj.geometry.iloc[i] for i in suitable_idxs]
+        suitable_areas_np = np.asarray(suitable_area_arr, dtype=float)
+        is_isolated_arr = detect_isolated_suitable_clusters(suitable_geoms, suitable_areas_np)
+        for k, idx in enumerate(suitable_idxs):
+            if is_isolated_arr[k]:
+                isolated_idx_set.add(idx)
+
+    # Build final dispositions, applying Pass 2 isolated-cluster overrides.
+    # classifier_category preserved on every row so the aggregate dict can
+    # reproduce byte-identical pre-refactor count semantics.
+    dispositions: list[BuildingDisposition] = []
+    for i, d in enumerate(pre_pass2):
+        if i in isolated_idx_set:
+            dispositions.append(
+                BuildingDisposition(
+                    building_id=d["building_id"],
+                    area_m2=d["area_m2"],
+                    category="isolated_cluster",
+                    classifier_category=d["classifier_category"],
+                    exclusion_reason="isolated_cluster",
+                    usability_multiplier=0.0,
+                    usable_roof_area_m2=0.0,
+                )
+            )
+        else:
+            multiplier = d["usability_multiplier"]
+            dispositions.append(
+                BuildingDisposition(
+                    building_id=d["building_id"],
+                    area_m2=d["area_m2"],
+                    category=d["classifier_category"],
+                    classifier_category=d["classifier_category"],
+                    exclusion_reason=d["exclusion_reason"],
+                    usability_multiplier=multiplier,
+                    usable_roof_area_m2=d["area_m2"] * multiplier,
+                )
+            )
+    return dispositions
+
+
 def aggregate_site_buildings(
     site_buildings_proj: gpd.GeoDataFrame,  # buildings already in PROJECTED_CRS
     *,
@@ -677,18 +923,20 @@ def aggregate_site_buildings(
 ) -> dict:
     """Classify every building, sum standard_roof × multipliers → MWp.
 
-    Returns the row that goes into fct_site_solar_potential.csv.
-
-    Filter cascade (each runs only on buildings that survived earlier ones):
-      1. OSM exclusion polygons (tank / basin / water tags from OpenStreetMap)
-      2. Residential cluster detection (small + many similar small neighbors)
-      3. Per-building shape classifier (§14): too_small / tank_silo / conveyor
-         / complex / possibly_round / elongated / standard_roof
-      4. Factory-anchor cluster filter — drops suitable buildings whose
-         spatial cluster lacks any building ≥ FACTORY_ANCHOR_MIN_AREA_M2.
-         Catches residential / commercial bleed at sites without polygons.
+    Returns the row that goes into fct_site_solar_potential.csv. Wraps
+    `_classify_site_buildings_with_dispositions()` and derives the
+    13-field aggregate dict from the per-row list. The wrapper exists
+    because the pipeline only consumes the dict; the API consumes the
+    list directly. Output is byte-identical to the pre-refactor function
+    (pinned by `tests/test_aggregate_site_buildings.py`).
     """
-    counts = {
+    dispositions = _classify_site_buildings_with_dispositions(
+        site_buildings_proj,
+        site_id=site_id,
+        exclusion_polys=exclusion_polys,
+    )
+
+    counts: dict[str, int] = {
         "standard_roof": 0,
         "elongated": 0,
         "possibly_round": 0,
@@ -701,71 +949,26 @@ def aggregate_site_buildings(
     }
     total_footprint_m2 = 0.0
     type_filter_excluded_m2 = 0.0
-
-    is_residential = detect_residential_clusters(site_buildings_proj)
-    is_in_exclusion = (
-        buildings_inside_exclusions(site_buildings_proj, site_id, exclusion_polys)
-        if site_id is not None
-        else np.zeros(len(site_buildings_proj), dtype=bool)
-    )
-
-    # Pass 1: classify every surviving building. Track suitable ones for the
-    # cluster-anchor filter pass below.
-    classifications: list[tuple[int, float, float]] = []  # (idx, area, multiplier)
-    suitable: list[tuple[int, float]] = []  # (idx, area) — multiplier > 0
-    for i, (_, b) in enumerate(site_buildings_proj.iterrows()):
-        area_m2 = b.geometry.area
-        total_footprint_m2 += area_m2
-        if is_in_exclusion[i]:
-            counts["tank_silo"] += 1
-            type_filter_excluded_m2 += area_m2
-            classifications.append((i, area_m2, 0.0))
-            continue
-        if is_residential[i]:
-            counts["residential"] += 1
-            type_filter_excluded_m2 += area_m2
-            classifications.append((i, area_m2, 0.0))
-            continue
-        cls = classify_building(b.geometry, area_m2)
-        counts[cls.category] += 1
-        classifications.append((i, area_m2, cls.usability_multiplier))
-        if cls.usability_multiplier > 0:
-            suitable.append((i, area_m2))
-        else:
-            type_filter_excluded_m2 += area_m2
-
-    # Pass 2: factory-anchor cluster filter on suitable buildings.
-    isolated_idx_set: set[int] = set()
-    if suitable:
-        suitable_idxs, suitable_area_arr = zip(*suitable, strict=False)
-        suitable_geoms = [site_buildings_proj.geometry.iloc[i] for i in suitable_idxs]
-        suitable_areas_np = np.asarray(suitable_area_arr, dtype=float)
-        is_isolated_arr = detect_isolated_suitable_clusters(suitable_geoms, suitable_areas_np)
-        for k, idx in enumerate(suitable_idxs):
-            if is_isolated_arr[k]:
-                isolated_idx_set.add(idx)
-
-    # Pass 3: tally final outputs, skipping isolated-cluster buildings.
     total_kw_dc = 0.0
     usable_roof_area_m2 = 0.0
-    isolated_cluster_count = 0
-    for idx, area_m2, multiplier in classifications:
-        if multiplier <= 0:
-            continue
-        if idx in isolated_idx_set:
-            isolated_cluster_count += 1
-            type_filter_excluded_m2 += area_m2
-            continue
-        kw_dc = rooftop_kw_dc(area_m2, multiplier)
-        total_kw_dc += kw_dc
-        usable_roof_area_m2 += area_m2 * multiplier
 
-    # Adjust counts: isolated buildings shift OUT of standard_roof/elongated/etc.
-    # into isolated_cluster. We don't know the original category split here,
-    # so we keep the per-category counts unchanged — they reflect what the
-    # CLASSIFIER thought — and add isolated_cluster as a separate signal of
-    # "passed classifier but lacked a factory anchor."
-    counts["isolated_cluster"] = isolated_cluster_count
+    # Count by classifier_category (pre-Pass-2 view) — preserves pre-refactor
+    # semantics where a building that flipped to isolated_cluster ALSO
+    # incremented its classifier bucket (e.g., standard_roof count includes
+    # the isolated row). isolated_cluster is counted separately as the
+    # Pass-2 signal. building_count_total subtracts isolated to avoid the
+    # double-count.
+    for d in dispositions:
+        total_footprint_m2 += d.area_m2
+        counts[d.classifier_category] += 1
+        if d.category == "isolated_cluster":
+            counts["isolated_cluster"] += 1
+            type_filter_excluded_m2 += d.area_m2
+        elif d.usability_multiplier <= 0:
+            type_filter_excluded_m2 += d.area_m2
+        else:
+            total_kw_dc += rooftop_kw_dc(d.area_m2, d.usability_multiplier)
+            usable_roof_area_m2 += d.usable_roof_area_m2
 
     return {
         "rooftop_kw_dc": round(total_kw_dc, 2),
@@ -785,6 +988,23 @@ def aggregate_site_buildings(
         + counts["complex"]
         + counts["possibly_round"],
     }
+
+
+def serialize_buildings_for_api(dispositions: list[BuildingDisposition]) -> list[dict]:
+    """Format per-row dispositions for the /api/site/{site_id}/rooftop-breakdown
+    response. Round numeric fields for stable JSON output.
+    """
+    return [
+        {
+            "building_id": d.building_id,
+            "area_m2": round(d.area_m2, 2),
+            "footprint_class": d.category,
+            "exclusion_reason": d.exclusion_reason,
+            "usability_multiplier": d.usability_multiplier,
+            "buildable_roof_area_m2": round(d.usable_roof_area_m2, 2),
+        }
+        for d in dispositions
+    ]
 
 
 def build_fct_site_solar_potential(
