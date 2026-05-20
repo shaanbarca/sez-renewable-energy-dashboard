@@ -1,9 +1,42 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-05-12 (v4.0.5 buildability hard/soft split shipped via PR #44 — 12 commits including the 2-commit A2 fix that closed the silent-zero bug on 21 polygon-missing sites; previously on 2026-05-07: prod OOM fixed via Tier 1A per-site parquet filter, Docker image slimmed 24 GB → ~1 GB, v4.0 scorecard baseline locked, refinement spec docs tracked + eng-reviewed + codex-reviewed; v4.1 split into v4.1a + v4.1b per /plan-eng-review decision; auth gate temporarily disabled at user direction).
+Last updated: 2026-05-20 (v4.1 rooftop arc — modal + UX polish — shipped via PR #83 + #84, both merged to `private/main` and auto-deployed to Render; sits on top of PR #81's tier-3 polygon hunt + IEA cost stack UI from 2026-05-18; previously on 2026-05-12: v4.0.5 buildability hard/soft split shipped via PR #44; v4.1a foundation (#65–#72) all closed via PRs #74/#75 etc; v4.1b is the next foundation phase per `docs/refinement/dashboard_roadmap_v4_v5.md` §5.1).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
+
+---
+
+## Today's deltas (2026-05-20)
+
+Three PRs merged to `private/main` since the last entry, all v4.1 UX-forward work landing on top of the v4.1a foundation:
+
+| PR | Commit | What |
+|---|---|---|
+| **#81** (2026-05-18) | `ff10a92` | Tier-3 polygon hunt for Buli Industrial Park (Nusantara + Inalum still pending) + IEA-aligned 4-tier LCOE cost stack UI (`IEACostStackWaterfall.tsx`) + per-tier filter chips + tabbed `LcoeWaterfallModal`. ~2k LOC. Follow-ups filed: #78 (URL persistence for filter chips, v4.2), #79 (LCOS decomposition, v4.2), #80 (range filter slider, v4.2). |
+| **#83** (2026-05-20) | `fe83354` | Per-site rooftop breakdown modal (#82) — new endpoint `GET /api/site/{site_id}/rooftop-breakdown`, refactor of `aggregate_site_buildings()` into byte-identical two-mode helper, new `<RooftopBreakdownModal>` in Score Drawer Renewable Resource tab. **Closes #82.** Unblocks #62 audit (rooftop detection accuracy) — modal is the audit's primary tool. |
+| **#84** (2026-05-20) | `a70ac6c` | Rooftop pill hover popups + readability polish — new `<Pill>` component in `StatComponents.tsx` with immediate styled hover popups replacing slow browser-native `title=` tooltips on CONFIDENCE / POLYGON pills (Score Drawer + bottom Rooftop table). Bigger discoverable "View buildings" button under "Rooftop MWp" (the 10px underline in #83 was unfindable). `--text-muted` → `--text-secondary` throughout `AssumptionsPanel.tsx` for readability. |
+
+**Issues closed:** #82 (rooftop breakdown modal — via PR #83).
+
+**Issues opened/updated:**
+- **#82** (NEW, then closed) — surfaced 2026-05-18 after PR #81, scoped via /plan-eng-review 2026-05-19 (6 locked decisions: two-mode refactor, exclusion_reason field, "Footprint class" header, split #82 ships first, full test coverage, lazy lru_cache).
+- **#62** (UPDATED 2026-05-20) — rewrote body to Rich template, reflected merged #82/#83 as primary tool, confirmed cohort = 12 sites (4 `no_buildings_detected` + 8 `polygon_imagery_gap`). Ready to audit; tool exists.
+
+**Still open in v4.1 (not blocking v4.1b):**
+- **#62** — rooftop detection accuracy audit. Tool ready, ~2.5 hr of work to ship the `docs/refinement/rooftop_audit_<date>.md`.
+- **#50** — tier-3 polygons. Buli done in #81; Nusantara + Inalum still pending. ~1-2 hr.
+- **#41** — KEK coarse-raster optimism. Low-medium priority; option-C disclaim is ~30 min.
+
+**Methodology debt surfaced during #83:**
+- The `tank_silo` aggregate bucket overloads OSM-tagged exclusions + geometric tank/silo shapes. PR #83 disambiguates at the API layer (new `exclusion_reason` field, 10 values) but the pipeline's `fct_site_solar_potential.csv` schema still collapses both into `building_count_tank_silo`. Splitting at the schema level is v4.2 work (would touch the CSV header).
+
+**Follow-ups filed:**
+- **#85** (NEW, 2026-05-20) — v4.2: set up Playwright E2E infra + first test for the rooftop breakdown modal. Locked test decision 3A from /plan-eng-review 2026-05-19 called for Playwright E2E; codebase had no Playwright config so PR #83 substituted vitest + @testing-library/react. Issue captures the missing infrastructure work so the decision doesn't disappear into PR review history.
+
+**Polygon provenance distribution now:** `official_kek=25, osm_landuse_industrial=19, claude_building_hull_estimate=19 (was 18, +Buli), none=18 (was 19, -Buli)`.
+
+**Test suite:** **1084 backend + 43 frontend = 1127 passing** (was 1077 backend / 36 frontend pre-#83). New: `tests/test_aggregate_site_buildings.py` (10 cases — 1 real-data 81-site golden + 9 synthetic branches), `tests/test_rooftop_breakdown_endpoint.py` (7 cases incl. reconciliation contract on 3 sites), `tests/regen_aggregate_site_buildings_golden.py` (golden regen helper), `frontend/src/components/panels/scoredrawer/__tests__/RooftopBreakdownModal.test.tsx` (7 cases).
 
 ---
 
