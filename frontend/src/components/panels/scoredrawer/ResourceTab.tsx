@@ -5,7 +5,7 @@ import { useDashboardStore } from '../../../store/dashboard';
 import LcoeCurveChart from '../../charts/LcoeCurveChart';
 import Slider from '../../ui/Slider';
 import { RooftopBreakdownModal } from './RooftopBreakdownModal';
-import { SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
+import { Pill, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 export function ResourceTab({ row }: { row: ScorecardRow }) {
   const [rooftopModalOpen, setRooftopModalOpen] = useState(false);
@@ -242,16 +242,21 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                 unit="MWp DC"
                 tip={`§14 classifier × ${(rooftopDensity * 100).toFixed(0)}% layout density × panel power. Computed client-side for instant slider feedback; server recomputes for the Ranked Table. Includes standard + soft-derated rooftops.`}
               />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setRooftopModalOpen(true)}
-                  className="text-[10px] underline text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                  title="See every building detected on this site, with its footprint class + exclusion reason"
-                >
-                  View buildings
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setRooftopModalOpen(true)}
+                className="mt-1 mb-1 w-full text-[11px] py-1.5 px-2 rounded border border-white/15 bg-white/[0.03] hover:bg-white/10 hover:border-white/30 transition-colors cursor-pointer flex items-center justify-between"
+                style={{ color: 'var(--text-value)' }}
+                title="Open the building-by-building breakdown — footprint class, exclusion reason, downloadable CSV"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span style={{ color: 'var(--text-muted)' }}>🏢</span>
+                  <span>View building-by-building breakdown</span>
+                </span>
+                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                  →
+                </span>
+              </button>
               <StatRow
                 label="Standard rooftops"
                 value={
@@ -274,12 +279,30 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                 />
               )}
               {row.building_data_confidence && (
-                <StatRowWithTip
-                  label="Data confidence"
-                  value={row.building_data_confidence}
-                  unit=""
-                  tip={`Derived from building count + footprint ratio + imagery vintage. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`}
-                />
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    Data confidence
+                  </span>
+                  {(() => {
+                    const c = row.building_data_confidence;
+                    const meta = {
+                      high: {
+                        color: '#22c55e',
+                        tip: `High confidence — building count, footprint ratio, and imagery vintage all check out. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`,
+                      },
+                      medium: {
+                        color: '#f59e0b',
+                        tip: `Medium confidence — one of {building count, footprint ratio, imagery vintage} is borderline. Numbers are usable but spot-check on satellite imagery before quoting. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`,
+                      },
+                      low: {
+                        color: '#ef4444',
+                        tip: `Low confidence — significant signal that buildings are undercounted (zero detections, polygon predates imagery, capacity vs footprint mismatch). See building_data_reason_flagged and the #62 rooftop audit. Source: ${row.building_data_source ?? 'gob_v3'} (vintage ${row.building_data_vintage ?? '2023-05'}).`,
+                      },
+                    }[c];
+                    if (!meta) return null;
+                    return <Pill label={c} color={meta.color} tip={meta.tip} />;
+                  })()}
+                </div>
               )}
             </>
           ) : (
@@ -410,32 +433,43 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
           )}
 
           {row.polygon_source_tier && (
-            <StatRowWithTip
-              label="Polygon source"
-              value={
-                {
-                  manual_override: 'Manual (human-verified)',
-                  official_kek: 'Official KEK',
-                  osm_landuse_industrial: 'OSM',
-                  claude_building_hull_estimate: 'Estimated',
-                  none: 'No polygon',
-                }[row.polygon_source_tier]
-              }
-              unit=""
-              tip={
-                {
-                  manual_override:
-                    'Polygon hand-drawn in the admin-mode polygon editor against satellite imagery and committed to git. A human verified this fence and chose to override the auto-generated source. Highest trust.',
-                  official_kek:
-                    'Government-published KEK boundary from the Indonesian OSS portal. High trust.',
-                  osm_landuse_industrial:
-                    'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued.',
-                  claude_building_hull_estimate:
-                    'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
-                  none: 'No fence-line polygon yet. Both rooftop and ground-mounted estimates use a 2 km centroid buffer, which can over-count adjacent factories and land. Treat as low-trust; verify visually or hunt a real polygon.',
-                }[row.polygon_source_tier]
-              }
-            />
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Polygon source
+              </span>
+              {(() => {
+                const tier = row.polygon_source_tier;
+                const meta = {
+                  manual_override: {
+                    label: 'Manual',
+                    color: '#10b981',
+                    tip: 'Polygon hand-drawn in the admin-mode polygon editor against satellite imagery and committed to git. A human verified this fence and chose to override the auto-generated source. Highest trust.',
+                  },
+                  official_kek: {
+                    label: 'Official KEK',
+                    color: '#22c55e',
+                    tip: 'Government-published KEK boundary from the Indonesian OSS portal. High trust.',
+                  },
+                  osm_landuse_industrial: {
+                    label: 'OSM',
+                    color: '#3b82f6',
+                    tip: 'OpenStreetMap landuse=industrial polygon. Community-verified, not government-issued. Medium trust.',
+                  },
+                  claude_building_hull_estimate: {
+                    label: 'Estimated',
+                    color: '#f59e0b',
+                    tip: 'Estimated fence boundary — Claude unioned the largest detected buildings inside the catchment. Conservative rooftop number, but the polygon itself has not been independently verified. Treat as an estimate.',
+                  },
+                  none: {
+                    label: 'No polygon',
+                    color: '#ef4444',
+                    tip: 'No fence-line polygon yet. Both rooftop and ground-mounted estimates use a 2 km centroid buffer, which can over-count adjacent factories and land. Treat as low-trust; verify visually or hunt a real polygon.',
+                  },
+                }[tier];
+                if (!meta) return null;
+                return <Pill label={meta.label} color={meta.color} tip={meta.tip} />;
+              })()}
+            </div>
           )}
         </StatCard>
       )}

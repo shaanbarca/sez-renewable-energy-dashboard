@@ -49,7 +49,7 @@ function SummaryBlock() {
         >
           <div
             className="text-[9px] uppercase tracking-wider"
-            style={{ color: 'var(--text-muted)' }}
+            style={{ color: 'var(--text-secondary)' }}
           >
             {item.label}
           </div>
@@ -187,7 +187,7 @@ function BenchmarkToggle() {
     <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
       <div
         className="text-[10px] uppercase tracking-wider mb-1.5"
-        style={{ color: 'var(--text-muted)' }}
+        style={{ color: 'var(--text-secondary)' }}
       >
         Grid Cost Benchmark
       </div>
@@ -200,7 +200,7 @@ function BenchmarkToggle() {
             style={
               benchmarkMode === opt.value
                 ? { background: 'var(--accent-muted)', color: 'var(--accent)' }
-                : { color: 'var(--text-muted)' }
+                : { color: 'var(--text-secondary)' }
             }
           >
             {opt.label}
@@ -217,7 +217,7 @@ function AccordionTrigger({ children }: { children: React.ReactNode }) {
   return (
     <Accordion.Trigger
       className="flex items-center justify-between w-full py-1.5 text-[10px] uppercase tracking-wider transition-colors group"
-      style={{ color: 'var(--text-muted)' }}
+      style={{ color: 'var(--text-secondary)' }}
     >
       <span>{children}</span>
       <ChevronDown className="transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -345,7 +345,7 @@ export default function AssumptionsPanel() {
             <div className="flex items-center justify-between mb-1.5">
               <div
                 className="text-[10px] uppercase tracking-wider"
-                style={{ color: 'var(--text-muted)' }}
+                style={{ color: 'var(--text-secondary)' }}
               >
                 Target Build Size
               </div>
@@ -379,7 +379,7 @@ export default function AssumptionsPanel() {
                 description="Target project capacity. Each site uses min(target, max buildable)."
               />
             ) : (
-              <div className="text-[10px] py-1" style={{ color: 'var(--text-muted)' }}>
+              <div className="text-[10px] py-1" style={{ color: 'var(--text-secondary)' }}>
                 Using max buildable capacity per site
               </div>
             )}
@@ -391,7 +391,7 @@ export default function AssumptionsPanel() {
               <div className="flex items-center justify-between mb-1.5">
                 <div
                   className="text-[10px] uppercase tracking-wider"
-                  style={{ color: 'var(--text-muted)' }}
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   Hybrid Solar Share
                 </div>
@@ -426,7 +426,7 @@ export default function AssumptionsPanel() {
                   marks={{ '0': '0% (wind)', '50': '50/50', '100': '100% (solar)' }}
                 />
               ) : (
-                <div className="text-[10px] py-1" style={{ color: 'var(--text-muted)' }}>
+                <div className="text-[10px] py-1" style={{ color: 'var(--text-secondary)' }}>
                   Auto-optimizing mix per site (lowest all-in cost)
                 </div>
               )}
@@ -457,7 +457,7 @@ export default function AssumptionsPanel() {
                 <label
                   className="flex items-center gap-2 text-[10px] px-1 py-1.5 mt-1 mb-1 rounded cursor-pointer"
                   style={{
-                    color: assumptions.grant_funded_transmission ? '#4CAF50' : 'var(--text-muted)',
+                    color: assumptions.grant_funded_transmission ? '#4CAF50' : 'var(--text-secondary)',
                     background: assumptions.grant_funded_transmission
                       ? 'rgba(76,175,80,0.10)'
                       : 'transparent',
@@ -479,7 +479,7 @@ export default function AssumptionsPanel() {
                   DFI grant covers grid connection
                   <span
                     className="ml-auto text-[9px]"
-                    style={{ color: 'var(--text-muted)' }}
+                    style={{ color: 'var(--text-secondary)' }}
                     title="Models a scenario where a DFI (e.g. UK MENTARI) funds gen-tie, transmission, and substation costs. Sets all grid connection costs to $0."
                   >
                     ?
@@ -506,7 +506,7 @@ export default function AssumptionsPanel() {
                 <Accordion.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
                   <div
                     className="text-[10px] uppercase tracking-wider mt-2 mb-2"
-                    style={{ color: 'var(--text-muted)' }}
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     Rooftop
                   </div>
@@ -547,7 +547,7 @@ export default function AssumptionsPanel() {
                   />
                   <div
                     className="text-[10px] uppercase tracking-wider mt-4 mb-2"
-                    style={{ color: 'var(--text-muted)' }}
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     Ground-mounted
                   </div>

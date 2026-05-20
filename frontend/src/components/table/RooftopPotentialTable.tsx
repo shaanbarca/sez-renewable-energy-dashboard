@@ -12,6 +12,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ScorecardRow } from '../../lib/types';
 import { useDashboardStore } from '../../store/dashboard';
+import { Pill } from '../panels/scoredrawer/StatComponents';
 
 /** CSV cell escape — wraps values containing commas/quotes in double quotes. */
 function csvCell(val: unknown): string {
@@ -105,10 +106,25 @@ type SortDir = 'asc' | 'desc';
 
 const CONFIDENCE_ORDER = { high: 3, medium: 2, low: 1 } as const;
 
-const CONFIDENCE_BADGE_COLORS: Record<string, { bg: string; fg: string }> = {
-  high: { bg: 'rgba(76, 175, 80, 0.18)', fg: '#81c784' },
-  medium: { bg: 'rgba(255, 152, 0, 0.16)', fg: '#ffb74d' },
-  low: { bg: 'rgba(244, 67, 54, 0.16)', fg: '#e57373' },
+const CONFIDENCE_BADGE_COLORS: Record<string, { bg: string; fg: string; tooltip: string }> = {
+  high: {
+    bg: 'rgba(76, 175, 80, 0.18)',
+    fg: '#81c784',
+    tooltip:
+      'High confidence — building count, footprint ratio, and imagery vintage all check out. Numbers are usable as-is.',
+  },
+  medium: {
+    bg: 'rgba(255, 152, 0, 0.16)',
+    fg: '#ffb74d',
+    tooltip:
+      'Medium confidence — one of {building count, footprint ratio, imagery vintage} is borderline. Numbers are usable but spot-check on satellite imagery before quoting.',
+  },
+  low: {
+    bg: 'rgba(244, 67, 54, 0.16)',
+    fg: '#e57373',
+    tooltip:
+      'Low confidence — significant signal that buildings are undercounted (zero detections, polygon predates imagery, capacity vs footprint mismatch). See #62 rooftop audit and the reason_flagged value for the specific cause.',
+  },
 };
 
 const FORMAT_NUMBER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -743,46 +759,34 @@ export default function RooftopPotentialTable() {
                     {formatHa(row.usable_roof_area_m2)}
                   </td>
                   <td style={{ padding: '6px 12px' }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '2px 8px',
-                        borderRadius: 4,
-                        background: badge.bg,
-                        color: badge.fg,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                      }}
-                      title={
-                        row.building_data_reason_flagged ?? 'F4 confidence flag from §14 classifier'
+                    <Pill
+                      label={conf}
+                      bg={badge.bg}
+                      fg={badge.fg}
+                      tip={
+                        row.building_data_reason_flagged
+                          ? `${badge.tooltip} Reason flagged: ${row.building_data_reason_flagged.replace(/_/g, ' ')}.`
+                          : badge.tooltip
                       }
-                    >
-                      {conf}
-                    </span>
+                      rounded="sm"
+                      textTransform="uppercase"
+                      align="left"
+                    />
                   </td>
                   {(() => {
                     const tier = row.polygon_source_tier ?? 'none';
                     const polyBadge = POLYGON_TIER_BADGE[tier] ?? POLYGON_TIER_BADGE.none;
                     return (
                       <td style={{ padding: '6px 12px' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            background: polyBadge.bg,
-                            color: polyBadge.fg,
-                            fontSize: 10,
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                          }}
-                          title={polyBadge.tooltip}
-                        >
-                          {polyBadge.label}
-                        </span>
+                        <Pill
+                          label={polyBadge.label}
+                          bg={polyBadge.bg}
+                          fg={polyBadge.fg}
+                          tip={polyBadge.tooltip}
+                          rounded="sm"
+                          textTransform="uppercase"
+                          align="left"
+                        />
                       </td>
                     );
                   })()}

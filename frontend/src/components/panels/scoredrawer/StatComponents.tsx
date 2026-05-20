@@ -83,13 +83,92 @@ export function StatRowWithTip({
         </span>
       </span>
       <span
-        className="text-[12px] font-medium tabular-nums inline-flex items-center"
+        className="text-[12px] font-medium tabular-nums inline-flex items-center cursor-help"
         style={{ color: 'var(--text-value)' }}
+        title={tip}
       >
         {display}
         {trailing}
       </span>
     </div>
+  );
+}
+
+/**
+ * Pill — small colored chip with a styled hover popup. Use for categorical
+ * values where the label alone doesn't tell the reader what it means (OSM,
+ * Estimated, No polygon, low confidence, etc.).
+ *
+ * The popup is anchored to the right edge of the pill so it stays within the
+ * drawer width when the pill sits on the right side of a row.
+ */
+export function Pill({
+  label,
+  color,
+  bg,
+  fg,
+  borderColor,
+  tip,
+  align = 'right',
+  rounded = 'full',
+  textTransform,
+}: {
+  label: string;
+  /** Single accent color — derives bg/border from it. Mutually exclusive with bg/fg. */
+  color?: string;
+  /** Explicit background (overrides color). Use for legacy palettes already
+   *  in the codebase (e.g. RooftopPotentialTable's rgba-based badges). */
+  bg?: string;
+  /** Explicit text color (overrides color). */
+  fg?: string;
+  /** Optional explicit border color. Falls back to `${color}55` when color is set. */
+  borderColor?: string;
+  tip: string;
+  /** Side of the pill the popup is anchored to. */
+  align?: 'left' | 'right';
+  /** Pill shape — 'full' for tag/chip look, 'sm' for table-cell look. */
+  rounded?: 'full' | 'sm';
+  /** Optional text-transform — e.g. 'uppercase' for table-cell tags. */
+  textTransform?: 'uppercase' | 'capitalize' | 'none';
+}) {
+  const [showTip, setShowTip] = useState(false);
+  const resolvedBg = bg ?? (color ? `${color}22` : 'transparent');
+  const resolvedFg = fg ?? color ?? 'inherit';
+  const resolvedBorder = borderColor ?? (color ? `${color}55` : 'transparent');
+  return (
+    <span
+      className="relative inline-flex items-center"
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}
+    >
+      <span
+        className={`text-[10px] font-medium px-1.5 py-0.5 cursor-help ${rounded === 'full' ? 'rounded-full' : 'rounded'}`}
+        style={{
+          backgroundColor: resolvedBg,
+          color: resolvedFg,
+          border: `1px solid ${resolvedBorder}`,
+          textTransform,
+          letterSpacing: textTransform === 'uppercase' ? '0.04em' : undefined,
+          fontWeight: textTransform === 'uppercase' ? 600 : 500,
+        }}
+      >
+        {label}
+      </span>
+      {showTip && (
+        <span
+          className="absolute top-full mt-1 z-30 px-2.5 py-1.5 rounded text-[10px] leading-snug whitespace-normal w-56"
+          style={{
+            background: 'var(--popup-bg)',
+            color: 'var(--text-value)',
+            border: '1px solid var(--popup-border)',
+            boxShadow: 'var(--popup-shadow)',
+            ...(align === 'right' ? { right: 0 } : { left: 0 }),
+          }}
+        >
+          {tip}
+        </span>
+      )}
+    </span>
   );
 }
 
