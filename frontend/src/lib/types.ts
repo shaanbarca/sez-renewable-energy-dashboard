@@ -505,3 +505,58 @@ export interface SavedScenario {
   benchmarkMode: BenchmarkMode;
   createdAt: string;
 }
+
+// ─── Rooftop breakdown (#82) ─────────────────────────────────────────────
+//
+// Per-building data exposed by /api/site/{site_id}/rooftop-breakdown.
+// Powers the Score Drawer "View buildings" modal. footprint_class is the
+// final post-cascade category (9 values); exclusion_reason explains WHY
+// a building contributes 0 m² of usable roof area (10 values + 'none').
+
+export type RooftopFootprintClass =
+  | 'standard_roof'
+  | 'elongated'
+  | 'possibly_round'
+  | 'complex'
+  | 'tank_silo'
+  | 'conveyor'
+  | 'too_small'
+  | 'residential'
+  | 'isolated_cluster';
+
+export type RooftopExclusionReason =
+  | 'none'
+  | 'osm_tank'
+  | 'osm_basin'
+  | 'osm_water'
+  | 'geometric_tank_silo'
+  | 'geometric_complex'
+  | 'geometric_round'
+  | 'geometric_too_small'
+  | 'residential_cluster'
+  | 'isolated_cluster';
+
+export interface RooftopBreakdownBuilding {
+  building_id: string;
+  area_m2: number;
+  footprint_class: RooftopFootprintClass;
+  exclusion_reason: RooftopExclusionReason;
+  usability_multiplier: number;
+  buildable_roof_area_m2: number;
+}
+
+export interface RooftopBreakdownTotals {
+  building_count: number;
+  total_footprint_m2: number;
+  usable_roof_area_m2: number;
+}
+
+export interface RooftopBreakdownResponse {
+  site_id: string;
+  site_name: string;
+  estate_area_m2: number | null;
+  building_data_confidence: string | null;
+  building_data_reason_flagged: string | null;
+  buildings: RooftopBreakdownBuilding[];
+  totals: RooftopBreakdownTotals;
+}

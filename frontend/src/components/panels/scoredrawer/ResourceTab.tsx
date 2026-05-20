@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { capitalize } from '../../../lib/format';
 import type { ScorecardRow, UserAssumptions } from '../../../lib/types';
 import { useDashboardStore } from '../../../store/dashboard';
 import LcoeCurveChart from '../../charts/LcoeCurveChart';
 import Slider from '../../ui/Slider';
+import { RooftopBreakdownModal } from './RooftopBreakdownModal';
 import { SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 export function ResourceTab({ row }: { row: ScorecardRow }) {
+  const [rooftopModalOpen, setRooftopModalOpen] = useState(false);
   const energyMode = useDashboardStore((s) => s.energyMode);
   const assumptions = useDashboardStore((s) => s.assumptions);
   const setAssumptions = useDashboardStore((s) => s.setAssumptions);
@@ -239,6 +242,16 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                 unit="MWp DC"
                 tip={`§14 classifier × ${(rooftopDensity * 100).toFixed(0)}% layout density × panel power. Computed client-side for instant slider feedback; server recomputes for the Ranked Table. Includes standard + soft-derated rooftops.`}
               />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setRooftopModalOpen(true)}
+                  className="text-[10px] underline text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  title="See every building detected on this site, with its footprint class + exclusion reason"
+                >
+                  View buildings
+                </button>
+              </div>
               <StatRow
                 label="Standard rooftops"
                 value={
@@ -504,6 +517,12 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
       {row.regional_groundmount_potential_mwp_50km != null &&
         row.regional_groundmount_potential_mwp_50km > 0 &&
         showSolar && <LcoeCurveChart row={row} />}
+
+      <RooftopBreakdownModal
+        open={rooftopModalOpen}
+        onClose={() => setRooftopModalOpen(false)}
+        siteId={row.site_id}
+      />
     </>
   );
 }

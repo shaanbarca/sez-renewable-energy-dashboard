@@ -287,6 +287,196 @@ def get_site_rooftop_tiles(site_id: str):
     return Response(content=gdf.to_json(), media_type="application/json")
 
 
+# ─── Per-site rooftop breakdown (#82) ───────────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def _get_exclusion_polys_cached() -> gpd.GeoDataFrame | None:
+    """One-time load of the OSM exclusion polygons GeoJSON (~1224 features).
+
+    Read once on first request; reused for every subsequent rooftop-breakdown
+    call. Module-level cache keyed on the import path — no per-site key.
+    """
+    from src.pipeline.build_fct_site_solar_potential import (  # noqa: PLC0415
+        _load_exclusion_polygons,
+    )
+
+    return _load_exclusion_polygons()
+
+
+@lru_cache(maxsize=1)
+def _get_site_polygons_cached():
+    """One-time load of the unioned KEK + industrial site polygons."""
+    from src.pipeline.build_fct_site_solar_potential import (  # noqa: PLC0415
+        _load_site_polygons,
+    )
+
+    return _load_site_polygons()
+
+
+@lru_cache(maxsize=128)
+def _load_site_buildings_pipeline_view(site_id: str) -> gpd.GeoDataFrame | None:
+    """Per-site buildings matching the pipeline's load_buildings_for_pipeline output.
+
+    Applies the same MS GMLBF merge + polygon clipping that
+    `build_fct_site_solar_potential.py` runs, so the modal's totals
+    reconcile exactly with `fct_site_solar_potential.csv`. Per-site
+    filter pushdown keeps memory well under the Tier 1A OOM budget
+    (max ~10 MB per cache entry vs. ~400 MB for the full parquet).
+    """
+    from src.assumptions import MS_DEDUP_IOU_THRESHOLD  # noqa: PLC0415
+    from src.pipeline.build_fct_site_solar_potential import (  # noqa: PLC0415
+        DEFAULT_MS_BUILDINGS_PARQUET,
+        _clip_buildings_to_site_polygons,
+        merge_sources,
+    )
+
+    primary = _load_site_buildings(site_id)
+    if primary is None:
+        return None
+    # _load_site_buildings strips site_id from columns; re-add for the
+    # clip + merge helpers which key on it.
+    primary = primary.copy()
+    primary["site_id"] = site_id
+
+    # MS GMLBF merge — per-site filter pushdown for memory parity with
+    # the GoB loader. Identical IoU threshold to the pipeline.
+    if DEFAULT_MS_BUILDINGS_PARQUET.exists():
+        try:
+            secondary = gpd.read_parquet(
+                DEFAULT_MS_BUILDINGS_PARQUET,
+                filters=[("site_id", "==", site_id)],
+            )
+            if not secondary.empty:
+                primary = merge_sources(primary, secondary, iou_threshold=MS_DEDUP_IOU_THRESHOLD)
+        except (OSError, ValueError):
+            # MS parquet missing or schema drift — pipeline path also
+            # tolerates this, so we degrade gracefully too.
+            pass
+
+    # Polygon clip — drops buildings whose centroid is outside the
+    # fence boundary. Matches _clip_buildings_to_site_polygons output.
+    site_polys = _get_site_polygons_cached()
+    if site_polys is not None and not site_polys.empty:
+        only_this_site = site_polys[site_polys["site_id"] == site_id]
+        if not only_this_site.empty:
+            primary = _clip_buildings_to_site_polygons(primary, only_this_site)
+
+    return primary if not primary.empty else None
+
+
+@lru_cache(maxsize=128)
+def _compute_site_rooftop_breakdown(site_id: str) -> dict | None:
+    """Run the 3-pass cascade for one site and return a JSON-ready breakdown.
+
+    Returns None when the site has no buildings (zero-building cohort —
+    typically tourism KEKs or post-2023 sites). Caller composes the final
+    response with site name + estate area + confidence flag from dim_sites.
+
+    Buildings come from `_load_site_buildings_pipeline_view` so totals
+    reconcile with `fct_site_solar_potential.csv` (the audit's contract).
+
+    Cached per site; cache size 128 covers the 81-site catalog with headroom
+    for repeat clicks during a session. Classifier + cluster passes are
+    ~100-300ms on cold call, ~1ms warm.
+    """
+    from src.pipeline.build_fct_site_solar_potential import (  # noqa: PLC0415
+        PROJECTED_CRS,
+        _classify_site_buildings_with_dispositions,
+        serialize_buildings_for_api,
+    )
+
+    gdf = _load_site_buildings_pipeline_view(site_id)
+    if gdf is None or gdf.empty:
+        return None
+    gdf_proj = gdf.to_crs(PROJECTED_CRS)
+    exclusion_polys = _get_exclusion_polys_cached()
+    dispositions = _classify_site_buildings_with_dispositions(
+        gdf_proj,
+        site_id=site_id,
+        exclusion_polys=exclusion_polys,
+    )
+    return {
+        "buildings": serialize_buildings_for_api(dispositions),
+        "totals": {
+            "building_count": len(dispositions),
+            "total_footprint_m2": round(sum(d.area_m2 for d in dispositions), 2),
+            "usable_roof_area_m2": round(sum(d.usable_roof_area_m2 for d in dispositions), 2),
+        },
+    }
+
+
+@router.get("/site/{site_id}/rooftop-breakdown")
+def get_site_rooftop_breakdown(site_id: str):
+    """Per-building rooftop breakdown for the Score Drawer "View buildings" modal.
+
+    One row per building detected in the site's 2 km buffer, with the final
+    post-cascade footprint class + exclusion reason. Powers the #82 validation
+    surface used by the #62 rooftop detection accuracy audit.
+
+    Response shape:
+        {
+          site_id, site_name, estate_area_m2,
+          building_data_confidence, building_data_reason_flagged,
+          buildings: [
+            {building_id, area_m2, footprint_class, exclusion_reason,
+             usability_multiplier, buildable_roof_area_m2},
+            ...
+          ],
+          totals: {building_count, total_footprint_m2, usable_roof_area_m2}
+        }
+    """
+    from src.api.main import tables  # noqa: PLC0415 — avoid circular import (main ← routes)
+
+    dim_sites = tables.get("dim_sites")
+    solar = tables.get("fct_site_solar_potential")
+    if dim_sites is None:
+        raise HTTPException(status_code=503, detail="dim_sites not loaded")
+
+    site_row = dim_sites[dim_sites["site_id"] == site_id]
+    if site_row.empty:
+        raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
+    site_row = site_row.iloc[0]
+
+    area_ha = site_row.get("area_ha")
+    estate_area_m2 = float(area_ha) * 10_000 if pd.notna(area_ha) else None
+
+    # Confidence + reason live on fct_site_solar_potential. Zero-building or
+    # missing-data sites still have a row there with the appropriate flag.
+    confidence: str | None = None
+    reason_flagged: str | None = None
+    if solar is not None:
+        srow = solar[solar["site_id"] == site_id]
+        if not srow.empty:
+            sr = srow.iloc[0]
+            c = sr.get("building_data_confidence")
+            r = sr.get("building_data_reason_flagged")
+            confidence = str(c) if pd.notna(c) else None
+            reason_flagged = str(r) if pd.notna(r) else None
+
+    breakdown = _compute_site_rooftop_breakdown(site_id)
+    if breakdown is None:
+        buildings: list = []
+        totals = {
+            "building_count": 0,
+            "total_footprint_m2": 0.0,
+            "usable_roof_area_m2": 0.0,
+        }
+    else:
+        buildings = breakdown["buildings"]
+        totals = breakdown["totals"]
+
+    return {
+        "site_id": site_id,
+        "site_name": str(site_row.get("site_name", site_id)),
+        "estate_area_m2": estate_area_m2,
+        "building_data_confidence": confidence,
+        "building_data_reason_flagged": reason_flagged,
+        "buildings": buildings,
+        "totals": totals,
+    }
+
+
 @router.get("/site/{site_id}/substations")
 def get_site_substations(site_id: str, radius_km: float = Query(default=50.0, ge=0)):
     """Return substations near a KEK, with nearest marked and top 3 costed."""
