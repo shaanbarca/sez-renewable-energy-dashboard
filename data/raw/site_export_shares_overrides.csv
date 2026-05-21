@@ -1,0 +1,15 @@
+site_id,market_id,share,source,last_updated
+indonesia-morowali-industrial-park-imip,china_stainless,0.50,"IMIP 2023 annual report p.45 (Tsingshan-controlled stainless supply chain)",2024-12-01
+indonesia-morowali-industrial-park-imip,battery_supply_chain_eu_oem,0.35,"IMIP 2023 annual report p.45",2024-12-01
+indonesia-morowali-industrial-park-imip,direct_eu_uk_us,0.15,"Bloomberg 2024-09 NPI export data",2024-09-15
+industrial-weda-bay-industrial-park-iwip,china_stainless,0.60,"IWIP / Tsingshan group disclosures; NPI dominant product mix",2024-12-01
+industrial-weda-bay-industrial-park-iwip,battery_supply_chain_eu_oem,0.25,"IWIP HPAL ramp-up serving battery OEMs (CATL / Brunp / GEM JVs)",2024-12-01
+industrial-weda-bay-industrial-park-iwip,direct_eu_uk_us,0.10,"Bloomberg 2024-09 NPI export data",2024-09-15
+industrial-weda-bay-industrial-park-iwip,korea_battery,0.05,"LG Energy Solution + POSCO offtake disclosures",2024-12-01
+virtue-dragon-nickel-industrial-park-vdnip,china_stainless,0.75,"VDNIP / Delong Nickel disclosures; NPI to China stainless dominant",2024-12-01
+virtue-dragon-nickel-industrial-park-vdnip,battery_supply_chain_eu_oem,0.15,"Limited HPAL battery-grade output",2024-12-01
+virtue-dragon-nickel-industrial-park-vdnip,direct_eu_uk_us,0.10,"BPS Comtrade nickel exports",2024-09-15
+krakatau-steel-cilegon,domestic_indonesia,0.55,"Krakatau Steel 2023 annual report — Indonesian construction + automotive demand dominant",2024-12-01
+krakatau-steel-cilegon,asean_regional,0.35,"Krakatau Steel 2023 annual report — Vietnam / Malaysia / Thailand exports",2024-12-01
+krakatau-steel-cilegon,direct_eu_uk_us,0.05,"Krakatau Steel 2023 annual report",2024-12-01
+krakatau-steel-cilegon,china_domestic,0.05,"Bloomberg 2024 Indonesian steel exports",2024-09-15

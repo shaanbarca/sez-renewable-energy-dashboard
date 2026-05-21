@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (v4.1b — destination-weighted CBAM datasets, #88)
+
+- **`EXPORT_MARKET_SHARES_BY_SUBSECTOR` + `CARBON_PRICE_BY_MARKET` constants in `src/assumptions.py`** per spec §3.3 + §3.5. Eight subsectors (nickel_npi, nickel_matte, steel_eaf, steel_bfbof, aluminium, cement, fertilizer, ammonia) × eight markets (china_stainless, battery_supply_chain_eu_oem, direct_eu_uk_us, korea_japan, korea_battery, china_domestic, asean_regional, domestic_indonesia) — replaces the v4.1 baseline single-EU-share assumption that treated China-bound Indonesian nickel (70% of flow) as zero-carbon. Carbon prices anchored at 2025/2030/2034 per spec §7.4 worked example (china_stainless 2025=$12/t, battery_oem 2025=$90/t, direct_eu 2025=$90/t).
+- **`data/raw/site_export_shares_overrides.csv`** with 4 priority site overrides (IMIP, IWIP, VDNIP, Krakatau Steel) per spec §3.4. Long format `(site_id, market_id, share, source, last_updated)`; remaining sites fall back to subsector defaults at consumer time. Loader in `src/dash/data_loader.py::load_export_shares_overrides()` validates shares sum to 1.0 per site.
+- **`PROCESS_TO_SUBSECTOR` mapping** bridges existing dashboard process codes (nickel_rkef, nickel_hpal) to spec product codes (nickel_npi, nickel_matte) without renaming the existing CBAM type column. Resolves the Codex-flagged naming mismatch surfaced during v4.1b /plan-eng-review 2026-05-21.
+- **16 schema + invariant tests** at `tests/test_cbam_datasets.py`: subsector share sum-to-1, no negative shares, market_id referential integrity, carbon-price monotonic non-decreasing, spec §7.4 anchor values, every market referenced by at least one subsector, process→subsector mapping completeness, override CSV schema + per-site sum-to-1 + market_id validation, loader graceful degradation when override CSV missing.
+
+**No consumer logic changes.** Sub-PR (d) (#90) consumes these datasets to compute the 9 new destination-weighted CBAM incumbent columns. No scorecard columns added in this PR.
+
 ### Changed (v4.1 — UX polish, PR #84)
 
 - **Rooftop breakdown modal entry made discoverable.** The "View buildings" link in the Score Drawer's Renewable Resource tab was previously a 10px right-aligned underline — users couldn't find it. Replaced with a full-width bordered button under "Rooftop MWp" with a 🏢 emoji and `→` affordance. Surfaced from PR #83's first user feedback: "Where is the modal? I don't see it."
