@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed (v4.1 — UX polish, PR #84)
+
+- **Rooftop breakdown modal entry made discoverable.** The "View buildings" link in the Score Drawer's Renewable Resource tab was previously a 10px right-aligned underline — users couldn't find it. Replaced with a full-width bordered button under "Rooftop MWp" with a 🏢 emoji and `→` affordance. Surfaced from PR #83's first user feedback: "Where is the modal? I don't see it."
+- **Styled hover popups on the CONFIDENCE / POLYGON pills** (bottom Rooftop table + Score Drawer Renewable Resource tab). Previously the browser-native `title=` tooltips fired with ~1s delay and rendered nearly invisible against the dark theme. New `<Pill>` component in `StatComponents.tsx` shows an immediate styled popup with the same look-and-feel as the existing `?` icon tooltip. Pill accepts either a single accent color (auto-derives bg + border) or explicit bg/fg pair (for legacy palettes already in the codebase). Wired into 4 call sites; the `LOW` confidence tooltip now also surfaces the site's specific `reason_flagged` value (e.g., "Reason flagged: no buildings detected").
+- **AssumptionsPanel readability bump.** Section headers (`TARGET BUILD SIZE`, `ADVANCED ASSUMPTIONS`, `CAPTIVE SOLAR`, `FLAG THRESHOLDS`, `GRID COST BENCHMARK`) and a handful of descriptions used `--text-muted` (`#666` in dark mode — borderline WCAG contrast against the glass panel background). Bumped `--text-muted` → `--text-secondary` (`#999`, 50% brighter) throughout `AssumptionsPanel.tsx`. Slider labels and numbers untouched (already bright). Light theme unaffected (`--text-secondary` is `#4b5563` there).
+
 ### Added (v4.1 — per-site rooftop breakdown modal, #82)
 
 - **"View buildings" modal in the Score Drawer (#82).** Energy economists and DFI investors clicking a site can now see every building detected on the site polygon — site name, estate area, footprint class, building area, buildable roof area, exclusion reason — with a "Download CSV" button. Validates the headline rooftop MWp number against satellite imagery without digging into pipeline intermediates. Unblocks the #62 rooftop detection accuracy audit by giving each flagged site a point-and-click disposition surface.
