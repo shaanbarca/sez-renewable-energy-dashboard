@@ -529,6 +529,82 @@ def hybrid_bess_hours(
     return bridge * (1.0 - coverage)
 
 
+def _format_hybrid_result(
+    *,
+    blended_lcoe: float | None,
+    bess_hours: float | None,
+    storage_adder: float | None,
+    all_in: float | None,
+    solar_share: float | None,
+    wind_share: float | None = None,
+    hydro_share: float | None = None,
+    supply_coverage_pct: float | None,
+    nighttime_coverage_pct: float | None,
+) -> dict[str, float | None]:
+    """Format a hybrid optimizer result with both v4.1a legacy column names AND
+    the v4.1b IEA-aligned names per spec §6A.5.
+
+    Legacy names are kept as one-release deprecation aliases (mirror of the
+    v4.1a #66 IEA rename pattern); removed in v4.2.
+
+    Wind share defaults to ``1 - solar_share`` when omitted (2-way callers).
+    Hydro share defaults to 0 when omitted (2-way callers).
+    """
+    # Default share fill-in for 2-way callers that don't supply wind/hydro shares.
+    if solar_share is not None and wind_share is None and hydro_share is None:
+        wind_share = max(0.0, 1.0 - solar_share)
+        hydro_share = 0.0
+    elif wind_share is None:
+        wind_share = 0.0
+    if hydro_share is None:
+        hydro_share = 0.0
+
+    # bess_reduction_pct = 1 - hybrid_bess_hours / bridge_hours (per spec §6A.5)
+    bess_reduction_pct: float | None = None
+    if bess_hours is not None:
+        bridge = bess_bridge_hours()
+        bess_reduction_pct = round(max(0.0, 1.0 - bess_hours / bridge), 3) if bridge > 0 else None
+
+    return {
+        # Existing keys (v4.1a) — kept as deprecation aliases for one release
+        "hybrid_lcoe_usd_mwh": (round(blended_lcoe, 2) if blended_lcoe is not None else None),
+        "hybrid_bess_hours": (round(bess_hours, 1) if bess_hours is not None else None),
+        "hybrid_bess_adder_usd_mwh": (
+            round(storage_adder, 2) if storage_adder is not None else None
+        ),
+        "hybrid_allin_usd_mwh": (round(all_in, 2) if all_in is not None else None),
+        "optimal_solar_share": (round(solar_share, 2) if solar_share is not None else None),
+        "hybrid_supply_coverage_pct": (
+            round(supply_coverage_pct, 3) if supply_coverage_pct is not None else None
+        ),
+        "hybrid_nighttime_coverage_pct": (
+            round(nighttime_coverage_pct, 3) if nighttime_coverage_pct is not None else None
+        ),
+        # New keys (v4.1b IEA-aligned per spec §6A.5)
+        "hybrid_solar_share": (round(solar_share, 2) if solar_share is not None else None),
+        "hybrid_wind_share": (round(wind_share, 2) if wind_share is not None else None),
+        "hybrid_hydro_share": (round(hydro_share, 2) if hydro_share is not None else None),
+        "hybrid_lcos_usd_mwh": (round(storage_adder, 2) if storage_adder is not None else None),
+        "hybrid_full_system_lcoe_usd_mwh": (round(all_in, 2) if all_in is not None else None),
+        "hybrid_bess_reduction_pct": bess_reduction_pct,
+    }
+
+
+def _none_hybrid_result() -> dict[str, float | None]:
+    """Empty result with both legacy + IEA keys set to None."""
+    return _format_hybrid_result(
+        blended_lcoe=None,
+        bess_hours=None,
+        storage_adder=None,
+        all_in=None,
+        solar_share=None,
+        wind_share=None,
+        hydro_share=None,
+        supply_coverage_pct=None,
+        nighttime_coverage_pct=None,
+    )
+
+
 def hybrid_lcoe_optimized(
     sources: list[RESource],
     demand_mwh: float,
@@ -548,21 +624,17 @@ def hybrid_lcoe_optimized(
     Picks the share that minimizes all-in cost.
 
     Accepts list[RESource] for N-technology extensibility. Currently expects
-    at most one solar and one wind source.
+    at most one solar and one wind source. Hydro is handled separately by
+    ``hybrid_lcoe_optimized_3way`` per spec §6A.4 — keeping this 2-way path
+    untouched preserves the v4.1a baseline for non-hydro sites.
 
-    Returns dict with hybrid_lcoe_usd_mwh, hybrid_bess_hours,
-    hybrid_bess_adder_usd_mwh, hybrid_allin_usd_mwh, optimal_solar_share,
-    hybrid_supply_coverage_pct, hybrid_nighttime_coverage_pct.
+    Returns dict with v4.1a legacy keys (hybrid_bess_adder_usd_mwh,
+    hybrid_allin_usd_mwh, optimal_solar_share) AND v4.1b IEA-aligned keys
+    (hybrid_lcos_usd_mwh, hybrid_full_system_lcoe_usd_mwh, hybrid_solar_share,
+    hybrid_wind_share, hybrid_hydro_share, hybrid_bess_reduction_pct).
+    Legacy aliases drop in v4.2.
     """
-    _none = {
-        "hybrid_lcoe_usd_mwh": None,
-        "hybrid_bess_hours": None,
-        "hybrid_bess_adder_usd_mwh": None,
-        "hybrid_allin_usd_mwh": None,
-        "optimal_solar_share": None,
-        "hybrid_supply_coverage_pct": None,
-        "hybrid_nighttime_coverage_pct": None,
-    }
+    _none = _none_hybrid_result()
 
     solar = next((s for s in sources if s.technology == "solar"), None)
     wind = next((s for s in sources if s.technology == "wind"), None)
@@ -582,17 +654,17 @@ def hybrid_lcoe_optimized(
             bess_discharge_hours,
             round_trip_efficiency,
         )
-        return {
-            "hybrid_lcoe_usd_mwh": round(solar.lcoe_usd_mwh, 2),
-            "hybrid_bess_hours": round(bess_hrs, 1),
-            "hybrid_bess_adder_usd_mwh": round(adder, 2),
-            "hybrid_allin_usd_mwh": round(solar.lcoe_usd_mwh + adder, 2),
-            "optimal_solar_share": 1.0,
-            "hybrid_supply_coverage_pct": round(solar.generation_mwh / demand_mwh, 3)
-            if demand_mwh > 0
-            else None,
-            "hybrid_nighttime_coverage_pct": 0.0,
-        }
+        return _format_hybrid_result(
+            blended_lcoe=solar.lcoe_usd_mwh,
+            bess_hours=bess_hrs,
+            storage_adder=adder,
+            all_in=solar.lcoe_usd_mwh + adder,
+            solar_share=1.0,
+            wind_share=0.0,
+            hydro_share=0.0,
+            supply_coverage_pct=(solar.generation_mwh / demand_mwh) if demand_mwh > 0 else None,
+            nighttime_coverage_pct=0.0,
+        )
 
     # Build candidate shares
     if solar_share_override is not None:
@@ -650,17 +722,17 @@ def hybrid_lcoe_optimized(
             night_gen = w_gen * HYBRID_WIND_NIGHTTIME_FRACTION
             night_cov = min(night_gen / night_demand, 1.0) if night_demand > 0 else 0.0
 
-            best_result = {
-                "hybrid_lcoe_usd_mwh": round(blended_lcoe, 2),
-                "hybrid_bess_hours": round(h_bess, 1),
-                "hybrid_bess_adder_usd_mwh": round(adder, 2),
-                "hybrid_allin_usd_mwh": round(allin, 2),
-                "optimal_solar_share": round(share, 2),
-                "hybrid_supply_coverage_pct": round(total_gen / demand_mwh, 3)
-                if demand_mwh > 0
-                else None,
-                "hybrid_nighttime_coverage_pct": round(night_cov, 3),
-            }
+            best_result = _format_hybrid_result(
+                blended_lcoe=blended_lcoe,
+                bess_hours=h_bess,
+                storage_adder=adder,
+                all_in=allin,
+                solar_share=share,
+                wind_share=1.0 - share,
+                hydro_share=0.0,
+                supply_coverage_pct=(total_gen / demand_mwh) if demand_mwh > 0 else None,
+                nighttime_coverage_pct=night_cov,
+            )
 
     # Floor: hybrid all-in should never exceed standalone wind (no BESS).
     # If the optimizer can't beat wind alone, report 100% wind with no storage.
@@ -670,17 +742,177 @@ def hybrid_lcoe_optimized(
         night_demand = demand_mwh * (bridge / 24.0) if demand_mwh > 0 else 0.0
         night_gen = wind.generation_mwh * HYBRID_WIND_NIGHTTIME_FRACTION
         night_cov = min(night_gen / night_demand, 1.0) if night_demand > 0 else 0.0
-        best_result = {
-            "hybrid_lcoe_usd_mwh": round(wind.lcoe_usd_mwh, 2),
-            "hybrid_bess_hours": 0.0,
-            "hybrid_bess_adder_usd_mwh": 0.0,
-            "hybrid_allin_usd_mwh": round(wind.lcoe_usd_mwh, 2),
-            "optimal_solar_share": 0.0,
-            "hybrid_supply_coverage_pct": round(wind.generation_mwh / demand_mwh, 3)
-            if demand_mwh > 0
-            else None,
-            "hybrid_nighttime_coverage_pct": round(night_cov, 3),
-        }
+        best_result = _format_hybrid_result(
+            blended_lcoe=wind.lcoe_usd_mwh,
+            bess_hours=0.0,
+            storage_adder=0.0,
+            all_in=wind.lcoe_usd_mwh,
+            solar_share=0.0,
+            wind_share=1.0,
+            hydro_share=0.0,
+            supply_coverage_pct=(wind.generation_mwh / demand_mwh) if demand_mwh > 0 else None,
+            nighttime_coverage_pct=night_cov,
+        )
+
+    return best_result
+
+
+# Indonesian run-of-river hydro typical capacity factor per spec §6A.2.
+HYDRO_DEFAULT_CF: float = 0.50
+# Hydro is fully dispatchable (24/7 baseload-ish) per spec §6A.2.
+HYDRO_DEFAULT_NIGHTTIME_FRACTION: float = 1.0
+# 3-way optimizer sweep step (5% per spec §6A.4 → 231 evaluations).
+HYBRID_3WAY_OPTIMIZATION_STEP: float = 0.05
+
+
+def hybrid_lcoe_optimized_3way(  # noqa: PLR0913 — pure helper; one arg per RE source
+    solar: RESource | None,
+    wind: RESource | None,
+    hydro: RESource | None,
+    demand_mwh: float,
+    bess_capex_usd_per_kwh: float = BESS_CAPEX_USD_PER_KWH,
+    wacc: float = BASE_WACC_DECIMAL,
+    bess_lifetime_yr: int = BESS_LIFETIME_YR,
+    bess_fom_usd_per_kw_yr: float = BESS_FOM_USD_PER_KW_YR,
+    bess_discharge_hours: float = BESS_DISCHARGE_HOURS,
+    round_trip_efficiency: float = BESS_ROUND_TRIP_EFFICIENCY,
+    optimization_step: float = HYBRID_3WAY_OPTIMIZATION_STEP,
+) -> dict[str, float | None]:
+    """3-way hybrid optimizer: 2D sweep of solar × hydro shares, wind = remainder.
+
+    Per spec §6A.4. 231 evaluations at 5% resolution (sub-millisecond per site).
+    Hydro is fully dispatchable (nighttime_fraction = 1.0), reducing BESS sizing.
+    The JETP-modelled scenario 5 (hydro-anchored hybrid) becomes reachable when
+    a site has nearby hydro capacity.
+
+    Falls back to ``hybrid_lcoe_optimized`` (2-way) when hydro is None or
+    has no useful generation. The fallback preserves the existing v4.1a
+    behavior byte-identical for non-hydro sites.
+
+    Returns the same dict shape as ``hybrid_lcoe_optimized`` — both v4.1a
+    legacy keys and v4.1b IEA-aligned keys are populated. Adds non-zero
+    ``hybrid_hydro_share`` only when hydro is used by the optimum.
+    """
+    # When hydro is unavailable (None or zero generation), fall through to
+    # the 2-way path so the v4.1a behavior is preserved byte-identical.
+    if hydro is None or hydro.generation_mwh <= 0 or np.isnan(hydro.lcoe_usd_mwh):
+        sources = [s for s in (solar, wind) if s is not None]
+        return hybrid_lcoe_optimized(
+            sources,
+            demand_mwh,
+            bess_capex_usd_per_kwh=bess_capex_usd_per_kwh,
+            wacc=wacc,
+            bess_lifetime_yr=bess_lifetime_yr,
+            bess_fom_usd_per_kw_yr=bess_fom_usd_per_kw_yr,
+            bess_discharge_hours=bess_discharge_hours,
+            round_trip_efficiency=round_trip_efficiency,
+        )
+
+    if solar is None or solar.generation_mwh <= 0 or np.isnan(solar.lcoe_usd_mwh):
+        # Without solar the 2D sweep collapses to wind+hydro; defer to 2-way
+        # on (wind, hydro) treated as a pair. Out of scope for v4.1b — the
+        # JETP scenarios all have solar present. Return empty for now.
+        return _none_hybrid_result()
+
+    wind_present = wind is not None and wind.generation_mwh > 0 and not np.isnan(wind.lcoe_usd_mwh)
+
+    best_allin = float("inf")
+    best_result = _none_hybrid_result()
+    step_pct = int(round(optimization_step * 100))
+    if step_pct <= 0:
+        step_pct = 5
+
+    for solar_pct in range(0, 101, step_pct):
+        for hydro_pct in range(0, 101 - solar_pct, step_pct):
+            wind_pct = 100 - solar_pct - hydro_pct
+            # Wind absent → only consider candidates where wind_share == 0
+            if not wind_present and wind_pct > 0:
+                continue
+
+            solar_share = solar_pct / 100.0
+            hydro_share = hydro_pct / 100.0
+            wind_share = wind_pct / 100.0
+
+            s_gen = solar.generation_mwh * solar_share
+            w_gen = (wind.generation_mwh * wind_share) if wind_present and wind is not None else 0.0
+            h_gen = hydro.generation_mwh * hydro_share
+            total_gen = s_gen + w_gen + h_gen
+            if total_gen <= 0:
+                continue
+
+            # Blended LCOE weighted by generation across all 3 sources
+            blended_lcoe_num = (
+                s_gen * solar.lcoe_usd_mwh
+                + (w_gen * wind.lcoe_usd_mwh if wind_present and wind is not None else 0.0)
+                + h_gen * hydro.lcoe_usd_mwh
+            )
+            blended_lcoe = blended_lcoe_num / total_gen
+
+            # Blended CF for BESS denominator
+            blended_cf = (
+                solar.cf * solar_share
+                + (wind.cf * wind_share if wind_present and wind is not None else 0.0)
+                + hydro.cf * hydro_share
+            )
+            if blended_cf <= 0:
+                continue
+
+            # Scaled sources for BESS hours — each carries its own
+            # nighttime_fraction (solar 0, wind 0.583, hydro 1.0)
+            scaled_sources: list[RESource] = [
+                RESource("solar", solar.lcoe_usd_mwh, s_gen, solar.cf, 0.0),
+            ]
+            if wind_present and wind is not None:
+                scaled_sources.append(
+                    RESource(
+                        "wind", wind.lcoe_usd_mwh, w_gen, wind.cf, HYBRID_WIND_NIGHTTIME_FRACTION
+                    )
+                )
+            scaled_sources.append(
+                RESource("hydro", hydro.lcoe_usd_mwh, h_gen, hydro.cf, hydro.nighttime_fraction)
+            )
+            h_bess = hybrid_bess_hours(scaled_sources, demand_mwh)
+
+            if h_bess > 0 and blended_cf > 0:
+                adder = bess_storage_adder(
+                    bess_capex_usd_per_kwh,
+                    blended_cf,
+                    wacc,
+                    h_bess,
+                    bess_lifetime_yr,
+                    bess_fom_usd_per_kw_yr,
+                    bess_discharge_hours,
+                    round_trip_efficiency,
+                )
+            else:
+                adder = 0.0
+
+            allin = blended_lcoe + adder
+            if allin < best_allin:
+                best_allin = allin
+                bridge = bess_bridge_hours()
+                night_demand = demand_mwh * (bridge / 24.0) if demand_mwh > 0 else 0.0
+                # Nighttime gen from wind + hydro (hydro fills overnight fully)
+                wind_night = (
+                    w_gen * HYBRID_WIND_NIGHTTIME_FRACTION
+                    if wind_present and wind is not None
+                    else 0.0
+                )
+                hydro_night = h_gen * hydro.nighttime_fraction
+                night_gen = wind_night + hydro_night
+                night_cov = min(night_gen / night_demand, 1.0) if night_demand > 0 else 0.0
+
+                best_result = _format_hybrid_result(
+                    blended_lcoe=blended_lcoe,
+                    bess_hours=h_bess,
+                    storage_adder=adder,
+                    all_in=allin,
+                    solar_share=solar_share,
+                    wind_share=wind_share,
+                    hydro_share=hydro_share,
+                    supply_coverage_pct=(total_gen / demand_mwh) if demand_mwh > 0 else None,
+                    nighttime_coverage_pct=night_cov,
+                )
 
     return best_result
 
