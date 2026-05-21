@@ -327,7 +327,7 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                   className="text-xs italic py-1 px-2 mb-2 rounded"
                   style={{
                     background: 'rgba(245, 158, 11, 0.10)',
-                    color: 'var(--text-muted)',
+                    color: 'var(--text-secondary)',
                     border: '1px solid rgba(245, 158, 11, 0.30)',
                   }}
                 >
@@ -335,6 +335,21 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
                   {row.polygon_source_tier === 'none'
                     ? 'Low-trust: no fence-line polygon — using a 2 km centroid buffer. Likely over-counts adjacent land in dense corridors. See Polygon source below.'
                     : 'Low-trust: polygon estimated from detected buildings — fence boundary not independently verified. See Polygon source below.'}
+                </div>
+              )}
+              {row.polygon_source_tier === 'official_kek' && (
+                <div
+                  className="text-xs italic py-1 px-2 mb-2 rounded cursor-help"
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.08)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                  }}
+                  title="Post-#40 the slider stopped haircutting the raster, so displayed MWp may overestimate at developed KEKs. The 1km buildability raster doesn't see sub-kilometer roads, internal factories, or parking inside the fence. Acceptable for relative ranking; verify against satellite imagery or a finer land-cover layer before committing to absolute deployment numbers. See METHODOLOGY §5.1.3."
+                >
+                  ⚠ Screening-level: the 1km buildability raster doesn't see sub-kilometer
+                  development inside KEK fences. Treat this MWp as a ceiling for comparative
+                  ranking, not an absolute deployment target. (METHODOLOGY §5.1.3)
                 </div>
               )}
               <div style={{ marginBottom: 6 }}>

@@ -550,6 +550,18 @@ The 20% default is a conservative anchor sourced from three calibration signals:
 
 **Visual signal for "fully slider-derived" capacity.** When a site has `baseline = 0` but `hard_max > 0`, the displayed ground-mounted MWp is 100% slider-derived (the entire number comes from the override). The Renewable Resource table marks these sites with an asterisk indicator next to the MWp value with a tooltip explaining the range. This distinguishes them from sites with positive raster floors (where the slider only adjusts the override portion). Tracked under [#46](https://github.com/shaanbarca/eez/issues/46) (closed as misdiagnosed — current behavior is correct, only the visual distinction was added).
 
+#### 5.1.3 Known limit — KEK coarse-raster optimism after #40
+
+The 1km PVOUT / buildability raster used in §3.3 is too coarse to see the sub-kilometer roads, internal factory footprints, parking, and infrastructure that already occupy land inside a KEK fence. The raster counts a pixel as "buildable" if its predominant cover passes the 4-layer filter, but at 1km × 1km (~100 ha per pixel) a "buildable" pixel inside a developed KEK can still contain 20-50% built-up area that the raster never sees.
+
+Pre-[#40](https://github.com/shaanbarca/eez/issues/40), the `wb_buildout_footprint_ratio` slider haircut the raster output multiplicatively (`raster × slider%`). At the default 20%, this implicitly compensated for the unseen sub-pixel built-up area at greenfield KEKs. Post-#40, the slider's semantic changed from haircut to soft-exclusion override (`baseline + (hard_max - baseline) × slider%`) — the haircut went away, and the displayed MWp jumped at every KEK with a non-zero raster baseline.
+
+Worked example: a 600 ha greenfield KEK with a 480 ha raster-baseline pre-#40 displayed at slider = 20% showed 64 MWp (raster × 20%). Post-#40 the same site at slider = 20% shows 325 MWp (baseline + 20% × small soft-excluded). The 325 MWp number is the *un-haircut* raster output — it may be optimistic by the unseen sub-pixel built-up fraction.
+
+**Where this lands.** At industrial sites (cement plants, smelters, fertilizer plants) the soft-exclusion override is the dominant signal because the strict 4-layer raster already counts the built-up area as excluded — #40 is unambiguously an improvement there. The optimism is concentrated at the 25 KEKs (mostly greenfield or partially developed industrial parks) where the raster picks every vacant 1km pixel without seeing the internal road network or planned plot layout.
+
+**Resolution (option C, [#41](https://github.com/shaanbarca/eez/issues/41)).** We accept the regression with disclosure rather than fixing it at the pipeline level. The methodology debt is documented here, and the dashboard surfaces a "screening-level, may overestimate" tooltip in the Score Drawer Renewable Resource tab whenever a site has `polygon_source_tier = official_kek`. Two harder options (per-pixel built-up density haircut from finer land cover; per-site KEK haircut baked into pipeline) are tracked for v5 PyPSA realized-deployment modeling, where the question "how much solar will actually get built at this KEK" gets answered with shadow prices instead of slider sliders. Closed as wontfix-with-disclaim in v4.1.
+
 ### 5.2 Grid-connected solar
 
 Solar farm connects to nearest PLN substation, sells to PLN via PPA. PLN delivers to KEK.
