@@ -17,6 +17,7 @@ from src.pipeline.build_fct_transmission_link_ruptl_signal import region_worst_s
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED = REPO_ROOT / "outputs" / "data" / "processed"
+DATA_RAW = REPO_ROOT / "data" / "raw"
 
 # Required CSV files and their minimum expected columns
 _REQUIRED_FILES = {
@@ -41,6 +42,48 @@ _OPTIONAL_FILES = {
 
 class DataLoadError(Exception):
     """Raised when required data files are missing or invalid."""
+
+
+def load_export_shares_overrides(
+    raw_dir: Path = DATA_RAW,
+) -> dict[str, dict[str, float]]:
+    """Load per-site export market share overrides from data/raw (v4.1b).
+
+    Returns a nested dict: ``{site_id: {market_id: share}}``. The dict is
+    consumed by sub-PR (d) destination-weighted CBAM logic. Sites without
+    overrides fall back to ``EXPORT_MARKET_SHARES_BY_SUBSECTOR`` (locked
+    decision 2A from /plan-eng-review 2026-05-21).
+
+    Returns an empty dict if the file is missing — pipeline runs without
+    the override table fall through to sector defaults, matching the
+    graceful-degradation pattern used elsewhere in the loader.
+    """
+    csv_path = raw_dir / "site_export_shares_overrides.csv"
+    if not csv_path.exists():
+        return {}
+
+    df = pd.read_csv(csv_path)
+    required = {"site_id", "market_id", "share"}
+    missing = required - set(df.columns)
+    if missing:
+        raise DataLoadError(f"site_export_shares_overrides.csv missing required columns: {missing}")
+
+    out: dict[str, dict[str, float]] = {}
+    for _, row in df.iterrows():
+        site_id = str(row["site_id"])
+        market_id = str(row["market_id"])
+        share = float(row["share"])
+        out.setdefault(site_id, {})[market_id] = share
+
+    # Validate each site's shares sum to 1.0 ± 0.001
+    for site_id, shares in out.items():
+        total = sum(shares.values())
+        if abs(total - 1.0) > 0.001:
+            raise DataLoadError(
+                f"site_export_shares_overrides: shares for {site_id!r} sum to "
+                f"{total:.4f}, expected 1.0 ± 0.001"
+            )
+    return out
 
 
 def load_all_data(data_dir: Path = PROCESSED) -> dict[str, pd.DataFrame]:

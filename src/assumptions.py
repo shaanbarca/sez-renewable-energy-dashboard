@@ -1448,3 +1448,103 @@ def rp_kwh_to_usd_mwh(rp_kwh: float, idr_usd: float = IDR_USD_RATE) -> float:
 
 TARIFF_I3_USD_MWH: float = rp_kwh_to_usd_mwh(TARIFF_I3_LWBP_RP_KWH)
 TARIFF_I4_USD_MWH: float = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH)
+
+
+# ─── v4.1b: Destination-weighted CBAM constants ────────────────────────────
+# Per `docs/refinement/v4_1_foundation_spec.md` §3.3 + §3.5. These dicts
+# replace the v4.1 baseline's single `eu_export_share` scalar, which
+# treated China-bound nickel (70% of Indonesian flow) as zero-carbon and
+# missed OEM scope-3 entirely — a 4× error on the headline CBAM signal.
+#
+# Subsector codes use the spec's product framing (`nickel_npi`,
+# `nickel_matte`) rather than the existing dashboard's process framing
+# (`nickel_rkef`, `nickel_hpal`). Mapping:
+#
+#     nickel_rkef (process)   ↔  nickel_npi (product output)
+#     nickel_hpal (process)   ↔  nickel_matte (product output)
+#
+# Downstream consumers (sub-PR (d) destination-weighted CBAM) map
+# process → product before looking up shares. See v4.1b sub-PR (d).
+
+EXPORT_MARKET_SHARES_BY_SUBSECTOR: dict[str, dict[str, float]] = {
+    # Sources: World's Top Exports 2025 (Indonesia 10% to Europe overall);
+    # Bloomberg September 2024 (NPI exports to EU surged 1,006 → 87,485 t);
+    # BPS Comtrade per HS code; IEA Coal 2024 + IEA Steel Sector 2024.
+    "nickel_npi": {
+        "china_stainless": 0.70,
+        "battery_supply_chain_eu_oem": 0.20,
+        "direct_eu_uk_us": 0.10,
+    },
+    "nickel_matte": {
+        "battery_supply_chain_eu_oem": 0.65,
+        "direct_eu_uk_us": 0.20,
+        "korea_battery": 0.10,
+        "china_stainless": 0.05,
+    },
+    "steel_eaf": {
+        "asean_regional": 0.75,
+        "direct_eu_uk_us": 0.05,
+        "korea_japan": 0.10,
+        "china_domestic": 0.10,
+    },
+    "steel_bfbof": {
+        "domestic_indonesia": 0.50,
+        "asean_regional": 0.40,
+        "direct_eu_uk_us": 0.05,
+        "china_domestic": 0.05,
+    },
+    "aluminium": {
+        "asean_regional": 0.50,
+        "direct_eu_uk_us": 0.10,
+        "china_domestic": 0.20,
+        "domestic_indonesia": 0.20,
+    },
+    "cement": {
+        "domestic_indonesia": 0.95,
+        "asean_regional": 0.05,
+    },
+    "fertilizer": {
+        "domestic_indonesia": 0.80,
+        "asean_regional": 0.15,
+        "direct_eu_uk_us": 0.05,
+    },
+    "ammonia": {
+        "domestic_indonesia": 0.70,
+        "asean_regional": 0.20,
+        "direct_eu_uk_us": 0.05,
+        "korea_japan": 0.05,
+    },
+}
+
+# Spec §3.5. Linear interpolation between snapshot years downstream.
+# Citations per market live in v4_1_foundation_spec.md §3.5; the spec
+# is the single source of truth for these forward-looking numbers.
+CARBON_PRICE_BY_MARKET: dict[str, dict[int, float]] = {
+    "china_stainless": {2025: 12.0, 2030: 30.0, 2034: 50.0},
+    "battery_supply_chain_eu_oem": {2025: 90.0, 2030: 150.0, 2034: 200.0},
+    "direct_eu_uk_us": {2025: 90.0, 2030: 140.0, 2034: 180.0},
+    "korea_japan": {2025: 20.0, 2030: 50.0, 2034: 80.0},
+    "korea_battery": {2025: 50.0, 2030: 90.0, 2034: 130.0},
+    "china_domestic": {2025: 12.0, 2030: 30.0, 2034: 50.0},
+    "asean_regional": {2025: 0.0, 2030: 5.0, 2034: 15.0},
+    "domestic_indonesia": {2025: 5.0, 2030: 25.0, 2034: 60.0},
+}
+
+# Frozenset of valid market_ids — every market referenced by a subsector
+# share dict must appear here. Validated by tests/test_cbam_datasets.py
+# so a typo in market_id catches at CI.
+EXPORT_MARKET_IDS: frozenset[str] = frozenset(CARBON_PRICE_BY_MARKET.keys())
+
+# Mapping from existing dashboard process codes to spec subsector codes.
+# Used by sub-PR (d) destination-weighted CBAM to look up the right
+# EXPORT_MARKET_SHARES_BY_SUBSECTOR entry from a site's `cbam_product_type`.
+PROCESS_TO_SUBSECTOR: dict[str, str] = {
+    "nickel_rkef": "nickel_npi",
+    "nickel_hpal": "nickel_matte",
+    "steel_eaf": "steel_eaf",
+    "steel_bfbof": "steel_bfbof",
+    "aluminium": "aluminium",
+    "cement": "cement",
+    "fertilizer": "fertilizer",
+    "ammonia": "ammonia",
+}
