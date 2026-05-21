@@ -1,0 +1,151 @@
+{
+  "type": "FeatureCollection",
+  "_source": "Compiled from RUPTL 2025-2034 Tabel 3.2 (RE Base) + 3.3 (ARED) hydro additions + ESDM hydro resource map. Seed dataset — v4.1b minimum-viable coverage of named major pipeline projects (~5 GW of the ~12 GW total per spec §6A.3). Lower-confidence working-area aggregates not included; expand in v4.4.",
+  "_compiled_date": "2026-05-21",
+  "_compiled_by": "v4.1b sub-PR (c) #89",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_batang_toru",
+        "name": "Batang Toru",
+        "capacity_mw": 510,
+        "target_year": 2026,
+        "region": "SUMATERA",
+        "developer": "NSHE / Sinohydro",
+        "source": "RUPTL 2025-2034 Tabel 3.2; commissioning delayed from 2025"
+      },
+      "geometry": {"type": "Point", "coordinates": [99.067, 1.633]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_kayan_1",
+        "name": "Kayan Cascade Stage 1",
+        "capacity_mw": 900,
+        "target_year": 2029,
+        "region": "KALIMANTAN",
+        "developer": "Kayan Hydro Energy / KHE",
+        "source": "RUPTL 2025-2034 Tabel 3.3 ARED; supplies Kalimantan industrial parks"
+      },
+      "geometry": {"type": "Point", "coordinates": [115.667, 2.583]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_kayan_2",
+        "name": "Kayan Cascade Stage 2-5",
+        "capacity_mw": 1900,
+        "target_year": 2032,
+        "region": "KALIMANTAN",
+        "developer": "Kayan Hydro Energy / KHE",
+        "source": "RUPTL 2025-2034 Tabel 3.3 ARED; supplies Kalimantan industrial parks"
+      },
+      "geometry": {"type": "Point", "coordinates": [115.583, 2.500]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_asahan_iv",
+        "name": "Asahan IV",
+        "capacity_mw": 174,
+        "target_year": 2027,
+        "region": "SUMATERA",
+        "developer": "Inalum / SMI",
+        "source": "RUPTL 2025-2034 Tabel 3.2; extends Asahan cascade"
+      },
+      "geometry": {"type": "Point", "coordinates": [99.150, 2.700]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_wampu",
+        "name": "Wampu",
+        "capacity_mw": 45,
+        "target_year": 2025,
+        "region": "SUMATERA",
+        "developer": "Wampu Electric Power",
+        "source": "RUPTL 2025-2034 Tabel 3.2"
+      },
+      "geometry": {"type": "Point", "coordinates": [98.183, 3.250]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_tampur",
+        "name": "Tampur",
+        "capacity_mw": 428,
+        "target_year": 2030,
+        "region": "SUMATERA",
+        "developer": "Hitay Energy",
+        "source": "RUPTL 2025-2034 Tabel 3.3; environmental review in progress"
+      },
+      "geometry": {"type": "Point", "coordinates": [97.633, 4.050]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_peusangan",
+        "name": "Peusangan 1+2",
+        "capacity_mw": 88,
+        "target_year": 2026,
+        "region": "SUMATERA",
+        "developer": "PLN",
+        "source": "RUPTL 2025-2034 Tabel 3.2"
+      },
+      "geometry": {"type": "Point", "coordinates": [96.917, 4.617]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_poso_iii",
+        "name": "Poso Cascade Stage 3",
+        "capacity_mw": 240,
+        "target_year": 2028,
+        "region": "SULAWESI",
+        "developer": "Poso Energy / Kalla Group",
+        "source": "RUPTL 2025-2034 Tabel 3.3 ARED; extends Poso cascade"
+      },
+      "geometry": {"type": "Point", "coordinates": [120.683, -1.317]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_malea",
+        "name": "Malea",
+        "capacity_mw": 90,
+        "target_year": 2027,
+        "region": "SULAWESI",
+        "developer": "PLN / Sulawesi Selatan IPP",
+        "source": "RUPTL 2025-2034 Tabel 3.2"
+      },
+      "geometry": {"type": "Point", "coordinates": [119.917, -2.967]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_mamberamo",
+        "name": "Mamberamo (initial stage)",
+        "capacity_mw": 1380,
+        "target_year": 2034,
+        "region": "MALUKU_PAPUA",
+        "developer": "PLN / consortium TBD",
+        "source": "RUPTL 2025-2034 Tabel 3.3 ARED; 12 GW theoretical potential, initial stage only"
+      },
+      "geometry": {"type": "Point", "coordinates": [138.000, -2.500]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "rptl_seko_1",
+        "name": "Seko 1",
+        "capacity_mw": 70,
+        "target_year": 2029,
+        "region": "SULAWESI",
+        "developer": "PLN",
+        "source": "RUPTL 2025-2034 Tabel 3.3"
+      },
+      "geometry": {"type": "Point", "coordinates": [120.000, -2.700]}
+    }
+  ]
+}

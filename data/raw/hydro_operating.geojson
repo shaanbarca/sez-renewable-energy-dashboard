@@ -1,0 +1,229 @@
+{
+  "type": "FeatureCollection",
+  "_source": "Compiled from PLN PLTA/M public disclosures + ESDM Technology Catalogue 2024 + Wikipedia geocoded coordinates. Seed dataset — v4.1b minimum-viable coverage of Indonesia's major operating hydro fleet (~3 GW of the ~6 GW total per spec §6A.3). Follow-up to expand to full fleet tracked separately.",
+  "_compiled_date": "2026-05-21",
+  "_compiled_by": "v4.1b sub-PR (c) #89",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_cirata",
+        "name": "Cirata",
+        "capacity_mw": 1008,
+        "region": "JAVA_BALI",
+        "operator": "Indonesia Power",
+        "type": "reservoir",
+        "source": "PLN annual report 2023; cascade with Saguling"
+      },
+      "geometry": {"type": "Point", "coordinates": [107.323, -6.700]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_saguling",
+        "name": "Saguling",
+        "capacity_mw": 700,
+        "region": "JAVA_BALI",
+        "operator": "Indonesia Power",
+        "type": "reservoir",
+        "source": "PLN annual report 2023; cascade with Cirata"
+      },
+      "geometry": {"type": "Point", "coordinates": [107.395, -6.918]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_jatiluhur",
+        "name": "Jatiluhur (Ir. H. Djuanda)",
+        "capacity_mw": 187,
+        "region": "JAVA_BALI",
+        "operator": "Perum Jasa Tirta II",
+        "type": "reservoir",
+        "source": "PLN PLTA list; ESDM Technology Catalogue 2024"
+      },
+      "geometry": {"type": "Point", "coordinates": [107.385, -6.530]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_sigura_gura",
+        "name": "Sigura-gura (Asahan II)",
+        "capacity_mw": 286,
+        "region": "SUMATERA",
+        "operator": "Inalum",
+        "type": "run_of_river",
+        "source": "Inalum public disclosures; supplies Asahan aluminium smelter directly"
+      },
+      "geometry": {"type": "Point", "coordinates": [99.067, 2.578]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_tangga",
+        "name": "Tangga (Asahan II)",
+        "capacity_mw": 317,
+        "region": "SUMATERA",
+        "operator": "Inalum",
+        "type": "run_of_river",
+        "source": "Inalum public disclosures; Asahan cascade"
+      },
+      "geometry": {"type": "Point", "coordinates": [99.107, 2.620]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_singkarak",
+        "name": "Singkarak",
+        "capacity_mw": 175,
+        "region": "SUMATERA",
+        "operator": "PLN",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [100.553, -0.620]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_maninjau",
+        "name": "Maninjau",
+        "capacity_mw": 68,
+        "region": "SUMATERA",
+        "operator": "PLN",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [100.197, -0.317]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_poso",
+        "name": "Poso (Poso 1+2)",
+        "capacity_mw": 515,
+        "region": "SULAWESI",
+        "operator": "Poso Energy",
+        "type": "reservoir",
+        "source": "Poso Energy / Kalla Group disclosures; cascade with Sulewana"
+      },
+      "geometry": {"type": "Point", "coordinates": [120.700, -1.350]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_sulewana",
+        "name": "Sulewana",
+        "capacity_mw": 195,
+        "region": "SULAWESI",
+        "operator": "Poso Energy",
+        "type": "reservoir",
+        "source": "Poso Energy disclosures; Poso cascade"
+      },
+      "geometry": {"type": "Point", "coordinates": [120.730, -1.380]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_bakaru",
+        "name": "Bakaru",
+        "capacity_mw": 126,
+        "region": "SULAWESI",
+        "operator": "PLN",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [119.617, -3.297]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_sutami",
+        "name": "Sutami (Karangkates)",
+        "capacity_mw": 105,
+        "region": "JAVA_BALI",
+        "operator": "PJB",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [112.450, -8.187]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_mrica",
+        "name": "Mrica (PB Sudirman)",
+        "capacity_mw": 184,
+        "region": "JAVA_BALI",
+        "operator": "Indonesia Power",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [109.580, -7.418]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_wadaslintang",
+        "name": "Wadaslintang",
+        "capacity_mw": 18,
+        "region": "JAVA_BALI",
+        "operator": "PJB",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [109.788, -7.640]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_wonogiri",
+        "name": "Wonogiri (Gajah Mungkur)",
+        "capacity_mw": 12,
+        "region": "JAVA_BALI",
+        "operator": "PJB",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [110.918, -7.870]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_tonsea_lama",
+        "name": "Tonsea Lama",
+        "capacity_mw": 14,
+        "region": "SULAWESI",
+        "operator": "PLN",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [124.917, 1.350]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_tonsea_tanggari",
+        "name": "Tanggari I+II",
+        "capacity_mw": 36,
+        "region": "SULAWESI",
+        "operator": "PLN",
+        "type": "reservoir",
+        "source": "PLN annual report 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [124.967, 1.400]}
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "plta_jatigede",
+        "name": "Jatigede",
+        "capacity_mw": 110,
+        "region": "JAVA_BALI",
+        "operator": "PLN",
+        "type": "reservoir",
+        "source": "PLN annual report 2023; commissioned 2023"
+      },
+      "geometry": {"type": "Point", "coordinates": [108.117, -6.853]}
+    }
+  ]
+}
