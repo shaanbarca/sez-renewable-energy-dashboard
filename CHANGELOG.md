@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (v4.1b — destination-weighted CBAM + 9 incumbent columns + shift report, #90)
+
+- **Two new functions in `src/dash/logic/cbam.py`** per spec §7.2: `compute_destination_weighted_carbon_adder(emissions_intensity, export_market_shares, carbon_price_by_market, year)` and `compute_destination_weighted_incumbent(base_incumbent_cost, ...)`. The adder math: `Σ (share[market] × price[market, year]) × emissions_intensity` yields $/MWh. Year interpolation is linear between snapshot years 2025/2030/2034 per spec §3.5.
+- **9 new scorecard columns** per spec §7.3 (3 scenarios × 3 years), additive to the existing per-tonne `compute_cbam_trajectory` legacy columns:
+  - `cbam_destination_weighted_incumbent_{2025,2030,2034}_usd_mwh` — realistic exposure (default, uses site override or sector default)
+  - `cbam_full_incumbent_{2025,2030,2034}_usd_mwh` — 100% EU stress test (matches v4.1a implicit assumption)
+  - `cbam_china_only_incumbent_{2025,2030,2034}_usd_mwh` — 100% China ETS stress test
+- **Three-layer share fallback** per locked decision 2A: `resolve_export_shares()` returns `(shares_dict, provenance)` where provenance is `'site_override'` / `'sector_default'` / `'eu_fallback'`. Provenance surfaces in the new `cbam_destination_weighted_shares_source` column — readers can tell at a glance which CBAM numbers are per-site vs sector-default fallback (mitigates Codex's fake-precision concern from /plan-eng-review 2026-05-21 1H).
+- **`SiteContext.export_shares_overrides` field** holds the per-site override dict loaded once at scorecard build time from `data/raw/site_export_shares_overrides.csv` (data foundation shipped in #92). Empty dict when file absent — graceful degradation to sector defaults.
+- **81-site shift report** at `docs/refinement/v4_1b_cbam_shift_report_2026-05-22.md`. Spec §7.4 IMIP anchor verified: 2025 carbon adder = $48/MWh, 2030 = $84/MWh (within $1/MWh tolerance). 68 of 81 sites CBAM-exposed; provenance: 4 site_override (IMIP, IWIP, VDNIP, Krakatau Steel), 64 sector_default, 0 eu_fallback (every CBAM type maps cleanly via PROCESS_TO_SUBSECTOR).
+- **18 new tests** at `tests/test_cbam_destination_weighted.py`. Golden fixture regenerated (212 columns, up from 202).
+
+**Out of scope** per locked decisions: `cbam_urgent` action flag comparator fix stays on v4.3 (#91); frontend Score Drawer rendering of the 9 new columns ships in #93. Existing per-tonne `cbam_cost_{year}_usd_per_tonne` columns unchanged.
+
 ### Added (v4.1b — hydro 2D optimizer + proximity data + IEA hybrid column rename, #89)
 
 - **Hydro proximity pipeline (`src/pipeline/build_fct_hydro_proximity.py`)** mirrors the existing geothermal proximity pattern exactly. Reads `data/raw/hydro_operating.geojson` (~17 major PLTAs, ~3 GW seed coverage of the ~6 GW total) + `data/raw/hydro_pipeline.geojson` (11 named RUPTL 2025-2034 projects, ~5 GW seed coverage of the ~12 GW total). Outputs `fct_hydro_proximity.csv` with 81 rows covering: `nearest_hydro_operating_id/km/mw`, `nearest_hydro_pipeline_id/km/mw/target_year`, `hydro_adjacency_tier`. Current tier distribution: 8 sites within 50km of operating hydro, 35 within 200km, 2 pipeline-pre-2030, 36 none. Source citations live in each GeoJSON's `_source` metadata field.

@@ -214,3 +214,173 @@ def compute_cbam_trajectory(
         SCOPE1_ABATEMENT_METHODOLOGY_NOTE if pathways else None
     )
     return out
+
+
+# ─── v4.1b: Destination-weighted CBAM (spec §7.2 + §7.3) ───────────────────
+#
+# The v4.1a baseline computes per-tonne CBAM cost as if 100% of every CBAM-
+# product site's output goes to the EU. For Indonesian nickel that's a 4×
+# error (~$9/t effective vs $35/t destination-weighted today, $70/t by 2030
+# per spec §7.1).
+#
+# This layer is additive: it doesn't touch compute_cbam_trajectory (the
+# per-tonne function above stays as a legacy column). It emits 9 new
+# per-MWh incumbent-cost-adjusted columns into the scorecard schema.
+
+
+def compute_destination_weighted_carbon_adder(
+    emissions_intensity_t_co2_per_mwh: float,
+    export_market_shares: dict[str, float],
+    carbon_price_by_market: dict[str, dict[int, float]],
+    year: int,
+) -> float:
+    """Compute the effective carbon adder per MWh for a site, weighted by
+    export markets. Per spec §7.2.
+
+    ``effective_carbon_price = Σ (share[market] × price[market, year])``
+    Then ``carbon_adder = emissions_intensity × effective_carbon_price``.
+
+    Units: $/tCO2 × tCO2/MWh = $/MWh.
+
+    Year interpolation: if ``year`` is not a snapshot in the price dict,
+    linearly interpolates between adjacent snapshots (spec §3.5).
+    """
+    effective_price = 0.0
+    for market_id, share in export_market_shares.items():
+        trajectory = carbon_price_by_market.get(market_id)
+        if trajectory is None:
+            continue
+        price = _interpolate_carbon_price(trajectory, year)
+        effective_price += share * price
+    return emissions_intensity_t_co2_per_mwh * effective_price
+
+
+def compute_destination_weighted_incumbent(
+    base_incumbent_cost_usd_mwh: float,
+    emissions_intensity_t_co2_per_mwh: float,
+    export_market_shares: dict[str, float],
+    carbon_price_by_market: dict[str, dict[int, float]],
+    year: int,
+) -> float:
+    """Base incumbent + destination-weighted carbon adder. Per spec §7.2.
+
+    The "incumbent" base is whatever the site is comparing solar against —
+    grid cost (BPP / industrial tariff) for grid-connected sites, captive
+    coal/gas LCOE for captive sites. v4.1b uses grid_cost as the universal
+    base; the per-arrangement comparator is v4.3 work (#91).
+    """
+    adder = compute_destination_weighted_carbon_adder(
+        emissions_intensity_t_co2_per_mwh,
+        export_market_shares,
+        carbon_price_by_market,
+        year,
+    )
+    return base_incumbent_cost_usd_mwh + adder
+
+
+def _interpolate_carbon_price(trajectory: dict[int, float], year: int) -> float:
+    """Linearly interpolate price between snapshot years per spec §3.5.
+
+    If ``year`` is below the first snapshot, returns the first snapshot value
+    (constant extrapolation). Above the last snapshot, returns the last value.
+    """
+    if year in trajectory:
+        return float(trajectory[year])
+    years = sorted(trajectory.keys())
+    if not years:
+        return 0.0
+    if year <= years[0]:
+        return float(trajectory[years[0]])
+    if year >= years[-1]:
+        return float(trajectory[years[-1]])
+    # Find bracketing snapshots
+    for i in range(len(years) - 1):
+        y_lo, y_hi = years[i], years[i + 1]
+        if y_lo <= year <= y_hi:
+            p_lo, p_hi = trajectory[y_lo], trajectory[y_hi]
+            t = (year - y_lo) / (y_hi - y_lo)
+            return float(p_lo + t * (p_hi - p_lo))
+    return float(trajectory[years[-1]])
+
+
+def resolve_export_shares(
+    site_id: str,
+    cbam_product_type: str | None,
+    overrides: dict[str, dict[str, float]],
+    sector_defaults: dict[str, dict[str, float]],
+    process_to_subsector: dict[str, str],
+) -> tuple[dict[str, float], str]:
+    """Resolve a site's export market shares per the 3-layer fallback
+    (locked decision 2A from /plan-eng-review 2026-05-21).
+
+    Returns ``(shares_dict, provenance_source)`` where provenance is one of:
+      - ``'site_override'`` — site_id matched in fct_site_export_shares_overrides
+      - ``'sector_default'`` — fell through to SECTOR_EXPORT_MIX_DEFAULTS via
+        PROCESS_TO_SUBSECTOR mapping
+      - ``'eu_fallback'`` — last resort: 100% direct_eu_uk_us (matches v4.1a
+        baseline behavior)
+    """
+    if site_id in overrides:
+        return overrides[site_id], "site_override"
+    if cbam_product_type:
+        subsector = process_to_subsector.get(cbam_product_type)
+        if subsector and subsector in sector_defaults:
+            return sector_defaults[subsector], "sector_default"
+    return {"direct_eu_uk_us": 1.0}, "eu_fallback"
+
+
+# Stress-test variants per spec §7.3. Each is a fixed share distribution:
+#   - "full":       100% direct_eu_uk_us (what v4.1a implicitly assumed)
+#   - "china_only": 100% china_stainless (lower-bound for nickel-RKEF dominant)
+_FULL_EU_SHARES: dict[str, float] = {"direct_eu_uk_us": 1.0}
+_CHINA_ONLY_SHARES: dict[str, float] = {"china_stainless": 1.0}
+
+
+def compute_destination_weighted_incumbent_columns(
+    *,
+    base_incumbent_usd_mwh: float,
+    emissions_intensity_t_co2_per_mwh: float,
+    export_market_shares: dict[str, float],
+    carbon_price_by_market: dict[str, dict[int, float]],
+    years: tuple[int, ...] = (2025, 2030, 2034),
+) -> dict[str, float]:
+    """Compute all 9 v4.1b CBAM incumbent columns per spec §7.3.
+
+    Returns dict with keys:
+      cbam_destination_weighted_incumbent_{year}_usd_mwh — realistic exposure
+      cbam_full_incumbent_{year}_usd_mwh                 — 100% EU stress
+      cbam_china_only_incumbent_{year}_usd_mwh           — 100% China stress
+    """
+    out: dict[str, float] = {}
+    for year in years:
+        out[f"cbam_destination_weighted_incumbent_{year}_usd_mwh"] = round(
+            compute_destination_weighted_incumbent(
+                base_incumbent_usd_mwh,
+                emissions_intensity_t_co2_per_mwh,
+                export_market_shares,
+                carbon_price_by_market,
+                year,
+            ),
+            2,
+        )
+        out[f"cbam_full_incumbent_{year}_usd_mwh"] = round(
+            compute_destination_weighted_incumbent(
+                base_incumbent_usd_mwh,
+                emissions_intensity_t_co2_per_mwh,
+                _FULL_EU_SHARES,
+                carbon_price_by_market,
+                year,
+            ),
+            2,
+        )
+        out[f"cbam_china_only_incumbent_{year}_usd_mwh"] = round(
+            compute_destination_weighted_incumbent(
+                base_incumbent_usd_mwh,
+                emissions_intensity_t_co2_per_mwh,
+                _CHINA_ONLY_SHARES,
+                carbon_price_by_market,
+                year,
+            ),
+            2,
+        )
+    return out

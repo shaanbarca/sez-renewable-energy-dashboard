@@ -11,7 +11,7 @@ grid integration bundle, rates, generation totals).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -95,6 +95,14 @@ class SiteContext:
     effective_incumbent_lcoe: float = 0.0
     effective_incumbent_kind: str = "grid"
     gap_vs_grid_pct: float = float("nan")
+
+    # v4.1b — per-site export market share overrides for destination-weighted
+    # CBAM. Keyed by site_id; values are {market_id: share} dicts. Loaded
+    # once at scorecard build time from data/raw/site_export_shares_overrides.csv
+    # by load_export_shares_overrides(). Empty dict when the override CSV is
+    # absent — sites fall through to sector defaults at consumer time
+    # (locked decision 2A from /plan-eng-review 2026-05-21).
+    export_shares_overrides: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 def _as_float(x: Any, default: float = 0.0) -> float:

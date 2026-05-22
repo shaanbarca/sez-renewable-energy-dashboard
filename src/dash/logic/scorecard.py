@@ -27,12 +27,20 @@ import pandas as pd
 
 from src.assumptions import (
     CAPTIVE_REGIME_MAX_KM,
+    CARBON_PRICE_BY_MARKET,
     CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
+    EXPORT_MARKET_SHARES_BY_SUBSECTOR,
     PERPRES_112_CEILING_USD_MWH,
+    PROCESS_TO_SUBSECTOR,
     SOLAR_PRODUCTION_HOURS,
 )
 from src.dash.logic.assumptions import UserAssumptions, UserThresholds
-from src.dash.logic.cbam import _detect_cbam_types, compute_cbam_trajectory
+from src.dash.logic.cbam import (
+    _detect_cbam_types,
+    compute_cbam_trajectory,
+    compute_destination_weighted_incumbent_columns,
+    resolve_export_shares,
+)
 from src.dash.logic.lcoe import _round, compute_lcoe_live, compute_lcoe_wind_live
 from src.dash.logic.site_context import SiteContext, build_site_context
 from src.dash.logic.technology import (
@@ -811,6 +819,40 @@ def enrich_cbam(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
     ):
         out["action_flag"] = ActionFlag.CBAM_URGENT
 
+    # ── v4.1b: 9 destination-weighted incumbent columns per spec §7.3 ────
+    # Emitted for ALL sites (CBAM-exposed or not) — non-exposed sites get
+    # null values rather than zeros so they don't pollute downstream charts.
+    grid_ef = row.get("grid_emission_factor_t_co2_mwh")
+    if (
+        out.get("cbam_exposed")
+        and grid_ef is not None
+        and not pd.isna(grid_ef)
+        and ctx.grid_cost > 0
+    ):
+        primary_type = cbam_types[0] if cbam_types else None
+        shares, provenance = resolve_export_shares(
+            site_id=str(ctx.kek.get("site_id", "")),
+            cbam_product_type=primary_type,
+            overrides=ctx.export_shares_overrides,
+            sector_defaults=EXPORT_MARKET_SHARES_BY_SUBSECTOR,
+            process_to_subsector=PROCESS_TO_SUBSECTOR,
+        )
+        dwt_columns = compute_destination_weighted_incumbent_columns(
+            base_incumbent_usd_mwh=ctx.grid_cost,
+            emissions_intensity_t_co2_per_mwh=float(grid_ef),
+            export_market_shares=shares,
+            carbon_price_by_market=CARBON_PRICE_BY_MARKET,
+        )
+        out.update(dwt_columns)
+        out["cbam_destination_weighted_shares_source"] = provenance
+    else:
+        # Null all 9 columns for non-CBAM-exposed sites (and the provenance flag).
+        for year in (2025, 2030, 2034):
+            out[f"cbam_destination_weighted_incumbent_{year}_usd_mwh"] = None
+            out[f"cbam_full_incumbent_{year}_usd_mwh"] = None
+            out[f"cbam_china_only_incumbent_{year}_usd_mwh"] = None
+        out["cbam_destination_weighted_shares_source"] = None
+
     return out
 
 
@@ -1018,6 +1060,18 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
 
     default_grid_cost = rp_kwh_to_usd_mwh(TARIFF_I4_RP_KWH, assumptions.idr_usd_rate)
 
+    # v4.1b: load per-site export-share overrides once, pass into each ctx
+    # for destination-weighted CBAM lookup. Empty dict when file absent —
+    # sites fall through to sector defaults at consumer time.
+    from src.dash.data_loader import load_export_shares_overrides  # noqa: PLC0415
+
+    try:
+        export_shares_overrides = load_export_shares_overrides()
+    except Exception:
+        # Loader raises DataLoadError on malformed CSV; degrade gracefully
+        # rather than crashing the entire scorecard build.
+        export_shares_overrides = {}
+
     # Per-row pipeline
     rows: list[dict[str, Any]] = []
     for _, kek in resource_df.iterrows():
@@ -1035,6 +1089,7 @@ def compute_scorecard_live(  # noqa: PLR0913 — main dashboard entry point; eac
             ruptl_metrics_df=ruptl_metrics_df,
             demand_by_site=demand_by_site,
         )
+        ctx.export_shares_overrides = export_shares_overrides
         row: dict[str, Any] = {"site_id": site_id}
         # Expose the chosen solar patch coordinates so the frontend can
         # highlight the buildable polygon the picker anchored to.
