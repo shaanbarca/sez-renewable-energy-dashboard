@@ -1548,3 +1548,61 @@ PROCESS_TO_SUBSECTOR: dict[str, str] = {
     "fertilizer": "fertilizer",
     "ammonia": "ammonia",
 }
+
+
+# ─── v4.1b sub-PR (e): CBAM scenario toggles (spec §2.4) ────────────────────
+#
+# Per spec §2.4, users pick one of 7 named scenarios to drive the dashboard's
+# headline CBAM-adjusted incumbent number. Scenarios map to existing #95
+# columns where possible; only 2 new columns are needed (domestic_low / _high).
+#
+# User QA 2026-05-22 surfaced: "only EU CBAM is mature, the other forward-
+# looking carbon prices are speculative." The toggle gives users a 1-click
+# escape to the conservative `cbam_full_2026` (100% EU stress) view, addresses
+# that concern directly.
+
+CBAM_DOMESTIC_LOW_USD_TCO2: float = 5.0
+# Current Indonesian IDX Carbon price floor per spec §2.4. Treats the site
+# as if it only faced domestic carbon pricing (no exports, no CBAM).
+
+CBAM_DOMESTIC_HIGH_USD_TCO2: float = 25.0
+# Potential 2030 Indonesia IDX Carbon ceiling per spec §2.4.
+
+# The 7 spec §2.4 scenarios users can toggle between. "auto" is the sentinel
+# value meaning "use the sector-dependent default" (see DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR).
+CBAM_SCENARIO_VALUES: tuple[str, ...] = (
+    "auto",
+    "none",
+    "domestic_low",
+    "domestic_high",
+    "effective_2025",
+    "effective_2030",
+    "cbam_full_2026",
+    "cbam_full_2030",
+)
+
+# Sector-dependent default scenario per /plan-eng-review 2026-05-22 locked
+# decision 1B. Each CBAM subsector gets a default that reflects its actual
+# export profile. The frontend maps "auto" → this lookup at render time.
+#
+# Nickel: heavily China + EU OEM exposed → destination-weighted matters,
+#   default to `effective_2025`.
+# Steel BF-BOF: 50% domestic + 40% ASEAN → destination-weighted still useful,
+#   default to `effective_2025` (the ASEAN tail picks up Singapore carbon tax
+#   trajectory).
+# Steel EAF: 75% ASEAN, mostly low-carbon-market destinations → default to
+#   `domestic_high` (the relevant policy lever is Indonesia's IDX trajectory).
+# Cement: 95% domestic → `domestic_high` (CBAM is largely irrelevant).
+# Fertilizer / ammonia: 70-80% domestic + some ASEAN/EU → `domestic_high`.
+# Aluminium: 50% ASEAN + 20% China + 10% EU → `effective_2025` (the EU OEM
+#   premium starts to bite via battery-grade nickel/cobalt analogues).
+DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR: dict[str, str] = {
+    "nickel_npi": "effective_2025",
+    "nickel_matte": "effective_2025",
+    "steel_eaf": "domestic_high",
+    "steel_bfbof": "effective_2025",
+    "aluminium": "effective_2025",
+    "cement": "domestic_high",
+    "fertilizer": "domestic_high",
+    "ammonia": "domestic_high",
+}
