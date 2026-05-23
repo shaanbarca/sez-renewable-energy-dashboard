@@ -1,9 +1,53 @@
 # TODOs — Indonesia KEK Power Competitiveness Dashboard
 
 Consolidated deferred items from [PLAN.md](PLAN.md), [PERSONAS.md](PERSONAS.md), [gap analysis](docs/gap_analysis_existing_vs_conversation_spec.md), [JETP captive power gap analysis](docs/gap_analysis_jetp_captive_power.md), and methodology/persona audit.
-Last updated: 2026-05-20 (v4.1 rooftop arc — modal + UX polish — shipped via PR #83 + #84, both merged to `private/main` and auto-deployed to Render; sits on top of PR #81's tier-3 polygon hunt + IEA cost stack UI from 2026-05-18; previously on 2026-05-12: v4.0.5 buildability hard/soft split shipped via PR #44; v4.1a foundation (#65–#72) all closed via PRs #74/#75 etc; v4.1b is the next foundation phase per `docs/refinement/dashboard_roadmap_v4_v5.md` §5.1).
+Last updated: 2026-05-23 (v4.1b foundation arc complete — destination-weighted CBAM + 3-way hybrid + hydro proximity + Score Drawer UX all shipped via PRs #92/#94/#95/#98/#99 across 2026-05-21 → 2026-05-23, formally cut as the [4.1b] release in CHANGELOG. Previously 2026-05-20: v4.1 rooftop arc — modal + UX polish — shipped via PR #83 + #84; PR #81's tier-3 polygon hunt + IEA cost stack UI from 2026-05-18; v4.0.5 buildability hard/soft split via PR #44; v4.1a foundation (#65–#72) all closed via PRs #74/#75 etc.).
 
 **Related:** [PLAN.md](PLAN.md) | [PERSONAS.md](PERSONAS.md) | [DESIGN.md](DESIGN.md) | [DATA_DICTIONARY.md](DATA_DICTIONARY.md) | [docs/METHODOLOGY_CONSOLIDATED.md](docs/METHODOLOGY_CONSOLIDATED.md) | [docs/USER_JOURNEYS.md](docs/USER_JOURNEYS.md)
+
+---
+
+## Today's deltas (2026-05-23) — v4.1b release cut
+
+Five PRs merged across 2026-05-21 → 2026-05-23 close out the v4.1b foundation arc. Formally cut as the first versioned CHANGELOG release since `[1.3.0]` on 2026-04-20.
+
+| PR | Commit | What |
+|---|---|---|
+| **#92** (2026-05-21) | `453170d` | Per-market CBAM datasets + sector defaults (#88). 8 subsectors × 8 markets in `EXPORT_MARKET_SHARES_BY_SUBSECTOR` + `CARBON_PRICE_BY_MARKET`; 4 per-site overrides (IMIP/IWIP/VDNIP/Krakatau Steel) in `data/raw/site_export_shares_overrides.csv`; `PROCESS_TO_SUBSECTOR` bridge. No consumer logic changes. 16 new tests. |
+| **#94** (2026-05-22) | `1357ada` | Hydro 2D optimizer + proximity data + IEA hybrid column rename (#89). `build_fct_hydro_proximity.py` + `hydro_adjacency.py`; `hybrid_lcoe_optimized_3way` in `basic_model.py`; IEA-aligned hybrid columns (`hybrid_solar/wind/hydro_share`, `hybrid_lcos_usd_mwh`, `hybrid_full_system_lcoe_usd_mwh`) with v4.1a aliases kept for one release. 32 new tests. |
+| **#95** (2026-05-22) | `b21852b` | Destination-weighted CBAM + 9 incumbent columns + shift report (#90). `compute_destination_weighted_carbon_adder()` + 9 new scorecard columns per spec §7.3; three-layer share fallback with `cbam_destination_weighted_shares_source` provenance. 81-site shift report. 18 new tests. |
+| **#98** (2026-05-22) | `565254e` | CBAM scenario toggle + sector default + 2 domestic columns (#96). 7 spec §2.4 scenarios + `auto` sentinel; `DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR`; `CbamScenarioSelect` dropdown in `AssumptionsPanel.tsx`. 20 new tests. |
+| **#99** (2026-05-23) | `a0867ea` | Score Drawer UX (#93). CBAM-Adjusted Incumbent row in Action tab + Hybrid Mix card + Hydro Proximity card in Resource tab. Wires `fct_hydro_proximity.csv` through `data_loader.py` + `scorecard.py` (closed loose end from #94). 24 columns added to `ScorecardRow`; 12 new vitest tests. |
+
+**Issues closed by this arc:** #88, #89, #90, #93, #96.
+
+**Methodology critique addressed (2026-05-22):** user flagged that single-headline destination-weighted CBAM made the dashboard claim more certainty than the underlying export-share data supports. /plan-eng-review locked Option A (scope-reduced to 7 named scenarios from spec §2.4 rather than a custom-input slider UI). Resolution: the `cbam_full_2026` scenario ("EU CBAM only, the only enforced regulation") is now 1 click away as the conservative-defensible reference; per-site override + custom mode deferred to v4.2 #97.
+
+**Implementation deviations from issue bodies (caught during PRs):**
+- Assumptions-panel scenario picker shipped as a **dropdown** in #98 (not the radio group #93 described). Denser at 8 options + matches the existing `BenchmarkToggle` pattern.
+- `fct_hydro_proximity.csv` wiring closed in #99 — #94 generated the CSV but never wired it into `data_loader` / `scorecard` emit. Hydro Proximity card would have rendered empty at every site without the closeout.
+
+**Partial credit on existing TODOs:**
+- **M21** (Hydropower potential layer) — backend proximity dataset + 3-way optimizer integration shipped. Map-layer surface still pending; stays open.
+- **M38** (Wire Hydro mode in Source dropdown) — v4.1b spec §6A.3 hydro proximity dataset now exists, unblocking this. Still requires `EnergyMode` union + hydro layers in `LayerControl`. Stays open.
+- **M40** (Geothermal in hybrid optimizer) — orthogonal to v4.1b; hybrid optimizer is now 3-way (solar/wind/hydro), geothermal as 4th dim is separate work. Stays open.
+
+**Still open after v4.1b (carried into v4.2):**
+- **#91** v4.3 — `cbam_urgent` comparator fix (use destination-weighted incumbent instead of `grid_cost`)
+- **#97** v4.2 — custom CBAM scenario mode (per-market sliders + per-site override)
+- **#85** v4.2 — Playwright E2E infra
+- **#80** v4.2 — IEA tier range filters
+- **#79** v4.2 — LCOS firm-tier adder decomposition
+- **#78** v4.2 — URL persistence for DataTable filter chips
+- **#62** v4.1 — rooftop detection accuracy audit (tool ready since #83; ~2.5 hr to ship doc)
+- **#50** v4.1 — Nusantara + Inalum tier-3 polygons (Buli shipped in #81)
+- **#58** v4.2 — high-res buildability for 19 sub-pixel polygons
+- **#39** v4.2 — Investment Decision Support Module (project finance metrics)
+- **#34** v4.3 — M-AT1 substation utilization override + M-T1 transmission feasibility flip
+- **#30** v5.0 — replace OAT binding-constraint with PyPSA shadow prices
+- **#9** v4.4 — F7 RUPTL → demand → RUPTL feedback loop
+
+**Test suite:** **1170 backend + 55 frontend = 1225 passing** (was 1084 backend + 43 frontend pre-v4.1b). New across the arc: `test_cbam_datasets.py` (16), `test_hybrid_3way.py` (15), `test_build_fct_hydro_proximity.py` (17), `test_cbam_destination_weighted.py` (18), `test_cbam_scenarios.py` (20), `v41b_score_drawer.test.tsx` (12). Golden fixture: 202 → 217 → 225 columns.
 
 ---
 

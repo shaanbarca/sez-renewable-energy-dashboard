@@ -61,10 +61,11 @@ flowchart TD
         P13["fct_captive_cement"]
         P14["fct_site_wind_resource"]
         P15["fct_site_solar_potential\n(v4.1: rooftop MWp from GoB v3 + MS GMLBF)"]
+        P16["fct_hydro_proximity\n(v4.1b: gates 3-way hybrid optimizer)"]
     end
 
     subgraph OUTPUTS["outputs/data/processed/"]
-        O1["flat CSV tables\n(14 files)"]
+        O1["flat CSV tables\n(15 files)"]
     end
 
     API["FastAPI Backend\nsrc/api/main.py — loads CSVs at startup,\nserves JSON via 7 endpoints"]

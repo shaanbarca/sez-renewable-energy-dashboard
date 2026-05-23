@@ -66,7 +66,7 @@ npx tsc --noEmit      # type-check
 | Frontend | `frontend/src/` — Zustand store at `store/dashboard.ts`, API at `lib/api.ts`, types at `lib/types.ts`, MapLibre map at `components/map/`, Recharts at `components/charts/` |
 | Raw data | `data/` (mostly gitignored — large geospatial files) |
 | Pipeline outputs | `outputs/data/processed/` (CSVs that the API loads) |
-| Tests | `tests/` — 730+ tests, golden fixture at `tests/fixtures/scorecard_golden.pkl`, v4.0 baseline lock at `tests/fixtures/scorecard_v4_0_baseline.csv` |
+| Tests | `tests/` — 1170+ tests, golden fixture at `tests/fixtures/scorecard_golden.pkl` (225 cols as of v4.1b), v4.0 baseline lock at `tests/fixtures/scorecard_v4_0_baseline.csv` |
 
 For specific function signatures or column schemas, read the source / `DATA_DICTIONARY.md` directly. This file used to enumerate them — they drift fast and the source is canonical.
 

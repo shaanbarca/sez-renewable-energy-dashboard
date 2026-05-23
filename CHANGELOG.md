@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+_Empty — next release window starts here._
+
+## [4.1b] - 2026-05-23
+
+> **Release scope note.** Releases between `[1.3.0]` (2026-04-20) and this entry shipped without their own versioned CHANGELOG header — `v4.0.5`, `v4.0.6`, `v4.0.7`, `v4.1`, `v4.1a`, and `v4.1b` all accumulated under a single `[Unreleased]` heading. This `[4.1b]` section is the first formal cut since `1.3.0`; everything below was delivered against `main` between 2026-04-21 and 2026-05-23. Future v4.X releases get their own header.
+
+**Headline shifts** for anyone reading this without prior context:
+- **Destination-weighted CBAM replaces the EU-only assumption.** Indonesia's industrial CBAM exposure is now blended across actual export markets per spec §7 — China stainless ($12/t), EU OEM ($90/t), domestic IDX Carbon ($5/t), etc. — instead of the v4.1a default that priced every export tonne at the EU rate. User-controllable via a 7-scenario dropdown in the Assumptions sidebar.
+- **3-way hybrid optimizer (solar / wind / hydro)** per spec §6A.4 + §6A.5. Sites within 50 km of operating hydro can now blend into the cost-optimal mix. The cost stack is IEA-aligned: `hybrid_full_system_lcoe` + `hybrid_lcos` replace `hybrid_allin` (legacy aliases kept for one release).
+- **Multi-tier LCOE cost stack (v4.1a)** per spec §2 + METHODOLOGY §18.6 ships a 4-rung competitiveness ladder: `generation` → `delivered` → `firm_4h` → `firm_8h`, each comparable against the same incumbent.
+- **Rooftop solar (v4.1)** detects per-site rooftop nameplate ceilings from Google Open Buildings v3 + Microsoft GMLBF, classified by the §14 footprint classifier, surfaced as a layout-density slider in the Score Drawer. 35 industrial polygons (up from 25 KEK-only) → 86.8% of total industrial demand within fence-clipped catchments.
+- **Polygon editor + provenance tier** (`official_kek` / `osm_landuse_industrial` / `claude_building_hull_estimate` / `none`) makes trust visible for every site number.
+
+What follows is the full delivery log against `main` from the [1.3.0] cut forward.
+
 ### Added (v4.1b UX — Score Drawer surfaces for destination-weighted CBAM + 3-way hybrid + hydro proximity, #93)
 
 - **CBAM-adjusted incumbent row in the Action tab** of the Score Drawer. Single headline showing `cbam_active_scenario_value_usd_mwh` (the $/MWh value the user's scenario toggle selects). Scenario label rendered as a pill at the top of the card (e.g. "Effective 2025 (destination-weighted)", "EU CBAM only (mature regulation)"). Provenance badge — `● Site override` / `◐ Sector default` / `○ EU fallback` — renders only for destination-weighted scenarios where the export-share lookup actually fired. Hover tooltip explains the math.

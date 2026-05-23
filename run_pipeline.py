@@ -61,6 +61,7 @@ from src.pipeline.build_fct_captive_nickel import build_captive_nickel_summary
 from src.pipeline.build_fct_field_provenance import build_fct_field_provenance
 from src.pipeline.build_fct_geothermal_proximity import build_fct_geothermal_proximity
 from src.pipeline.build_fct_grid_cost_proxy import build_fct_grid_cost_proxy
+from src.pipeline.build_fct_hydro_proximity import build_fct_hydro_proximity
 from src.pipeline.build_fct_lcoe import build_fct_lcoe
 from src.pipeline.build_fct_lcoe_wind import build_fct_lcoe_wind
 from src.pipeline.build_fct_perpres_112_classification import (
@@ -158,6 +159,12 @@ PIPELINE: list[Step] = [
         "fct_geothermal_proximity",
         build_fct_geothermal_proximity,
         "fct_geothermal_proximity.csv",
+        depends_on=["dim_sites"],
+    ),
+    Step(
+        "fct_hydro_proximity",
+        build_fct_hydro_proximity,
+        "fct_hydro_proximity.csv",
         depends_on=["dim_sites"],
     ),
     Step(
