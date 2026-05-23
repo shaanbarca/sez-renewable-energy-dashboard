@@ -10,7 +10,10 @@ import { LcoeWaterfallModal } from './LcoeWaterfallModal';
 import { ColoredStatRow, SectionHeader, StatCard, StatRow, StatRowWithTip } from './StatComponents';
 
 // F10 (2026-05-08): binding-constraint label + tooltip
-const BINDING_CONSTRAINT_LABEL: Record<NonNullable<ScorecardRow['hybrid_binding_constraint']>, string> = {
+const BINDING_CONSTRAINT_LABEL: Record<
+  NonNullable<ScorecardRow['hybrid_binding_constraint']>,
+  string
+> = {
   bess_capex: 'Battery cost',
   solar_capex: 'Solar CAPEX',
   wind_capex: 'Wind CAPEX',
@@ -19,13 +22,19 @@ const BINDING_CONSTRAINT_LABEL: Record<NonNullable<ScorecardRow['hybrid_binding_
   none_meaningful: 'Robust mix',
 };
 
-const BINDING_CONSTRAINT_TIP: Record<NonNullable<ScorecardRow['hybrid_binding_constraint']>, string> = {
-  bess_capex: 'Battery cost is the lever — cheaper BESS pushes the mix toward more solar, pricier BESS toward more wind.',
+const BINDING_CONSTRAINT_TIP: Record<
+  NonNullable<ScorecardRow['hybrid_binding_constraint']>,
+  string
+> = {
+  bess_capex:
+    'Battery cost is the lever — cheaper BESS pushes the mix toward more solar, pricier BESS toward more wind.',
   solar_capex: 'Solar CAPEX is the lever — cheaper panels push toward more solar.',
   wind_capex: 'Wind CAPEX is the lever — cheaper turbines push toward more wind.',
   wacc: 'Cost of capital is the lever — lower WACC favors higher-CAPEX/lower-OPEX mixes.',
-  storage_duration: 'Storage duration is the lever — longer discharge changes power-vs-energy economics.',
-  none_meaningful: 'No single perturbation flips this mix by more than 5 percentage points. The optimum is robust.',
+  storage_duration:
+    'Storage duration is the lever — longer discharge changes power-vs-energy economics.',
+  none_meaningful:
+    'No single perturbation flips this mix by more than 5 percentage points. The optimum is robust.',
 };
 
 // Short limitation note shown in the method-label tooltip + footer of the
@@ -34,7 +43,7 @@ const BINDING_CONSTRAINT_METHOD_TIP =
   'Tornado sensitivity (one-at-a-time perturbation): each input is moved ±X% individually, ' +
   'we re-run the solar/wind optimizer, and report which input shifts the mix most. ' +
   "Doesn't capture interactions between inputs, and isn't a true LP shadow price — " +
-  "v5.0 PyPSA will replace this with shadow prices from the actual hourly dispatch.";
+  'v5.0 PyPSA will replace this with shadow prices from the actual hourly dispatch.';
 
 function BindingConstraintCallout({
   constraint,
@@ -430,8 +439,7 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
               (() => {
                 // v4.3 M-AT8b — compare LCOE+BESS against the *effective* incumbent
                 // (captive for non-grid_only sites, grid for grid_only).
-                const inc =
-                  row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh ?? null;
+                const inc = row.effective_incumbent_lcoe_usd_mwh ?? row.grid_cost_usd_mwh ?? null;
                 const incLabel =
                   row.effective_incumbent_kind && row.effective_incumbent_kind !== 'grid'
                     ? 'incumbent'
@@ -500,7 +508,11 @@ export function EconomicsTab({ row }: { row: ScorecardRow }) {
               tip="How much less battery storage is needed vs solar-only (14h bridge)."
             />
           )}
-          <StatRow label="All-In LCOE" value={row.hybrid_allin_usd_mwh.toFixed(1)} unit="$/MWh" />
+          <StatRow
+            label="Hybrid full system LCOE"
+            value={(row.hybrid_full_system_lcoe_usd_mwh ?? row.hybrid_allin_usd_mwh).toFixed(1)}
+            unit="$/MWh"
+          />
           {row.hybrid_binding_constraint && row.hybrid_binding_narrative && (
             <BindingConstraintCallout
               constraint={row.hybrid_binding_constraint}
