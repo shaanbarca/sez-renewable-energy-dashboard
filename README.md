@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![MapLibre GL](https://img.shields.io/badge/MapLibre_GL-4-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT_+_Commons_Clause-yellow)](LICENSE)
-[![Tests: 847](https://img.shields.io/badge/Tests-847_passing-brightgreen)](tests/)
+[![Tests: 1170](https://img.shields.io/badge/Tests-1170_passing-brightgreen)](tests/)
 [![DOI](https://zenodo.org/badge/1210467818.svg)](https://doi.org/10.5281/zenodo.19570542)
 
 An analytical model and interactive dashboard assessing renewable energy competitiveness across Indonesia's 25 Special Economic Zones (KEKs). Computes solar and wind LCOE, grid integration costs, BESS storage requirements, CBAM exposure, and action flags under user-adjustable assumptions.
@@ -21,10 +21,13 @@ Built for development bank analysts, energy investors, and policy advisors.
 
 **Analytical Model**
 - Solar and wind LCOE via CRF annuity method with panel degradation and firming costs
-- Hybrid solar+wind optimization (sweeps blended mix to minimize all-in cost)
+- **4-rung IEA cost stack** (v4.1a) — `generation` → `delivered` → `firm_4h` → `firm_8h` per spec §2 + METHODOLOGY §18.6, each tier compared against the same incumbent
+- **3-way hybrid optimizer** (v4.1b) — solar + wind + hydro blend per spec §6A.4 (2D sweep over `solar_share × hydro_share`); falls back to 2-way at non-hydro sites
+- **Hydro proximity signal** (v4.1b) — nearest operating + RUPTL pipeline PLTAs feed both the dispatchable-RE leg of the cost cascade and the 3-way optimizer
 - BESS storage sizing with bridge-hour model (round-trip efficiency, overnight gap)
-- 5-layer geospatial buildability filter (forest, peatland, slope, land cover, road proximity)
+- 5-layer geospatial buildability filter (forest, peatland, slope, land cover, road proximity), HARD/SOFT split with site-owner override slider
 - Grid integration assessment (3-point proximity: solar site, substation, KEK)
+- **Destination-weighted CBAM** (v4.1b) — exposure blended across actual export markets per spec §7 (China stainless $12/t, EU OEM $90/t, IDX Carbon $5/t, etc.) instead of EU-only assumption. User-controllable via 7 named scenarios per spec §2.4 (`none` / `domestic_low` / `domestic_high` / `effective_2025` / `effective_2030` / `cbam_full_2026` / `cbam_full_2030`) with sector-dependent defaults
 - EU CBAM exposure detection across 68/81 sites (nickel smelters, steel mills, cement plants, aluminium, fertilizer) with 2026–2034 cost trajectory. Scope 2 savings multiplied by `CBAM_RE_ADDRESSABLE_FRACTION` per sector (cement 0.12, fertilizer/ammonia 0.10, steel_bfbof 0.80, else 1.0) so RE cost relief reflects only the electric share of thermal-inclusive intensity values. Ammonia calibration (2.3 tCO₂/t Indonesia-specific Scope 1) wired in pending row ingestion (TODOS M28); petrochemical intentionally excluded per EU Annex I
 - **Rooftop solar potential per site** (v4.1) — multi-source building footprints (Google Open Buildings v3 + Microsoft GMLBF, merged via per-site STRtree IoU dedup), §14 geometric classifier (7 categories), residential-pattern filter, fence-boundary polygon clip, and an automated accuracy eval (RV-eval) with 7 self-explanatory flag types. Total fleet rooftop ceiling: 2,743 MWp across 78/81 sites
 - **Ground-mounted potential per site with buildability override slider** (v4.0.5) — hard/soft split of the 5-layer buildability filter: HARD exclusions (slope, peat, Kawasan Hutan) are immovable; SOFT exclusions (land cover, road distance) are site-owner-overridable via a "Land-use override %" slider that interpolates between baseline raster and HARD ceiling. Sites without a fence-line polygon fall back to a 2 km centroid buffer with a ⚠ low-trust badge — no more silent zeros. Polygon provenance surfaced via 4-tier taxonomy (`official_kek` / `osm_landuse_industrial` / `claude_building_hull_estimate` / `none`)
@@ -93,7 +96,7 @@ frontend/
   src/components/    Map, panels, charts, table, UI components
   src/store/         Zustand state management
   src/lib/           API client, types, formatting utilities
-tests/               847 tests across model, pipeline, API, and rooftop solar pipeline
+tests/               1170 tests across model, pipeline, API, and rooftop solar pipeline
 notebooks/           Jupyter notebooks for exploration and data pipeline
 docs/                Methodology, design specs, reference documents
 data/                Input data (GeoTIFFs, GeoJSON, shapefiles)
@@ -117,7 +120,7 @@ outputs/             Pipeline output CSVs
 ## Testing
 
 ```bash
-uv run pytest tests/            # 847 tests
+uv run pytest tests/            # 1170 tests
 uv run ruff check src/ tests/   # Python lint
 cd frontend && npm run lint     # TypeScript lint (Biome)
 cd frontend && npx tsc --noEmit # Type check

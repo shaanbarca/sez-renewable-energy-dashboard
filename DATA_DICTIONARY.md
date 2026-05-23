@@ -47,6 +47,7 @@ Contract for the data pipeline. Three parts:
   - [3.11 fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv)
   - [3.12 fct_site_solar_potential](#312-outputsdataprocessedfct_site_solar_potentialcsv)
   - [3.13 fct_geothermal_proximity](#313-outputsdataprocessedfct_geothermal_proximitycsv)
+  - [3.13a fct_hydro_proximity (v4.1b)](#313a-outputsdataprocessedfct_hydro_proximitycsv-v41b)
 - [Open Questions](#open-questions)
 
 ---
@@ -73,6 +74,7 @@ All processed output tables. Click a table name to jump to its full column spec.
 | [fct_captive_cement_summary](#310-outputsdataprocessedfct_captive_cement_summarycsv) | fact | variable | Per-site cement plant aggregation — dual-mode | `dim_sites` · GEM Cement Tracker | CBAM-exposed cement plants. High process emissions (0.52 tCO₂/t calcination). Feeds Industry tab + sector summary. | ✅ |
 | [fct_site_wind_resource](#311-outputsdataprocessedfct_site_wind_resourcecsv) | fact | 81 | Wind speed, capacity factor, and buildability per site (centroid + best 50km + buildable-area metrics) | `dim_sites` · Global Wind Atlas v3 GeoTIFF · `buildable_wind_web.tif` | Wind analog of `fct_site_resource`. Answers "how much wind does each site get and how much land is buildable for wind?" Feeds wind LCOE and supply coverage. | ✅ |
 | [fct_geothermal_proximity](#313-outputsdataprocessedfct_geothermal_proximitycsv) | fact | 81 | Nearest operating + pipeline PLTP per site, plus the adjacency tier that drives F1's Supply Blend dispatchable-RE layer | `dim_sites` · `data/raw/geothermal_operating.geojson` · `data/raw/geothermal_pipeline.geojson` | F2 (v4.0.5): activates the dispatchable-RE layer of the Supply Blend cascade for sites within reach of geothermal. Tier translator in `src/model/geothermal_adjacency.py` produces (coverage_pct, LCOE) inputs that F1 reads off `SiteContext`. | ✅ |
+| [fct_hydro_proximity](#313a-outputsdataprocessedfct_hydro_proximitycsv-v41b) | fact | 81 | Nearest operating + pipeline PLTA per site, plus the adjacency tier that gates the v4.1b 3-way hybrid optimizer's hydro leg | `dim_sites` · `data/raw/hydro_operating.geojson` · `data/raw/hydro_pipeline.geojson` | v4.1b: enables hybrid_lcoe_optimized_3way per spec §6A.4. Tier translator in `src/model/hydro_adjacency.py` gates eligible tiers; non-eligible sites fall back to 2-way solar+wind solver. | ✅ |
 | [fct_site_classifications](#314-outputsdataprocessedfct_site_classificationscsv) | fact | 81 | Per-site electricity arrangement + captive fuel type (v4.1a §3.1a subset). Gates captive coal/gas LCOE columns on the scorecard. Defaults apply §3.2 sector × region rule table; per-site overrides in `data/raw/site_classifications.csv` trump defaults. | `dim_sites` · `data/raw/site_classifications.csv` (overrides) | v4.1a §3 (#70): classifies each site into one of 4 electricity arrangements + 6 captive fuel types. Read by `fct_site_scorecard` to populate `electricity_arrangement` + `captive_fuel_type` + `classification_confidence` columns. Captive cost gating happens via these. v4.1b extends additively with export-share columns. | ✅ |
 
 ---
@@ -1136,6 +1138,34 @@ LCOE             = (effective_capex × CRF + FOM) / (CF × 8.76)
 **Tier distribution at v4.0.5 (81 sites):** `none` 38 / `operating_within_200km` 23 / `pipeline_within_200km_post2030` 10 / `operating_within_50km` 9 / `pipeline_within_200km_pre2030` 1.
 
 **Deferred:** `geothermal_transmission_feasibility` (same_island_connected / grid_first / cross_island_unconnected) lands when v4.1b adds the broader dispatchable-RE adjacency model — needs site/plant `regpln` plus `inter_substation_connected` from `fct_substation_proximity`.
+
+---
+
+### 3.13a `outputs/data/processed/fct_hydro_proximity.csv` (v4.1b)
+
+**Rows:** 81 (one per site)
+**Built from:** `data/raw/hydro_operating.geojson` (~17 major PLTAs, ~3 GW seed coverage of the ~6 GW total) **+** `data/raw/hydro_pipeline.geojson` (11 named RUPTL 2025–2034 projects, ~5 GW seed coverage of the ~12 GW total) **+** `outputs/data/processed/dim_sites.csv`
+**Pipeline:** `build_fct_hydro_proximity.py` (depends on `dim_sites`)
+
+Mirrors `fct_geothermal_proximity` symmetrically — same join key, same column shape, same tier enum.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `site_id` | str | Site identifier (join key) |
+| `nearest_hydro_operating_id` | str | ID of closest operating PLTA |
+| `nearest_hydro_operating_km` | float | Haversine distance to nearest operating PLTA (km) |
+| `nearest_hydro_operating_mw` | float | Capacity at that PLTA (MW) |
+| `nearest_hydro_pipeline_id` | str | ID of closest RUPTL pipeline addition |
+| `nearest_hydro_pipeline_km` | float | Haversine distance to that pipeline plant (km) |
+| `nearest_hydro_pipeline_mw` | float | Capacity (MW) |
+| `nearest_hydro_pipeline_target_year` | int | RUPTL-listed COD year |
+| `hydro_adjacency_tier` | str | `operating_within_50km` / `operating_within_200km` / `pipeline_within_200km_pre2030` / `pipeline_within_200km_post2030` / `none` |
+
+**Tier translator → 3-way hybrid optimizer.** `src/model/hydro_adjacency.py::HYDRO_OPTIMIZER_ELIGIBLE_TIERS` gates which tiers admit hydro into the v4.1b 2D `solar_share × hydro_share` sweep in `src/model/basic_model.py::hybrid_lcoe_optimized_3way` (operating_within_50km, operating_within_200km, pipeline_within_200km_pre2030; post-2030 + none excluded per spec §6A.4). Hydro `RESource` configured with `nighttime_fraction=1.0` (fully dispatchable) + `cf=0.50` (Indonesian run-of-river typical, spec §6A.2).
+
+**Tier distribution at v4.1b launch (81 sites):** `none` 36 / `operating_within_200km` 35 / `operating_within_50km` 8 / `pipeline_within_200km_pre2030` 2.
+
+**PLN ownership caveat.** Indonesian PLTA capacity is mostly PLN-owned and grid-shared — within-50km adjacency is a proxy for displaceable-into-procurement potential, but actual procurement still requires a PLN MOU. Tooltip on the Hydro Proximity card in the Score Drawer flags this explicitly.
 
 ---
 
