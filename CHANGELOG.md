@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (v4.1b UX — Score Drawer surfaces for destination-weighted CBAM + 3-way hybrid + hydro proximity, #93)
+
+- **CBAM-adjusted incumbent row in the Action tab** of the Score Drawer. Single headline showing `cbam_active_scenario_value_usd_mwh` (the $/MWh value the user's scenario toggle selects). Scenario label rendered as a pill at the top of the card (e.g. "Effective 2025 (destination-weighted)", "EU CBAM only (mature regulation)"). Provenance badge — `● Site override` / `◐ Sector default` / `○ EU fallback` — renders only for destination-weighted scenarios where the export-share lookup actually fired. Hover tooltip explains the math.
+- **Hybrid Mix card in the Resource tab** per spec §6A.5. Three pills (Solar / Wind / Hydro) showing the 3-way optimizer shares (sum to 100%). At non-hydro sites the Hydro pill renders at 0% so users can confirm hydro was considered and rejected. Headline value: `hybrid_full_system_lcoe_usd_mwh` (label updated from "All-In LCOE" → "Hybrid full system LCOE" per spec §6A.5 — both the new Resource-tab card and the legacy Economics-tab card). Storage adder shown as `hybrid_lcos_usd_mwh`.
+- **Hydro Proximity card in the Resource tab** mirroring the geothermal-adjacency pattern: tier pill (`Operating <50km` / `Pipeline <2030` / etc.), nearest operating PLTA distance + capacity, nearest pipeline PLTA distance + target year + capacity. Tooltip flags the PLN-owned-grid-shared procurement caveat.
+- **fct_hydro_proximity.csv wired into the API**: data_loader.py mirrors the geothermal load pattern; scorecard.py emits the 8 hydro columns. The CSV existed since #94 but never reached the frontend — this PR closes the loop.
+- **24 new columns added to the `ScorecardRow` TypeScript type**: 11 destination-weighted CBAM incumbents + shares-source (#95), 2 domestic CBAM scenarios + 3 active-scenario metadata (#96/#98), 4 IEA-aligned hybrid optimizer outputs (#94), 8 hydro proximity columns (#94 + this PR's wiring). The `CbamScenario` union type already shipped in #98; this PR makes the `ScorecardRow` shape complete.
+- **12 new vitest component tests** at `frontend/src/components/panels/scoredrawer/__tests__/v41b_score_drawer.test.tsx`: `CBAM_SCENARIO_META` covers every spec §2.4 scenario; CBAM headline row renders/hides for the right site states; provenance badge appears only for destination-weighted scenarios; hybrid pills sum to 100% with hydro=0 still rendering; hydro proximity card renders for any of {tier, op_km, pipeline_km}. Golden fixture regenerated (217 → 225 columns).
+
+**Acceptance criteria** from #93 met: CBAM Scenario dropdown shipped in #98 with 7 spec §2.4 options + sector-dependent defaults; headline CBAM row reflects active scenario; hybrid 3-way pills sum to 100%; hydro proximity renders across all 81 sites (empty-state when tier=`none`); all 24 backend columns accessible to the frontend.
+
+**Implementation deviation vs issue body**: shipped Assumptions-panel scenario picker as a **dropdown** in #98 (not the radio group #93 originally described) — denser at 8 options, matches the existing `BenchmarkToggle` pattern. Custom CBAM scenario mode and per-site override stay deferred to v4.2 #97 per locked decision 0.
+
 ### Added (v4.1b sub-PR (e) — CBAM scenario toggle + sector default + 2 domestic columns, #96)
 
 - **CBAM Scenario toggle in the Assumptions sidebar** per spec §2.4. 7 named scenarios: `none`, `domestic_low` ($5/tCO₂), `domestic_high` ($25/tCO₂), `effective_2025` (destination-weighted), `effective_2030`, `cbam_full_2026` ($90/tCO₂ — 100% EU CBAM, the only enforced regulation today), `cbam_full_2030` ($150/tCO₂). Plus `auto` sentinel (default) that picks a sector-dependent default per site. Addresses the methodology critique surfaced 2026-05-22: "only EU CBAM is mature" — the `cbam_full_2026` option is 1 click away.

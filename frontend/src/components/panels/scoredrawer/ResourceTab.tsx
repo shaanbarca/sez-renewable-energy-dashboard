@@ -201,6 +201,160 @@ export function ResourceTab({ row }: { row: ScorecardRow }) {
         )}
       </StatCard>
 
+      {/* v4.1b #93/#94: hybrid 3-way mix card. Renders the IEA-aligned
+          per-spec §6A.5 outputs (solar/wind/hydro shares sum to 100%, full
+          system LCOE = blended LCOE + LCOS storage adder). Only renders
+          when the optimizer produced a result (full_system_lcoe non-null).
+          For non-hydro sites hydro_share = 0; the pill stays so users can
+          confirm hydro was considered and rejected. */}
+      {row.hybrid_full_system_lcoe_usd_mwh != null && (
+        <StatCard>
+          <SectionHeader
+            title="Hybrid Mix"
+            subtitle="Cost-optimal blend of solar / wind / hydro per spec §6A.5"
+            tip="The 3-way optimizer sweeps mixes of solar, wind, and (where adjacent operating hydro exists) hydro to minimize the full-system LCOE = generation cost + storage adder (LCOS). At sites with no nearby hydro, hydro_share = 0 and the mix collapses to the legacy 2-way solver."
+          />
+          <div className="flex gap-1.5 my-2">
+            {(
+              [
+                {
+                  label: 'Solar',
+                  share: row.hybrid_solar_share ?? 0,
+                  color: '#F59E0B',
+                },
+                {
+                  label: 'Wind',
+                  share: row.hybrid_wind_share ?? 0,
+                  color: '#3B82F6',
+                },
+                {
+                  label: 'Hydro',
+                  share: row.hybrid_hydro_share ?? 0,
+                  color: '#06B6D4',
+                },
+              ] as const
+            ).map((p) => (
+              <span
+                key={p.label}
+                className="flex-1 text-center text-[11px] py-1 rounded font-medium tabular-nums"
+                style={{
+                  background: `${p.color}22`,
+                  color: p.color,
+                  border: `1px solid ${p.color}55`,
+                }}
+                title={`${p.label} contributes ${(p.share * 100).toFixed(0)}% of the optimized hybrid mix.`}
+              >
+                {p.label} {(p.share * 100).toFixed(0)}%
+              </span>
+            ))}
+          </div>
+          <StatRowWithTip
+            label="Hybrid full system LCOE"
+            value={row.hybrid_full_system_lcoe_usd_mwh.toFixed(1)}
+            unit="$/MWh"
+            tip="Generation-weighted LCOE of the optimal mix + LCOS storage adder. This is the cost the 4-rung Economics ladder uses for the Firm tier. Spec §6A.5."
+          />
+          {row.hybrid_lcos_usd_mwh != null && (
+            <StatRowWithTip
+              label="Storage adder (LCOS)"
+              value={row.hybrid_lcos_usd_mwh.toFixed(1)}
+              unit="$/MWh"
+              tip="LCOS = battery CAPEX/lifetime, sized at reduced hybrid bridge hours. Pure storage cost; doesn't include the solar/wind/hydro generation."
+            />
+          )}
+          {row.hybrid_bess_reduction_pct != null && (
+            <StatRowWithTip
+              label="BESS reduction vs solar-only"
+              value={`${(row.hybrid_bess_reduction_pct * 100).toFixed(0)}%`}
+              tip="How many hours of battery the hybrid mix saves vs solar-only (14h bridge). Wind + hydro fill nighttime; less BESS needed."
+            />
+          )}
+        </StatCard>
+      )}
+
+      {/* v4.1b #93/#94: hydro proximity row mirroring the geothermal
+          adjacency pattern. PLTA operating capacity in Indonesia is mostly
+          grid-shared (PLN-owned), not site-procurable — the tooltip flags
+          this caveat. Pipeline projects (2025-2030 RUPTL hydro) are
+          potential procurement targets for sites within the catchment. */}
+      {(row.hydro_adjacency_tier ||
+        row.nearest_hydro_operating_km != null ||
+        row.nearest_hydro_pipeline_km != null) && (
+        <StatCard>
+          <SectionHeader
+            title="Hydro Proximity"
+            subtitle="Nearest operating + pipeline PLTA"
+            tip="Spatial signal for the hydro-share leg of the 3-way hybrid optimizer. Operating hydro inside 50km is treated as procurable for hybrid blending; operating hydro 50-200km is informational only (grid-shared via PLN). Pipeline hydro is shown for 2025-2030 RUPTL planning context."
+          />
+          {row.hydro_adjacency_tier && (
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Adjacency tier
+              </span>
+              {(() => {
+                const tier = row.hydro_adjacency_tier;
+                const meta: Record<string, { label: string; color: string; tip: string }> = {
+                  operating_within_50km: {
+                    label: 'Operating <50km',
+                    color: '#06B6D4',
+                    tip: 'Operating PLTA within 50km — eligible for the hydro-share leg of the hybrid optimizer.',
+                  },
+                  operating_within_200km: {
+                    label: 'Operating <200km',
+                    color: '#0EA5E9',
+                    tip: 'Operating PLTA within 200km but >50km. Informational only — too far for site-level procurement. Grid-shared via PLN.',
+                  },
+                  pipeline_within_200km_pre2030: {
+                    label: 'Pipeline <2030',
+                    color: '#10B981',
+                    tip: 'RUPTL pipeline hydro within 200km, target year ≤2030. Plan-ahead procurement target.',
+                  },
+                  pipeline_within_200km_post2030: {
+                    label: 'Pipeline >2030',
+                    color: '#84CC16',
+                    tip: 'RUPTL pipeline hydro within 200km, target year >2030. Long-horizon planning only.',
+                  },
+                  none: {
+                    label: 'None',
+                    color: 'var(--text-muted)',
+                    tip: 'No operating or pipeline hydro within 200km. Hybrid optimizer collapses to the legacy 2-way solver here.',
+                  },
+                };
+                const m = meta[tier];
+                if (!m) return null;
+                return <Pill label={m.label} color={m.color} tip={m.tip} />;
+              })()}
+            </div>
+          )}
+          {row.nearest_hydro_operating_km != null && (
+            <StatRowWithTip
+              label="Nearest operating PLTA"
+              value={`${row.nearest_hydro_operating_km.toFixed(0)} km${
+                row.nearest_hydro_operating_mw != null
+                  ? ` · ${row.nearest_hydro_operating_mw.toFixed(0)} MW`
+                  : ''
+              }`}
+              tip={`Closest operating PLTA. Indonesian PLTAs are mostly PLN-owned and grid-shared — within-50km adjacency proxies for displaceable-into-procurement potential, but actual procurement requires PLN MOU.${row.nearest_hydro_operating_id ? ` ID: ${row.nearest_hydro_operating_id}.` : ''}`}
+            />
+          )}
+          {row.nearest_hydro_pipeline_km != null && (
+            <StatRowWithTip
+              label="Nearest pipeline PLTA"
+              value={`${row.nearest_hydro_pipeline_km.toFixed(0)} km${
+                row.nearest_hydro_pipeline_target_year != null
+                  ? ` · ${row.nearest_hydro_pipeline_target_year}`
+                  : ''
+              }${
+                row.nearest_hydro_pipeline_mw != null
+                  ? ` · ${row.nearest_hydro_pipeline_mw.toFixed(0)} MW`
+                  : ''
+              }`}
+              tip={`Closest RUPTL pipeline PLTA + planned commissioning year. Pre-2030 pipeline is realistic for v4.1b planning; post-2030 is informational.${row.nearest_hydro_pipeline_id ? ` ID: ${row.nearest_hydro_pipeline_id}.` : ''}`}
+            />
+          )}
+        </StatCard>
+      )}
+
       {showSolar && (hasRooftop || hasGround) && (
         <StatCard>
           <SectionHeader

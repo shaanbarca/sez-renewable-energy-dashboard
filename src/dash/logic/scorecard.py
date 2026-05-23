@@ -771,6 +771,20 @@ def enrich_captive_context(ctx: SiteContext, _row: dict[str, Any]) -> dict[str, 
     out["nearest_geothermal_pipeline_target_year"] = _opt_int(
         k, "nearest_geothermal_pipeline_target_year"
     )
+
+    # v4.1b #93/#94: hydro proximity surface for the Score Drawer hydro row.
+    # Source columns merged into resource_df by data_loader from
+    # fct_hydro_proximity.csv. Mirrors the geothermal block above. Tier
+    # values: operating_within_50km / operating_within_200km /
+    # pipeline_within_200km_pre2030 / pipeline_within_200km_post2030 / none.
+    out["hydro_adjacency_tier"] = _opt_str(k, "hydro_adjacency_tier")
+    out["nearest_hydro_operating_id"] = _opt_str(k, "nearest_hydro_operating_id")
+    out["nearest_hydro_operating_km"] = _opt_float(k, "nearest_hydro_operating_km")
+    out["nearest_hydro_operating_mw"] = _opt_float(k, "nearest_hydro_operating_mw")
+    out["nearest_hydro_pipeline_id"] = _opt_str(k, "nearest_hydro_pipeline_id")
+    out["nearest_hydro_pipeline_km"] = _opt_float(k, "nearest_hydro_pipeline_km")
+    out["nearest_hydro_pipeline_mw"] = _opt_float(k, "nearest_hydro_pipeline_mw")
+    out["nearest_hydro_pipeline_target_year"] = _opt_int(k, "nearest_hydro_pipeline_target_year")
     return out
 
 

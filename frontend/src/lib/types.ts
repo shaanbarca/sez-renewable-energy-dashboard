@@ -334,6 +334,66 @@ export interface ScorecardRow {
   cement_plants?: string | null;
   cement_has_chinese_ownership?: boolean | null;
 
+  // v4.1b #95: destination-weighted CBAM incumbents (export-mix × per-market
+  // carbon price × emissions intensity, added to grid_cost). 9 columns total:
+  // 3 scenarios (destination_weighted / cbam_full / cbam_china_only) × 3
+  // years (2025/2030/2034). Null for non-CBAM-exposed sites.
+  cbam_destination_weighted_incumbent_2025_usd_mwh?: number | null;
+  cbam_destination_weighted_incumbent_2030_usd_mwh?: number | null;
+  cbam_destination_weighted_incumbent_2034_usd_mwh?: number | null;
+  cbam_full_incumbent_2025_usd_mwh?: number | null;
+  cbam_full_incumbent_2030_usd_mwh?: number | null;
+  cbam_full_incumbent_2034_usd_mwh?: number | null;
+  cbam_china_only_incumbent_2025_usd_mwh?: number | null;
+  cbam_china_only_incumbent_2030_usd_mwh?: number | null;
+  cbam_china_only_incumbent_2034_usd_mwh?: number | null;
+  // Provenance: site_override (one of 4 hand-curated overrides) vs
+  // sector_default (one of 8 sector defaults) vs eu_fallback (no shares
+  // data). Drives the provenance badge in the Score Drawer CBAM row.
+  cbam_destination_weighted_shares_source?:
+    | 'site_override'
+    | 'sector_default'
+    | 'eu_fallback'
+    | null;
+
+  // v4.1b sub-PR (e) #96/#98: 2 domestic CBAM scenarios (year-independent) +
+  // 3 active-scenario metadata cols that resolve the user's scenario toggle
+  // (or sector default when toggle = "auto") to a single headline value.
+  cbam_domestic_low_incumbent_usd_mwh?: number | null;
+  cbam_domestic_high_incumbent_usd_mwh?: number | null;
+  cbam_active_scenario?: CbamScenario | null;
+  cbam_active_scenario_column?: string | null;
+  cbam_active_scenario_value_usd_mwh?: number | null;
+
+  // v4.1b #94: IEA-aligned hybrid optimizer outputs per spec §6A.5.
+  // 3-way share split (solar+wind+hydro sum to 1.0); LCOS = storage-only
+  // adder; full_system = blended LCOE + LCOS. Legacy v4.1a aliases above
+  // (hybrid_lcoe_usd_mwh, hybrid_allin_usd_mwh, hybrid_bess_adder_usd_mwh)
+  // are kept for one release per the data-loader deprecation policy.
+  hybrid_wind_share?: number | null;
+  hybrid_hydro_share?: number | null;
+  hybrid_lcos_usd_mwh?: number | null;
+  hybrid_full_system_lcoe_usd_mwh?: number | null;
+
+  // v4.1b #94: hydro proximity (mirrors geothermal pattern). Drives the
+  // Score Drawer hydro-proximity row + the hydro-share leg of the 3-way
+  // hybrid optimizer. Tier values match the Python enum in
+  // src/model/hydro_adjacency.py.
+  hydro_adjacency_tier?:
+    | 'operating_within_50km'
+    | 'operating_within_200km'
+    | 'pipeline_within_200km_pre2030'
+    | 'pipeline_within_200km_post2030'
+    | 'none'
+    | null;
+  nearest_hydro_operating_id?: string | null;
+  nearest_hydro_operating_km?: number | null;
+  nearest_hydro_operating_mw?: number | null;
+  nearest_hydro_pipeline_id?: string | null;
+  nearest_hydro_pipeline_km?: number | null;
+  nearest_hydro_pipeline_mw?: number | null;
+  nearest_hydro_pipeline_target_year?: number | null;
+
   // F2: Geothermal adjacency (drives the dispatchable-RE layer in delivered cost)
   geothermal_adjacency_tier?:
     | 'operating_within_50km'
