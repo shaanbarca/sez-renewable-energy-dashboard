@@ -344,13 +344,23 @@ def compute_destination_weighted_incumbent_columns(
     carbon_price_by_market: dict[str, dict[int, float]],
     years: tuple[int, ...] = (2025, 2030, 2034),
 ) -> dict[str, float]:
-    """Compute all 9 v4.1b CBAM incumbent columns per spec §7.3.
+    """Compute the v4.1b CBAM incumbent columns per spec §7.3 + sub-PR (e) #96.
 
     Returns dict with keys:
       cbam_destination_weighted_incumbent_{year}_usd_mwh — realistic exposure
       cbam_full_incumbent_{year}_usd_mwh                 — 100% EU stress
       cbam_china_only_incumbent_{year}_usd_mwh           — 100% China stress
+      cbam_domestic_low_incumbent_usd_mwh                — $5/tCO2 domestic only (sub-PR (e))
+      cbam_domestic_high_incumbent_usd_mwh               — $25/tCO2 domestic only (sub-PR (e))
+
+    The 2 domestic-scenario columns are year-independent (single point-in-time
+    prices per spec §2.4). The other 9 are year-indexed per spec §7.3.
     """
+    from src.assumptions import (  # noqa: PLC0415
+        CBAM_DOMESTIC_HIGH_USD_TCO2,
+        CBAM_DOMESTIC_LOW_USD_TCO2,
+    )
+
     out: dict[str, float] = {}
     for year in years:
         out[f"cbam_destination_weighted_incumbent_{year}_usd_mwh"] = round(
@@ -383,4 +393,71 @@ def compute_destination_weighted_incumbent_columns(
             ),
             2,
         )
+
+    # Domestic-only scenarios (sub-PR (e) #96, per spec §2.4): single-point
+    # carbon price applied uniformly to the site's grid_ef. These don't depend
+    # on year (spec §2.4 frames them as snapshot prices), so single columns.
+    out["cbam_domestic_low_incumbent_usd_mwh"] = round(
+        base_incumbent_usd_mwh + emissions_intensity_t_co2_per_mwh * CBAM_DOMESTIC_LOW_USD_TCO2,
+        2,
+    )
+    out["cbam_domestic_high_incumbent_usd_mwh"] = round(
+        base_incumbent_usd_mwh + emissions_intensity_t_co2_per_mwh * CBAM_DOMESTIC_HIGH_USD_TCO2,
+        2,
+    )
+
     return out
+
+
+# ─── v4.1b sub-PR (e): Scenario resolver (spec §2.4 + locked decision 1C) ───
+#
+# Maps a (scenario_enum, subsector) pair to the scorecard column name that
+# represents the user's chosen view. Frontend uses this to pick which column
+# value to render as the Score Drawer's headline CBAM number.
+#
+# "auto" sentinel → look up DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR for the site's
+# subsector. Unknown subsector or scenario falls back to effective_2025.
+
+# Scenarios that map directly to existing #95 columns:
+_SCENARIO_TO_COLUMN: dict[str, str] = {
+    "effective_2025": "cbam_destination_weighted_incumbent_2025_usd_mwh",
+    "effective_2030": "cbam_destination_weighted_incumbent_2030_usd_mwh",
+    "cbam_full_2026": "cbam_full_incumbent_2025_usd_mwh",  # 2026 ≈ 2025 in trajectory
+    "cbam_full_2030": "cbam_full_incumbent_2030_usd_mwh",
+    # sub-PR (e) #96 new columns:
+    "domestic_low": "cbam_domestic_low_incumbent_usd_mwh",
+    "domestic_high": "cbam_domestic_high_incumbent_usd_mwh",
+}
+
+
+def resolve_cbam_scenario_column(
+    scenario: str | None,
+    subsector: str | None,
+    default_by_subsector: dict[str, str],
+) -> tuple[str, str | None]:
+    """Resolve (scenario_choice, site_subsector) → (active_scenario, column_name).
+
+    Returns ``(active_scenario, column_name)``. ``column_name`` is None for the
+    `none` scenario (no carbon adder; frontend should render the unadjusted
+    grid_cost). Unknown scenarios fall back to `effective_2025`.
+
+    Per /plan-eng-review 2026-05-22 locked decision 1B: when scenario is "auto"
+    (the sentinel default), look up the sector-dependent default for the site's
+    subsector. Falls back to `effective_2025` if the subsector isn't in the
+    default map (defensive — every CBAM subsector SHOULD be covered, but a new
+    sector type added later shouldn't crash the resolver).
+    """
+    if scenario == "auto" or scenario is None:
+        if subsector and subsector in default_by_subsector:
+            scenario = default_by_subsector[subsector]
+        else:
+            scenario = "effective_2025"
+
+    if scenario == "none":
+        return ("none", None)
+
+    if scenario in _SCENARIO_TO_COLUMN:
+        return (scenario, _SCENARIO_TO_COLUMN[scenario])
+
+    # Unknown scenario — graceful fallback rather than crash
+    return ("effective_2025", _SCENARIO_TO_COLUMN["effective_2025"])

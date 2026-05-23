@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (v4.1b sub-PR (e) — CBAM scenario toggle + sector default + 2 domestic columns, #96)
+
+- **CBAM Scenario toggle in the Assumptions sidebar** per spec §2.4. 7 named scenarios: `none`, `domestic_low` ($5/tCO₂), `domestic_high` ($25/tCO₂), `effective_2025` (destination-weighted), `effective_2030`, `cbam_full_2026` ($90/tCO₂ — 100% EU CBAM, the only enforced regulation today), `cbam_full_2030` ($150/tCO₂). Plus `auto` sentinel (default) that picks a sector-dependent default per site. Addresses the methodology critique surfaced 2026-05-22: "only EU CBAM is mature" — the `cbam_full_2026` option is 1 click away.
+- **Sector-dependent defaults** per /plan-eng-review 2026-05-22 locked decision 1B. `DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR` in `src/assumptions.py`: nickel → `effective_2025`, cement / fertilizer / ammonia / steel EAF → `domestic_high`, aluminium + steel BF-BOF → `effective_2025`.
+- **2 new scorecard columns**: `cbam_domestic_low_incumbent_usd_mwh` ($5/t × grid_ef + grid_cost), `cbam_domestic_high_incumbent_usd_mwh` ($25/t). Year-independent single-point columns per spec §2.4 framing.
+- **`resolve_cbam_scenario_column(scenario, subsector)`** in `src/dash/logic/cbam.py` maps the user's toggle choice to the column name. 5 of the 7 spec scenarios reuse existing #95 columns; only 2 new columns required.
+- **3 new metadata columns per site**: `cbam_active_scenario` (resolved scenario name), `cbam_active_scenario_column` (column the frontend reads), `cbam_active_scenario_value_usd_mwh` (the $/MWh value). Frontend renders the headline without doing its own lookup.
+- **`UserAssumptions.cbam_scenario: str = "auto"`** field in `src/dash/logic/assumptions.py`. Mirrored as `CbamScenario` type in `frontend/src/lib/types.ts`.
+- **`CbamScenarioSelect` component** in `frontend/src/components/panels/AssumptionsPanel.tsx`: dropdown with 8 options (7 scenarios + `auto`), tooltip per option, inline description underneath.
+- **20 new tests** at `tests/test_cbam_scenarios.py`: scenario enum matches spec §2.4, sector defaults cover every CBAM subsector, scenario resolver handles auto/explicit/none/unknown cases, domestic_low/high arithmetic anchored to spec. Golden fixture regenerated (212 → 217 columns: 2 domestic + 3 metadata).
+
+**Custom-input scenario mode** (per-market sliders + per-site override) deferred to v4.2 #97 per locked decision 0. The 7 scenario presets cover 80% of analysis questions; custom-input is the power-user escape hatch.
+
 ### Added (v4.1b — destination-weighted CBAM + 9 incumbent columns + shift report, #90)
 
 - **Two new functions in `src/dash/logic/cbam.py`** per spec §7.2: `compute_destination_weighted_carbon_adder(emissions_intensity, export_market_shares, carbon_price_by_market, year)` and `compute_destination_weighted_incumbent(base_incumbent_cost, ...)`. The adder math: `Σ (share[market] × price[market, year]) × emissions_intensity` yields $/MWh. Year interpolation is linear between snapshot years 2025/2030/2034 per spec §3.5.

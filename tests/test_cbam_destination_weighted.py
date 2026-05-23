@@ -205,9 +205,11 @@ def test_compute_destination_weighted_incumbent_adds_to_base():
 # ─── 9-column emission per spec §7.3 ─────────────────────────────────────────
 
 
-def test_9_columns_emit_for_3_scenarios_x_3_years():
-    """compute_destination_weighted_incumbent_columns returns exactly the 9
-    spec §7.3 columns. No missing keys, no extra keys."""
+def test_11_columns_emit_per_spec_73_plus_sub_pr_e():
+    """compute_destination_weighted_incumbent_columns returns exactly 11 columns:
+    9 year-indexed scenarios per spec §7.3 + 2 domestic single-point scenarios
+    added in sub-PR (e) #96 per spec §2.4. No missing keys, no extra keys.
+    """
     shares = {
         "china_stainless": 0.50,
         "battery_supply_chain_eu_oem": 0.35,
@@ -220,6 +222,7 @@ def test_9_columns_emit_for_3_scenarios_x_3_years():
         carbon_price_by_market=CARBON_PRICE_BY_MARKET,
     )
     expected_keys = {
+        # 9 year-indexed columns from #95 / spec §7.3
         "cbam_destination_weighted_incumbent_2025_usd_mwh",
         "cbam_destination_weighted_incumbent_2030_usd_mwh",
         "cbam_destination_weighted_incumbent_2034_usd_mwh",
@@ -229,6 +232,9 @@ def test_9_columns_emit_for_3_scenarios_x_3_years():
         "cbam_china_only_incumbent_2025_usd_mwh",
         "cbam_china_only_incumbent_2030_usd_mwh",
         "cbam_china_only_incumbent_2034_usd_mwh",
+        # 2 domestic single-point columns from sub-PR (e) #96 / spec §2.4
+        "cbam_domestic_low_incumbent_usd_mwh",
+        "cbam_domestic_high_incumbent_usd_mwh",
     }
     assert set(cols.keys()) == expected_keys
 

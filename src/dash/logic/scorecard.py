@@ -29,6 +29,7 @@ from src.assumptions import (
     CAPTIVE_REGIME_MAX_KM,
     CARBON_PRICE_BY_MARKET,
     CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
+    DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR,
     EXPORT_MARKET_SHARES_BY_SUBSECTOR,
     PERPRES_112_CEILING_USD_MWH,
     PROCESS_TO_SUBSECTOR,
@@ -39,6 +40,7 @@ from src.dash.logic.cbam import (
     _detect_cbam_types,
     compute_cbam_trajectory,
     compute_destination_weighted_incumbent_columns,
+    resolve_cbam_scenario_column,
     resolve_export_shares,
 )
 from src.dash.logic.lcoe import _round, compute_lcoe_live, compute_lcoe_wind_live
@@ -819,17 +821,20 @@ def enrich_cbam(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
     ):
         out["action_flag"] = ActionFlag.CBAM_URGENT
 
-    # ── v4.1b: 9 destination-weighted incumbent columns per spec §7.3 ────
+    # ── v4.1b: destination-weighted incumbent columns per spec §7.3 + §2.4 ──
+    # 11 columns total: 9 year-indexed (3 scenarios × 3 years) + 2 domestic
+    # single-point columns added in sub-PR (e) #96.
     # Emitted for ALL sites (CBAM-exposed or not) — non-exposed sites get
     # null values rather than zeros so they don't pollute downstream charts.
     grid_ef = row.get("grid_emission_factor_t_co2_mwh")
+    primary_type = cbam_types[0] if cbam_types else None
+    subsector = PROCESS_TO_SUBSECTOR.get(primary_type or "")
     if (
         out.get("cbam_exposed")
         and grid_ef is not None
         and not pd.isna(grid_ef)
         and ctx.grid_cost > 0
     ):
-        primary_type = cbam_types[0] if cbam_types else None
         shares, provenance = resolve_export_shares(
             site_id=str(ctx.kek.get("site_id", "")),
             cbam_product_type=primary_type,
@@ -845,13 +850,34 @@ def enrich_cbam(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
         )
         out.update(dwt_columns)
         out["cbam_destination_weighted_shares_source"] = provenance
+
+        # v4.1b sub-PR (e) #96: resolve the active scenario based on the user's
+        # toggle + sector default. cbam_active_scenario_column tells the
+        # frontend WHICH column to read as the headline; None = `none` scenario
+        # (no carbon adder, render grid_cost as the headline).
+        scenario_choice = getattr(ctx.assumptions, "cbam_scenario", "auto")
+        active_scenario, active_column = resolve_cbam_scenario_column(
+            scenario=scenario_choice,
+            subsector=subsector,
+            default_by_subsector=DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR,
+        )
+        out["cbam_active_scenario"] = active_scenario
+        out["cbam_active_scenario_column"] = active_column
+        out["cbam_active_scenario_value_usd_mwh"] = (
+            out.get(active_column) if active_column else round(ctx.grid_cost, 2)
+        )
     else:
-        # Null all 9 columns for non-CBAM-exposed sites (and the provenance flag).
+        # Null all columns for non-CBAM-exposed sites (and the metadata flags).
         for year in (2025, 2030, 2034):
             out[f"cbam_destination_weighted_incumbent_{year}_usd_mwh"] = None
             out[f"cbam_full_incumbent_{year}_usd_mwh"] = None
             out[f"cbam_china_only_incumbent_{year}_usd_mwh"] = None
+        out["cbam_domestic_low_incumbent_usd_mwh"] = None
+        out["cbam_domestic_high_incumbent_usd_mwh"] = None
         out["cbam_destination_weighted_shares_source"] = None
+        out["cbam_active_scenario"] = None
+        out["cbam_active_scenario_column"] = None
+        out["cbam_active_scenario_value_usd_mwh"] = None
 
     return out
 

@@ -74,6 +74,14 @@ class UserAssumptions:
     cbam_certificate_price_eur: float = CBAM_CERTIFICATE_PRICE_EUR_TCO2
     cbam_eur_usd_rate: float = CBAM_EUR_USD_RATE
 
+    # v4.1b sub-PR (e) #96: CBAM scenario toggle per spec §2.4. Default
+    # "auto" → sector-dependent default per site (nickel → effective_2025,
+    # cement → domestic_high, etc.). User can override globally to one of
+    # the 7 named scenarios: none / domestic_low / domestic_high /
+    # effective_2025 / effective_2030 / cbam_full_2026 / cbam_full_2030.
+    # Per-site override + custom scenario mode deferred to v4.2 #97.
+    cbam_scenario: str = "auto"
+
     # V4.1 RV15: rooftop §5.3 footprint→MWp parameters. The fct_site_solar_potential
     # CSV stores `usable_roof_area_m2` (post-§14-classifier weighted area); the
     # scorecard endpoint recomputes rooftop_kw_dc / rooftop_kw_ac /

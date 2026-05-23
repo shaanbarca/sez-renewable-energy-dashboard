@@ -1,3 +1,15 @@
+// v4.1b sub-PR (e) #96: CBAM scenario enum mirroring src/assumptions.py::CBAM_SCENARIO_VALUES.
+// "auto" is the sentinel meaning "use sector-dependent default" (resolved at scorecard build).
+export type CbamScenario =
+  | 'auto'
+  | 'none'
+  | 'domestic_low'
+  | 'domestic_high'
+  | 'effective_2025'
+  | 'effective_2030'
+  | 'cbam_full_2026'
+  | 'cbam_full_2030';
+
 export interface UserAssumptions {
   capex_usd_per_kw: number;
   lifetime_yr: number;
@@ -17,6 +29,10 @@ export interface UserAssumptions {
   hybrid_solar_share?: number | null;
   cbam_certificate_price_eur: number;
   cbam_eur_usd_rate: number;
+  // v4.1b sub-PR (e) #96: CBAM scenario toggle per spec §2.4.
+  // "auto" = sector-dependent default per site (nickel → effective_2025,
+  // cement → domestic_high, etc.). User can override globally.
+  cbam_scenario?: CbamScenario;
   // V4.1 RV15: rooftop §5.3 sliders. Recompute happens at request time
   // in /api/scorecard against `usable_roof_area_m2` from the rooftop fct.
   rooftop_panel_power_w_dc: number;

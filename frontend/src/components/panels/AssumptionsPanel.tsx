@@ -174,6 +174,108 @@ function SubstationUtilizationSlider() {
   );
 }
 
+function CbamScenarioSelect() {
+  const assumptions = useDashboardStore((s) => s.assumptions);
+  const setAssumptions = useDashboardStore((s) => s.setAssumptions);
+  const current = (assumptions?.cbam_scenario ?? 'auto') as
+    | 'auto'
+    | 'none'
+    | 'domestic_low'
+    | 'domestic_high'
+    | 'effective_2025'
+    | 'effective_2030'
+    | 'cbam_full_2026'
+    | 'cbam_full_2030';
+
+  // Per spec §2.4 + sub-PR (e) #96. Defaults to "auto" → sector-dependent
+  // default resolved server-side (nickel → effective_2025, cement → domestic_high).
+  const options: { value: typeof current; label: string; tooltip: string }[] = [
+    {
+      value: 'auto',
+      label: 'Auto (sector default)',
+      tooltip:
+        'Each CBAM-exposed site uses its sector default: nickel/steel/aluminium → destination-weighted; cement/fertilizer → domestic policy. Most defensible per-site framing.',
+    },
+    {
+      value: 'none',
+      label: 'None (no carbon adder)',
+      tooltip:
+        'No carbon pricing applied. Useful as a baseline sanity check — shows the unadjusted grid cost.',
+    },
+    {
+      value: 'domestic_low',
+      label: 'Indonesia IDX low ($5/tCO₂)',
+      tooltip:
+        'Current Indonesian IDX Carbon price floor. Treats the site as if it only faced domestic carbon pricing (no exports, no CBAM).',
+    },
+    {
+      value: 'domestic_high',
+      label: 'Indonesia IDX high ($25/tCO₂)',
+      tooltip:
+        'Potential 2030 Indonesia IDX Carbon ceiling. Aggressive domestic policy scenario.',
+    },
+    {
+      value: 'effective_2025',
+      label: 'Effective 2025 (destination-weighted)',
+      tooltip:
+        'Per-site export market shares × per-market carbon prices in 2025. ~$35/t typical for Indonesian nickel — blends China ETS, EU CBAM, OEM scope-3.',
+    },
+    {
+      value: 'effective_2030',
+      label: 'Effective 2030 (destination-weighted)',
+      tooltip:
+        'Same as effective_2025 but at the 2030 trajectory. ~$70/t typical for Indonesian nickel as China ETS rises and OEM scope-3 premiums grow.',
+    },
+    {
+      value: 'cbam_full_2026',
+      label: 'EU CBAM only (mature regulation, $90/t)',
+      tooltip:
+        '100% EU CBAM applied at the current $90/tCO₂ rate. Conservative stress test — uses only the carbon market that is actually enforced today.',
+    },
+    {
+      value: 'cbam_full_2030',
+      label: 'EU CBAM only 2030 ($150/t)',
+      tooltip: 'Projected full EU CBAM at the 2030 trajectory ($150/tCO₂).',
+    },
+  ];
+
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+      <div
+        className="text-[10px] uppercase tracking-wider mb-1.5"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        CBAM Scenario
+      </div>
+      <select
+        value={current}
+        onChange={(e) =>
+          setAssumptions({ cbam_scenario: e.target.value } as Partial<UserAssumptions>)
+        }
+        className="w-full text-[11px] py-1.5 px-2 rounded"
+        style={{
+          background: 'var(--card-bg)',
+          color: 'var(--text-value)',
+          border: '1px solid var(--input-border)',
+        }}
+        title={options.find((o) => o.value === current)?.tooltip ?? ''}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} title={opt.tooltip}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <div
+        className="text-[10px] mt-1 leading-snug"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        {options.find((o) => o.value === current)?.tooltip}
+      </div>
+    </div>
+  );
+}
+
 function BenchmarkToggle() {
   const benchmarkMode = useDashboardStore((s) => s.benchmarkMode);
   const setBenchmarkMode = useDashboardStore((s) => s.setBenchmarkMode);
@@ -587,6 +689,7 @@ export default function AssumptionsPanel() {
           </Accordion.Root>
 
           <BenchmarkToggle />
+          <CbamScenarioSelect />
 
           {/* Reset */}
           <button
