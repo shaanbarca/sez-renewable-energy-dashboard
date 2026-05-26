@@ -28,7 +28,6 @@ import pandas as pd
 from src.assumptions import (
     CAPTIVE_REGIME_MAX_KM,
     CARBON_PRICE_BY_MARKET,
-    CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE,
     DEFAULT_CBAM_SCENARIO_BY_SUBSECTOR,
     EXPORT_MARKET_SHARES_BY_SUBSECTOR,
     PERPRES_112_CEILING_USD_MWH,
@@ -804,42 +803,11 @@ def enrich_cbam(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
         )
     )
 
-    if out.get("cbam_exposed") and pd.notna(ctx.lcoe_mid) and ctx.grid_cost > 0:
-        primary_type = cbam_types[0] if cbam_types else None
-        elec_intensity = (
-            CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE.get(primary_type, 0) if primary_type else 0
-        )
-        if elec_intensity > 0:
-            savings_per_tonne = out.get("cbam_savings_2030_usd_per_tonne") or 0
-            cbam_savings_mwh = savings_per_tonne / elec_intensity
-            out["cbam_savings_per_mwh"] = round(cbam_savings_mwh, 1)
-            adjusted_lcoe = ctx.lcoe_mid - cbam_savings_mwh
-            out["cbam_adjusted_gap_pct"] = round(
-                ((adjusted_lcoe - ctx.grid_cost) / ctx.grid_cost) * 100, 1
-            )
-        else:
-            out["cbam_savings_per_mwh"] = None
-            out["cbam_adjusted_gap_pct"] = None
-    else:
-        out["cbam_savings_per_mwh"] = None
-        out["cbam_adjusted_gap_pct"] = None
-
-    adj_gap = out.get("cbam_adjusted_gap_pct")
-    out["cbam_urgent"] = bool(out.get("cbam_exposed") and adj_gap is not None and adj_gap < 0)
-
-    # Override action flag: CBAM flips the economics even when RE alone doesn't beat grid
-    current_flag = row.get("action_flag")
-    if out["cbam_urgent"] and current_flag in (
-        ActionFlag.NOT_COMPETITIVE,
-        ActionFlag.INVEST_RESILIENCE,
-    ):
-        out["action_flag"] = ActionFlag.CBAM_URGENT
-
-    # ── v4.1b: destination-weighted incumbent columns per spec §7.3 + §2.4 ──
+    # ── v4.1b destination-weighted incumbent columns per spec §7.3 + §2.4 ──
     # 11 columns total: 9 year-indexed (3 scenarios × 3 years) + 2 domestic
-    # single-point columns added in sub-PR (e) #96.
-    # Emitted for ALL sites (CBAM-exposed or not) — non-exposed sites get
-    # null values rather than zeros so they don't pollute downstream charts.
+    # single-point columns added in sub-PR (e) #96. Computed BEFORE
+    # cbam_urgent so the urgent flag can read the active scenario's carbon
+    # adder (v4.2a closes #91). Emitted for ALL sites (CBAM-exposed or not).
     grid_ef = row.get("grid_emission_factor_t_co2_mwh")
     primary_type = cbam_types[0] if cbam_types else None
     subsector = PROCESS_TO_SUBSECTOR.get(primary_type or "")
@@ -892,6 +860,66 @@ def enrich_cbam(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
         out["cbam_active_scenario"] = None
         out["cbam_active_scenario_column"] = None
         out["cbam_active_scenario_value_usd_mwh"] = None
+
+    # ── v4.2a closes #91: cbam_urgent comparator + cbam_adjusted_gap_pct ──
+    # The OLD math (v4.0) computed cbam_savings_per_mwh from per-product
+    # CBAM cost ÷ product electricity intensity, then compared the adjusted
+    # solar LCOE against ctx.grid_cost. This was wrong for captive sites:
+    # IMIP / IWIP / Obi Island run on captive coal, not the PLN grid — their
+    # incumbent is captive_coal_lcoe + the CBAM cost their captive emissions
+    # carry, not the grid tariff.
+    #
+    # NEW math (v4.2a):
+    #   carbon_adder        = active_scenario_value - grid_cost
+    #                         (v4.1b destination-weighted CBAM per MWh)
+    #   incumbent_with_cbam = effective_incumbent + carbon_adder
+    #                         (captive_coal_lcoe for captive sites,
+    #                          grid_cost for grid sites, per v4.3 M-AT8b)
+    #   gap_pct             = (solar_lcoe - incumbent_with_cbam) /
+    #                         incumbent_with_cbam × 100
+    #   cbam_urgent         = gap_pct < 0
+    #
+    # cbam_savings_per_mwh column repurposed: now holds the carbon adder
+    # (the per-MWh CBAM cost that solar avoids by being clean). Same dimension,
+    # different methodology — frontend tooltip updated in this PR.
+    #
+    # Known simplification: the carbon adder is computed against
+    # grid_emission_factor_t_co2_mwh even for captive coal sites (whose own
+    # emission factor is ~0.85-0.95 tCO2/MWh vs Indonesian grids 0.56-1.27).
+    # Tracked as a separate future refinement; #91 scope is the comparator
+    # fix, not per-arrangement emission factors.
+    active_scenario_value = out.get("cbam_active_scenario_value_usd_mwh")
+    if (
+        out.get("cbam_exposed")
+        and active_scenario_value is not None
+        and pd.notna(ctx.lcoe_mid)
+        and ctx.effective_incumbent_lcoe > 0
+    ):
+        carbon_adder = float(active_scenario_value) - ctx.grid_cost
+        incumbent_with_cbam = ctx.effective_incumbent_lcoe + carbon_adder
+        out["cbam_savings_per_mwh"] = round(carbon_adder, 1) if carbon_adder > 0 else None
+        out["cbam_adjusted_gap_pct"] = round(
+            ((ctx.lcoe_mid - incumbent_with_cbam) / incumbent_with_cbam) * 100, 1
+        )
+        # Surface which comparator was used — mirrors effective_incumbent_kind
+        # so a reader of the CSV / API response sees the methodology at a glance.
+        out["cbam_urgent_comparator_kind"] = ctx.effective_incumbent_kind
+    else:
+        out["cbam_savings_per_mwh"] = None
+        out["cbam_adjusted_gap_pct"] = None
+        out["cbam_urgent_comparator_kind"] = None
+
+    adj_gap = out.get("cbam_adjusted_gap_pct")
+    out["cbam_urgent"] = bool(out.get("cbam_exposed") and adj_gap is not None and adj_gap < 0)
+
+    # Override action flag: CBAM flips the economics even when RE alone doesn't beat the
+    # appropriate incumbent. cbam_urgent now uses the right incumbent per #91 fix above.
+    current_flag = row.get("action_flag")
+    if out["cbam_urgent"] and current_flag in (
+        ActionFlag.NOT_COMPETITIVE,
+        ActionFlag.INVEST_RESILIENCE,
+    ):
+        out["action_flag"] = ActionFlag.CBAM_URGENT
 
     return out
 

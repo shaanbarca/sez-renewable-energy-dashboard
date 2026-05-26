@@ -1677,7 +1677,36 @@ At 100% annual wind coverage with 25% firming gap, firm wind coverage = 75%. The
 | `not_competitive` | None of the above AND buildable area > 0 | Solar LCOE exceeds grid cost by too wide a margin. | All |
 | `no_solar_resource` | Buildable area = 0 | No suitable land for solar within 50km after buildability filters. | Policy Maker |
 
-**`cbam_urgent` note (V3.6):** Overrides `not_competitive` and `invest_resilience` when fired. A KEK that would be `not_competitive` on energy economics alone becomes `cbam_urgent` if the CBAM-adjusted competitive gap (§14) is negative, meaning RE + avoided CBAM border tax is cheaper than the current energy source. 12/25 KEKs are CBAM-exposed. The flag speaks to the KEK Tenant persona: CBAM savings justify the renewable switch regardless of pure LCOE economics.
+**`cbam_urgent` note (V3.6, comparator fixed in v4.2a #91):** Overrides `not_competitive` and `invest_resilience` when fired. The CBAM-adjusted competitive gap compares solar LCOE against the **site-appropriate carbon-adjusted incumbent**:
+
+```
+carbon_adder        = cbam_active_scenario_value_usd_mwh - grid_cost_usd_mwh
+                      (v4.1b destination-weighted CBAM per MWh)
+incumbent_with_cbam = effective_incumbent_lcoe + carbon_adder
+                      (captive_coal_lcoe for captive sites,
+                       grid_cost for grid sites, per v4.3 M-AT8b)
+gap_pct             = (solar_lcoe - incumbent_with_cbam) / incumbent_with_cbam × 100
+cbam_urgent         = gap_pct < 0
+```
+
+The site-appropriate incumbent is the same one driving `solar_competitive_gap_pct` (per v4.3 M-AT8b's `electricity_arrangement` classification): captive_coal_lcoe for pure_captive coal sites, captive_gas_lcoe for natural-gas captive sites, captive_hydro_lcoe for hydro captive sites, grid_cost for grid-connected sites. The `cbam_urgent_comparator_kind` scorecard column surfaces which incumbent was used per site.
+
+The `carbon_adder` is the destination-weighted CBAM cost per MWh from the user's active scenario picker (v4.1b sub-PR (e) #96). Under the `auto` default it resolves to a sector-dependent default (nickel → `effective_2025`, cement → `domestic_high`, etc.).
+
+**Worked example — IMIP Morowali (pure_captive nickel, the #91 anchor case):**
+- `electricity_arrangement` = pure_captive, `captive_fuel_type` = coal_subcritical
+- `effective_incumbent_lcoe` = captive_coal_lcoe (~$70/MWh, captive coal at IMIP)
+- `cbam_active_scenario` = effective_2025 (sector default for nickel)
+- `cbam_active_scenario_value_usd_mwh` ≈ $99/MWh (grid_cost + destination-weighted carbon adder for nickel)
+- `carbon_adder` ≈ $48/MWh (the per-MWh CBAM cost the site faces)
+- `incumbent_with_cbam` = captive_coal_lcoe + carbon_adder ≈ $118/MWh
+- Solar LCOE ≈ $55/MWh → `cbam_adjusted_gap_pct` ≈ -53% → `cbam_urgent = True`
+
+**Pre-fix behavior (v4.0 through v4.1b):** the comparator was `ctx.grid_cost` for all sites regardless of electricity_arrangement. For captive sites this was wrong — IMIP / IWIP / Obi Island run on their own captive plants, not the PLN grid. The shift report at `docs/refinement/v4_2a_cbam_urgent_action_flag_shift_report_2026-05-26.md` documents the 13 sites that flipped on the fix and the 10 action_flag changes.
+
+**Known simplification (out of v4.2a scope):** the `carbon_adder` uses the grid emission factor (`grid_emission_factor_t_co2_mwh`) for both grid and captive sites. Captive coal emission factors are typically higher (~0.85-0.95 tCO₂/MWh vs Indonesian grid 0.56-1.27), so the carbon adder slightly understates captive CBAM exposure. Per-arrangement emission factor selection is a separate future refinement.
+
+**Coverage:** 68/81 sites are CBAM-exposed. 12/25 KEKs carry the flag. The flag speaks to the KEK Tenant persona: CBAM savings justify the renewable switch regardless of pure LCOE economics.
 
 ### 10.2 Priority ordering
 

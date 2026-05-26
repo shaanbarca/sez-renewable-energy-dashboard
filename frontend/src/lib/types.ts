@@ -446,6 +446,15 @@ export interface ScorecardRow {
   cbam_savings_per_mwh?: number | null;
   cbam_adjusted_gap_pct?: number | null;
   cbam_urgent?: boolean;
+  // v4.2a #91: which incumbent did cbam_urgent compare against?
+  // Mirrors effective_incumbent_kind for CBAM-exposed sites; null otherwise.
+  cbam_urgent_comparator_kind?:
+    | 'grid'
+    | 'captive_coal'
+    | 'captive_gas'
+    | 'captive_hydro'
+    | 'captive_other'
+    | null;
 
   // V3.11: cascaded delivered cost (tenant view) — WB → remote captive → grid
   delivered_cost_usd_mwh?: number | null;

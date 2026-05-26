@@ -221,7 +221,10 @@ export function getEffectiveFlagExplanation(
       const adjGap = row.cbam_adjusted_gap_pct?.toFixed(0) ?? '?';
       const stdGap = row.solar_competitive_gap_pct?.toFixed(0) ?? '?';
       const savMwh = row.cbam_savings_per_mwh?.toFixed(0) ?? '?';
-      return `${techDesc} alone is ${stdGap}% above grid parity, but EU CBAM avoidance saves $${savMwh}/MWh. CBAM-adjusted gap: ${adjGap}%. Switching to RE is cheaper than paying the border tax.`;
+      const comparator = row.cbam_urgent_comparator_kind ?? 'grid';
+      const incumbent =
+        comparator === 'grid' ? 'grid' : comparator.replace('captive_', 'captive ');
+      return `${techDesc} alone is ${stdGap}% above ${incumbent} parity, but the destination-weighted CBAM cost on ${incumbent} adds $${savMwh}/MWh. Carbon-adjusted gap (vs ${incumbent} + CBAM): ${adjGap}%. Switching to RE beats the carbon-loaded incumbent.`;
     }
 
     case 'invest_transmission': {

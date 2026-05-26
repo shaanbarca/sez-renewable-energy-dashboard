@@ -339,7 +339,7 @@ export function DemandTab({ row }: { row: ScorecardRow }) {
               label="CBAM-Adjusted Gap"
               value={formatGap(row.cbam_adjusted_gap_pct)}
               color={gapColor(row.cbam_adjusted_gap_pct)}
-              tip={`Standard gap: ${formatGap(row.solar_competitive_gap_pct)} (LCOE vs grid). CBAM saves $${row.cbam_savings_per_mwh?.toFixed(1)}/MWh (= $${row.cbam_savings_2030_usd_per_tonne?.toLocaleString()}/t ÷ ${({ nickel_rkef: '37.5', steel_eaf: '0.45', steel_bfbof: '0.25', aluminium: '15.0', fertilizer: '10.0', cement: '0.9' } as Record<string, string>)[(row.cbam_product_type ?? '').split(',')[0]] ?? '?'} MWh/t). Adjusted = (LCOE − grid − CBAM savings) / grid. At 2030 rates (51.5% free allocation phased out).`}
+              tip={`Solar LCOE vs site-appropriate carbon-adjusted incumbent. Comparator: ${row.cbam_urgent_comparator_kind ?? 'grid'} (the same incumbent driving the standard gap, per v4.3 M-AT8b). Carbon adder: $${row.cbam_savings_per_mwh?.toFixed(1) ?? '?'}/MWh (= grid_emission_factor × destination-weighted scenario price for "${row.cbam_active_scenario ?? '?'}"). Methodology: v4.2a #91 — captive sites compare against their captive incumbent + CBAM, not the PLN grid.`}
             />
           )}
           {Number.isFinite(row.cbam_emission_intensity_current) && (

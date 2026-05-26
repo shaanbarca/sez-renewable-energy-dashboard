@@ -4,7 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-_Empty — next release window starts here._
+### Fixed (v4.2a — `cbam_urgent` comparator uses site-appropriate incumbent, closes #91)
+
+- **`cbam_urgent` action flag now compares against the right incumbent.** Pre-fix, the flag fired when adjusted solar LCOE beat `ctx.grid_cost` for every site regardless of whether the site ran on PLN grid or its own captive plant. For captive coal sites (IMIP, IWIP, Obi Island, etc.) this was wrong — their actual incumbent is captive_coal_lcoe + the CBAM cost their captive emissions carry, not the PLN tariff. Post-fix, `cbam_urgent` compares solar LCOE against `effective_incumbent_lcoe + carbon_adder` where `effective_incumbent_lcoe` is the site-appropriate baseline per v4.3 M-AT8b's `electricity_arrangement` classification (captive_coal / captive_gas / captive_hydro / grid) and `carbon_adder` is v4.1b's destination-weighted CBAM cost per MWh from the active scenario picker.
+- **Methodology shift in `cbam_savings_per_mwh` semantics.** The column now holds `carbon_adder = cbam_active_scenario_value - grid_cost` (the per-MWh CBAM cost an incumbent grid_ef implies under the active scenario). Replaces the v4.0-era product-emissions formula `cbam_savings_2030_per_tonne ÷ CBAM_ELECTRICITY_INTENSITY_MWH_PER_TONNE`. Same dimension ($/MWh), different methodology — the new framing is grid-side rather than product-side, consistent with the v4.1b destination-weighted CBAM rewrite.
+- **1 new scorecard column: `cbam_urgent_comparator_kind`** (`grid` / `captive_coal` / `captive_gas` / `captive_hydro` / `captive_other` / null). Mirrors `effective_incumbent_kind` for CBAM-exposed sites; surfaces which comparator drove `cbam_urgent` so consumers can see the methodology at a glance.
+- **81-site action-flag shift report** at `docs/refinement/v4_2a_cbam_urgent_action_flag_shift_report_2026-05-26.md`. **13 sites flip `cbam_urgent`** (12 False→True, 1 True→False). **10 sites have `action_flag` recomputed** (mostly `not_competitive` / `invest_resilience` → `cbam_urgent`). 66 sites see `cbam_adjusted_gap_pct` shift by >1pp. 13 non-CBAM-exposed sites byte-identical (regression-pin green).
+- **13 new tests** at `tests/test_action_flag_cbam_urgent.py`: per-arrangement comparator behavior (pure_captive, grid_only, grid_primary_with_captive, hybrid_captive_primary), `cbam_urgent_comparator_kind` invariant (always matches `effective_incumbent_kind` for CBAM sites), action-flag override stays narrow (only `not_competitive` / `invest_resilience` get lifted), IMIP Morowali anchor case from the #91 demo. Golden fixture regenerated (225 → 226 columns).
+- **`docs/METHODOLOGY_CONSOLIDATED.md` §10** updated with the new comparator formula + worked IMIP example + known simplification note (`carbon_adder` uses grid_ef even for captive sites; per-arrangement EF is a future refinement).
+- **Frontend tooltip + action-flag explanation** in `DemandTab.tsx` and `actionFlags.ts` rewritten to reflect the new comparator + carbon_adder math. `ScorecardRow.cbam_urgent_comparator_kind` type added.
+
+**v4.2a step 1 of 5.** Per /plan-eng-review 2026-05-26 D11: #91 pulled forward from v4.3 to v4.2a so v4.2b's PF module doesn't inherit a known-wrong CBAM comparator. Next v4.2a sub-PRs: #78 URL persistence → #80 IEA range filters → #79 LCOS decomposition → #85 Playwright infra.
 
 ## [4.1b] - 2026-05-23
 
