@@ -15,7 +15,9 @@ build, what it costs, and whether it clears an investment committee.*
 
 ## 0. The one-paragraph version
 
-Roughly 70% of this codebase is country-agnostic and ports to Malaysia on open data alone. The
+The analytical core and the data contract port to Malaysia on open data alone (106 of 107 scorecard
+columns are country-neutral); the presentation layer is about half country-flavoured and needs real
+work — see §5 for the measured numbers. The
 Indonesia-specific 30% is concentrated in four places: the site universe (KEK portal), the grid
 layer (PLN substations + RUPTL), the tariff/regulatory layer (BPP, Permen ESDM, Perpres 112), and
 the captive-industry trackers (nickel). Malaysia has public analogues for tariffs and a *partial*
@@ -60,9 +62,13 @@ No Malaysia work required beyond feeding it different rows.
   provenance taxonomy. Works anywhere Google Open Buildings / Microsoft GMLBF have coverage.
 - `src/model/site_types.py` — the `SiteTypeConfig` registry. Adding Malaysian site categories is
   adding dict entries, which is exactly what it was designed for.
-- **The entire frontend and API.** They read flat CSVs from `outputs/data/processed/`. Point them at
-  Malaysian CSVs with the same columns and the dashboard renders Malaysia. This is the single
-  biggest win from the star-schema + precomputed-flat-table decision.
+- **The API and the data contract.** The frontend reads flat CSVs from `outputs/data/processed/`, and
+  **106 of 107 scorecard columns are country-neutral** — the star-schema + precomputed-flat-table
+  decision paid off. Feed it Malaysian CSVs with the same columns and the charts, table, and map
+  render Malaysia.
+  **Caveat:** the *components* are not as clean as the contract. 541 Indonesia-specific references sit
+  across 36 of 70 frontend files (§5), a third of which are nickel/geothermal panels Malaysia deletes
+  outright. Budget presentation-layer work; do not assume the UI is free.
 
 ### Layer B — global datasets, re-clip to a Malaysian bbox (cheap, days not weeks)
 
@@ -162,7 +168,8 @@ Sequenced so that each milestone is independently demoable, and so that nothing 
 
 Goal: the existing dashboard, rendering Malaysia, off open data only.
 
-1. **Country abstraction** (§5 — do this first, it is the fork-or-not decision).
+1. **Resolve the fork / monorepo / shared-core decision (§5) before writing any Malaysia code** — and
+   with it the proprietary-or-open question in §6.1, which determines the answer.
 2. Re-clip Layer B rasters to a Malaysia bbox; run `download_buildability_data.py` for MY tiles.
 3. Assemble the site universe: 40–60 industrial parks / tech parks / DC clusters across Peninsular,
    Sabah, Sarawak. Start with the ones that matter commercially (Sedenak, Nusajaya, Kulim HTP,
@@ -220,40 +227,64 @@ This is what makes it *their* tool rather than a ported academic one.
 
 ---
 
-## 5. The one architectural decision to make first
+## 5. The one architectural decision to make first — fork, monorepo, or shared core
 
-**Do not fork the repo.** The choice is:
+**Revised 2026-08-19 after measuring the actual coupling.** An earlier draft of this section said
+"don't fork, go multi-country in one repo, ~3–5 days." That was directionally reasonable but rested
+on two claims that measurement did not support: that the frontend ports essentially free, and that
+the model core is country-agnostic. Neither is true as stated. The numbers below are the real ones.
 
-| Option | Cost | Consequence |
+### Measured coupling
+
+| Measurement | Value | Reading |
 |---|---|---|
-| (a) Fork to a Malaysia repo | ~0 upfront | Two codebases diverge immediately. Every model fix, every methodology correction, every UI improvement gets done twice or (realistically) once. Fatal if a third country ever appears. |
-| (b) Multi-country in one repo | ~3–5 days refactor | One product with country modules. Third country becomes cheap. Cleaner commercial story. |
+| Indonesia-specific terms in frontend (`KEK`, `RUPTL`, `BPP`, `PLN`, `Perpres`, `ESDM`, `Kawasan`, nickel, geothermal) | **541 hits across 36 of 70 files** | The presentation layer is ~half country-flavoured. Not free. |
+| Of those, `nickel` + `geothermal` | **100 hits** | Malaysia **deletes** these rather than sharing them. Not portable *or* shared — just gone. |
+| Scorecard columns that are Indonesia-named | **1 of 107** | ✅ **The data contract is genuinely clean.** This is the strongest portability asset. |
+| Indonesia refs inside `src/model/basic_model.py` | **131** | ⚠️ Not logic coupling — *naming* coupling. Parameters are literally `grid_region_bpp_usd_mwh`, `demand_kek_mwh`, `RUPTL_PRE2030_END`. The math is universal; the vocabulary is Indonesian regulatory jargon. |
+| Python that is Indonesia-only and deletable | **~2,600 LOC** (RUPTL extractors, nickel, Perpres 112, geothermal) | A fork drops these on day one. |
+| Candidate country-agnostic core | **~3,500 LOC** (`src/model/` + buildability filters + geo utils) | Small, high-value, high-risk. |
+| **Commits touching the model core, last 30** | **19** | 🔴 **The decisive number.** At that churn rate a forked model diverges within weeks. |
 
-**Recommend (b).** The second country is exactly where you either pay the abstraction cost or lock
-in permanent duplication — and commercialization implies a third (Vietnam, Philippines, Thailand all
-have the same DC-plus-grid-constraint shape).
+### The three options
 
-The blocker is that `src/assumptions.py` is a 1,273-line flat module of Indonesia-calibrated
-constants, imported by name into 30 files, with ~79 hardcoded Indonesian region references scattered
-through `src/`.
+| | Pure fork | Multi-country monorepo | **Shared core, forked apps** |
+|---|---|---|---|
+| Time to first Malaysia demo | Fastest | Slowest (refactor first) | Fast (core extraction can lag) |
+| Model fixes propagate | ❌ Manual, will silently stop | ✅ Automatic | ✅ Automatic (versioned package) |
+| Malaysia can be proprietary / hold NDA data | ✅ Clean | ❌ Awkward — public repo, Commons Clause | ✅ Clean |
+| UX free to diverge for a different user | ✅ | ⚠️ Shared-abstraction tax on a layer that *should* differ | ✅ |
+| Indonesia keeps its DOI/citation integrity | ✅ | ⚠️ Churned by commercial work | ✅ |
+| Third country | ❌ Expensive | ✅ Cheap | ✅ Cheap |
+| Malaysia inherits Indonesian vocabulary | ❌ Forever (`bpp`, `kek` mean nothing to a Malaysian developer) | Fixed by the rename | Fixed by the rename |
 
-**Pragmatic path — two steps, don't do both now:**
+### Recommendation
 
-1. **Now (~1 day):** keep every module-level constant name identical, but have `assumptions.py`
-   populate them from a country-keyed config file selected by a `COUNTRY` env var
-   (`config/assumptions_id.toml`, `config/assumptions_my.toml`). Every one of the 30 call sites is
-   untouched, all 847 tests keep passing, and the region dicts
-   (`KEK_TO_SUBSTATION_RADIUS_BY_REGION_KM`, `WIND_NIGHTTIME_FRACTION_BY_REGION`,
-   `SUBSTATION_HOSTING_CAPACITY_PROXY_MVA`) become country-scoped data. Limitation: one country per
-   process — fine for now.
-2. **Later, only if you need both countries in one deployment:** promote to a `CountryConfig` frozen
-   dataclass injected through the pipeline, following the existing `SiteTypeConfig` registry idiom
-   the codebase already uses. Namespace `data/{country}/` and `outputs/{country}/` and add country
-   as an API path param.
+**Split by layer, not by country.** Extract the ~3,500-line country-agnostic core as a versioned
+package; let Indonesia and Malaysia be separate applications on top of it.
 
-Do step 1 at the very start of M1. Doing it after the Malaysian pipeline exists means doing it twice.
+This captures the one thing that genuinely must stay single-sourced — the model, given 19/30 commit
+churn and a module whose own docstring warns that unit bugs have historically produced 10–100×
+errors — while letting everything that *should* diverge actually diverge.
 
----
+The core extraction requires a rename pass to strip Indonesian regulatory vocabulary from the model
+API (`grid_region_bpp_usd_mwh` → `grid_supply_cost_usd_mwh`, `demand_kek_mwh` → `demand_site_mwh`,
+`KEK_TO_SUBSTATION_THRESHOLD_KM` → `SITE_TO_SUBSTATION_THRESHOLD_KM`). There is precedent and
+appetite for exactly this: the v4.1 plan already locked a hard-rename of
+`lcoe_usd_per_mwh` → `lcoe_generation_usd_per_mwh`, and 847 tests make it safe.
+
+**Sequencing that avoids blocking the demo:** fork the application first and start Malaysia
+immediately; extract the core in parallel, before the two model copies have diverged enough to make
+reconciliation painful. The deadline for extraction is roughly the first Malaysia-driven model
+change — after that, every day costs more.
+
+### The decisive question
+
+The choice actually hinges on one input that is not an engineering question: **does the Malaysia
+version need to be proprietary?** If it must hold NDA'd government data (§3, B1/B2) or be sold as a
+commercial product, separation is close to mandatory and pure-monorepo is off the table. If it stays
+open and the developer relationship is a services engagement, the monorepo becomes viable again.
+Resolve this before branching — see §6.1.
 
 ## 6. Non-code items that are genuinely "next"
 
